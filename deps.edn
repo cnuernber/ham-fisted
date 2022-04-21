@@ -1,0 +1,54 @@
+{:paths ["src" "target/classes"]
+ :aliases
+ {;; Run with clj -T:build function-in-build
+  :dev
+  {:deps {criterium/criterium {:mvn/version "0.4.5"}}}
+  :build
+  {:deps {io.github.clojure/tools.build {:git/tag "v0.8.1" :git/sha "7d40500"}}
+   :ns-default build}
+  :test
+  {:extra-deps {com.cognitect/test-runner
+                {:git/url "https://github.com/cognitect-labs/test-runner"
+                 :sha "209b64504cb3bd3b99ecfec7937b358a879f55c1"}
+                ch.qos.logback/logback-classic {:mvn/version "1.1.3"}}
+   :extra-paths ["test"]
+   :main-opts ["-m" "cognitect.test-runner"]}
+  :codox
+  {:extra-deps {codox-theme-rdash/codox-theme-rdash {:mvn/version "0.1.2"}
+                nrepl/nrepl {:mvn/version "0.8.3"}
+                cider/cider-nrepl {:mvn/version "0.25.5"}
+                com.cnuernber/codox {:mvn/version "1.001"}}
+   :exec-fn codox.main/-main
+   :exec-args {:group-id "com.cnuernber"
+               :artifact-id "ham-fisted"
+               ;;Change this also in build.clj
+               :version "1.000-alpha-1"
+               :name "Ham-Fisted"
+               :description "HAMT exporations"
+               :metadata {:doc/format :markdown}
+               :html {:transforms [[:head] [:append [:script {:async true
+                                                              :src "https://www.googletagmanager.com/gtag/js?id=G-XJYNJF48RM"}]]
+                                   [:head] [:append [:script "window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-XJYNJF48RM');"]]]}
+               :themes [:rdash]
+               :source-paths ["src"]
+               :output-path "docs"
+               :doc-paths ["topics"]
+               :source-uri "https://github.com/cnuernber/ham-fisted/blob/master/{filepath}#L{line}"
+               :namespaces [ham-fisted.api
+                            ham-fisted.coerce
+                            ham-fisted.parallel]}}
+  :deploy
+  {:replace-deps {slipset/deps-deploy {:mvn/version "0.1.5"}}
+   :exec-fn deps-deploy.deps-deploy/deploy
+   :exec-args {:installer :remote
+               :sign-releases? true
+               :artifact "target/ham-fisted.jar"}}
+  :install
+  {:replace-deps {slipset/deps-deploy {:mvn/version "0.1.5"}}
+   :exec-fn deps-deploy.deps-deploy/deploy
+   :exec-args {:installer :local
+               :artifact "target/ham-fisted.jar"}}}}
