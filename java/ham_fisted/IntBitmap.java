@@ -2,7 +2,7 @@ package ham_fisted;
 
 
 public final class IntBitmap {
-  public static final int nextPow2(int val) {
+  public static final int nextPow2(int value) {
     int highestOneBit = Integer.highestOneBit(value);
     if (value == highestOneBit) {
       return value;

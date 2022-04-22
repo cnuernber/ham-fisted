@@ -54,7 +54,8 @@ public class HashBase {
 
   public static final class Counter {
     int count;
-    public Counter(){}
+    public Counter(){ count = 0; }
+    public Counter(Counter p) { count = p.count; }
     public int count() { return count; }
     public void count(int val) { count = val; }
     public void inc() { ++count; }
@@ -154,7 +155,7 @@ public class HashBase {
 	  retval.nextNode = retval.nextNode.assoc(hp, c, nowner, _k, _v);
 	} else {
 	  c.inc();
-	  retval.nextNode = new LeafNode(nower, _k, _v, hashcode);
+	  retval.nextNode = new LeafNode(nowner, _k, _v, hashcode);
 	}
       }
       return retval;
@@ -174,7 +175,7 @@ public class HashBase {
       }
       return this;
     }
-    
+
     static class LFIter implements LeafNodeIterator {
       LeafNode curNode;
       LFIter(LeafNode lf) {
@@ -220,7 +221,7 @@ public class HashBase {
       if (dlen < nelems) {
 	data = new Object[2*dlen];
 	System.arraycopy(curData,0,data,0,dlen);
-      } else (dlen > nextPow2(nelems)) {
+      } else if (dlen > nextPow2(nelems)) {
 	int nelemsp2 = nextPow2(nelems);
 	data = new Object[nelemsp2];
 	System.arraycopy(curData,0,data,0,nelems);
@@ -312,12 +313,12 @@ public class HashBase {
 	  entry = ((BitmapNode)entry).remove(hp, c, hash, k, b);
 	}
 	objData[index] = entry;
-	if (entry == null) { 
+	if (entry == null) {
 	  bm ^= bpos;
 	  //Keep array packed
-	  final int ne = Integer.BitCount(bm) + 1;
-	  for (; index < ne; ++index)
-	    objData[index] = objData[index+1];
+	  final int ne = Integer.bitCount(bm) + 1;
+	  for (int idx = index; idx < ne; ++idx)
+	    objData[idx] = objData[idx+1];
 	}
 	bitmap = bm;
 	if (bm == 0)
@@ -335,9 +336,9 @@ public class HashBase {
       BitmapNode retval = owner == nowner ? this : new BitmapNode(nowner,this,nelems);
       retval.bitmap = bm;
       if (!hasEntry) {
-	final LeafNode lf = new LeafNode(nowner, k, v, hash);
+	final LeafNode lf = new LeafNode(nowner, _k, _v, hash);
 	c.inc();
-	retval.put(bm, index, lf);
+	retval.put(bm, index(bm,bpos), lf);
 	return retval;
       } else {
 	final int index = index(bm,bpos);
@@ -346,7 +347,7 @@ public class HashBase {
 	if (curVal instanceof LeafNode) {
 	  final LeafNode lf = (LeafNode)curVal;
 	  if (lf.hashcode == hash) {
-	    rdata[index] = lf.assoc(hp, c, nowner, _k, _v);	    
+	    rdata[index] = lf.assoc(hp, c, nowner, _k, _v);
 	  } else {
 	    final int nshift = incShift(shift);
 	    final Object[] ndata = new Object[4];
@@ -357,8 +358,8 @@ public class HashBase {
 	    rdata[index] = node.assoc(hp, c, nowner, hash, _k, _v);
 	  }
 	} else {
-	  BitmapNode bm = (BitmapNode)curVal;
-	  rdata[index] = bm.assoc(hp,c,nowner,hash,_k,_v);
+	  BitmapNode node = (BitmapNode)curVal;
+	  rdata[index] = node.assoc(hp,c,nowner,hash,_k,_v);
 	}
       }
       return retval;
@@ -376,7 +377,7 @@ public class HashBase {
 	LeafNode lf = (LeafNode)entry;
 	if (lf.hashcode != hash)
 	  return this;
-	nentry = lf.dissoc(hp, c, nwoner, _k);
+	nentry = lf.dissoc(hp, c, nowner, _k);
       } else {
 	BitmapNode node = (BitmapNode)entry;
 	nentry = node.dissoc(hp, c, nowner, hash, _k);
@@ -385,7 +386,7 @@ public class HashBase {
       if (nentry == entry)
 	return this;
       //We have to preserve nelems to copy elems over the existing one we removed.
-      final int nelems = Integer.BitCount(bm);
+      final int nelems = Integer.bitCount(bm);
       final int nNewElems = nentry == null ? nelems - 1 : nelems;
       if(nNewElems == 0) {
 	return null;
@@ -400,7 +401,7 @@ public class HashBase {
       }
       return retval;
     }
-    
+
     static class BitmapNodeIterator implements LeafNodeIterator {
       final Object[] data;
       int idx;
@@ -477,7 +478,7 @@ public class HashBase {
   protected final Counter c;
   protected BitmapNode root;
   protected LeafNode nullEntry;
-  
+
   public HashBase(HashProvider _hp, Counter _c, BitmapNode r, LeafNode ne) {
     hp = _hp;
     c = _c;
@@ -494,6 +495,10 @@ public class HashBase {
 
   public HashBase() {
     this(hashcodeProvider);
+  }
+
+  HashBase shallowClone() {
+    return new HashBase(hp, new Counter(c), root, nullEntry);
   }
 
   final LeafNode getNode(Object key) {
@@ -521,15 +526,19 @@ public class HashBase {
   }
 
   public int size() { return c.count(); }
-  
+
+  public Iterator iterator(Function<LeafNode,Object> fn) {
+    return new HTIterator(fn, nullEntry, root.iterator());
+  }
+
   class EntrySet<K,V> extends AbstractSet<Map.Entry<K,V>> {
 
     final boolean allowsClear;
-    
+
     EntrySet(boolean _allowsClear) {
       allowsClear = _allowsClear;
     }
-    
+
     public final int size() {
       return HashBase.this.size();
     }
@@ -543,7 +552,7 @@ public class HashBase {
 	throw new RuntimeException("Unimplemented");
     }
     public final Iterator<Map.Entry<K,V>> iterator() {
-      @SuppressWarnings("unchecked") Iterator<Map.Entry<K,V>> retval = (Iterator<Map.Entry<K,V>>) new HTIterator(entryIterFn, nullEntry, root.iterator());
+      @SuppressWarnings("unchecked") Iterator<Map.Entry<K,V>> retval = (Iterator<Map.Entry<K,V>>) HashBase.this.iterator(entryIterFn);
       return retval;
     }
     public final boolean contains(Object o) {
@@ -561,7 +570,7 @@ public class HashBase {
     return new EntrySet<K,V>(allowsClear);
   }
 
-  
+
   class KeySet<K> extends AbstractSet<K> {
     final boolean allowsClear;
     KeySet(boolean _ac) {
@@ -577,18 +586,18 @@ public class HashBase {
 	throw new RuntimeException("Unimplemented");
     }
     public final Iterator<K> iterator() {
-      @SuppressWarnings("unchecked") Iterator<K> retval = (Iterator<K>) new HTIterator(keyIterFn, nullEntry, root.iterator());
+      @SuppressWarnings("unchecked") Iterator<K> retval = (Iterator<K>) HashBase.this.iterator(keyIterFn);
       return retval;
     }
     public final boolean contains(Object key) {
       return getNode(key) != null;
     }
-  }  
+  }
   final <K> Set<K> keySet(K k, boolean allowsClear) {
     return new KeySet<K>(allowsClear);
   }
 
-  
+
   class ValueCollection<V>  extends AbstractCollection<V> {
     boolean allowsClear;
     ValueCollection(boolean ac) { allowsClear = ac; }
@@ -600,7 +609,7 @@ public class HashBase {
 	throw new RuntimeException("Unimplemented");
     }
     public final Iterator<V> iterator() {
-      @SuppressWarnings("unchecked") Iterator<V> retval = (Iterator<V>) new HTIterator(valIterFn, nullEntry, root.iterator());
+      @SuppressWarnings("unchecked") Iterator<V> retval = (Iterator<V>) HashBase.this.iterator(valIterFn);
       return retval;
     }
   }
@@ -608,7 +617,7 @@ public class HashBase {
     return new ValueCollection<V>(allowsClear);
   }
 
-  
+
   public boolean containsKey(Object key) {
     return getNode(key) != null;
   }
@@ -620,7 +629,7 @@ public class HashBase {
 	return true;
     }
     return false;
-  }  
+  }
   //TODO - spliterator parallelization
   @SuppressWarnings("unchecked")
   final void forEachImpl(BiConsumer action) {
