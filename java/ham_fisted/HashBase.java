@@ -14,9 +14,12 @@ import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.function.BiConsumer;
 import clojure.lang.MapEntry;
+//Metadata is one of the truly brilliant ideas from Clojure
+import clojure.lang.IObj;
+import clojure.lang.IPersistentMap;
 
 
-public class HashBase {
+public class HashBase implements IObj {
     /**
    * Ripped directly from HashMap.java in openjdk source code -
    *
@@ -478,12 +481,14 @@ public class HashBase {
   protected final Counter c;
   protected BitmapNode root;
   protected LeafNode nullEntry;
+  protected IPersistentMap meta;
 
-  public HashBase(HashProvider _hp, Counter _c, BitmapNode r, LeafNode ne) {
+  public HashBase(HashProvider _hp, Counter _c, BitmapNode r, LeafNode ne, IPersistentMap _meta) {
     hp = _hp;
     c = _c;
     root = r;
     nullEntry = ne;
+    meta = _meta;
   }
 
   public HashBase(HashProvider _hp) {
@@ -497,9 +502,13 @@ public class HashBase {
     this(hashcodeProvider);
   }
 
-  HashBase shallowClone() {
-    return new HashBase(hp, new Counter(c), root, nullEntry);
+  HashBase shallowClone(IPersistentMap newMeta) {
+    return new HashBase(hp, new Counter(c), root, nullEntry, newMeta);
   }
+  HashBase shallowClone() {
+    return shallowClone(meta);
+  }
+  
 
   final LeafNode getNode(Object key) {
     if(key == null)
@@ -527,7 +536,7 @@ public class HashBase {
 
   public int size() { return c.count(); }
 
-  public Iterator iterator(Function<LeafNode,Object> fn) {
+  public LeafNodeIterator iterator(Function<LeafNode,Object> fn) {
     return new HTIterator(fn, nullEntry, root.iterator());
   }
 
@@ -647,4 +656,8 @@ public class HashBase {
   public Object get(Object k) {
     return getOrDefaultImpl(k,null);
   }
+  public IObj withMeta(IPersistentMap meta) {
+    return shallowClone(meta);
+  }
+  public IPersistentMap meta() { return meta; }
 }

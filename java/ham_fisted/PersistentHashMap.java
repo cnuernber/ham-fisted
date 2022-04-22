@@ -9,6 +9,11 @@ import clojure.lang.IPersistentMap;
 import clojure.lang.IPersistentCollection;
 import clojure.lang.IteratorSeq;
 import clojure.lang.ISeq;
+import clojure.lang.IObj;
+import clojure.lang.IKVReduce;
+import clojure.lang.RT;
+import clojure.lang.IDeref;
+import clojure.lang.IFn;
 import java.util.Iterator;
 import java.util.Collection;
 import java.util.Set;
@@ -16,7 +21,9 @@ import java.util.Objects;
 import java.util.Map;
 
 
-public class PersistentHashMap extends APersistentMap {
+public class PersistentHashMap
+  extends APersistentMap
+  implements IObj, IKVReduce {
 
   final HashBase hb;
 
@@ -137,6 +144,20 @@ public class PersistentHashMap extends APersistentMap {
   }
   public static PersistentHashMap EMPTY = new PersistentHashMap(new HashBase(equivHashProvider));
   public IPersistentCollection empty() {
-    return EMPTY;
+    return (IPersistentCollection)EMPTY.withMeta(hb.meta);
+  }
+  public IPersistentMap meta() { return hb.meta; }
+  public IObj withMeta(IPersistentMap newMeta) {
+    return new PersistentHashMap(hb.shallowClone(newMeta));
+  }
+  public Object kvreduce(IFn f, Object init) {
+    LeafNodeIterator iter = hb.iterator(hb.identityIterFn);
+    while(iter.hasNext()) {
+      LeafNode elem = iter.nextLeaf();
+      init = f.invoke(init, elem.key(), elem.val());
+      if (RT.isReduced(init))
+	return ((IDeref)init).deref();
+    }
+    return init;
   }
 }
