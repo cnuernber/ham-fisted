@@ -2,6 +2,13 @@ package ham_fisted;
 
 
 public final class IntBitmap {
+  public static final int nextPow2(int val) {
+    int highestOneBit = Integer.highestOneBit(value);
+    if (value == highestOneBit) {
+      return value;
+    }
+    return highestOneBit << 1;
+  }
   public static final int mask(int hash, int shift) {
     // Return the last 5 bits of hash right shifted shift bits
     return (hash >>> shift) & 0x01f;
