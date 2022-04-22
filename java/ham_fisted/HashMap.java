@@ -240,9 +240,9 @@ public class HashMap<K,V> implements Map<K,V> {
 	if (entry == null) {
 	  bm ^= bpos;
 	}
+	bitmap = bm;
 	if (bm == 0)
 	  return null;
-	bitmap = bm;
       }
       return this;
     }
@@ -286,10 +286,10 @@ public class HashMap<K,V> implements Map<K,V> {
 	return lf;
       }
     }
-    LeafNodeIterator iterator() { return new BitmapNodeIterator(data); }
+    public LeafNodeIterator iterator() { return new BitmapNodeIterator(data); }
   }
 
-  static class HTIterator implements Iterator {
+  public static class HTIterator implements LeafNodeIterator {
     Function<LeafNode,Object> tfn;
     LeafNode nullEntry;
     LeafNodeIterator rootIter;
@@ -299,13 +299,17 @@ public class HashMap<K,V> implements Map<K,V> {
       rootIter = _rootIter;
     }
     public boolean hasNext() { return nullEntry != null || rootIter.hasNext(); }
-    public Object next() {
-      if (nullEntry != null) {
-	Object retval = tfn.apply(nullEntry);
+    public LeafNode nextLeaf() {
+      if ( nullEntry != null) {
+	LeafNode retval = nullEntry;
 	nullEntry = null;
 	return retval;
+      } else {
+	return rootIter.nextLeaf();
       }
-      return tfn.apply(rootIter.nextLeaf());
+    }
+    public Object next() {
+      return tfn.apply(nextLeaf());
     }
   }
 
@@ -334,20 +338,61 @@ public class HashMap<K,V> implements Map<K,V> {
     nullEntry = null;
     root = new BitmapNode(0,0,new Object[4]);
   }
+
+  V applyMapping(K key, LeafNode node, Object val) {
+    if(val == null)
+      remove(key);
+    else
+      node.val(val);
+    @SuppressWarnings("unchecked") V valval = (V)val;
+    return valval;
+  }
+
   public V compute(K key, BiFunction<? super K,? super V,? extends V> remappingFunction) {
-    throw new RuntimeException("unimplemented");
+    int startc = c.count();
+    LeafNode node = getOrCreate(key);
+    boolean added = startc != c.count();
+    try {
+      @SuppressWarnings("unchecked") V valval = (V)node.val();
+      return applyMapping(key, node, remappingFunction.apply(key, valval));
+    } catch(Exception e) {
+      if (added)
+	remove(key);
+      throw e;
+    }
   }
+
   public V computeIfAbsent(K key, Function<? super K,? extends V> mappingFunction) {
-    throw new RuntimeException("unimplemented");
+    int startc = c.count();
+    LeafNode node = getOrCreate(key);
+    try {
+      return applyMapping(key, node, node.val() == null ? mappingFunction.apply(key) : node.val());
+    } catch(Exception e) {
+      if (startc != c.count())
+	remove(key);
+      throw e;
+    }
   }
+
   public V computeIfPresent(K key, BiFunction<? super K,? super V,? extends V> remappingFunction) {
-    throw new RuntimeException("unimplemented");
+    LeafNode node = getNode(key);
+    if (node == null || node.val() == null)
+      return null;
+    @SuppressWarnings("unchecked") V valval = (V)node.val();
+    return applyMapping(key,node, remappingFunction.apply(key, valval));
   }
+
   public boolean containsKey(Object key) {
     return getNode(key) != null;
   }
   public boolean containsValue(Object v) {
-    throw new RuntimeException("unimplemented");
+    Iterator iter = new HTIterator(identityIterFn, nullEntry, root.iterator());
+    while(iter.hasNext()) {
+      LeafNode lf = (LeafNode)iter.next();
+      if (Objects.equals(lf.val(), v))
+	return true;
+    }
+    return false;
   }
   class EntrySet extends AbstractSet<Map.Entry<K,V>> {
     public final int size()                 { return HashMap.this.size(); }
@@ -376,8 +421,15 @@ public class HashMap<K,V> implements Map<K,V> {
   public boolean equals(Object o) {
     throw new RuntimeException("unimplemented");
   }
+  //TODO - spliterator parallelization
   public void forEach(BiConsumer<? super K,? super V> action) {
-    throw new RuntimeException("unimplemented");
+    Iterator iter = new HTIterator(identityIterFn, nullEntry, root.iterator());
+    while(iter.hasNext()) {
+      LeafNode lf = (LeafNode)iter.next();
+      @SuppressWarnings("unchecked") K k = (K)lf.key();
+      @SuppressWarnings("unchecked") V v = (V)lf.val();
+      action.accept(k, v);
+    }
   }
   LeafNode getNode(Object key) {
     if (key == null)
@@ -425,7 +477,7 @@ public class HashMap<K,V> implements Map<K,V> {
    */
   public V merge(K key, V value, BiFunction<? super V,? super V,? extends V> remappingFunction) {
     if (value == null || remappingFunction == null)
-      throw new NullPointerException();
+      throw new NullPointerException("Neither value nor remapping function may be null");
     LeafNode lf = getOrCreate(key);
     @SuppressWarnings("unchecked") V valval = (V)lf.val();
     if (valval == null) {
