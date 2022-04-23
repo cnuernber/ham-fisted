@@ -241,8 +241,8 @@ public class HashBase implements IObj {
     public BitmapNode(int _owner, int _shift, LeafNode leaf) {
       owner = _owner;
       shift = _shift;
-      bitmap = bitpos(leaf.hashcode, _shift);
-      data = new Object[] {leaf, null, null, null};      
+      bitmap = leaf != null ? bitpos(leaf.hashcode, _shift) : 0;
+      data = new Object[] {leaf, null, null, null};
     }
     public final BitmapNode clone() {
       final Object[] newData = data.clone();
@@ -536,11 +536,11 @@ public class HashBase implements IObj {
   HashBase shallowClone() {
     return shallowClone(meta);
   }
-  
+
   HashBase deepClone() {
     return new HashBase(this);
   }
-  
+
 
   final LeafNode getNode(Object key) {
     if(key == null)
@@ -704,7 +704,7 @@ public class HashBase implements IObj {
       }
     } else {
       int owner = System.identityHashCode(this);
-      Object newRoot = root.dissoc(hp, c, owner, hp.hash(key), key);     
+      Object newRoot = root.dissoc(hp, c, owner, hp.hash(key), key);
       if (newRoot instanceof BitmapNode)
 	root = (BitmapNode)newRoot;
       else {
@@ -725,5 +725,5 @@ public class HashBase implements IObj {
     return shallowClone(meta);
   }
   public IPersistentMap meta() { return meta; }
-  
+
 }

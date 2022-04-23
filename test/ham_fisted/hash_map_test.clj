@@ -1,13 +1,19 @@
 (ns ham-fisted
   (:require [clojure.test :refer [deftest is]])
-  (:import [ham_fisted HashMap]))
+  (:import [ham_fisted HashMap PersistentHashMap]))
 
+(deftest simple-assoc
+  (let [orig PersistentHashMap/EMPTY]
+    (is (= {:a :b} (assoc orig :a :b)))
+    (is (= {} (-> (assoc orig :a :b)
+                  (dissoc :a))))))
 
 (comment
 
   (do
     (require '[criterium.core :as crit])
     (def hm (HashMap.))
+    (def orig PersistentHashMap/EMPTY)
     )
 
   (dotimes [idx 10]
