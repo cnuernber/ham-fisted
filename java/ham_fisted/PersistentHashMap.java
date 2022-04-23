@@ -9,6 +9,7 @@ import clojure.lang.IPersistentMap;
 import clojure.lang.IPersistentCollection;
 import clojure.lang.IteratorSeq;
 import clojure.lang.IEditableCollection;
+import clojure.lang.IMapIterable;
 import clojure.lang.ISeq;
 import clojure.lang.IObj;
 import clojure.lang.IKVReduce;
@@ -24,7 +25,7 @@ import java.util.Map;
 
 public class PersistentHashMap
   extends APersistentMap
-  implements IObj, IKVReduce, IEditableCollection {
+  implements IObj, IMapIterable, IKVReduce, IEditableCollection {
 
   final HashBase hb;
 
@@ -61,62 +62,62 @@ public class PersistentHashMap
   public PersistentHashMap(boolean assoc, Object... kvs) {
     this(equivHashProvider, assoc, kvs);
   }
-  public boolean containsKey(Object key) {
+  public final boolean containsKey(Object key) {
     return hb.containsKey(key);
   }
-  public boolean containsValue(Object v) {
+  public final boolean containsValue(Object v) {
     return hb.containsValue(v);
   }
-  public int size() { return hb.size(); }
-  public int count() { return hb.size(); }
-  public Set keySet() { return hb.keySet((Object)null, false); }
-  public Set entrySet() { return hb.entrySet((Map.Entry<Object,Object>)null, false); }
-  public Collection values() { return hb.values((Object)null, false); }
-  public IMapEntry entryAt(Object key) {
+  public final int size() { return hb.size(); }
+  public final int count() { return hb.size(); }
+  public final Set keySet() { return hb.keySet((Object)null, false); }
+  public final Set entrySet() { return hb.entrySet((Map.Entry<Object,Object>)null, false); }
+  public final Collection values() { return hb.values((Object)null, false); }
+  public final IMapEntry entryAt(Object key) {
     final LeafNode node = hb.getNode(key);
     return node != null ? MapEntry.create(key, node.val()) : null;
   }
-  public ISeq seq() { return  IteratorSeq.create(iterator()); }
-  public Object valAt(Object key, Object notFound) {
+  public final ISeq seq() { return  IteratorSeq.create(iterator()); }
+  public final Object valAt(Object key, Object notFound) {
     return hb.getOrDefaultImpl(key, notFound);
   }
-  public Object valAt(Object key){
+  public final Object valAt(Object key){
     return hb.getOrDefaultImpl(key, null);
   }
-  public Iterator iterator(){
+  public final Iterator iterator(){
     return hb.iterator(entryIterFn);
   }
 
-  public Iterator keyIterator(){
+  public final Iterator keyIterator(){
     return hb.iterator(keyIterFn);
   }
 
-  public Iterator valIterator() {
+  public final Iterator valIterator() {
     return hb.iterator(valIterFn);
   }
 
-  public IPersistentMap assoc(Object key, Object val) {
+  public final IPersistentMap assoc(Object key, Object val) {
     return new PersistentHashMap(hb.shallowClone().assoc(key, val));
   }
-  public IPersistentMap assocEx(Object key, Object val) {
+  public final IPersistentMap assocEx(Object key, Object val) {
     if(containsKey(key))
       throw new RuntimeException("Key already present");
     return assoc(key, val);
   }
-  public IPersistentMap without(Object key) {
+  public final IPersistentMap without(Object key) {
     if (hb.c.count() == 0 || (key == null && hb.nullEntry == null))
       return this;
     return new PersistentHashMap(hb.shallowClone().dissoc(key));
   }
   public static PersistentHashMap EMPTY = new PersistentHashMap(new HashBase(equivHashProvider));
-  public IPersistentCollection empty() {
+  public final IPersistentCollection empty() {
     return (IPersistentCollection)EMPTY.withMeta(hb.meta);
   }
-  public IPersistentMap meta() { return hb.meta; }
-  public IObj withMeta(IPersistentMap newMeta) {
+  public final IPersistentMap meta() { return hb.meta; }
+  public final IObj withMeta(IPersistentMap newMeta) {
     return new PersistentHashMap(hb.shallowClone(newMeta));
   }
-  public Object kvreduce(IFn f, Object init) {
+  public final Object kvreduce(IFn f, Object init) {
     LeafNodeIterator iter = hb.iterator(hb.identityIterFn);
     while(iter.hasNext()) {
       LeafNode elem = iter.nextLeaf();
@@ -126,7 +127,7 @@ public class PersistentHashMap
     }
     return init;
   }
-  public TransientHashMap asTransient() {
+  public final TransientHashMap asTransient() {
     return new TransientHashMap(hb.shallowClone());
   }
 }
