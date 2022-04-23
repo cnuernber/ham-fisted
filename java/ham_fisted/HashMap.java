@@ -27,6 +27,14 @@ public class HashMap<K,V> extends HashBase implements Map<K,V> {
     super();
   }
 
+  public HashMap(HashMap<K,V> other) {
+    super(other);
+  }
+
+  public HashMap<K,V> clone() {
+    return new HashMap<K,V>(this);
+  }
+
   public void clear() {
     super.clear();
   }

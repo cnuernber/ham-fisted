@@ -82,15 +82,18 @@ public class HashBase implements IObj {
     //compute-at support
     Object v;
     LeafNode nextNode;
-    public LeafNode(int _owner, Object _k, Object _v, int hc) {
+    public LeafNode(int _owner, Object _k, Object _v, int hc, LeafNode nn) {
       owner = _owner;
       hashcode = hc;
       k = _k;
       v = _v;
-      nextNode = null;
+      nextNode = nn;
+    }
+    public LeafNode(int _owner, Object _k, Object _v, int hc) {
+      this(_owner, _k, _v, hc, null);
     }
     public LeafNode(Object _k, Object _v, int hc) {
-      this(0, _k, _v, hc);
+      this(0, _k, _v, hc, null);
     }
 
     public LeafNode(Object _k, int hc) {
@@ -103,9 +106,12 @@ public class HashBase implements IObj {
       v = prev.v;
       nextNode = prev.nextNode;
     }
-    public Object key() { return k; }
-    public Object val() { return v; }
-    public Object val(Object newv) {
+    public final LeafNode clone() {
+      return new LeafNode(owner, k, v, hashcode, nextNode != null ? nextNode.clone() : null);
+    }
+    public final Object key() { return k; }
+    public final Object val() { return v; }
+    public final Object val(Object newv) {
       Object retval = v;
       v = newv;
       return retval;
@@ -232,6 +238,23 @@ public class HashBase implements IObj {
 	data = curData.clone();
       }
     }
+    public BitmapNode(int _owner, int _shift, LeafNode leaf) {
+      owner = _owner;
+      shift = _shift;
+      bitmap = bitpos(leaf.hashcode, _shift);
+      data = new Object[] {leaf, null, null, null};      
+    }
+    public final BitmapNode clone() {
+      final Object[] newData = data.clone();
+      final int len = newData.length;
+      for (int idx = 0; idx < len; ++idx) {
+	final Object entry = newData[idx];
+	if (entry != null) {
+	  newData[idx] = entry instanceof LeafNode ? ((LeafNode)entry).clone() : ((BitmapNode)entry).clone();
+	}
+      }
+      return new BitmapNode(owner, bitmap, shift, newData);
+    }
     void put(int bm, int idx, Object lf) {
       final Object[] objData = data;
       final int objLen = objData.length;
@@ -267,11 +290,7 @@ public class HashBase implements IObj {
 	if (hash == lf.hashcode) {
 	  return lf.getOrCreate(hp, c, k);
 	} else {
-	  final int nshift = incShift(shift);
-	  final Object[] ndata = new Object[4];
-	  ndata[0] = lf;
-	  final BitmapNode node = new BitmapNode(bitpos(lf.hashcode, nshift),
-						 nshift, ndata);
+	  final BitmapNode node = new BitmapNode(owner, incShift(shift), lf);
 	  objData[index] = node;
 	  return node.getOrCreate(hp, c, hash, k);
 	}
@@ -481,7 +500,7 @@ public class HashBase implements IObj {
   protected final Counter c;
   protected BitmapNode root;
   protected LeafNode nullEntry;
-  protected IPersistentMap meta;
+  protected final IPersistentMap meta;
 
   public HashBase(HashProvider _hp, Counter _c, BitmapNode r, LeafNode ne, IPersistentMap _meta) {
     hp = _hp;
@@ -496,10 +515,19 @@ public class HashBase implements IObj {
     nullEntry = null;
     root = new BitmapNode(0,0,new Object[4]);
     hp = _hp;
+    meta = null;
   }
 
   public HashBase() {
     this(hashcodeProvider);
+  }
+
+  public HashBase(HashBase other) {
+    hp = other.hp;
+    c = new Counter(other.c);
+    root = root != null ? root.clone() : null;
+    nullEntry = nullEntry  != null ? nullEntry.clone() : null;
+    meta = other.meta;
   }
 
   HashBase shallowClone(IPersistentMap newMeta) {
@@ -507,6 +535,10 @@ public class HashBase implements IObj {
   }
   HashBase shallowClone() {
     return shallowClone(meta);
+  }
+  
+  HashBase deepClone() {
+    return new HashBase(this);
   }
   
 
@@ -649,6 +681,39 @@ public class HashBase implements IObj {
     }
   }
 
+  //Mutating assoc.  Uses identity hashcode to only copy necessary information.
+  //Always returns this
+  final HashBase assoc(Object key, Object val) {
+    int ownerid = System.identityHashCode(this);
+    if (key == null) {
+      if (nullEntry == null)
+	c.inc();
+      nullEntry = new LeafNode(ownerid, key, val, 0);
+    } else {
+      root = root.assoc(hp, c, ownerid, hp.hash(key), key, val);
+    }
+    return this;
+  }
+
+  //Dissoc.  No check for null key identity - always returns this
+  final HashBase dissoc(Object key) {
+    if(key == null) {
+      if(nullEntry != null) {
+	nullEntry = null;
+	c.dec();
+      }
+    } else {
+      int owner = System.identityHashCode(this);
+      Object newRoot = root.dissoc(hp, c, owner, hp.hash(key), key);     
+      if (newRoot instanceof BitmapNode)
+	root = (BitmapNode)newRoot;
+      else {
+	root = new BitmapNode(owner, 0, (LeafNode)newRoot);
+      }
+    }
+    return this;
+  }
+
   final Object getOrDefaultImpl(Object key, Object defaultValue) {
     LeafNode lf = getNode(key);
     return lf == null ? defaultValue : lf.val();
@@ -660,4 +725,5 @@ public class HashBase implements IObj {
     return shallowClone(meta);
   }
   public IPersistentMap meta() { return meta; }
+  
 }

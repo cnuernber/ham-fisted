@@ -8,6 +8,7 @@ import clojure.lang.IMapEntry;
 import clojure.lang.IPersistentMap;
 import clojure.lang.IPersistentCollection;
 import clojure.lang.IteratorSeq;
+import clojure.lang.IEditableCollection;
 import clojure.lang.ISeq;
 import clojure.lang.IObj;
 import clojure.lang.IKVReduce;
@@ -23,7 +24,7 @@ import java.util.Map;
 
 public class PersistentHashMap
   extends APersistentMap
-  implements IObj, IKVReduce {
+  implements IObj, IKVReduce, IEditableCollection {
 
   final HashBase hb;
 
@@ -95,16 +96,7 @@ public class PersistentHashMap
   }
 
   public IPersistentMap assoc(Object key, Object val) {
-    HashBase newBase = hb.shallowClone();
-    int ownerid = System.identityHashCode(newBase);
-    if (key == null) {
-      if (newBase.nullEntry == null)
-	newBase.c.inc();
-      newBase.nullEntry = new LeafNode(ownerid, key, val, 0);
-    } else
-      newBase.root = newBase.root.assoc(newBase.hp, newBase.c, ownerid, newBase.hp.hash(key),
-					key, val);
-    return new PersistentHashMap(newBase);
+    return new PersistentHashMap(hb.shallowClone().assoc(key, val));
   }
   public IPersistentMap assocEx(Object key, Object val) {
     if(containsKey(key))
@@ -112,35 +104,9 @@ public class PersistentHashMap
     return assoc(key, val);
   }
   public IPersistentMap without(Object key) {
-    if (hb.c.count() == 0)
+    if (hb.c.count() == 0 || (key == null && hb.nullEntry == null))
       return this;
-    if(key == null) {
-      if (hb.nullEntry == null)
-	return this;
-      else {
-	HashBase newB = hb.shallowClone();
-	newB.nullEntry = null;
-	newB.c.dec();
-	return new PersistentHashMap(newB);
-      }
-    } else {
-      HashBase newB = hb.shallowClone();
-      int owner = System.identityHashCode(newB);
-      Object newRoot = newB.root.dissoc(newB.hp, newB.c, owner, newB.hp.hash(key), key);
-      if (newRoot instanceof BitmapNode)
-	newB.root = (BitmapNode)newRoot;
-      else {
-	int bitmap = 0;
-	Object[] data = new Object[4];
-	if (newRoot != null) {
-	  LeafNode lf = (LeafNode)newRoot;
-	  bitmap = IntBitmap.bitpos(lf.hashcode, 0);
-	  data[0] = lf;
-	}
-	newB.root = new BitmapNode(owner, bitmap, 0, data);
-      }
-      return new PersistentHashMap(newB);
-    }
+    return new PersistentHashMap(hb.shallowClone().dissoc(key));
   }
   public static PersistentHashMap EMPTY = new PersistentHashMap(new HashBase(equivHashProvider));
   public IPersistentCollection empty() {
@@ -159,5 +125,8 @@ public class PersistentHashMap
 	return ((IDeref)init).deref();
     }
     return init;
+  }
+  public TransientHashMap asTransient() {
+    return new TransientHashMap(hb.shallowClone());
   }
 }
