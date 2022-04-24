@@ -6,9 +6,14 @@
 
 (comment
 
-  (.printNodes (reduce #(assoc %1 %2 %2) orig (range 7)))
+  (.printNodes (reduce #(assoc %1 %2 %2) orig (range 13)))
   (def data (-> (reduce #(assoc! %1 %2 %2) (transient orig) (range 13))
                 (persistent!)))
+
+  (def data (let [hm (HashMap. PersistentHashMap/equivHashProvider)]
+              (doseq [idx (range 13)]
+                (.put hm idx idx))
+              hm))
 
   (defn tdissoc
     [data elems]

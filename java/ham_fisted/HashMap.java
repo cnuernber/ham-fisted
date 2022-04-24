@@ -175,7 +175,7 @@ public class HashMap<K,V> extends HashBase implements Map<K,V> {
       return null;
     }
     Box b = new Box();
-    root.remove(hp, c, hp.hash(key), key, b);
+    root.remove(hp, c, hp.hash(key), key, b, false);
     @SuppressWarnings("unchecked") V retval = (V)b.obj;
     return retval;
   }
