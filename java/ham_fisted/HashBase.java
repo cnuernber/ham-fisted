@@ -1,6 +1,6 @@
 package ham_fisted;
 
-
+import static java.lang.System.out;
 import static ham_fisted.IntBitmap.*;
 import java.util.Set;
 import java.util.Collection;
@@ -202,6 +202,14 @@ public class HashBase implements IObj {
     public final LeafNodeIterator iterator() {
       return new LFIter(this);
     }
+    public void print(int indent) {
+      for(int idx = 0; idx < indent; ++idx)
+	out.print("  ");
+      out.println("leafNode - " + String.valueOf(k) + ": " + String.valueOf(v));
+      ++indent;
+      if (nextNode != null)
+	nextNode.print(indent);
+    }
   }
   public static final class BitmapNode {
     public final int owner;
@@ -221,22 +229,11 @@ public class HashBase implements IObj {
     public BitmapNode() {
       this(0,0, new Object[4]);
     }
-    public BitmapNode(int _owner, BitmapNode node, int nelems) {
+    public BitmapNode(int _owner, int _bitmap, int _shift) {
       owner = _owner;
-      bitmap = node.bitmap;
-      shift = node.shift;
-      final Object[] curData = node.data;
-      final int dlen = curData.length;
-      if (dlen < nelems) {
-	data = new Object[2*dlen];
-	System.arraycopy(curData,0,data,0,dlen);
-      } else if (dlen > nextPow2(nelems)) {
-	int nelemsp2 = nextPow2(nelems);
-	data = new Object[nelemsp2];
-	System.arraycopy(curData,0,data,0,nelems);
-      } else {
-	data = curData.clone();
-      }
+      bitmap = _bitmap;
+      shift = _shift;
+      data = new Object[nextPow2(Integer.bitCount(_bitmap))];
     }
     public BitmapNode(int _owner, int _shift, LeafNode leaf) {
       owner = _owner;
@@ -353,44 +350,55 @@ public class HashBase implements IObj {
       final int bpos = bitpos(hash,shift);
       int bm = bitmap;
       final boolean hasEntry = (bm & bpos) != 0;
-      final int nelems = hasEntry ? Integer.bitCount(bitmap) : Integer.bitCount(bitmap) + 1;
       bm = bm | bpos;
-      BitmapNode retval = owner == nowner ? this : new BitmapNode(nowner,this,nelems);
-      retval.bitmap = bm;
+      final Object[] srcData = data;
+      final BitmapNode retval;
+      if (owner == nowner) {
+	bitmap = bm;
+	retval = this;
+      } else {
+	retval = new BitmapNode(nowner,bm,shift);
+      }
+      final Object[] dstData = retval.data;
+      final int nelems = Integer.bitCount(bm);
       if (!hasEntry) {
 	final LeafNode lf = new LeafNode(nowner, _k, _v, hash);
 	c.inc();
-	retval.put(bm, index(bm,bpos), lf);
+	final int targetIdx = index(bm,bpos);
+	if (srcData != dstData) {
+	  for (int idx = 0; idx < targetIdx; ++idx)
+	    dstData[idx] = srcData[idx];
+	}
+	for (int dstIdx = nelems - 1; dstIdx > targetIdx; --dstIdx)
+	  dstData[dstIdx] = srcData[dstIdx - 1];
+	dstData[targetIdx] = lf;
 	return retval;
       } else {
+
 	final int index = index(bm,bpos);
-	final Object[] rdata = retval.data;
-	final Object curVal = rdata[index];
+	if (srcData != dstData)
+	  System.arraycopy(srcData, 0, dstData, 0, nelems);
+	final Object curVal = dstData[index];
 	if (curVal instanceof LeafNode) {
 	  final LeafNode lf = (LeafNode)curVal;
 	  if (lf.hashcode == hash) {
-	    rdata[index] = lf.assoc(hp, c, nowner, _k, _v);
+	    dstData[index] = lf.assoc(hp, c, nowner, _k, _v);
 	  } else {
-	    final int nshift = incShift(shift);
-	    final Object[] ndata = new Object[4];
-	    ndata[0] = lf;
-	    final BitmapNode node = new BitmapNode(nowner,
-						   bitpos(lf.hashcode, nshift),
-						   nshift, ndata);
-	    rdata[index] = node.assoc(hp, c, nowner, hash, _k, _v);
+	    BitmapNode node = new BitmapNode(nowner, incShift(shift), lf);
+	    dstData[index] = node.assoc(hp, c, nowner, hash, _k, _v);
 	  }
 	} else {
-	  BitmapNode node = (BitmapNode)curVal;
-	  rdata[index] = node.assoc(hp,c,nowner,hash,_k,_v);
+	  final BitmapNode node = (BitmapNode)curVal;
+	  dstData[index] = node.assoc(hp,c,nowner,hash,_k,_v);
 	}
       }
       return retval;
     }
-    public Object dissoc(HashProvider hp, Counter c, int nowner, int hash, Object _k) {
+    public Object dissoc(HashProvider hp, Counter c, int nowner, int hash, Object _k,
+			 boolean collapse) {
       final int bpos = bitpos(hash,shift);
       int bm = bitmap;
-      final boolean hasEntry = (bm & bpos) != 0;
-      if(!hasEntry)
+      if((bm & bpos) == 0)
 	return this;
       final int index = index(bm,bpos);
       Object entry = data[index];
@@ -402,25 +410,50 @@ public class HashBase implements IObj {
 	nentry = lf.dissoc(hp, c, nowner, _k);
       } else {
 	BitmapNode node = (BitmapNode)entry;
-	nentry = node.dissoc(hp, c, nowner, hash, _k);
+	nentry = node.dissoc(hp, c, nowner, hash, _k, true);
       }
       //No change
       if (nentry == entry)
 	return this;
       //We have to preserve nelems to copy elems over the existing one we removed.
+      boolean removed = nEntry == null;
+      if (removed)
+	bm ^= bitpos;
       final int nelems = Integer.bitCount(bm);
-      final int nNewElems = nentry == null ? nelems - 1 : nelems;
-      if(nNewElems == 0) {
-	return null;
+      final Object[] srcData = data;
+      //Look for quick opportunities to collapse the tree.
+      if (collapse) {
+	if(nelems == 0) {
+	  return null;
+	} else if (nelems == 1 && removed) {
+	  Object leftover = srcData[index == 0 ? 1 : 0];
+	  if (leftover instanceof LeafNode)
+	    return leftover;
+	}
       }
-      final BitmapNode retval = owner == nowner ? this : new BitmapNode(nowner, this, nelems);
-      final Object[] rdata = retval.data;
-      if (nentry == null) {
-	for(int idx = index; idx < nNewElems; ++idx)
-	  rdata[idx] = rdata[idx+1];
+      BitmapNode retval;
+      if (owner == nowner) {
+	retval = this;
+	retval.bitmap = bm;
       } else {
-	rdata[index] = nentry;
+	retval = new BitmapNode(nowner, bm, shift);
       }
+      final Object[] dstData = retval.data;
+
+
+      if (removed) {
+	if (dstData != srcData)
+	  for(int idx = 0; idx < index; ++idx)
+	    dstData[idx] = srcData[idx];
+	//fill the gap
+	for(int idx = index; idx < nelems; ++idx)
+	  dstData[idx] = srcData[idx+1];
+      } else {
+	if (dstData != srcData)
+	  System.arraycopy(srcData, 0, dstData, 0, nelems);
+	dstData[index] = nentry;
+      }
+
       return retval;
     }
 
@@ -465,6 +498,26 @@ public class HashBase implements IObj {
       }
     }
     public LeafNodeIterator iterator() { return new BitmapNodeIterator(data); }
+    public void print(int indent) {
+      for(int idx = 0; idx < indent; ++idx) {
+	out.print("  ");
+      }
+      int bc = Integer.bitCount(bitmap);
+      out.println("Shift: " + String.valueOf(shift) + " Bitmap: " + String.valueOf(bitmap) +
+		  " bitcount: " + bc);
+      ++indent;
+      for (int idx = 0; idx < bc; ++idx) {
+	final Object obj = data[idx];
+	if ( obj instanceof BitmapNode) {
+	  ((BitmapNode)obj).print(indent);
+	} else {
+	  ((LeafNode)obj).print(indent);
+	}
+      }
+    }
+    public void print() {
+      print(0);
+    }
   }
 
   public static class HTIterator implements LeafNodeIterator {
@@ -473,7 +526,7 @@ public class HashBase implements IObj {
     LeafNodeIterator rootIter;
     HTIterator(Function<LeafNode,Object> _tfn, LeafNode _nullEntry, LeafNodeIterator _rootIter) {
       tfn = _tfn;
-      _nullEntry = _nullEntry;
+      nullEntry = _nullEntry;
       rootIter = _rootIter;
     }
     public boolean hasNext() { return nullEntry != null || rootIter.hasNext(); }
@@ -725,5 +778,10 @@ public class HashBase implements IObj {
     return shallowClone(meta);
   }
   public IPersistentMap meta() { return meta; }
+  public void printNodes() {
+    if (nullEntry != null)
+      out.println("nullEntry: " + String.valueOf(nullEntry.val()));
+    root.print();
+  }
 
 }

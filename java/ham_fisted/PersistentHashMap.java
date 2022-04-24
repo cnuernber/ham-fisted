@@ -130,4 +130,5 @@ public class PersistentHashMap
   public final TransientHashMap asTransient() {
     return new TransientHashMap(hb.shallowClone());
   }
+  public void printNodes() { hb.printNodes(); }
 }
