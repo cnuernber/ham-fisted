@@ -106,8 +106,8 @@ public class HashMap<K,V> extends HashBase implements Map<K,V> {
   public int hashCode() { return -1; }
   public boolean isEmpty() { return c.count() == 0; }
   public Set<K> keySet() { return new KeySet<K>(true); }
-  
-  
+
+
   /**
    * If the specified key is not already associated with a value or is associated
    * with null, associates it with the given non-null value. Otherwise, replaces the

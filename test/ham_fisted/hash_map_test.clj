@@ -7,7 +7,13 @@
 (comment
 
   (.printNodes (reduce #(assoc %1 %2 %2) orig (range 7)))
-  (def data (reduce #(assoc %1 %2 %2) orig (range 10)))
+  (def data (-> (reduce #(assoc! %1 %2 %2) (transient orig) (range 13))
+                (persistent!)))
+
+  (defn tdissoc
+    [data elems]
+    (-> (apply dissoc! (transient data) elems)
+        (persistent!)))
 
   )
 

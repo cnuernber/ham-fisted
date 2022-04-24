@@ -104,4 +104,5 @@ public class TransientHashMap
   public IObj withMeta(IPersistentMap newMeta) {
     return new TransientHashMap(hb.shallowClone(newMeta));
   }
+  public void printNodes() { hb.printNodes(); }
 }

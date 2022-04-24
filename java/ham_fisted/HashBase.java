@@ -352,15 +352,20 @@ public class HashBase implements IObj {
       final boolean hasEntry = (bm & bpos) != 0;
       bm = bm | bpos;
       final Object[] srcData = data;
+      final int nelems = Integer.bitCount(bm);
       final BitmapNode retval;
       if (owner == nowner) {
 	bitmap = bm;
 	retval = this;
+	if (!hasEntry) {
+	  int newLen = nextPow2(nelems);
+	  if (srcData.length < newLen)
+	    data = new Object[newLen];
+	}
       } else {
 	retval = new BitmapNode(nowner,bm,shift);
       }
       final Object[] dstData = retval.data;
-      final int nelems = Integer.bitCount(bm);
       if (!hasEntry) {
 	final LeafNode lf = new LeafNode(nowner, _k, _v, hash);
 	c.inc();
@@ -374,7 +379,6 @@ public class HashBase implements IObj {
 	dstData[targetIdx] = lf;
 	return retval;
       } else {
-
 	final int index = index(bm,bpos);
 	if (srcData != dstData)
 	  System.arraycopy(srcData, 0, dstData, 0, nelems);
@@ -416,19 +420,24 @@ public class HashBase implements IObj {
       if (nentry == entry)
 	return this;
       //We have to preserve nelems to copy elems over the existing one we removed.
-      boolean removed = nEntry == null;
+      boolean removed = nentry == null;
       if (removed)
-	bm ^= bitpos;
+	bm ^= bpos;
       final int nelems = Integer.bitCount(bm);
       final Object[] srcData = data;
       //Look for quick opportunities to collapse the tree.
       if (collapse) {
 	if(nelems == 0) {
 	  return null;
-	} else if (nelems == 1 && removed) {
-	  Object leftover = srcData[index == 0 ? 1 : 0];
-	  if (leftover instanceof LeafNode)
-	    return leftover;
+	} else if (nelems == 1) {
+	  if (removed) {
+	    Object leftover = srcData[index == 0 ? 1 : 0];
+	    if (leftover instanceof LeafNode)
+	      return leftover;
+	  } else {
+	    if (nentry instanceof LeafNode)
+	      return nentry;
+	  }
 	}
       }
       BitmapNode retval;
@@ -757,12 +766,7 @@ public class HashBase implements IObj {
       }
     } else {
       int owner = System.identityHashCode(this);
-      Object newRoot = root.dissoc(hp, c, owner, hp.hash(key), key);
-      if (newRoot instanceof BitmapNode)
-	root = (BitmapNode)newRoot;
-      else {
-	root = new BitmapNode(owner, 0, (LeafNode)newRoot);
-      }
+      root = (BitmapNode)root.dissoc(hp,c,owner,hp.hash(key),key,false);
     }
     return this;
   }
