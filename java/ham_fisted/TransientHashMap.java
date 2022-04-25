@@ -20,16 +20,14 @@ public final class TransientHashMap
 
 
   final HashBase hb;
-  int owner;
+  boolean editable = true;
 
   public TransientHashMap(HashBase _hb) {
     hb = _hb;
-    owner = System.identityHashCode(hb);
   }
 
   TransientHashMap(TransientHashMap other) {
     hb = new HashBase(other.hb);
-    owner = System.identityHashCode(hb);
   }
 
   public final TransientHashMap clone() {
@@ -44,7 +42,7 @@ public final class TransientHashMap
     return lf == null ? null : new MapEntry(lf.key(), lf.val());
   }
   final void ensureEditable() {
-    if (owner != System.identityHashCode(hb))
+    if (!editable)
       throw new RuntimeException("Transient map editted after persistent!");
   }
   public final TransientHashMap assoc(Object key, Object val) {
@@ -79,7 +77,7 @@ public final class TransientHashMap
   }
 
   public final PersistentHashMap persistent() {
-    owner = 0;
+    editable = false;
     return new PersistentHashMap(hb);
   }
 

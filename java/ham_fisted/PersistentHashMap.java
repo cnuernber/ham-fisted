@@ -16,11 +16,14 @@ import clojure.lang.IKVReduce;
 import clojure.lang.RT;
 import clojure.lang.IDeref;
 import clojure.lang.IFn;
+import clojure.lang.IHashEq;
+import clojure.lang.Numbers;
 import java.util.Iterator;
 import java.util.Collection;
 import java.util.Set;
 import java.util.Objects;
 import java.util.Map;
+import java.math.BigDecimal;
 
 
 public final class PersistentHashMap
@@ -31,7 +34,23 @@ public final class PersistentHashMap
 
   public static final HashProvider equivHashProvider = new HashProvider(){
       public int hash(Object obj) {
-	return Util.hasheq(obj);
+	//Faster (slightly) implementation of hashcode work.
+	if (obj == null) return 0;
+	if (obj instanceof IHashEq)
+	  return ((IHashEq)obj).hasheq();
+
+	if (obj instanceof Long ||
+	    obj instanceof Integer ||
+	    obj instanceof Short ||
+	    obj instanceof Byte)
+	  return HashMap.mixhash(obj.hashCode());
+	if (obj instanceof Double)
+	  return obj.equals(-0.0) ? 0 : HashMap.mixhash(obj.hashCode());
+	if (obj instanceof Float)
+	  return obj.equals(-0.0F) ? 0 : HashMap.mixhash(obj.hashCode());
+	if (obj instanceof Number)
+	  return Util.hasheq(obj);
+	return HashMap.mixhash(obj.hashCode());
       }
       public boolean equals(Object lhs, Object rhs) {
 	return Util.equiv(lhs,rhs);

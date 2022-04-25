@@ -75,11 +75,19 @@
                       (dotimes [idx 2]
                         (.put hm idx idx))))
   ;;34ns
+  ;;jdk-17 - 24ns
+  (crit/quick-bench (let [hm (HashMap. PersistentHashMap/equivHashProvider)]
+                      (dotimes [idx 2]
+                        (.put hm idx idx))))
+  ;;70ns - twice as fast as clojure's transient for small case.  hasheq is the long
+  ;;poll in the tent.
+  ;;jdk-17 - 61ns
 
   (crit/quick-bench (let [hm (java.util.HashMap.)]
                       (dotimes [idx 2]
                         (.put hm idx idx))))
   ;;36ns
+  ;;jdk-17 31ns
 
   (crit/quick-bench (loop [idx 0
                            hm (transient {})]
@@ -88,13 +96,7 @@
                                (assoc! hm idx idx))
                         (persistent! hm))))
   ;;113ns
-
-  (loop [idx 0
-         hm (transient PersistentHashMap/EMPTY)]
-    (if (< idx 2)
-      (recur (unchecked-inc idx)
-             (assoc! hm idx idx))
-      (persistent! hm)))
+  ;;jdk-17 - 136ns
 
   (crit/quick-bench (loop [idx 0
                            hm (transient PersistentHashMap/EMPTY)]
@@ -102,8 +104,11 @@
                         (recur (unchecked-inc idx)
                                (assoc! hm idx idx))
                         (persistent! hm))))
+  ;;147ns - arrayhashmap is faster for this case but still a lot slower than
+  ;;using hashmap representation.
+  ;;jdk-17 - 137ns
 
-  (crit/quick-bench (.shallowClone (.unsafeGetHashBase PersistentHashMap/EMPTY)))
+  (crit/quick-bench (persistent! (transient PersistentHashMap/EMPTY)))
 
 
 
@@ -111,11 +116,18 @@
                       (dotimes [idx 1000]
                         (.put hm idx idx))))
   ;;21us
+  ;;jdk-17 - 21us
+  (crit/quick-bench (let [hm (HashMap. PersistentHashMap/equivHashProvider)]
+                      (dotimes [idx 1000]
+                        (.put hm idx idx))))
+  ;;41us
+  ;;jdk-17 - 39us
 
   (crit/quick-bench (let [hm (java.util.HashMap.)]
                       (dotimes [idx 1000]
                         (.put hm idx idx))))
   ;;17us
+  ;;jdk-17 - 21us
   (crit/quick-bench (loop [idx 0
                            hm (transient {})]
                       (if (< idx 1000)
@@ -123,18 +135,23 @@
                                (assoc! hm idx idx))
                         (persistent! hm))))
   ;;112us
+  ;;123us
+  (crit/quick-bench (loop [idx 0
+                           hm (transient PersistentHashMap/EMPTY)]
+                      (if (< idx 1000)
+                        (recur (unchecked-inc idx)
+                               (assoc! hm idx idx))
+                        (persistent! hm))))
+  ;;47us
+  ;;jdk-17 50us
 
-  (dotimes [idx 10000]
-    (let [hm (HashMap.)]
-      (dotimes [idx 100000]
-        (.put hm idx idx))
-      hm))
 
 
+  ;;Useful to profile small things sometimes.
   (dotimes [idx 100000000]
     (loop [idx 0
-           hm (transient PersistentHashMap/EMPTY)]
-      (if (< idx 2)
+           hm (transient {})]
+      (if (< idx 20)
         (recur (unchecked-inc idx)
                (assoc! hm idx idx))
         (persistent! hm))))
