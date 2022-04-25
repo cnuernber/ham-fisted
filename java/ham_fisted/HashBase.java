@@ -76,30 +76,30 @@ public class HashBase implements IObj {
   }
 
   public static final class LeafNode {
-    public final int owner;
+    public final HashBase owner;
     public final int hashcode;
     public final Object k;
     //compute-at support
     Object v;
     LeafNode nextNode;
-    public LeafNode(int _owner, Object _k, Object _v, int hc, LeafNode nn) {
+    public LeafNode(HashBase _owner, Object _k, Object _v, int hc, LeafNode nn) {
       owner = _owner;
       hashcode = hc;
       k = _k;
       v = _v;
       nextNode = nn;
     }
-    public LeafNode(int _owner, Object _k, Object _v, int hc) {
+    public LeafNode(HashBase _owner, Object _k, Object _v, int hc) {
       this(_owner, _k, _v, hc, null);
     }
     public LeafNode(Object _k, Object _v, int hc) {
-      this(0, _k, _v, hc, null);
+      this(null, _k, _v, hc, null);
     }
 
     public LeafNode(Object _k, int hc) {
-      this(0, _k, null, hc);
+      this(null, _k, null, hc);
     }
-    public LeafNode(int _owner, LeafNode prev) {
+    public LeafNode(HashBase _owner, LeafNode prev) {
       owner = _owner;
       hashcode = prev.hashcode;
       k = prev.k;
@@ -148,14 +148,14 @@ public class HashBase implements IObj {
       }
       return this;
     }
-    public final LeafNode setOwner(int nowner) {
+    public final LeafNode setOwner(HashBase nowner) {
       if (owner != nowner) {
 	return new LeafNode(nowner, this);
       } else {
 	return this;
       }
     }
-    public final LeafNode assoc(HashProvider hp, Counter c, int nowner, Object _k, Object _v) {
+    public final LeafNode assoc(HashProvider hp, Counter c, HashBase nowner, Object _k, Object _v) {
       LeafNode retval = setOwner(nowner);
       if (hp.equals(_k,k)) {
 	retval.v = _v;
@@ -169,7 +169,7 @@ public class HashBase implements IObj {
       }
       return retval;
     }
-    public final LeafNode dissoc(HashProvider hp, Counter c, int nowner, Object _k) {
+    public final LeafNode dissoc(HashProvider hp, Counter c, HashBase nowner, Object _k) {
       if (hp.equals(k, _k)) {
 	c.dec();
 	return nextNode;
@@ -212,12 +212,12 @@ public class HashBase implements IObj {
     }
   }
   public static final class BitmapNode {
-    public final int owner;
+    public final HashBase owner;
     public final int shift;
     int bitmap;
     Object[] data;
 
-    public BitmapNode(int _owner, int _bitmap, int _shift, Object[] _data) {
+    public BitmapNode(HashBase _owner, int _bitmap, int _shift, Object[] _data) {
       owner = _owner;
       bitmap = _bitmap;
       shift = _shift;
@@ -225,21 +225,21 @@ public class HashBase implements IObj {
     }
 
     public BitmapNode(int _bitmap, int _shift, Object[] _data) {
-      this(0, _bitmap, _shift,  _data);
+      this(null, _bitmap, _shift,  _data);
     }
 
     public BitmapNode() {
-      this(0,0, new Object[4]);
+      this(null,0,0, new Object[4]);
     }
 
-    public BitmapNode(int _owner, int _bitmap, int _shift) {
+    public BitmapNode(HashBase _owner, int _bitmap, int _shift) {
       owner = _owner;
       bitmap = _bitmap;
       shift = _shift;
       data = new Object[nextPow2(Integer.bitCount(_bitmap))];
     }
 
-    public BitmapNode(int _owner, int _shift, LeafNode leaf) {
+    public BitmapNode(HashBase _owner, int _shift, LeafNode leaf) {
       owner = _owner;
       shift = _shift;
       bitmap = leaf != null ? bitpos(leaf.hashcode, _shift) : 0;
@@ -384,27 +384,27 @@ public class HashBase implements IObj {
       return this;
     }
 
-    public BitmapNode assoc(HashProvider hp, Counter c, int nowner,
-			    int hash, Object _k, Object _v) {
+    public final BitmapNode assoc(HashProvider hp, Counter c, HashBase nowner,
+				  int hash, Object _k, Object _v) {
       final int bpos = bitpos(hash,shift);
-      int bm = bitmap;
-      final boolean hasEntry = (bm & bpos) != 0;
-      bm = bm | bpos;
-      final Object[] srcData = data;
-      final int nelems = Integer.bitCount(bm);
       final boolean forceCopy = nowner != owner;
-      if (!hasEntry) {
-	final LeafNode lf = new LeafNode(nowner, _k, _v, hash);
+      final int bm = bitmap;
+      if ((bm & bpos) == 0) {
 	c.inc();
-	final Object[] dstData = insert(srcData, lf, index(bm,bpos), nelems, forceCopy);
-	if(forceCopy) {
-	  return new BitmapNode(nowner, bm, shift, dstData);
+	final int nbm = bm | bpos;
+	final Object[] dstData = insert(data, new LeafNode(nowner, _k, _v, hash),
+					index(nbm,bpos),
+					Integer.bitCount(nbm),
+					forceCopy);
+	if(nowner != owner) {
+	  return new BitmapNode(nowner, nbm, shift, dstData);
 	} else {
 	  data = dstData;
-	  bitmap = bm;
+	  bitmap = nbm;
 	  return this;
 	}
       } else {
+	final Object[] srcData = data;
 	final Object[] dstData = forceCopy ? srcData.clone() : srcData;
 	final int index = index(bm,bpos);
 	final Object curVal = dstData[index];
@@ -424,7 +424,7 @@ public class HashBase implements IObj {
       }
     }
 
-    public Object dissoc(HashProvider hp, Counter c, int nowner, int hash, Object _k,
+    public Object dissoc(HashProvider hp, Counter c, HashBase nowner, int hash, Object _k,
 			 boolean collapse) {
       final int bpos = bitpos(hash,shift);
       int bm = bitmap;
@@ -533,7 +533,7 @@ public class HashBase implements IObj {
       }
       int bc = Integer.bitCount(bitmap);
       out.println("Shift: " + String.valueOf(shift) + " Bitmap: " + String.valueOf(bitmap) +
-		  " bitcount: " + bc);
+		  " bitcount: " + bc + " Owner: " + String.valueOf(owner));
       ++indent;
       for (int idx = 0; idx < bc; ++idx) {
 	final Object obj = data[idx];
@@ -611,15 +611,15 @@ public class HashBase implements IObj {
   public HashBase(HashBase other) {
     hp = other.hp;
     c = new Counter(other.c);
-    root = root != null ? root.clone() : null;
-    nullEntry = nullEntry  != null ? nullEntry.clone() : null;
+    root = other.root != null ? other.root.clone() : null;
+    nullEntry = nullEntry  != null ? other.nullEntry.clone() : null;
     meta = other.meta;
   }
 
   HashBase shallowClone(IPersistentMap newMeta) {
     return new HashBase(hp, new Counter(c), root, nullEntry, newMeta);
   }
-  HashBase shallowClone() {
+  public HashBase shallowClone() {
     return shallowClone(meta);
   }
 
@@ -777,13 +777,12 @@ public class HashBase implements IObj {
   //Mutating assoc.  Uses identity hashcode to only copy necessary information.
   //Always returns this
   final HashBase assoc(Object key, Object val) {
-    int ownerid = System.identityHashCode(this);
     if (key == null) {
       if (nullEntry == null)
 	c.inc();
-      nullEntry = new LeafNode(ownerid, key, val, 0);
+      nullEntry = new LeafNode(this, key, val, 0);
     } else {
-      root = root.assoc(hp, c, ownerid, hp.hash(key), key, val);
+      root = root.assoc(hp, c, this, hp.hash(key), key, val);
     }
     return this;
   }
@@ -796,8 +795,7 @@ public class HashBase implements IObj {
 	c.dec();
       }
     } else {
-      int owner = System.identityHashCode(this);
-      root = (BitmapNode)root.dissoc(hp,c,owner,hp.hash(key),key,false);
+      root = (BitmapNode)root.dissoc(hp,c,this,hp.hash(key),key,false);
     }
     return this;
   }

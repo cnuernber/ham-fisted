@@ -17,7 +17,7 @@ import java.util.function.Function;
 
 
 
-public class HashMap<K,V> extends HashBase implements Map<K,V> {
+public final class HashMap<K,V> extends HashBase implements Map<K,V> {
 
   public HashMap(HashProvider _hp) {
     super(_hp);
@@ -39,7 +39,7 @@ public class HashMap<K,V> extends HashBase implements Map<K,V> {
     super.clear();
   }
 
-  V applyMapping(K key, LeafNode node, Object val) {
+  final V applyMapping(K key, LeafNode node, Object val) {
     if(val == null)
       remove(key);
     else

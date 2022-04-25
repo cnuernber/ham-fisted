@@ -1,26 +1,10 @@
 (ns ham-fisted.hash-map-test
-  (:require [clojure.test :refer [deftest is]])
-  (:import [ham_fisted HashMap PersistentHashMap]))
+  (:require [clojure.test :refer [deftest is testing]]
+            [clojure.set :as set])
+  (:import [ham_fisted HashMap PersistentHashMap HashBase]))
 
 (defonce orig PersistentHashMap/EMPTY)
 
-(comment
-
-  (.printNodes (reduce #(assoc %1 %2 %2) orig (range 13)))
-  (def data (-> (reduce #(assoc! %1 %2 %2) (transient orig) (range 13))
-                (persistent!)))
-
-  (def data (let [hm (HashMap. PersistentHashMap/equivHashProvider)]
-              (doseq [idx (range 13)]
-                (.put hm idx idx))
-              hm))
-
-  (defn tdissoc
-    [data elems]
-    (-> (apply dissoc! (transient data) elems)
-        (persistent!)))
-
-  )
 
 (deftest simple-assoc
   (let [orig PersistentHashMap/EMPTY]
@@ -40,13 +24,38 @@
 
 (deftest random-assoc-dissoc
   (let [data (shuffle (range 1000))
-        dissoc-data (take 100 data)
-        alldata (reduce #(assoc %1 %2 %2)
-                        orig
-                        data)
-        disdata (reduce #(dissoc %1 %2) alldata dissoc-data)]
-    (is (= 900 (count disdata)))
-    (is (= 1000 (count alldata)))))
+        dissoc-vals (take 100 data)
+        data (set data)
+        dissoc-data (set/difference data (set dissoc-vals))]
+    (testing "immutable"
+      (let [alldata (reduce #(assoc %1 %2 %2)
+                            orig
+                            data)
+            disdata (reduce #(dissoc %1 %2) alldata dissoc-vals)]
+        (is (= 900 (count disdata)))
+        (is (= dissoc-data (set (keys disdata))))
+        (is (= 1000 (count alldata)))
+        (is (= data (set (keys alldata))))))
+    (testing "transient"
+      (let [alldata (-> (reduce #(assoc! %1 %2 %2)
+                                (transient orig)
+                                data)
+                        (persistent!))
+            disdata (-> (reduce #(dissoc! %1 %2)
+                                (transient alldata)
+                                dissoc-vals)
+                        (persistent!))]
+        (is (= 900 (count disdata)))
+        (is (= 1000 (count alldata)))))
+    (testing "mutable"
+      (let [alldata (HashMap.)
+            _ (doseq [item data]
+                (.put alldata item item))
+            disdata (.clone alldata)
+            _ (doseq [item dissoc-vals]
+                (.remove disdata item))]
+        (is (= 900 (count disdata)))
+        (is (= 1000 (count alldata)))))))
 
 (comment
 
@@ -80,6 +89,23 @@
                         (persistent! hm))))
   ;;113ns
 
+  (loop [idx 0
+         hm (transient PersistentHashMap/EMPTY)]
+    (if (< idx 2)
+      (recur (unchecked-inc idx)
+             (assoc! hm idx idx))
+      (persistent! hm)))
+
+  (crit/quick-bench (loop [idx 0
+                           hm (transient PersistentHashMap/EMPTY)]
+                      (if (< idx 2)
+                        (recur (unchecked-inc idx)
+                               (assoc! hm idx idx))
+                        (persistent! hm))))
+
+  (crit/quick-bench (.shallowClone (.unsafeGetHashBase PersistentHashMap/EMPTY)))
+
+
 
   (crit/quick-bench (let [hm (HashMap.)]
                       (dotimes [idx 1000]
@@ -103,5 +129,14 @@
       (dotimes [idx 100000]
         (.put hm idx idx))
       hm))
+
+
+  (dotimes [idx 100000000]
+    (loop [idx 0
+           hm (transient PersistentHashMap/EMPTY)]
+      (if (< idx 2)
+        (recur (unchecked-inc idx)
+               (assoc! hm idx idx))
+        (persistent! hm))))
 
   )

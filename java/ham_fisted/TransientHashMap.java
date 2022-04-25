@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.Iterator;
 
 
-public class TransientHashMap
+public final class TransientHashMap
   extends AFn
   implements ITransientMap, ITransientAssociative2, IObj {
 

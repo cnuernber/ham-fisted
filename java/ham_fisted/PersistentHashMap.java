@@ -23,7 +23,7 @@ import java.util.Objects;
 import java.util.Map;
 
 
-public class PersistentHashMap
+public final class PersistentHashMap
   extends APersistentMap
   implements IObj, IMapIterable, IKVReduce, IEditableCollection {
 
@@ -59,6 +59,7 @@ public class PersistentHashMap
       throw new RuntimeException("Duplicate key detected: " + String.valueOf(kvs));
     hb = hm;
   }
+  public final HashBase unsafeGetHashBase() { return hb; }
   public PersistentHashMap(boolean assoc, Object... kvs) {
     this(equivHashProvider, assoc, kvs);
   }
