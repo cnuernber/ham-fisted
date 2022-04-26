@@ -14,6 +14,7 @@ import java.util.NoSuchElementException;
 import java.util.function.BiFunction;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.concurrent.ExecutorService;
 
 
 
@@ -27,7 +28,12 @@ public final class HashMap<K,V> extends HashBase implements Map<K,V> {
     super();
   }
 
-  public HashMap(HashMap<K,V> other) {
+  //Unsafe construction without clone.
+  HashMap(HashBase other, boolean marker) {
+    super(other, marker);
+  }
+  //Safe construction with deep clone.
+  public HashMap(HashBase other) {
     super(other);
   }
 
@@ -91,10 +97,26 @@ public final class HashMap<K,V> extends HashBase implements Map<K,V> {
   public boolean equals(Object o) {
     throw new RuntimeException("unimplemented");
   }
-  //TODO - spliterator parallelization
+
   public void forEach(BiConsumer<? super K,? super V> action) {
     forEachImpl(action);
   }
+  public void parallelForEach(BiConsumer<? super K,? super V> action, ExecutorService es,
+			      int parallelism) throws Exception {
+    parallelForEachImpl(action, es, parallelism);
+  }
+  public void parallelForEach(BiConsumer<? super K,? super V> action) throws Exception {
+    parallelForEachImpl(action);
+  }
+  public void parallelUpdateValues(BiFunction<? super V,? super V,? extends V> action,
+				   ExecutorService es,
+				   int parallelism) throws Exception {
+    parallelUpdateValuesImpl(action, es, parallelism);
+  }
+  public void parallelUpdateValues(BiFunction<? super K,? super V,? extends V> action) throws Exception {
+    parallelUpdateValuesImpl(action);
+  }
+
 
   public V getOrDefault(Object key, V defaultValue) {
     @SuppressWarnings("unchecked") V retval = (V)getOrDefaultImpl(key, defaultValue);

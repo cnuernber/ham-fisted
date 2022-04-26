@@ -23,6 +23,9 @@ import java.util.Collection;
 import java.util.Set;
 import java.util.Objects;
 import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.function.BiConsumer;
+import java.util.concurrent.ExecutorService;
 import java.math.BigDecimal;
 
 
@@ -160,5 +163,25 @@ public final class PersistentHashMap
   public final TransientHashMap asTransient() {
     return new TransientHashMap(hb.shallowClone());
   }
+  @Override
+  public void forEach(BiConsumer action) {
+    hb.forEachImpl(action);
+  }
+  public void parallelForEach(BiConsumer action, ExecutorService es,
+			      int parallelism) throws Exception {
+    hb.parallelForEachImpl(action, es, parallelism);
+  }
+  public void parallelForEach(BiConsumer action) throws Exception {
+    hb.parallelForEachImpl(action);
+  }
+  public <K,V> HashMap<K,V> unsafeAsHashMap(K kTypeMarker, V vTypeMarker) {
+    return new HashMap<K,V>(hb, true);
+  }
+  public <K,V> HashMap<K,V> copyToHashMap(K kTypeMarker, V vTypeMarker) {
+    return new HashMap<K,V>(hb);
+  }
+
   public void printNodes() { hb.printNodes(); }
+
+
 }

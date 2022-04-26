@@ -13,10 +13,16 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import clojure.lang.MapEntry;
 //Metadata is one of the truly brilliant ideas from Clojure
 import clojure.lang.IObj;
 import clojure.lang.IPersistentMap;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
+import java.util.concurrent.ExecutorService;
 
 
 public class HashBase implements IObj {
@@ -247,10 +253,11 @@ public class HashBase implements IObj {
     }
 
     public final BitmapNode clone() {
-      final Object[] newData = data.clone();
-      final int len = newData.length;
+      final Object[] srcData = data;
+      final int len = srcData.length;
+      final Object[] newData = new Object[len];
       for (int idx = 0; idx < len; ++idx) {
-	final Object entry = newData[idx];
+	final Object entry = srcData[idx];
 	if (entry != null) {
 	  newData[idx] = entry instanceof LeafNode ? ((LeafNode)entry).clone() : ((BitmapNode)entry).clone();
 	}
@@ -695,6 +702,15 @@ public class HashBase implements IObj {
     this(hashcodeProvider);
   }
 
+  //Unsafe shallow clone version
+  HashBase(HashBase other, boolean marker) {
+    hp = other.hp;
+    c = new Counter(other.c);
+    root = other.root;
+    nullEntry = other.nullEntry;
+    meta = other.meta;
+  }
+
   public HashBase(HashBase other) {
     hp = other.hp;
     c = new Counter(other.c);
@@ -706,6 +722,7 @@ public class HashBase implements IObj {
   HashBase shallowClone(IPersistentMap newMeta) {
     return new HashBase(hp, new Counter(c), root, nullEntry, newMeta);
   }
+
   public HashBase shallowClone() {
     return shallowClone(meta);
   }
@@ -852,7 +869,8 @@ public class HashBase implements IObj {
     return false;
   }
   final Iterator[] splitIterators(int nsplits, Function<LeafNode,Object> fn) {
-    final int nelemsPerSplit = 1024 / nsplits;
+    nsplits = Math.min(nsplits, 1024);
+    final int nelemsPerSplit = Math.max(1, 1024 / nsplits);
     Iterator[] retval = new Iterator[nsplits];
     for (int idx = 0; idx < nsplits; ++idx ) {
       int startIdx = idx * nelemsPerSplit;
@@ -884,8 +902,83 @@ public class HashBase implements IObj {
     }
   }
 
-  //Mutating assoc.  Uses identity hashcode to only copy necessary information.
-  //Always returns this
+  @SuppressWarnings("unchecked")
+  final void parallelForEachImpl(BiConsumer action, ExecutorService executor,
+				 int parallelism) throws Exception {
+    if(ForkJoinTask.inForkJoinPool()
+       && executor == ForkJoinPool.commonPool())
+      forEachImpl(action);
+    final int nelems = size();
+    int splits = Math.min(1024, parallelism);
+    Iterator[] iterators = splitEntries(splits);
+    final int nTasks = iterators.length;
+    Future[] tasks = new Future[nTasks];
+    for(int idx = 0; idx < nTasks; ++idx) {
+      final int localIdx = idx;
+      tasks[localIdx] = executor.submit(new Runnable() {
+	  public void run() {
+	    Iterator iter = iterators[localIdx];
+	    while(iter.hasNext()) {
+	      Map.Entry entry = (Map.Entry)iter.next();
+	      action.accept(entry.getKey(), entry.getValue());
+	    }
+	  }
+	});
+    }
+    //Finish iteration
+    for(int idx = 0; idx < nTasks; ++idx) {
+      tasks[idx].get();
+    }
+  }
+
+  final void parallelForEachImpl(BiConsumer action) throws Exception {
+    if(ForkJoinTask.inForkJoinPool())
+      forEachImpl(action);
+    ForkJoinPool cp = ForkJoinPool.commonPool();
+    parallelForEachImpl(action, cp, cp.getParallelism());
+  }
+
+
+
+  @SuppressWarnings("unchecked")
+  final void parallelUpdateValuesImpl(BiFunction action, ExecutorService executor,
+				      int parallelism) throws Exception {
+    if(ForkJoinTask.inForkJoinPool()
+       && executor == ForkJoinPool.commonPool()) {
+      LeafNodeIterator iter = iterator(identityIterFn);
+      while(iter.hasNext()) {
+	LeafNode lf = iter.nextLeaf();
+	lf.val(action.apply(lf.key(), lf.val()));
+      }
+    }
+    final int nelems = size();
+    int splits = Math.min(1024, parallelism);
+    Iterator[] iterators = splitEntries(splits);
+    final int nTasks = iterators.length;
+    Future[] tasks = new Future[nTasks];
+    for(int idx = 0; idx < nTasks; ++idx) {
+      final int localIdx = idx;
+      tasks[localIdx] = executor.submit(new Runnable() {
+	  public void run() {
+	    LeafNodeIterator iter = (LeafNodeIterator)iterators[localIdx];
+	    while(iter.hasNext()) {
+	      LeafNode lf = iter.nextLeaf();
+	      lf.val(action.apply(lf.key(), lf.val()));
+	    }
+	  }
+	});
+    }
+    //Finish iteration
+    for(int idx = 0; idx < nTasks; ++idx) {
+      tasks[idx].get();
+    }
+  }
+
+  final void parallelUpdateValuesImpl(BiFunction action) throws Exception {
+    ForkJoinPool cp = ForkJoinPool.commonPool();
+    parallelUpdateValuesImpl(action, cp, cp.getParallelism());
+  }
+
   final HashBase assoc(Object key, Object val) {
     if (key == null) {
       if (nullEntry == null)
