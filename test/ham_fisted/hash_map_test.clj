@@ -82,6 +82,13 @@
             (.put hm idx idx))]
     (is (= 1000 (->> (map iterator-seq (.splitKeys hm 8))
                      (map count)
+                     (reduce +)))))
+  (let [hm (HashMap.)
+        _ (dotimes [idx 1000]
+            (.put hm idx idx))
+        _ (.put hm nil :a)]
+    (is (= 1001 (->> (map iterator-seq (.splitKeys hm 8))
+                     (map count)
                      (reduce +))))))
 
 (comment
