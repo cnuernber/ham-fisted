@@ -116,6 +116,16 @@ public final class PersistentHashMap
     return hb.iterator(valIterFn);
   }
 
+  public final Iterator[] splitKeys(int nsplits ) {
+    return hb.splitKeys(nsplits);
+  }
+  public final Iterator[] splitValues(int nsplits ) {
+    return hb.splitValues(nsplits);
+  }
+  public final Iterator[] splitEntries(int nsplits ) {
+    return hb.splitEntries(nsplits);
+  }
+
   public final IPersistentMap assoc(Object key, Object val) {
     return new PersistentHashMap(hb.shallowClone().assoc(key, val));
   }

@@ -57,6 +57,33 @@
         (is (= 900 (count disdata)))
         (is (= 1000 (count alldata)))))))
 
+
+(deftest split-iterator-test
+  (let [hm (HashMap.)
+        _ (dotimes [idx 2]
+            (.put hm idx idx))]
+    (is (= 2 (->> (map iterator-seq (.splitKeys hm 8))
+                  (map count)
+                  (reduce +)))))
+  (let [hm (HashMap.)
+        _ (dotimes [idx 10]
+            (.put hm idx idx))]
+    (is (= 10 (->> (map iterator-seq (.splitKeys hm 8))
+                  (map count)
+                  (reduce +)))))
+  (let [hm (HashMap.)
+        _ (dotimes [idx 100]
+            (.put hm idx idx))]
+    (is (= 100 (->> (map iterator-seq (.splitKeys hm 8))
+                    (map count)
+                    (reduce +)))))
+  (let [hm (HashMap.)
+        _ (dotimes [idx 1000]
+            (.put hm idx idx))]
+    (is (= 1000 (->> (map iterator-seq (.splitKeys hm 8))
+                     (map count)
+                     (reduce +))))))
+
 (comment
 
   (do
@@ -65,8 +92,10 @@
     (def orig PersistentHashMap/EMPTY)
     )
 
-  (dotimes [idx 10]
+  (dotimes [idx 100]
     (.put hm idx idx))
+
+  (map iterator-seq (.splitKeys hm 8))
 
   (dotimes [idx 10000]
     (.put hm idx idx))

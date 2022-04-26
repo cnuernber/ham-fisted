@@ -485,11 +485,16 @@ public class HashBase implements IObj {
     static class BitmapNodeIterator implements LeafNodeIterator {
       final Object[] data;
       int idx;
+      final int endidx;
       LeafNodeIterator nextObj;
-      BitmapNodeIterator(Object[] _data) {
+      BitmapNodeIterator(Object[] _data, int _endidx) {
 	data = _data;
 	idx = -1;
+	endidx = _endidx;
 	advance();
+      }
+      BitmapNodeIterator(Object[] _data) {
+	this(_data, _data.length);
       }
       void advance() {
 	if (nextObj != null && nextObj.hasNext()) {
@@ -497,7 +502,7 @@ public class HashBase implements IObj {
 	}
 	int curIdx = idx + 1;
 	final Object[] objData = data;
-	final int len = objData.length;
+	final int len = endidx;
 	for (; curIdx < len && objData[curIdx] == null; ++curIdx);
 	idx = curIdx;
 	Object iterObj = curIdx == len ? null : objData[curIdx];
@@ -574,6 +579,88 @@ public class HashBase implements IObj {
 
     public Object next() {
       return tfn.apply(nextLeaf());
+    }
+  }
+
+  //A bi level iterator is designed to iterate as if the tree's top 2 levels were are
+  //2 dimension tensor.  This allows me to easily break up the iteration space and assuming
+  //the hash keys are somewhat evenly distributed do a parallelized iteration across the
+  //first 2 levels of the space.  Since there are at most 1024 nodes in the second level
+  //if we just divide 1024 by the parallelism we get the number of indexes each iterator
+  //should iterate.
+  static class BiLevelIterator implements LeafNodeIterator {
+    final BitmapNode root;
+    LeafNode nullEntry;
+    int idx;
+    final int endidx;
+    LeafNodeIterator nextObj;
+    Function<LeafNode,Object> tfn;
+
+    public BiLevelIterator(BitmapNode _root, LeafNode _nullEntry, int _startidx,
+			   int _endidx, Function<LeafNode,Object> _tfn) {
+      root = _root;
+      nullEntry = _nullEntry;
+      idx = _startidx - 1;
+      endidx = _endidx;
+      tfn = _tfn;
+      advance();
+    }
+
+    void advance() {
+      if(nextObj != null && nextObj.hasNext())
+	return;
+      nextObj = null;
+      if (nullEntry != null) {
+	nextObj = nullEntry.iterator();
+	nullEntry = null;
+	return;
+      }
+      while(idx < endidx && nextObj == null) {
+	++idx;
+	final int rootidx = idx / 32;
+	final int subidx = idx % 32;
+	final int rootbpos = 1 << rootidx;
+	final int rootbitmap = root.bitmap;
+	if ((rootbitmap & rootbpos) != 0) {
+	  final int rootindex = index(rootbitmap, rootbpos);
+	  final Object rootObj = root.data[rootindex];
+	  if (rootObj instanceof LeafNode) {
+	    nextObj = ((LeafNode)rootObj).iterator();
+	    //Move idx just before the next possible root position
+	    idx = (rootidx + 1) * 32 - 1;
+	  } else {
+	    final BitmapNode childNode = (BitmapNode)rootObj;
+	    final int childbpos = 1 << subidx;
+	    final int childbitmap = childNode.bitmap;
+	    if ((childbitmap & childbpos) != 0) {
+	      final int childindex = index(childbitmap, childbpos);
+	      final Object childObj = childNode.data[childindex];
+	      if (childObj instanceof LeafNode)
+		nextObj = ((LeafNode)childObj).iterator();
+	      else {
+		nextObj = ((BitmapNode)childObj).iterator();
+	      }
+	    }
+	  }
+	}
+      }
+    }
+
+    public boolean hasNext() {
+      return nextObj != null;
+    }
+
+    public LeafNode nextLeaf() {
+      if (nextObj == null)
+	throw new UnsupportedOperationException();
+      LeafNode lf = nextObj.nextLeaf();
+      advance();
+      return lf;
+    }
+
+    public Object next() {
+      LeafNode lf = nextLeaf();
+      return tfn.apply(lf);
     }
   }
 
@@ -654,7 +741,7 @@ public class HashBase implements IObj {
 
   public int size() { return c.count(); }
 
-  public LeafNodeIterator iterator(Function<LeafNode,Object> fn) {
+  final LeafNodeIterator iterator(Function<LeafNode,Object> fn) {
     return new HTIterator(fn, nullEntry, root.iterator());
   }
 
@@ -763,6 +850,29 @@ public class HashBase implements IObj {
 	return true;
     }
     return false;
+  }
+  final Iterator[] splitIterators(int nsplits, Function<LeafNode,Object> fn) {
+    final int nelemsPerSplit = 1024 / nsplits;
+    Iterator[] retval = new Iterator[nsplits];
+    for (int idx = 0; idx < nsplits; ++idx ) {
+      int startIdx = idx * nelemsPerSplit;
+      int endidx = startIdx + nelemsPerSplit - 1;
+      //Ensure we handle any overrun.
+      if (idx == (nsplits - 1))
+	endidx = 1024;
+      retval[idx] = new BiLevelIterator(root, idx == 0 ? nullEntry : null,
+					startIdx, endidx, fn);
+    }
+    return retval;
+  }
+  public final Iterator[] splitKeys(int nsplits ) {
+    return splitIterators(nsplits, keyIterFn);
+  }
+  public final Iterator[] splitValues(int nsplits ) {
+    return splitIterators(nsplits, valIterFn);
+  }
+  public final Iterator[] splitEntries(int nsplits ) {
+    return splitIterators(nsplits, entryIterFn);
   }
   //TODO - spliterator parallelization
   @SuppressWarnings("unchecked")
