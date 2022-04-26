@@ -859,7 +859,7 @@ public class HashBase implements IObj {
       int endidx = startIdx + nelemsPerSplit - 1;
       //Ensure we handle any overrun.
       if (idx == (nsplits - 1))
-	endidx = 1024;
+	endidx = 1023;
       retval[idx] = new BiLevelIterator(root, idx == 0 ? nullEntry : null,
 					startIdx, endidx, fn);
     }
