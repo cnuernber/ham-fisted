@@ -71,6 +71,13 @@
     (is (= 10 (->> (map iterator-seq (.splitKeys hm 8))
                   (map count)
                   (reduce +)))))
+  ;; Force splitting in between nodes.
+  (let [hm (HashMap.)
+        _ (dotimes [idx 60]
+            (.put hm idx idx))]
+    (is (= 60 (->> (map iterator-seq (.splitKeys hm 7))
+                   (map count)
+                   (reduce +)))))
   (let [hm (HashMap.)
         _ (dotimes [idx 100]
             (.put hm idx idx))]
@@ -88,6 +95,14 @@
             (.put hm idx idx))
         _ (.put hm nil :a)]
     (is (= 1001 (->> (map iterator-seq (.splitKeys hm 8))
+                     (map count)
+                     (reduce +)))))
+  (let [hm (HashMap.)
+        _ (dotimes [idx 1000]
+            (.put hm idx idx))
+        _ (.put hm nil :a)]
+    ;;Ensure we get split buckets at the root level and ensure we only
+    (is (= 1001 (->> (map iterator-seq (.splitKeys hm 13))
                      (map count)
                      (reduce +))))))
 
@@ -191,5 +206,14 @@
         (recur (unchecked-inc idx)
                (assoc! hm idx idx))
         (persistent! hm))))
+
+
+  (def hm (let [hm (HashMap.)
+                _ (dotimes [idx 60]
+                    (.put hm idx idx))]
+            hm))
+  (let [nhm (HashBase.)]
+    (.keyspaceSplit hm 146 291 false nhm)
+    (.printNodes nhm))
 
   )

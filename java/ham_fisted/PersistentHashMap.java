@@ -1,6 +1,8 @@
 package ham_fisted;
 
+import static ham_fisted.IntBitmap.*;
 import static ham_fisted.HashBase.*;
+import static ham_fisted.HAMTCommon.*;
 import clojure.lang.APersistentMap;
 import clojure.lang.Util;
 import clojure.lang.MapEntry;
@@ -46,14 +48,14 @@ public final class PersistentHashMap
 	    obj instanceof Integer ||
 	    obj instanceof Short ||
 	    obj instanceof Byte)
-	  return HashMap.mixhash(obj.hashCode());
+	  return mixhash(obj.hashCode());
 	if (obj instanceof Double)
-	  return obj.equals(-0.0) ? 0 : HashMap.mixhash(obj.hashCode());
+	  return obj.equals(-0.0) ? 0 : mixhash(obj.hashCode());
 	if (obj instanceof Float)
-	  return obj.equals(-0.0F) ? 0 : HashMap.mixhash(obj.hashCode());
+	  return obj.equals(-0.0F) ? 0 : mixhash(obj.hashCode());
 	if (obj instanceof Number)
 	  return Util.hasheq(obj);
-	return HashMap.mixhash(obj.hashCode());
+	return mixhash(obj);
       }
       public boolean equals(Object lhs, Object rhs) {
 	return Util.equiv(lhs,rhs);
@@ -79,7 +81,7 @@ public final class PersistentHashMap
     }
     if (assoc == false && hm.size() != nks)
       throw new RuntimeException("Duplicate key detected: " + String.valueOf(kvs));
-    hb = hm;
+    hb = hm.hb;
   }
   public final HashBase unsafeGetHashBase() { return hb; }
   public PersistentHashMap(boolean assoc, Object... kvs) {
@@ -102,10 +104,10 @@ public final class PersistentHashMap
   }
   public final ISeq seq() { return  IteratorSeq.create(iterator()); }
   public final Object valAt(Object key, Object notFound) {
-    return hb.getOrDefaultImpl(key, notFound);
+    return hb.getOrDefault(key, notFound);
   }
   public final Object valAt(Object key){
-    return hb.getOrDefaultImpl(key, null);
+    return hb.getOrDefault(key, null);
   }
   public final Iterator iterator(){
     return hb.iterator(entryIterFn);
@@ -138,7 +140,7 @@ public final class PersistentHashMap
     return assoc(key, val);
   }
   public final IPersistentMap without(Object key) {
-    if (hb.c.count() == 0 || (key == null && hb.nullEntry == null))
+    if (hb.size() == 0 || (key == null && hb.nullEntry == null))
       return this;
     return new PersistentHashMap(hb.shallowClone().dissoc(key));
   }
@@ -153,7 +155,7 @@ public final class PersistentHashMap
   public final Object kvreduce(IFn f, Object init) {
     LeafNodeIterator iter = hb.iterator(hb.identityIterFn);
     while(iter.hasNext()) {
-      LeafNode elem = iter.nextLeaf();
+      ILeaf elem = iter.nextLeaf();
       init = f.invoke(init, elem.key(), elem.val());
       if (RT.isReduced(init))
 	return ((IDeref)init).deref();
@@ -165,14 +167,14 @@ public final class PersistentHashMap
   }
   @Override
   public void forEach(BiConsumer action) {
-    hb.forEachImpl(action);
+    hb.forEach(action);
   }
   public void parallelForEach(BiConsumer action, ExecutorService es,
 			      int parallelism) throws Exception {
-    hb.parallelForEachImpl(action, es, parallelism);
+    hb.parallelForEach(action, es, parallelism);
   }
   public void parallelForEach(BiConsumer action) throws Exception {
-    hb.parallelForEachImpl(action);
+    hb.parallelForEach(action);
   }
   public <K,V> HashMap<K,V> unsafeAsHashMap(K kTypeMarker, V vTypeMarker) {
     return new HashMap<K,V>(hb, true);

@@ -2,6 +2,7 @@ package ham_fisted;
 
 import static java.lang.System.out;
 import static ham_fisted.IntBitmap.*;
+import static ham_fisted.HAMTCommon.*;
 import java.util.Set;
 import java.util.Collection;
 import java.util.AbstractSet;
@@ -13,6 +14,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.BiFunction;
 import clojure.lang.MapEntry;
 //Metadata is one of the truly brilliant ideas from Clojure
@@ -23,97 +25,51 @@ import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ExecutionException;
 
 
-public class HashBase implements IObj {
-    /**
-   * Ripped directly from HashMap.java in openjdk source code -
-   *
-   * Computes key.hashCode() and spreads (XORs) higher bits of hash
-   * to lower.  Because the table uses power-of-two masking, sets of
-   * hashes that vary only in bits above the current mask will
-   * always collide. (Among known examples are sets of Float keys
-   * holding consecutive whole numbers in small tables.)  So we
-   * apply a transform that spreads the impact of higher bits
-   * downward. There is a tradeoff between speed, utility, and
-   * quality of bit-spreading. Because many common sets of hashes
-   * are already reasonably distributed (so don't benefit from
-   * spreading), and because we use trees to handle large sets of
-   * collisions in bins, we just XOR some shifted bits in the
-   * cheapest possible way to reduce systematic lossage, as well as
-   * to incorporate impact of the highest bits that would otherwise
-   * never be used in index calculations because of table bounds.
-   */
-  public static final int mixhash(Object key) {
-    int h;
-    return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
-  }
-  public interface HashProvider {
-    public default int hash(Object obj) {
-      if (obj != null)
-	return mixhash(obj);
-      return 0;
-    }
-    public default boolean equals(Object lhs, Object rhs) {
-      return Objects.equals(lhs,rhs);
-    }
-  }
+public class HashBase implements IObj, HAMTBase {
 
-  public static final HashProvider hashcodeProvider = new HashProvider(){};
-
-  public static final class Counter {
-    int count;
-    public Counter(){ count = 0; }
-    public Counter(Counter p) { count = p.count; }
-    public int count() { return count; }
-    public void count(int val) { count = val; }
-    public void inc() { ++count; }
-    public void dec() { --count; }
-  }
-
-  public static final class Box {
-    public Object obj;
-    public Box() { obj = null; }
-  }
-
-  public interface LeafNodeIterator extends Iterator {
-    public LeafNode nextLeaf();
-    public default Object next() { return nextLeaf(); }
-  }
-
-  public static final class LeafNode {
-    public final HashBase owner;
+  public static final class LeafNode implements INode, ILeaf {
+    public final HAMTBase owner;
     public final int hashcode;
     public final Object k;
-    //compute-at support
+    //compute-at support means we can modify v.
     Object v;
     LeafNode nextNode;
-    public LeafNode(HashBase _owner, Object _k, Object _v, int hc, LeafNode nn) {
+    public LeafNode(HAMTBase _owner, Object _k, int hc, Object _v, LeafNode nn) {
       owner = _owner;
       hashcode = hc;
       k = _k;
       v = _v;
       nextNode = nn;
+      _owner.inc();
     }
-    public LeafNode(HashBase _owner, Object _k, Object _v, int hc) {
-      this(_owner, _k, _v, hc, null);
+    public LeafNode(HAMTBase _owner, Object _k, int hc, Object _v) {
+      this(_owner, _k, hc, _v, null);
     }
-    public LeafNode(Object _k, Object _v, int hc) {
-      this(null, _k, _v, hc, null);
+    public LeafNode(HAMTBase _owner, Object _k, int hc) {
+      this(_owner, _k, hc, null, null);
     }
-
-    public LeafNode(Object _k, int hc) {
-      this(null, _k, null, hc);
-    }
-    public LeafNode(HashBase _owner, LeafNode prev) {
+    public LeafNode(HAMTBase _owner, LeafNode prev) {
       owner = _owner;
       hashcode = prev.hashcode;
       k = prev.k;
       v = prev.v;
       nextNode = prev.nextNode;
     }
-    public final LeafNode clone() {
-      return new LeafNode(owner, k, v, hashcode, nextNode != null ? nextNode.clone() : null);
+    public final LeafNode clone(HAMTBase nowner) {
+      nowner = nowner == null ? owner : nowner;
+      return new LeafNode(nowner, k, hashcode, v,
+			  nextNode != null ? nextNode.clone(nowner) : null);
+    }
+    public final LeafNode setOwner(HAMTBase nowner) {
+      if (owner == nowner)
+	return this;
+      return new LeafNode(nowner, this);
+    }
+    public final int countLeaves() {
+      return nextNode != null ? 1 + nextNode.countLeaves() : 1;
     }
     public final Object key() { return k; }
     public final Object val() { return v; }
@@ -122,66 +78,71 @@ public class HashBase implements IObj {
       v = newv;
       return retval;
     }
-    public final LeafNode getOrCreate(HashProvider hp, Counter c, Object _k) {
-      if (hp.equals(k,_k)) {
+    //Mutable pathway
+    public final LeafNode getOrCreate(Object _k) {
+      if (owner.equals(k,_k)) {
 	return this;
       } else if (nextNode != null) {
-	return nextNode.getOrCreate(hp,c,_k);
+	return nextNode.getOrCreate(_k);
       } else {
-	final LeafNode retval = new LeafNode(_k, hashcode);
-	c.inc();
+	final LeafNode retval = new LeafNode(owner, _k, hashcode);
 	nextNode = retval;
 	return retval;
       }
     }
-    public final LeafNode get(HashProvider hp, Object _k) {
-      if (hp.equals(k,_k)) {
+    public final LeafNode get(Object _k) {
+      if (owner.equals(k,_k)) {
 	return this;
       } else if (nextNode != null) {
-	return nextNode.get(hp,_k);
+	return nextNode.get(_k);
       } else {
 	return null;
       }
     }
-    public final LeafNode remove(HashProvider hp, Counter c, Object _k, Box b) {
-      if(hp.equals(_k,k)) {
-	c.dec();
+    public final LeafNode remove(Object _k, Box b) {
+      if(owner.equals(_k,k)) {
+	owner.dec();
 	b.obj = v;
 	return nextNode;
       }
       if(nextNode != null) {
-	nextNode = nextNode.remove(hp,c,_k,b);
+	nextNode = nextNode.remove(_k,b);
       }
       return this;
     }
-    public final LeafNode setOwner(HashBase nowner) {
-      if (owner != nowner) {
-	return new LeafNode(nowner, this);
-      } else {
-	return this;
-      }
-    }
-    public final LeafNode assoc(HashProvider hp, Counter c, HashBase nowner, Object _k, Object _v) {
+
+    public final LeafNode assoc(HAMTBase nowner, Object _k, Object _v) {
       LeafNode retval = setOwner(nowner);
-      if (hp.equals(_k,k)) {
+      if (nowner.equals(_k,k)) {
 	retval.v = _v;
       } else {
 	if (retval.nextNode != null) {
-	  retval.nextNode = retval.nextNode.assoc(hp, c, nowner, _k, _v);
+	  retval.nextNode = retval.nextNode.assoc(nowner, _k, _v);
 	} else {
-	  c.inc();
-	  retval.nextNode = new LeafNode(nowner, _k, _v, hashcode);
+	  retval.nextNode = new LeafNode(nowner, _k, hashcode, _v);
 	}
       }
       return retval;
     }
-    public final LeafNode dissoc(HashProvider hp, Counter c, HashBase nowner, Object _k) {
-      if (hp.equals(k, _k)) {
-	c.dec();
+    @SuppressWarnings("unchecked")
+    public final LeafNode union(HAMTBase nowner, Object _k, Object v, BiFunction valueMapper) {
+      LeafNode retval = setOwner(nowner);
+      if(owner.equals(_k, k))
+	retval.v = valueMapper.apply(retval.v, v);
+      else if (nextNode != null) {
+	retval.nextNode = nextNode.union(nowner, _k, v, valueMapper);
+      } else {
+	retval.nextNode = new LeafNode(nowner, _k, hashcode, v);
+      }
+      return retval;
+    }
+    public final LeafNode dissoc(HAMTBase nowner, Object _k) {
+      if (owner.equals(k, _k)) {
+	nowner.dec();
 	return nextNode;
       }
       if (nextNode != null) {
-	LeafNode nn = nextNode.dissoc(hp,c,nowner,k);
+	LeafNode nn = nextNode.dissoc(nowner,k);
 	if (nn != nextNode) {
 	  LeafNode retval = setOwner(nowner);
 	  retval.nextNode = nn;
@@ -217,81 +178,80 @@ public class HashBase implements IObj {
 	nextNode.print(indent);
     }
   }
-  public static final class BitmapNode {
-    public final HashBase owner;
+  public static final class BitmapNode implements INode {
+    public final HAMTBase owner;
     public final int shift;
     int bitmap;
-    Object[] data;
+    INode[] data;
 
-    public BitmapNode(HashBase _owner, int _bitmap, int _shift, Object[] _data) {
+    public BitmapNode(HAMTBase _owner, int _bitmap, int _shift, INode[] _data) {
       owner = _owner;
       bitmap = _bitmap;
       shift = _shift;
       data = _data;
     }
 
-    public BitmapNode(int _bitmap, int _shift, Object[] _data) {
-      this(null, _bitmap, _shift,  _data);
-    }
-
-    public BitmapNode() {
-      this(null,0,0, new Object[4]);
-    }
-
-    public BitmapNode(HashBase _owner, int _bitmap, int _shift) {
+    public BitmapNode(HAMTBase _owner, int _bitmap, int _shift) {
       owner = _owner;
       bitmap = _bitmap;
       shift = _shift;
-      data = new Object[nextPow2(Integer.bitCount(_bitmap))];
+      data = new INode[nextPow2(Integer.bitCount(_bitmap))];
     }
 
-    public BitmapNode(HashBase _owner, int _shift, LeafNode leaf) {
+    public BitmapNode(HAMTBase _owner, int _shift, LeafNode leaf) {
       owner = _owner;
       shift = _shift;
-      bitmap = leaf != null ? bitpos(leaf.hashcode, _shift) : 0;
-      data = new Object[] {leaf, null, null, null};
+      bitmap = leaf != null ? bitpos(_shift, leaf.hashcode) : 0;
+      data = new INode[] {leaf, null, null, null};
     }
 
-    public final BitmapNode clone() {
-      final Object[] srcData = data;
-      final int len = srcData.length;
-      final Object[] newData = new Object[len];
+    public final BitmapNode clone(HAMTBase nowner) {
+      nowner = nowner == null ? owner : nowner;
+      final INode[] srcData = data;
+      final int bm = bitmap;
+      final int len = Integer.bitCount(bm);
+      final INode[] newData = new INode[Math.max(4, nextPow2(len))];
       for (int idx = 0; idx < len; ++idx) {
-	final Object entry = srcData[idx];
-	if (entry != null) {
-	  newData[idx] = entry instanceof LeafNode ? ((LeafNode)entry).clone() : ((BitmapNode)entry).clone();
+	newData[idx] = srcData[idx].clone(nowner);
+      }
+      return new BitmapNode(nowner, bitmap, shift, newData);
+    }
+
+    public final BitmapNode refIndexes(HAMTBase nowner, int sidx, int eidx) {
+      if (eidx > 31)
+	throw new RuntimeException("End idx (inclusive) must be less than 32");
+      final int bm = bitmap;
+      int bitmapMax = highBits(sidx, eidx);
+      int newBitmap = bm & bitmapMax;
+      if (newBitmap == 0)
+	return null;
+      if(newBitmap == bm) {
+	return this;
+      }
+
+      int nelems = Integer.bitCount(newBitmap);
+      INode[] odata = new INode[Math.max(4, nextPow2(nelems))];
+      final INode[] mdata = data;
+      int pidx = 0;
+      for (int didx = sidx; didx <= eidx; ++didx) {
+	final int bitpos = 1 << didx;
+	if ((newBitmap & bitpos) != 0) {
+	  odata[pidx] = mdata[index(bm, bitpos)];
+	  ++pidx;
 	}
       }
-      return new BitmapNode(owner, bitmap, shift, newData);
+      return new BitmapNode(nowner, newBitmap, shift, odata);
     }
 
-    final static Object[] insert(Object[] srcData, Object obj, int insertIdx, int newlen,
-				 boolean forceCopy) {
-      final int srcLen = srcData.length;
-      final int dstLen = nextPow2(newlen);
-      boolean copy = forceCopy | dstLen > srcLen;
-      final Object[] dstData = copy ? new Object[dstLen] : srcData;
-      if ( dstData != srcData ) {
-	for(int idx = 0; idx < insertIdx; ++idx)
-	  dstData[idx] = srcData[idx];
-      }
-      for(int ridx = newlen-1; ridx > insertIdx; --ridx)
-	dstData[ridx] = srcData[ridx-1];
-      dstData[insertIdx] = obj;
-      return dstData;
-    }
-
-    public final LeafNode getOrCreate(HashProvider hp, Counter c, int hash, Object k) {
-      final int bpos = bitpos(hash, shift);
-      final Object[] objData = data;
+    public final LeafNode getOrCreate(Object k, int hash) {
+      final int bpos = bitpos(shift, hash);
+      final INode[] objData = data;
       final int objLen = objData.length;
       int bm = bitmap;
       final int index = index(bm,bpos);
-
       if ((bm & bpos) == 0) {
 	bm |= bpos;
-	final LeafNode retval = new LeafNode(k, hash);
-	c.inc();
+	final LeafNode retval = new LeafNode(owner, k, hash);
 	data = insert(objData, retval, index, Integer.bitCount(bm), false);
 	bitmap = bm;
 	return retval;
@@ -300,19 +260,19 @@ public class HashBase implements IObj {
       final LeafNode lf = entry instanceof LeafNode ? (LeafNode)entry : null;
       if (lf != null) {
 	if (hash == lf.hashcode) {
-	  return lf.getOrCreate(hp, c, k);
+	  return lf.getOrCreate(k);
 	} else {
 	  final BitmapNode node = new BitmapNode(owner, incShift(shift), lf);
 	  objData[index] = node;
-	  return node.getOrCreate(hp, c, hash, k);
+	  return node.getOrCreate(k, hash);
 	}
       } else {
-	  return ((BitmapNode)entry).getOrCreate(hp, c, hash, k);
+	return ((BitmapNode)entry).getOrCreate(k, hash);
       }
     }
 
-    public final LeafNode get(HashProvider hp, int hash, Object k) {
-      final int bpos = bitpos(hash, shift);
+    public final LeafNode get(Object k, int hash) {
+      final int bpos = bitpos(shift, hash);
       final int bm = bitmap;
       if ((bm & bpos) != 0) {
 	final Object[] objData = data;
@@ -321,46 +281,31 @@ public class HashBase implements IObj {
 	final LeafNode lf = entry instanceof LeafNode ? (LeafNode)entry : null;
 	if (lf != null) {
 	  if (hash == lf.hashcode) {
-	    return lf.get(hp,k);
+	    return lf.get(k);
 	  }
 	} else {
-	  return ((BitmapNode)entry).get(hp, hash, k);
+	  return ((BitmapNode)entry).get(k, hash);
 	}
       }
       return null;
     }
 
-    final static Object[] remove(Object[] srcData, int remidx, int nelems, boolean forceCopy) {
-      //nelems is nelems *after* removal
-      Object[] dstData = forceCopy ? new Object[Math.max(4, nextPow2(nelems))] : srcData;
-      if(dstData != srcData)
-	for(int idx = 0; idx < remidx; ++idx)
-	  dstData[idx] = srcData[idx];
-      for(int idx = remidx; idx < nelems; ++idx)
-	dstData[idx] = srcData[idx+1];
-      //In the case of a resize dstData may not have the nelems+1 range.
-      if(dstData == srcData)
-	dstData[nelems] = null;
-      return dstData;
-    }
-
-    public final Object remove(HashProvider hp, Counter c, int hash, Object k, Box b,
-			       boolean collapse) {
-      final int bpos = bitpos(hash,shift);
+    public final INode remove(Object k, int hash, Box b, boolean collapse) {
+      final int bpos = bitpos(shift, hash);
       int bm = bitmap;
       if ((bm & bpos) == 0)
 	return this;
-      final Object[] objData = data;
+      final INode[] objData = data;
       final int index = index(bm,bpos);
-      Object entry = objData[index];
-      Object nentry = null;
+      INode entry = objData[index];
+      INode nentry = null;
       final LeafNode lf = entry instanceof LeafNode ? (LeafNode)entry : null;
       if (lf != null) {
 	if (hash != lf.hashcode)
 	  return this;
-	nentry = lf.remove(hp, c, k, b);
+	nentry = lf.remove(k, b);
       } else {
-	nentry = ((BitmapNode)entry).remove(hp, c, hash, k, b, true);
+	nentry = ((BitmapNode)entry).remove(k, hash, b, true);
       }
       //No change
       if (nentry == entry)
@@ -374,35 +319,33 @@ public class HashBase implements IObj {
 	  return null;
 	} else if (nelems == 1) {
 	  if (removed) {
-	    final Object item = index == 0 ? objData[1] : objData[0];
+	    final INode item = index == 0 ? objData[1] : objData[0];
 	    if (item instanceof LeafNode)
 	      return item;
-	  } else if (entry instanceof LeafNode) {
-	    return entry;
+	  } else if (nentry instanceof LeafNode) {
+	    return nentry;
 	  }
 	}
       }
       bitmap = bm;
       if (removed) {
-	remove(objData, index, nelems, false);
+	data = HAMTCommon.remove(objData, index, nelems, false);
       } else {
-	objData[index] = entry;
+	objData[index] = nentry;
       }
       return this;
     }
 
-    public final BitmapNode assoc(HashProvider hp, Counter c, HashBase nowner,
-				  int hash, Object _k, Object _v) {
-      final int bpos = bitpos(hash,shift);
+    public final BitmapNode assoc(HAMTBase nowner, Object _k, int hash, Object _v) {
+      final int bpos = bitpos(shift, hash);
       final boolean forceCopy = nowner != owner;
       final int bm = bitmap;
       if ((bm & bpos) == 0) {
-	c.inc();
 	final int nbm = bm | bpos;
-	final Object[] dstData = insert(data, new LeafNode(nowner, _k, _v, hash),
-					index(nbm,bpos),
-					Integer.bitCount(nbm),
-					forceCopy);
+	final INode[] dstData = insert(data, new LeafNode(nowner, _k, hash, _v),
+				       index(nbm,bpos),
+				       Integer.bitCount(nbm),
+				       forceCopy);
 	if(nowner != owner) {
 	  return new BitmapNode(nowner, nbm, shift, dstData);
 	} else {
@@ -411,43 +354,42 @@ public class HashBase implements IObj {
 	  return this;
 	}
       } else {
-	final Object[] srcData = data;
-	final Object[] dstData = forceCopy ? srcData.clone() : srcData;
+	final INode[] srcData = data;
+	final INode[] dstData = forceCopy ? srcData.clone() : srcData;
 	final int index = index(bm,bpos);
-	final Object curVal = dstData[index];
+	final INode curVal = dstData[index];
 	if (curVal instanceof LeafNode) {
 	  final LeafNode lf = (LeafNode)curVal;
 	  if (lf.hashcode == hash) {
-	    dstData[index] = lf.assoc(hp, c, nowner, _k, _v);
+	    dstData[index] = lf.assoc(nowner, _k, _v);
 	  } else {
 	    BitmapNode node = new BitmapNode(nowner, incShift(shift), lf);
-	    dstData[index] = node.assoc(hp, c, nowner, hash, _k, _v);
+	    dstData[index] = node.assoc(nowner, _k, hash, _v);
 	  }
 	} else {
 	  final BitmapNode node = (BitmapNode)curVal;
-	  dstData[index] = node.assoc(hp,c,nowner,hash,_k,_v);
+	  dstData[index] = node.assoc(nowner,_k,hash,_v);
 	}
 	return forceCopy ? new BitmapNode(nowner, bm, shift, dstData) : this;
       }
     }
 
-    public Object dissoc(HashProvider hp, Counter c, HashBase nowner, int hash, Object _k,
-			 boolean collapse) {
-      final int bpos = bitpos(hash,shift);
+    public INode dissoc(HAMTBase nowner, Object _k, int hash, boolean collapse) {
+      final int bpos = bitpos(shift, hash);
       int bm = bitmap;
       if((bm & bpos) == 0)
 	return this;
-      final Object[] srcData = data;
+      final INode[] srcData = data;
       final int index = index(bm,bpos);
-      Object entry = srcData[index];
-      Object nentry = null;
+      INode entry = srcData[index];
+      INode nentry = null;
       final LeafNode lf = entry instanceof LeafNode ? (LeafNode)entry : null;
       if (lf != null) {
 	if (lf.hashcode != hash)
 	  return this;
-	nentry = lf.dissoc(hp, c, nowner, _k);
+	nentry = lf.dissoc(nowner, _k);
       } else {
-	nentry = ((BitmapNode)entry).dissoc(hp, c, nowner, hash, _k, true);
+	nentry = ((BitmapNode)entry).dissoc(nowner, _k, hash, true);
       }
       //No change
       if (nentry == entry)
@@ -463,7 +405,7 @@ public class HashBase implements IObj {
 	  return null;
 	} else if (nelems == 1) {
 	  if (removed) {
-	    Object leftover = srcData[index == 0 ? 1 : 0];
+	    INode leftover = srcData[index == 0 ? 1 : 0];
 	    if (leftover instanceof LeafNode)
 	      return leftover;
 	  } else {
@@ -473,9 +415,9 @@ public class HashBase implements IObj {
 	}
       }
       boolean forceCopy = nowner != owner;
-      Object[] dstData;
+      INode[] dstData;
       if(removed)
-	dstData = remove(srcData, index, nelems, forceCopy);
+	dstData = HAMTCommon.remove(srcData, index, nelems, forceCopy);
       else {
 	dstData = forceCopy ? srcData.clone() : srcData;
 	dstData[index] = nentry;
@@ -489,18 +431,27 @@ public class HashBase implements IObj {
       }
     }
 
+    public final int countLeaves() {
+      final INode[] mdata = data;
+      final int nelems = Integer.bitCount(bitmap);
+      int sum = 0;
+      for (int idx = 0; idx < nelems; ++idx)
+	sum += mdata[idx].countLeaves();
+      return sum;
+    }
+
     static class BitmapNodeIterator implements LeafNodeIterator {
-      final Object[] data;
+      final INode[] data;
       int idx;
       final int endidx;
       LeafNodeIterator nextObj;
-      BitmapNodeIterator(Object[] _data, int _endidx) {
+      BitmapNodeIterator(INode[] _data, int _endidx) {
 	data = _data;
 	idx = -1;
 	endidx = _endidx;
 	advance();
       }
-      BitmapNodeIterator(Object[] _data) {
+      BitmapNodeIterator(INode[] _data) {
 	this(_data, _data.length);
       }
       void advance() {
@@ -508,7 +459,7 @@ public class HashBase implements IObj {
 	    return;
 	}
 	int curIdx = idx + 1;
-	final Object[] objData = data;
+	final INode[] objData = data;
 	final int len = endidx;
 	for (; curIdx < len && objData[curIdx] == null; ++curIdx);
 	idx = curIdx;
@@ -528,16 +479,92 @@ public class HashBase implements IObj {
 	return nextObj != null;
       }
 
-      public LeafNode nextLeaf() {
+      public ILeaf nextLeaf() {
 	if (nextObj == null)
 	  throw new UnsupportedOperationException();
-	LeafNode lf = nextObj.nextLeaf();
+	ILeaf lf = nextObj.nextLeaf();
 	advance();
 	return lf;
       }
     }
 
-    public LeafNodeIterator iterator() { return new BitmapNodeIterator(data); }
+    public final LeafNodeIterator iterator() { return new BitmapNodeIterator(data); }
+
+
+    @SuppressWarnings("unchecked")
+    static final Object mapValue(LeafNode lhs, LeafNode rhs, BiFunction valueMapper) {
+      if (lhs == null) return rhs.v;
+      if (rhs == null) return lhs.v;
+      return valueMapper.apply(lhs.v, rhs.v);
+    }
+
+    @SuppressWarnings("unchecked")
+    public final BitmapNode union(HAMTBase nowner, BitmapNode other, BiFunction valueMapper) {
+      int mbm = bitmap;
+      final int obm = other.bitmap;
+      INode[] mdata = data;
+      final INode[] odata = other.data;
+      boolean copy = owner != nowner;
+      for (int idx = 0; idx < 32; ++idx) {
+	final int bitpos = 1 << idx;
+	final boolean mvalid = (mbm & bitpos) != 0;
+	final boolean ovalid = (obm & bitpos) != 0;
+	//If we care about this position at all
+	if (ovalid) {
+	  //If we do not have an entry in this position - this is a fast path where we
+	  //simply reference the nodes.
+	  final int oidx = index(obm, bitpos);
+	  final INode oobj = odata[oidx];
+	  if (!mvalid) {
+	    mbm = mbm | bitpos;
+	    final int midx = index(mbm, bitpos);
+	    mdata = insert(mdata, oobj, midx, Integer.bitCount(mbm), copy);
+	    copy = false;
+	  } else {
+	    final int midx = index(mbm, bitpos);
+	    final INode mobj = mdata[midx];
+	    mdata = copy ? mdata.clone() : mdata;
+	    copy = false;
+	    if (mobj instanceof LeafNode) {
+	      LeafNode mlf = (LeafNode) mobj;
+	      final Object key = mlf.key();
+	      if(oobj instanceof LeafNode) {
+		LeafNode olf = (LeafNode)oobj;
+		if (mlf.hashcode == olf.hashcode) {
+		  for(; olf != null; olf = olf.nextNode) {
+		    mlf = mlf.union(nowner, olf.k, olf.v, valueMapper);
+		  }
+		  mdata[midx] = mlf;
+		} else { //mlf.hashcode != olf.hashcode
+		  final BitmapNode node = new BitmapNode(nowner, 0, incShift(shift));
+		  node.getOrCreate(olf.k, olf.hashcode).v = olf.v;
+		  node.getOrCreate(mlf.k, mlf.hashcode).v = mlf.v;
+		  mdata[midx] = node;
+		}
+	      } else { //oobj instanceof BitmapNode
+		final BitmapNode onode = (BitmapNode)oobj;
+		mdata[midx] = onode.assoc(nowner, mlf.k, mlf.hashcode,
+					  mapValue(mlf,
+						   onode.get(mlf.key(), mlf.hashcode),
+						   valueMapper));
+	      }
+	    } else { //mobj instanceof BitmapNode
+	      final BitmapNode mnode = (BitmapNode) mobj;
+	      if(oobj instanceof LeafNode) {
+		final LeafNode olf = (LeafNode)oobj;
+		mdata[midx] = mnode.assoc(nowner, olf.k, olf.hashcode,
+					  mapValue(mnode.get(olf.k, olf.hashcode),
+						   olf,
+						   valueMapper));
+	      } else {
+		mdata[midx] = mnode.union(nowner, (BitmapNode)oobj, valueMapper);
+	      }
+	    }
+	  }
+	}
+      }
+      return new BitmapNode(nowner, mbm, shift, mdata);
+    }
 
     public void print(int indent) {
       for(int idx = 0; idx < indent; ++idx) {
@@ -563,10 +590,10 @@ public class HashBase implements IObj {
   }
 
   public static class HTIterator implements LeafNodeIterator {
-    Function<LeafNode,Object> tfn;
+    Function<ILeaf,Object> tfn;
     LeafNode nullEntry;
     LeafNodeIterator rootIter;
-    HTIterator(Function<LeafNode,Object> _tfn, LeafNode _nullEntry, LeafNodeIterator _rootIter) {
+    HTIterator(Function<ILeaf,Object> _tfn, LeafNode _nullEntry, LeafNodeIterator _rootIter) {
       tfn = _tfn;
       nullEntry = _nullEntry;
       rootIter = _rootIter;
@@ -574,8 +601,8 @@ public class HashBase implements IObj {
 
     public boolean hasNext() { return nullEntry != null || rootIter.hasNext(); }
 
-    public LeafNode nextLeaf() {
-      if ( nullEntry != null) {
+    public ILeaf nextLeaf() {
+      if (nullEntry != null) {
 	LeafNode retval = nullEntry;
 	nullEntry = null;
 	return retval;
@@ -589,111 +616,29 @@ public class HashBase implements IObj {
     }
   }
 
-  //A bi level iterator is designed to iterate as if the tree's top 2 levels were are
-  //2 dimension tensor.  This allows me to easily break up the iteration space and assuming
-  //the hash keys are somewhat evenly distributed do a parallelized iteration across the
-  //first 2 levels of the space.  Since there are at most 1024 nodes in the second level
-  //if we just divide 1024 by the parallelism we get the number of indexes each iterator
-  //should iterate.
-  static class BiLevelIterator implements LeafNodeIterator {
-    final BitmapNode root;
-    LeafNode nullEntry;
-    int idx;
-    final int endidx;
-    LeafNodeIterator nextObj;
-    Function<LeafNode,Object> tfn;
-
-    public BiLevelIterator(BitmapNode _root, LeafNode _nullEntry, int _startidx,
-			   int _endidx, Function<LeafNode,Object> _tfn) {
-      root = _root;
-      nullEntry = _nullEntry;
-      idx = _startidx - 1;
-      endidx = _endidx;
-      tfn = _tfn;
-      advance();
-    }
-
-    void advance() {
-      if(nextObj != null && nextObj.hasNext())
-	return;
-      nextObj = null;
-      if (nullEntry != null) {
-	nextObj = nullEntry.iterator();
-	nullEntry = null;
-	return;
-      }
-      while(idx < endidx && nextObj == null) {
-	++idx;
-	final int rootidx = idx / 32;
-	final int subidx = idx % 32;
-	final int rootbpos = 1 << rootidx;
-	final int rootbitmap = root.bitmap;
-	if ((rootbitmap & rootbpos) != 0) {
-	  final int rootindex = index(rootbitmap, rootbpos);
-	  final Object rootObj = root.data[rootindex];
-	  if (rootObj instanceof LeafNode) {
-	    nextObj = ((LeafNode)rootObj).iterator();
-	    //Move idx just before the next possible root position
-	    idx = (rootidx + 1) * 32 - 1;
-	  } else {
-	    final BitmapNode childNode = (BitmapNode)rootObj;
-	    final int childbpos = 1 << subidx;
-	    final int childbitmap = childNode.bitmap;
-	    if ((childbitmap & childbpos) != 0) {
-	      final int childindex = index(childbitmap, childbpos);
-	      final Object childObj = childNode.data[childindex];
-	      if (childObj instanceof LeafNode)
-		nextObj = ((LeafNode)childObj).iterator();
-	      else {
-		nextObj = ((BitmapNode)childObj).iterator();
-	      }
-	    }
-	  }
-	}
-      }
-    }
-
-    public boolean hasNext() {
-      return nextObj != null;
-    }
-
-    public LeafNode nextLeaf() {
-      if (nextObj == null)
-	throw new UnsupportedOperationException();
-      LeafNode lf = nextObj.nextLeaf();
-      advance();
-      return lf;
-    }
-
-    public Object next() {
-      LeafNode lf = nextLeaf();
-      return tfn.apply(lf);
-    }
-  }
-
-  public static Function<LeafNode,Object> valIterFn = lf -> lf.val();
-  public static Function<LeafNode,Object> keyIterFn = lf -> lf.key();
-  public static Function<LeafNode,Object> entryIterFn = lf -> new MapEntry(lf.key(), lf.val());
-  public static Function<LeafNode,Object> identityIterFn = lf -> lf;
+  public static Function<ILeaf,Object> valIterFn = lf -> lf.val();
+  public static Function<ILeaf,Object> keyIterFn = lf -> lf.key();
+  public static Function<ILeaf,Object> entryIterFn = lf -> new MapEntry(lf.key(), lf.val());
+  public static Function<ILeaf,Object> identityIterFn = lf -> lf;
 
   protected final HashProvider hp;
-  protected final Counter c;
+  protected int count;
   protected BitmapNode root;
   protected LeafNode nullEntry;
   protected final IPersistentMap meta;
 
-  public HashBase(HashProvider _hp, Counter _c, BitmapNode r, LeafNode ne, IPersistentMap _meta) {
+  public HashBase(HashProvider _hp, int _c, BitmapNode r, LeafNode ne, IPersistentMap _meta) {
     hp = _hp;
-    c = _c;
+    count = _c;
     root = r;
     nullEntry = ne;
     meta = _meta;
   }
 
   public HashBase(HashProvider _hp) {
-    c = new Counter();
+    count = 0;
     nullEntry = null;
-    root = new BitmapNode(0,0,new Object[4]);
+    root = new BitmapNode(this, 0, 0, new INode[4]);
     hp = _hp;
     meta = null;
   }
@@ -705,7 +650,7 @@ public class HashBase implements IObj {
   //Unsafe shallow clone version
   HashBase(HashBase other, boolean marker) {
     hp = other.hp;
-    c = new Counter(other.c);
+    count = other.count;
     root = other.root;
     nullEntry = other.nullEntry;
     meta = other.meta;
@@ -713,14 +658,14 @@ public class HashBase implements IObj {
 
   public HashBase(HashBase other) {
     hp = other.hp;
-    c = new Counter(other.c);
-    root = other.root != null ? other.root.clone() : null;
-    nullEntry = nullEntry  != null ? other.nullEntry.clone() : null;
+    count = other.count;
+    root = other.root != null ? other.root.clone(this) : null;
+    nullEntry = nullEntry  != null ? other.nullEntry.clone(this) : null;
     meta = other.meta;
   }
 
   HashBase shallowClone(IPersistentMap newMeta) {
-    return new HashBase(hp, new Counter(c), root, nullEntry, newMeta);
+    return new HashBase(this, true);
   }
 
   public HashBase shallowClone() {
@@ -731,34 +676,45 @@ public class HashBase implements IObj {
     return new HashBase(this);
   }
 
+  public final void inc() { ++count; }
+  public final void dec() { --count; }
+  public final int hash(Object obj) { return hp.hash(obj); }
+  public final boolean equals(Object lhs, Object rhs) { return hp.equals(lhs, rhs); }
+
+  public final int size() {
+    if (count == -1) {
+      final int nc = nullEntry != null ? 1 : 0;
+      count = nc + root.countLeaves();
+    }
+    return count;
+  }
+
 
   final LeafNode getNode(Object key) {
     if(key == null)
       return nullEntry;
-    return root.get(hp,hp.hash(key),key);
+    return root.get(key, hp.hash(key));
   }
 
   final LeafNode getOrCreate(Object key) {
     if (key == null) {
       if (nullEntry == null) {
-	c.inc();
-	nullEntry = new LeafNode(null, 0);
+	nullEntry = new LeafNode(this, null, 0);
       }
-      return  nullEntry;
+      return nullEntry;
     } else {
-      return root.getOrCreate(hp, c, hp.hash(key), key);
+      return root.getOrCreate(key, hp.hash(key));
     }
   }
 
   public void clear() {
-    c.count(0);
+    count = 0;
     nullEntry = null;
-    root = new BitmapNode(0,0,new Object[4]);
+    root.bitmap = 0;
+    root.data = new INode[4];
   }
 
-  public int size() { return c.count(); }
-
-  final LeafNodeIterator iterator(Function<LeafNode,Object> fn) {
+  final LeafNodeIterator iterator(Function<ILeaf,Object> fn) {
     return new HTIterator(fn, nullEntry, root.iterator());
   }
 
@@ -776,9 +732,7 @@ public class HashBase implements IObj {
 
     public final void clear() {
       if (allowsClear) {
-	c.count(0);
-	nullEntry = null;
-	root = new BitmapNode(0,0,new Object[4]);
+	HashBase.this.clear();
       }
       else
 	throw new RuntimeException("Unimplemented");
@@ -868,21 +822,76 @@ public class HashBase implements IObj {
     }
     return false;
   }
-  final Iterator[] splitIterators(int nsplits, Function<LeafNode,Object> fn) {
+  //Returned hashbase's count or size is incorrect.
+  final HashBase keyspaceSplit(int splitidx, int nsplits) {
+    final int groupSize = 1024 / nsplits;
+    int leftover = 1024 % nsplits;
+    final int startidx = splitidx * groupSize + splitidx < leftover ? splitidx : leftover;
+    final int localsize = groupSize + splitidx < leftover ? 1 : 0;
+    final int endidx = startidx + localsize;
+    HashBase retval = new HashBase(hp);
+    retval.count = -1;
+    int obitmap = 0;
+    INode[] odata = retval.root.data;
+    final int rbitmap = root.bitmap;
+    final INode[] rdata = root.data;
+    if (startidx == 0 && nullEntry != null) {
+      retval.nullEntry = nullEntry;
+    }
+    for(int idx = startidx; idx < endidx; ++idx) {
+      final int rootgroup = idx / 32;
+      final int subgroup = idx % 32;
+      final int rbitpos = 1 << rootgroup;
+      if ((rbitmap & rbitpos) != 0) {
+	final INode rnode = rdata[index(rbitmap,rbitpos)];
+	//If we can fast-path this and be done.
+	if(subgroup == 0 && (((idx + 32) <= endidx) || (rnode instanceof LeafNode))) {
+	  obitmap |= rbitpos;
+	  final int oidx = index(obitmap,rbitpos);
+	  final int onelems = Integer.bitCount(obitmap);
+	  odata = insert(odata, rnode, oidx, onelems, false);
+	  idx += 31;
+	} else if (rnode instanceof BitmapNode) {
+	  //Inclusive leftover.
+	  final int subleftover = Math.min(31 - subgroup, endidx - idx - 1);
+	  final int endgroup = subgroup + subleftover;
+	  final BitmapNode onode = ((BitmapNode)rnode).refIndexes(retval, subgroup, endgroup);
+	  if(onode != null) {
+	    obitmap |= rbitpos;
+	    final int oidx = index(obitmap,rbitpos);
+	    final int onelems = Integer.bitCount(obitmap);
+	    odata = insert(odata, onode, oidx, onelems, false);
+	  }
+	}
+      }
+    }
+    //Make that retval's count is incorrect.  This is the price to pay for not keeping
+    //sub-counts on the nodes and still trying to share structure.
+    retval.root.bitmap = obitmap;
+    retval.root.data = odata;
+    retval.count = -1;
+    return retval;
+  }
+
+  final HashBase[] splitBases(int nsplits ) {
     nsplits = Math.min(nsplits, 1024);
     final int nelemsPerSplit = Math.max(1, 1024 / nsplits);
-    Iterator[] retval = new Iterator[nsplits];
+    HashBase[] retval = new HashBase[nsplits];
     for (int idx = 0; idx < nsplits; ++idx ) {
-      int startIdx = idx * nelemsPerSplit;
-      int endidx = startIdx + nelemsPerSplit - 1;
-      //Ensure we handle any overrun.
-      if (idx == (nsplits - 1))
-	endidx = 1023;
-      retval[idx] = new BiLevelIterator(root, idx == 0 ? nullEntry : null,
-					startIdx, endidx, fn);
+      retval[idx] = keyspaceSplit(idx, nsplits);
     }
     return retval;
   }
+
+  final Iterator[] splitIterators(int nsplits, Function<ILeaf,Object> fn) {
+    HashBase[] bases = splitBases(nsplits);
+    int nbases = bases.length;
+    Iterator[] retval = new Iterator[nbases];
+    for (int idx = 0; idx < nbases; ++idx)
+      retval[idx] = bases[idx].iterator(fn);
+    return retval;
+  }
+
   public final Iterator[] splitKeys(int nsplits ) {
     return splitIterators(nsplits, keyIterFn);
   }
@@ -892,36 +901,31 @@ public class HashBase implements IObj {
   public final Iterator[] splitEntries(int nsplits ) {
     return splitIterators(nsplits, entryIterFn);
   }
-  //TODO - spliterator parallelization
-  @SuppressWarnings("unchecked")
-  final void forEachImpl(BiConsumer action) {
-    Iterator iter = new HTIterator(identityIterFn, nullEntry, root.iterator());
+
+  final void serialTraversal(Consumer<ILeaf> action) {
+    HTIterator iter = new HTIterator(identityIterFn, nullEntry, root.iterator());
     while(iter.hasNext()) {
-      LeafNode lf = (LeafNode)iter.next();
-      action.accept(lf.key(), lf.val());
+      action.accept(iter.nextLeaf());
     }
   }
 
-  @SuppressWarnings("unchecked")
-  final void parallelForEachImpl(BiConsumer action, ExecutorService executor,
-				 int parallelism) throws Exception {
-    if(ForkJoinTask.inForkJoinPool()
-       && executor == ForkJoinPool.commonPool())
-      forEachImpl(action);
+  final void parallelTraversal(Consumer<ILeaf> action, ExecutorService executor,
+			       int parallelism) throws InterruptedException,
+						       ExecutionException {
+    if (ForkJoinTask.inForkJoinPool()
+	&& executor == ForkJoinPool.commonPool()) {
+      serialTraversal(action);
+    }
     final int nelems = size();
     int splits = Math.min(1024, parallelism);
-    Iterator[] iterators = splitEntries(splits);
-    final int nTasks = iterators.length;
-    Future[] tasks = new Future[nTasks];
+    HashBase[] bases = splitBases(splits);
+    final int nTasks = bases.length;
+    final Future[] tasks = new Future[nTasks];
     for(int idx = 0; idx < nTasks; ++idx) {
       final int localIdx = idx;
       tasks[localIdx] = executor.submit(new Runnable() {
 	  public void run() {
-	    Iterator iter = iterators[localIdx];
-	    while(iter.hasNext()) {
-	      Map.Entry entry = (Map.Entry)iter.next();
-	      action.accept(entry.getKey(), entry.getValue());
-	    }
+	    bases[localIdx].serialTraversal(action);
 	  }
 	});
     }
@@ -931,61 +935,59 @@ public class HashBase implements IObj {
     }
   }
 
-  final void parallelForEachImpl(BiConsumer action) throws Exception {
-    if(ForkJoinTask.inForkJoinPool())
-      forEachImpl(action);
-    ForkJoinPool cp = ForkJoinPool.commonPool();
-    parallelForEachImpl(action, cp, cp.getParallelism());
+  final void parallelTraversal(Consumer<ILeaf> action) throws InterruptedException,
+							      ExecutionException {
+    parallelTraversal(action, ForkJoinPool.commonPool(),
+		      ForkJoinPool.getCommonPoolParallelism());
   }
 
-
+  @SuppressWarnings("unchecked")
+  final void forEach(BiConsumer action) {
+    serialTraversal(lf -> action.accept(lf.key(), lf.val()));
+  }
+  @SuppressWarnings("unchecked")
+  final void parallelForEach(BiConsumer action, ExecutorService executor,
+			     int parallelism) throws Exception {
+    parallelTraversal(lf -> action.accept(lf.key(), lf.val()), executor, parallelism);
+  }
+  @SuppressWarnings("unchecked")
+  final void parallelForEach(BiConsumer action) throws Exception {
+    parallelTraversal(lf -> action.accept(lf.key(), lf.val()));
+  }
 
   @SuppressWarnings("unchecked")
-  final void parallelUpdateValuesImpl(BiFunction action, ExecutorService executor,
-				      int parallelism) throws Exception {
-    if(ForkJoinTask.inForkJoinPool()
-       && executor == ForkJoinPool.commonPool()) {
-      LeafNodeIterator iter = iterator(identityIterFn);
-      while(iter.hasNext()) {
-	LeafNode lf = iter.nextLeaf();
-	lf.val(action.apply(lf.key(), lf.val()));
+  final void parallelUpdateValues(BiFunction action, ExecutorService executor,
+				  int parallelism) throws Exception {
+    parallelTraversal(lf->lf.val(action.apply(lf.key(), lf.val())), executor, parallelism);
+  }
+  @SuppressWarnings("unchecked")
+  final void parallelUpdateValues(BiFunction action) throws Exception {
+    parallelTraversal(lf->lf.val(action.apply(lf.key(), lf.val())));
+  }
+
+  final Object remove(Object key) {
+    if (key == null) {
+      if (nullEntry != null) {
+	final Object retval = nullEntry.val();
+	nullEntry = null;
+	dec();
+	return retval;
       }
+      return null;
     }
-    final int nelems = size();
-    int splits = Math.min(1024, parallelism);
-    Iterator[] iterators = splitEntries(splits);
-    final int nTasks = iterators.length;
-    Future[] tasks = new Future[nTasks];
-    for(int idx = 0; idx < nTasks; ++idx) {
-      final int localIdx = idx;
-      tasks[localIdx] = executor.submit(new Runnable() {
-	  public void run() {
-	    LeafNodeIterator iter = (LeafNodeIterator)iterators[localIdx];
-	    while(iter.hasNext()) {
-	      LeafNode lf = iter.nextLeaf();
-	      lf.val(action.apply(lf.key(), lf.val()));
-	    }
-	  }
-	});
-    }
-    //Finish iteration
-    for(int idx = 0; idx < nTasks; ++idx) {
-      tasks[idx].get();
-    }
-  }
-
-  final void parallelUpdateValuesImpl(BiFunction action) throws Exception {
-    ForkJoinPool cp = ForkJoinPool.commonPool();
-    parallelUpdateValuesImpl(action, cp, cp.getParallelism());
+    Box b = new Box();
+    root.remove(key, hp.hash(key), b, false);
+    return b.obj;
   }
 
   final HashBase assoc(Object key, Object val) {
     if (key == null) {
       if (nullEntry == null)
-	c.inc();
-      nullEntry = new LeafNode(this, key, val, 0);
+	nullEntry = new LeafNode(this, key, 0, val);
+      else
+	nullEntry = nullEntry.assoc(this, key, val);
     } else {
-      root = root.assoc(hp, c, this, hp.hash(key), key, val);
+      root = root.assoc(this, key, hp.hash(key), val);
     }
     return this;
   }
@@ -995,21 +997,21 @@ public class HashBase implements IObj {
     if(key == null) {
       if(nullEntry != null) {
 	nullEntry = null;
-	c.dec();
+	dec();
       }
     } else {
-      root = (BitmapNode)root.dissoc(hp,c,this,hp.hash(key),key,false);
+      root = (BitmapNode)root.dissoc(this,key,hp.hash(key),false);
     }
     return this;
   }
 
-  final Object getOrDefaultImpl(Object key, Object defaultValue) {
+  final Object getOrDefault(Object key, Object defaultValue) {
     LeafNode lf = getNode(key);
     return lf == null ? defaultValue : lf.val();
   }
 
   public Object get(Object k) {
-    return getOrDefaultImpl(k,null);
+    return getOrDefault(k,null);
   }
 
   public IObj withMeta(IPersistentMap meta) {

@@ -86,14 +86,14 @@ public final class TransientHashMap
   }
 
   public final Object valAt(Object key, Object notFound) {
-    return hb.getOrDefaultImpl(key, notFound);
+    return hb.getOrDefault(key, notFound);
   }
   public final Object invoke(Object arg1) {
     return hb.get(arg1);
   }
 
   public final Object invoke(Object arg1, Object notFound) {
-    return hb.getOrDefaultImpl(arg1, notFound);
+    return hb.getOrDefault(arg1, notFound);
   }
 
   public int count() { return hb.size(); }
