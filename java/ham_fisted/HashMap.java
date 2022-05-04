@@ -22,7 +22,6 @@ import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.Callable;
 
 
-
 public final class HashMap<K,V> implements Map<K,V> {
 
   final HashBase hb;
@@ -141,6 +140,19 @@ public final class HashMap<K,V> implements Map<K,V> {
   public boolean isEmpty() { return hb.size() == 0; }
   public Set<K> keySet() { return hb.new KeySet<K>(true); }
 
+  @SuppressWarnings("unchecked")
+  public final Iterator<K>[] splitKeys(int nsplits ) {
+    return (Iterator<K>[])hb.splitKeys(nsplits);
+  }
+  @SuppressWarnings("unchecked")
+  public final Iterator<V>[] splitValues(int nsplits ) {
+    return (Iterator<V>[])hb.splitValues(nsplits);
+  }
+  @SuppressWarnings("unchecked")
+  public final Iterator<Map.Entry<K,V>>[] splitEntries(int nsplits ) {
+    return (Iterator<Map.Entry<K,V>>[])hb.splitEntries(nsplits);
+  }
+
 
   /**
    * If the specified key is not already associated with a value or is associated
@@ -193,4 +205,5 @@ public final class HashMap<K,V> implements Map<K,V> {
   public Collection<V> values() {
     return hb.new ValueCollection<V>(true);
   }
+  public void printNodes() { hb.printNodes(); }
 }

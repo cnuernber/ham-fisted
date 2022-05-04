@@ -68,10 +68,7 @@ public class HAMTCommon {
     V[] dstData = forceCopy ? Arrays.copyOf(srcData, Math.max(4, nextPow2(nelems))) : srcData;
     for(int idx = remidx; idx < nelems; ++idx)
       dstData[idx] = srcData[idx+1];
-    //In the case of a resize dstData may not have the nelems+1 range.
-    //But in the case of in-place we want to be sure we don't maintain references to
-    //data that we no longer own.
-    if(dstData == srcData)
+    if(dstData.length > nelems)
       dstData[nelems] = null;
     return dstData;
   }

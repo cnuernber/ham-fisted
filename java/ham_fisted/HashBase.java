@@ -423,7 +423,7 @@ public class HashBase implements IObj, HAMTBase {
 	dstData[index] = nentry;
       }
       if (forceCopy) {
-	return new BitmapNode(owner, bm, shift, dstData);
+	return new BitmapNode(nowner, bm, shift, dstData);
       } else {
 	data = dstData;
 	bitmap = bm;
@@ -658,9 +658,9 @@ public class HashBase implements IObj, HAMTBase {
 
   public HashBase(HashBase other) {
     hp = other.hp;
-    count = other.count;
-    root = other.root != null ? other.root.clone(this) : null;
+    count = 0;
     nullEntry = nullEntry  != null ? other.nullEntry.clone(this) : null;
+    root = other.root != null ? other.root.clone(this) : null;
     meta = other.meta;
   }
 
@@ -825,10 +825,15 @@ public class HashBase implements IObj, HAMTBase {
   //Returned hashbase's count or size is incorrect.
   final HashBase keyspaceSplit(int splitidx, int nsplits) {
     final int groupSize = 1024 / nsplits;
-    int leftover = 1024 % nsplits;
-    final int startidx = splitidx * groupSize + splitidx < leftover ? splitidx : leftover;
-    final int localsize = groupSize + splitidx < leftover ? 1 : 0;
+    final int leftover = 1024 % nsplits;
+    final int startidx = (splitidx * groupSize) + (splitidx < leftover ? splitidx : leftover);
+    final int localsize = groupSize + (splitidx < leftover ? 1 : 0);
     final int endidx = startidx + localsize;
+    /* out.println("groupsize: " + String.valueOf(groupSize) + */
+    /* 		" splitidx: " + String.valueOf(splitidx) + */
+    /* 		" localsize: " + String.valueOf(localsize) + */
+    /* 		" startidx: " + String.valueOf(startidx) + */
+    /* 		" endidx: " + String.valueOf(endidx)); */
     HashBase retval = new HashBase(hp);
     retval.count = -1;
     int obitmap = 0;
@@ -855,7 +860,10 @@ public class HashBase implements IObj, HAMTBase {
 	  //Inclusive leftover.
 	  final int subleftover = Math.min(31 - subgroup, endidx - idx - 1);
 	  final int endgroup = subgroup + subleftover;
+	  /* out.println("subgroup: " + String.valueOf(subgroup) + */
+	  /* 	      " endgroup: " + String.valueOf(endgroup)); */
 	  final BitmapNode onode = ((BitmapNode)rnode).refIndexes(retval, subgroup, endgroup);
+	  idx += subleftover;
 	  if(onode != null) {
 	    obitmap |= rbitpos;
 	    final int oidx = index(obitmap,rbitpos);

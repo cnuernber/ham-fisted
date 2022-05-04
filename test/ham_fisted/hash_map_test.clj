@@ -8,9 +8,14 @@
 
 (deftest simple-assoc
   (let [orig PersistentHashMap/EMPTY]
+    (is (= 0 (count orig)))
     (is (= {:a :b} (assoc orig :a :b)))
+    (is (= 1 (count (assoc orig :a :b))))
     (is (= {} (-> (assoc orig :a :b)
-                  (dissoc :a)))))
+                  (dissoc :a))))
+    (is (= 0 (-> (assoc orig :a :b)
+                 (dissoc :a)
+                 (count)))))
 
   (let [nilmap (assoc orig nil :b)]
     (is (= {nil :b} nilmap))
@@ -22,19 +27,28 @@
     (is (= #{nil :a} (set (keys (assoc nilmap :a :b)))))))
 
 
+(defonce test-data* (atom {}))
+
+
 (deftest random-assoc-dissoc
-  (let [data (shuffle (range 1000))
-        dissoc-vals (take 100 data)
+  (let [n-elems 100
+        n-take (quot n-elems 10)
+        n-left (- n-elems n-take)
+        data (shuffle (range n-elems))
+        dissoc-vals (take n-take data)
         data (set data)
         dissoc-data (set/difference data (set dissoc-vals))]
+    (reset! test-data* {:data data
+                        :dissoc-vals dissoc-vals
+                        :dissoc-data dissoc-data})
     (testing "immutable"
       (let [alldata (reduce #(assoc %1 %2 %2)
                             orig
                             data)
             disdata (reduce #(dissoc %1 %2) alldata dissoc-vals)]
-        (is (= 900 (count disdata)))
+        (is (= n-left (count disdata)))
+        (is (= n-elems (count alldata)))
         (is (= dissoc-data (set (keys disdata))))
-        (is (= 1000 (count alldata)))
         (is (= data (set (keys alldata))))))
     (testing "transient"
       (let [alldata (-> (reduce #(assoc! %1 %2 %2)
@@ -45,17 +59,23 @@
                                 (transient alldata)
                                 dissoc-vals)
                         (persistent!))]
-        (is (= 900 (count disdata)))
-        (is (= 1000 (count alldata)))))
+        (is (= n-left (count disdata)))
+        (is (= n-elems (count alldata)))
+        (is (= dissoc-data (set (keys disdata))))
+        (is (= data (set (keys alldata))))))
     (testing "mutable"
       (let [alldata (HashMap.)
             _ (doseq [item data]
                 (.put alldata item item))
             disdata (.clone alldata)
+            _ (is (= n-elems (count disdata)))
             _ (doseq [item dissoc-vals]
                 (.remove disdata item))]
-        (is (= 900 (count disdata)))
-        (is (= 1000 (count alldata)))))))
+        (is (= n-left (count disdata)))
+        (is (= n-elems (count alldata)))
+        (is (= dissoc-data (set (keys disdata))))
+        (is (= data (set (keys alldata))))
+        ))))
 
 
 (deftest split-iterator-test
@@ -215,5 +235,10 @@
   (let [nhm (HashBase.)]
     (.keyspaceSplit hm 146 291 false nhm)
     (.printNodes nhm))
+
+  (let [hm (HashMap.)
+        _ (dotimes [idx 60]
+            (.put hm idx idx))]
+    (map iterator-seq (.splitKeys hm 7)))
 
   )
