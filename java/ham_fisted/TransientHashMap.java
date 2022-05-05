@@ -1,7 +1,7 @@
 package ham_fisted;
 
 
-import static ham_fisted.HashBase.*;
+import static ham_fisted.BitmapTrie.*;
 import clojure.lang.ITransientMap;
 import clojure.lang.ITransientAssociative2;
 import clojure.lang.IPersistentMap;
@@ -19,15 +19,15 @@ public final class TransientHashMap
   implements ITransientMap, ITransientAssociative2, IObj {
 
 
-  final HashBase hb;
+  final BitmapTrie hb;
   boolean editable = true;
 
-  public TransientHashMap(HashBase _hb) {
+  public TransientHashMap(BitmapTrie _hb) {
     hb = _hb;
   }
 
   TransientHashMap(TransientHashMap other) {
-    hb = new HashBase(other.hb);
+    hb = new BitmapTrie(other.hb);
   }
 
   public final TransientHashMap clone() {

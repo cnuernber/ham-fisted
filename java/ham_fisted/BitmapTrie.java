@@ -1,8 +1,8 @@
 package ham_fisted;
 
 import static java.lang.System.out;
-import static ham_fisted.IntBitmap.*;
-import static ham_fisted.HAMTCommon.*;
+import static ham_fisted.IntegerOps.*;
+import static ham_fisted.BitmapTrieCommon.*;
 import java.util.Set;
 import java.util.Collection;
 import java.util.AbstractSet;
@@ -28,16 +28,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ExecutionException;
 
 
-public class HashBase implements IObj, HAMTBase {
+public class BitmapTrie implements IObj, TrieBase {
 
   public static final class LeafNode implements INode, ILeaf {
-    public final HAMTBase owner;
+    public final TrieBase owner;
     public final int hashcode;
     public final Object k;
     //compute-at support means we can modify v.
     Object v;
     LeafNode nextNode;
-    public LeafNode(HAMTBase _owner, Object _k, int hc, Object _v, LeafNode nn) {
+    public LeafNode(TrieBase _owner, Object _k, int hc, Object _v, LeafNode nn) {
       owner = _owner;
       hashcode = hc;
       k = _k;
@@ -45,25 +45,25 @@ public class HashBase implements IObj, HAMTBase {
       nextNode = nn;
       _owner.inc();
     }
-    public LeafNode(HAMTBase _owner, Object _k, int hc, Object _v) {
+    public LeafNode(TrieBase _owner, Object _k, int hc, Object _v) {
       this(_owner, _k, hc, _v, null);
     }
-    public LeafNode(HAMTBase _owner, Object _k, int hc) {
+    public LeafNode(TrieBase _owner, Object _k, int hc) {
       this(_owner, _k, hc, null, null);
     }
-    public LeafNode(HAMTBase _owner, LeafNode prev) {
+    public LeafNode(TrieBase _owner, LeafNode prev) {
       owner = _owner;
       hashcode = prev.hashcode;
       k = prev.k;
       v = prev.v;
       nextNode = prev.nextNode;
     }
-    public final LeafNode clone(HAMTBase nowner) {
+    public final LeafNode clone(TrieBase nowner) {
       nowner = nowner == null ? owner : nowner;
       return new LeafNode(nowner, k, hashcode, v,
 			  nextNode != null ? nextNode.clone(nowner) : null);
     }
-    public final LeafNode setOwner(HAMTBase nowner) {
+    public final LeafNode setOwner(TrieBase nowner) {
       if (owner == nowner)
 	return this;
       return new LeafNode(nowner, this);
@@ -111,7 +111,7 @@ public class HashBase implements IObj, HAMTBase {
       return this;
     }
 
-    public final LeafNode assoc(HAMTBase nowner, Object _k, Object _v) {
+    public final LeafNode assoc(TrieBase nowner, Object _k, Object _v) {
       LeafNode retval = setOwner(nowner);
       if (nowner.equals(_k,k)) {
 	retval.v = _v;
@@ -125,7 +125,7 @@ public class HashBase implements IObj, HAMTBase {
       return retval;
     }
     @SuppressWarnings("unchecked")
-    public final LeafNode union(HAMTBase nowner, Object _k, Object v, BiFunction valueMapper) {
+    public final LeafNode union(TrieBase nowner, Object _k, Object v, BiFunction valueMapper) {
       LeafNode retval = setOwner(nowner);
       if(owner.equals(_k, k))
 	retval.v = valueMapper.apply(retval.v, v);
@@ -136,7 +136,7 @@ public class HashBase implements IObj, HAMTBase {
       }
       return retval;
     }
-    public final LeafNode dissoc(HAMTBase nowner, Object _k) {
+    public final LeafNode dissoc(TrieBase nowner, Object _k) {
       if (owner.equals(k, _k)) {
 	nowner.dec();
 	return nextNode;
@@ -179,33 +179,33 @@ public class HashBase implements IObj, HAMTBase {
     }
   }
   public static final class BitmapNode implements INode {
-    public final HAMTBase owner;
+    public final TrieBase owner;
     public final int shift;
     int bitmap;
     INode[] data;
 
-    public BitmapNode(HAMTBase _owner, int _bitmap, int _shift, INode[] _data) {
+    public BitmapNode(TrieBase _owner, int _bitmap, int _shift, INode[] _data) {
       owner = _owner;
       bitmap = _bitmap;
       shift = _shift;
       data = _data;
     }
 
-    public BitmapNode(HAMTBase _owner, int _bitmap, int _shift) {
+    public BitmapNode(TrieBase _owner, int _bitmap, int _shift) {
       owner = _owner;
       bitmap = _bitmap;
       shift = _shift;
       data = new INode[nextPow2(Integer.bitCount(_bitmap))];
     }
 
-    public BitmapNode(HAMTBase _owner, int _shift, LeafNode leaf) {
+    public BitmapNode(TrieBase _owner, int _shift, LeafNode leaf) {
       owner = _owner;
       shift = _shift;
       bitmap = leaf != null ? bitpos(_shift, leaf.hashcode) : 0;
       data = new INode[] {leaf, null, null, null};
     }
 
-    public final BitmapNode clone(HAMTBase nowner) {
+    public final BitmapNode clone(TrieBase nowner) {
       nowner = nowner == null ? owner : nowner;
       final INode[] srcData = data;
       final int bm = bitmap;
@@ -217,7 +217,7 @@ public class HashBase implements IObj, HAMTBase {
       return new BitmapNode(nowner, bitmap, shift, newData);
     }
 
-    public final BitmapNode refIndexes(HAMTBase nowner, int sidx, int eidx) {
+    public final BitmapNode refIndexes(TrieBase nowner, int sidx, int eidx) {
       if (eidx > 31)
 	throw new RuntimeException("End idx (inclusive) must be less than 32");
       final int bm = bitmap;
@@ -329,14 +329,14 @@ public class HashBase implements IObj, HAMTBase {
       }
       bitmap = bm;
       if (removed) {
-	data = HAMTCommon.remove(objData, index, nelems, false);
+	data = BitmapTrieCommon.remove(objData, index, nelems, false);
       } else {
 	objData[index] = nentry;
       }
       return this;
     }
 
-    public final BitmapNode assoc(HAMTBase nowner, Object _k, int hash, Object _v) {
+    public final BitmapNode assoc(TrieBase nowner, Object _k, int hash, Object _v) {
       final int bpos = bitpos(shift, hash);
       final boolean forceCopy = nowner != owner;
       final int bm = bitmap;
@@ -374,7 +374,7 @@ public class HashBase implements IObj, HAMTBase {
       }
     }
 
-    public INode dissoc(HAMTBase nowner, Object _k, int hash, boolean collapse) {
+    public INode dissoc(TrieBase nowner, Object _k, int hash, boolean collapse) {
       final int bpos = bitpos(shift, hash);
       int bm = bitmap;
       if((bm & bpos) == 0)
@@ -417,7 +417,7 @@ public class HashBase implements IObj, HAMTBase {
       boolean forceCopy = nowner != owner;
       INode[] dstData;
       if(removed)
-	dstData = HAMTCommon.remove(srcData, index, nelems, forceCopy);
+	dstData = BitmapTrieCommon.remove(srcData, index, nelems, forceCopy);
       else {
 	dstData = forceCopy ? srcData.clone() : srcData;
 	dstData[index] = nentry;
@@ -499,7 +499,7 @@ public class HashBase implements IObj, HAMTBase {
     }
 
     @SuppressWarnings("unchecked")
-    public final BitmapNode union(HAMTBase nowner, BitmapNode other, BiFunction valueMapper) {
+    public final BitmapNode union(TrieBase nowner, BitmapNode other, BiFunction valueMapper) {
       int mbm = bitmap;
       final int obm = other.bitmap;
       INode[] mdata = data;
@@ -627,7 +627,7 @@ public class HashBase implements IObj, HAMTBase {
   protected LeafNode nullEntry;
   protected final IPersistentMap meta;
 
-  public HashBase(HashProvider _hp, int _c, BitmapNode r, LeafNode ne, IPersistentMap _meta) {
+  public BitmapTrie(HashProvider _hp, int _c, BitmapNode r, LeafNode ne, IPersistentMap _meta) {
     hp = _hp;
     count = _c;
     root = r;
@@ -635,7 +635,7 @@ public class HashBase implements IObj, HAMTBase {
     meta = _meta;
   }
 
-  public HashBase(HashProvider _hp) {
+  public BitmapTrie(HashProvider _hp) {
     count = 0;
     nullEntry = null;
     root = new BitmapNode(this, 0, 0, new INode[4]);
@@ -643,12 +643,12 @@ public class HashBase implements IObj, HAMTBase {
     meta = null;
   }
 
-  public HashBase() {
+  public BitmapTrie() {
     this(hashcodeProvider);
   }
 
   //Unsafe shallow clone version
-  HashBase(HashBase other, boolean marker) {
+  BitmapTrie(BitmapTrie other, boolean marker) {
     hp = other.hp;
     count = other.count;
     root = other.root;
@@ -656,7 +656,7 @@ public class HashBase implements IObj, HAMTBase {
     meta = other.meta;
   }
 
-  public HashBase(HashBase other) {
+  public BitmapTrie(BitmapTrie other) {
     hp = other.hp;
     count = 0;
     nullEntry = nullEntry  != null ? other.nullEntry.clone(this) : null;
@@ -664,16 +664,16 @@ public class HashBase implements IObj, HAMTBase {
     meta = other.meta;
   }
 
-  HashBase shallowClone(IPersistentMap newMeta) {
-    return new HashBase(this, true);
+  BitmapTrie shallowClone(IPersistentMap newMeta) {
+    return new BitmapTrie(this, true);
   }
 
-  public HashBase shallowClone() {
+  public BitmapTrie shallowClone() {
     return shallowClone(meta);
   }
 
-  HashBase deepClone() {
-    return new HashBase(this);
+  BitmapTrie deepClone() {
+    return new BitmapTrie(this);
   }
 
   public final void inc() { ++count; }
@@ -727,19 +727,19 @@ public class HashBase implements IObj, HAMTBase {
     }
 
     public final int size() {
-      return HashBase.this.size();
+      return BitmapTrie.this.size();
     }
 
     public final void clear() {
       if (allowsClear) {
-	HashBase.this.clear();
+	BitmapTrie.this.clear();
       }
       else
 	throw new RuntimeException("Unimplemented");
     }
 
     public final Iterator<Map.Entry<K,V>> iterator() {
-      @SuppressWarnings("unchecked") Iterator<Map.Entry<K,V>> retval = (Iterator<Map.Entry<K,V>>) HashBase.this.iterator(entryIterFn);
+      @SuppressWarnings("unchecked") Iterator<Map.Entry<K,V>> retval = (Iterator<Map.Entry<K,V>>) BitmapTrie.this.iterator(entryIterFn);
       return retval;
     }
 
@@ -766,17 +766,17 @@ public class HashBase implements IObj, HAMTBase {
       allowsClear = _ac;
     }
     public final int size() {
-      return HashBase.this.size();
+      return BitmapTrie.this.size();
     }
     public final void clear() {
       if (allowsClear)
-	HashBase.this.clear();
+	BitmapTrie.this.clear();
       else
 	throw new RuntimeException("Unimplemented");
     }
 
     public final Iterator<K> iterator() {
-      @SuppressWarnings("unchecked") Iterator<K> retval = (Iterator<K>) HashBase.this.iterator(keyIterFn);
+      @SuppressWarnings("unchecked") Iterator<K> retval = (Iterator<K>) BitmapTrie.this.iterator(keyIterFn);
       return retval;
     }
 
@@ -793,15 +793,15 @@ public class HashBase implements IObj, HAMTBase {
   class ValueCollection<V>  extends AbstractCollection<V> {
     boolean allowsClear;
     ValueCollection(boolean ac) { allowsClear = ac; }
-    public final int size() { return HashBase.this.size(); }
+    public final int size() { return BitmapTrie.this.size(); }
     public final void clear() {
       if (allowsClear)
-	HashBase.this.clear();
+	BitmapTrie.this.clear();
       else
 	throw new RuntimeException("Unimplemented");
     }
     public final Iterator<V> iterator() {
-      @SuppressWarnings("unchecked") Iterator<V> retval = (Iterator<V>) HashBase.this.iterator(valIterFn);
+      @SuppressWarnings("unchecked") Iterator<V> retval = (Iterator<V>) BitmapTrie.this.iterator(valIterFn);
       return retval;
     }
   }
@@ -823,7 +823,7 @@ public class HashBase implements IObj, HAMTBase {
     return false;
   }
   //Returned hashbase's count or size is incorrect.
-  final HashBase keyspaceSplit(int splitidx, int nsplits) {
+  final BitmapTrie keyspaceSplit(int splitidx, int nsplits) {
     final int groupSize = 1024 / nsplits;
     final int leftover = 1024 % nsplits;
     final int startidx = (splitidx * groupSize) + (splitidx < leftover ? splitidx : leftover);
@@ -834,7 +834,7 @@ public class HashBase implements IObj, HAMTBase {
     /* 		" localsize: " + String.valueOf(localsize) + */
     /* 		" startidx: " + String.valueOf(startidx) + */
     /* 		" endidx: " + String.valueOf(endidx)); */
-    HashBase retval = new HashBase(hp);
+    BitmapTrie retval = new BitmapTrie(hp);
     retval.count = -1;
     int obitmap = 0;
     INode[] odata = retval.root.data;
@@ -881,10 +881,10 @@ public class HashBase implements IObj, HAMTBase {
     return retval;
   }
 
-  final HashBase[] splitBases(int nsplits ) {
+  final BitmapTrie[] splitBases(int nsplits ) {
     nsplits = Math.min(nsplits, 1024);
     final int nelemsPerSplit = Math.max(1, 1024 / nsplits);
-    HashBase[] retval = new HashBase[nsplits];
+    BitmapTrie[] retval = new BitmapTrie[nsplits];
     for (int idx = 0; idx < nsplits; ++idx ) {
       retval[idx] = keyspaceSplit(idx, nsplits);
     }
@@ -892,7 +892,7 @@ public class HashBase implements IObj, HAMTBase {
   }
 
   final Iterator[] splitIterators(int nsplits, Function<ILeaf,Object> fn) {
-    HashBase[] bases = splitBases(nsplits);
+    BitmapTrie[] bases = splitBases(nsplits);
     int nbases = bases.length;
     Iterator[] retval = new Iterator[nbases];
     for (int idx = 0; idx < nbases; ++idx)
@@ -926,7 +926,7 @@ public class HashBase implements IObj, HAMTBase {
     }
     final int nelems = size();
     int splits = Math.min(1024, parallelism);
-    HashBase[] bases = splitBases(splits);
+    BitmapTrie[] bases = splitBases(splits);
     final int nTasks = bases.length;
     final Future[] tasks = new Future[nTasks];
     for(int idx = 0; idx < nTasks; ++idx) {
@@ -988,7 +988,7 @@ public class HashBase implements IObj, HAMTBase {
     return b.obj;
   }
 
-  final HashBase assoc(Object key, Object val) {
+  final BitmapTrie assoc(Object key, Object val) {
     if (key == null) {
       if (nullEntry == null)
 	nullEntry = new LeafNode(this, key, 0, val);
@@ -1001,7 +1001,7 @@ public class HashBase implements IObj, HAMTBase {
   }
 
   //Dissoc.  No check for null key identity - always returns this
-  final HashBase dissoc(Object key) {
+  final BitmapTrie dissoc(Object key) {
     if(key == null) {
       if(nullEntry != null) {
 	nullEntry = null;

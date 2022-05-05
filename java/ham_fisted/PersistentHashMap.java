@@ -1,8 +1,8 @@
 package ham_fisted;
 
-import static ham_fisted.IntBitmap.*;
-import static ham_fisted.HashBase.*;
-import static ham_fisted.HAMTCommon.*;
+import static ham_fisted.IntegerOps.*;
+import static ham_fisted.BitmapTrie.*;
+import static ham_fisted.BitmapTrieCommon.*;
 import clojure.lang.APersistentMap;
 import clojure.lang.Util;
 import clojure.lang.MapEntry;
@@ -35,7 +35,7 @@ public final class PersistentHashMap
   extends APersistentMap
   implements IObj, IMapIterable, IKVReduce, IEditableCollection {
 
-  final HashBase hb;
+  final BitmapTrie hb;
 
   public static final HashProvider equivHashProvider = new HashProvider(){
       public int hash(Object obj) {
@@ -63,9 +63,9 @@ public final class PersistentHashMap
     };
 
   public PersistentHashMap() {
-    hb = new HashBase(equivHashProvider);
+    hb = new BitmapTrie(equivHashProvider);
   }
-  public PersistentHashMap(HashBase hm) {
+  public PersistentHashMap(BitmapTrie hm) {
     hb = hm;
   }
   public PersistentHashMap(HashProvider _hp, boolean assoc, Object... kvs) {
@@ -83,7 +83,7 @@ public final class PersistentHashMap
       throw new RuntimeException("Duplicate key detected: " + String.valueOf(kvs));
     hb = hm.hb;
   }
-  public final HashBase unsafeGetHashBase() { return hb; }
+  public final BitmapTrie unsafeGetBitmapTrie() { return hb; }
   public PersistentHashMap(boolean assoc, Object... kvs) {
     this(equivHashProvider, assoc, kvs);
   }
@@ -144,7 +144,9 @@ public final class PersistentHashMap
       return this;
     return new PersistentHashMap(hb.shallowClone().dissoc(key));
   }
-  public static PersistentHashMap EMPTY = new PersistentHashMap(new HashBase(equivHashProvider));
+  
+  public static PersistentHashMap EMPTY = new PersistentHashMap(new BitmapTrie(equivHashProvider));
+  
   public final IPersistentCollection empty() {
     return (IPersistentCollection)EMPTY.withMeta(hb.meta);
   }

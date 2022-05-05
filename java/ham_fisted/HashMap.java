@@ -1,46 +1,55 @@
 package ham_fisted;
 
-import static ham_fisted.IntBitmap.*;
-import static ham_fisted.HAMTCommon.*;
-import static ham_fisted.HashBase.*;
-import clojure.lang.MapEntry;
-import java.util.Objects;
+import static ham_fisted.IntegerOps.*;
+import static ham_fisted.BitmapTrieCommon.*;
+import static ham_fisted.BitmapTrie.*;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
-import java.util.Collection;
-import java.util.AbstractSet;
-import java.util.AbstractCollection;
 import java.util.Iterator;
-import java.util.ArrayList;
-import java.util.NoSuchElementException;
 import java.util.function.BiFunction;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ForkJoinTask;
-import java.util.concurrent.Callable;
 
 
+/** 
+ * Implementation of the java.util.Map interface backed by a bitmap
+ * trie.
+ */
 public final class HashMap<K,V> implements Map<K,V> {
 
-  final HashBase hb;
+  final BitmapTrie hb;
 
   public HashMap() {
-    hb = new HashBase();
+    hb = new BitmapTrie();
   }
 
   public HashMap(HashProvider _hp) {
-    hb = new HashBase(_hp);
+    hb = new BitmapTrie(_hp);
   }
 
   //Unsafe construction without clone.
-  HashMap(HashBase other, boolean marker) {
-    hb = new HashBase(other,marker);
+  HashMap(HashMap other, boolean marker) {
+    hb = new BitmapTrie(other.hb, marker);
+  }
+  HashMap(BitmapTrie other, boolean marker) {
+    hb = new BitmapTrie(other, marker);
   }
   //Safe construction with deep clone.
-  public HashMap(HashBase other) {
-    hb = new HashBase(other);
+  public HashMap(Map<K,V> other) {
+    if (other instanceof HashMap) {
+      hb = new BitmapTrie(((HashMap)other).hb);
+    } else {
+      hb = new BitmapTrie();
+      for(Map.Entry<K,V> entry : other.entrySet())
+	put(entry.getKey(), entry.getValue());
+    }
+  }
+
+  //Safe construction with deep clone.
+  HashMap(BitmapTrie bt) {
+    hb = new BitmapTrie(bt);
   }
 
   public HashMap<K,V> clone() {
@@ -51,13 +60,13 @@ public final class HashMap<K,V> implements Map<K,V> {
     hb.clear();
   }
 
+  @SuppressWarnings("unchecked")
   final V applyMapping(K key, LeafNode node, Object val) {
     if(val == null)
       hb.remove(key);
     else
       node.val(val);
-    @SuppressWarnings("unchecked") V valval = (V)val;
-    return valval;
+    return (V)val;
   }
 
   public V compute(K key, BiFunction<? super K,? super V,? extends V> remappingFunction) {
@@ -178,6 +187,7 @@ public final class HashMap<K,V> implements Map<K,V> {
   public V put(K key, V value) {
     return (V)hb.getOrCreate(key).val(value);
   }
+  
   public void putAll(Map<? extends K,? extends V> m) {
     final Iterator iter = m.entrySet().iterator();
     while(iter.hasNext()) {

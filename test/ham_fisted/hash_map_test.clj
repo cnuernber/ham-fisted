@@ -1,7 +1,7 @@
 (ns ham-fisted.hash-map-test
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.set :as set])
-  (:import [ham_fisted HashMap PersistentHashMap HashBase]))
+  (:import [ham_fisted HashMap PersistentHashMap BitmapTrie]))
 
 (defonce orig PersistentHashMap/EMPTY)
 
