@@ -348,9 +348,14 @@ public class BitmapTrie implements IObj, TrieBase {
     static final INode unionAssoc(TrieBase owner, INode entry, Object key, int hashcode, int shift, Object val) {
       if(entry == null)
 	return new LeafNode(owner, key, hashcode, val);
-      else if (entry instanceof LeafNode) {
-	entry = new BitmapNode(owner, incShift(shift), (LeafNode)entry);
+
+      if (entry instanceof LeafNode) {
+	LeafNode lf = (LeafNode)entry;
+	if (hashcode == lf.hashcode)
+	  return lf.assoc(owner, key, val);
+	entry = new BitmapNode(owner, incShift(shift), lf);
       }
+
       return ((BitmapNode)entry).assoc(owner, key, hashcode, val);
     }
 

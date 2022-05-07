@@ -2,7 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.set :as set]
             [criterium.core :as crit])
-  (:import [ham_fisted HashMap PersistentHashMap BitmapTrie]
+  (:import [ham_fisted HashMap PersistentHashMap BitmapTrie TransientHashMap]
            [java.util ArrayList Collections Map Collection]
            [java.util.function BiFunction]))
 
@@ -49,6 +49,19 @@
                             orig
                             data)
             disdata (reduce #(dissoc %1 %2) alldata dissoc-vals)]
+        (is (= n-left (count disdata)))
+        (is (= n-elems (count alldata)))
+        (is (= dissoc-data (set (keys disdata))))
+        (is (= data (set (keys alldata))))))
+    (testing "transient1"
+      (let [alldata (-> (reduce #(assoc! %1 %2 %2)
+                                (TransientHashMap.)
+                                data)
+                        (persistent!))
+            disdata (-> (reduce #(dissoc! %1 %2)
+                                (transient alldata)
+                                dissoc-vals)
+                        (persistent!))]
         (is (= n-left (count disdata)))
         (is (= n-elems (count alldata)))
         (is (= dissoc-data (set (keys disdata))))
@@ -254,8 +267,8 @@
 
 
 (deftest union-test
-  (let [n-elems 1000
-        hn-elems (quot 1000 2)
+  (let [n-elems 100
+        hn-elems (quot n-elems 2)
         src-data (repeatedly n-elems #(rand-int 100000000))
         lhs (->array-list (take hn-elems src-data))
         rhs (->array-list (drop hn-elems src-data))
@@ -265,11 +278,48 @@
         un1 (.union hm1 hm2 bfn)
         un2 (.union un1 hm2 bfn)
         single-sum (reduce + (range hn-elems))]
-    (is (= (count un1) 1000))
+    (is (= (count un1) n-elems))
     (is (= (set src-data) (set (keys un1))))
-    (is (= (count un2) 1000))
+    (is (= (count un2) n-elems))
     (is (= (* 2 single-sum) (reduce + (vals un1))))
     (is (= (* 3 single-sum) (reduce + (vals un2))))))
+
+
+(deftest difference-test
+  (let [n-elems 100
+        hn-elems (quot n-elems 2)
+        src-data (repeatedly n-elems #(rand-int 100000000))
+        lhs (->array-list (take hn-elems src-data))
+        rhs (->array-list (drop hn-elems src-data))
+        llhs (->array-list (take (quot hn-elems 2) src-data))
+        ^PersistentHashMap hm1 (hamf-transient lhs)
+        hm2 (hamf-transient rhs)
+        df1 (.difference hm1 hm2)
+        df2 (.difference hm1 (hamf-transient llhs))]
+    (is (= hn-elems (count df1)))
+    (is (= (quot hn-elems 2) (count df2)))
+    (is (= (set/difference (set lhs) (set llhs)) (set (keys df2))))))
+
+
+(deftest intersection-test
+  (let [n-elems 100
+        hn-elems (quot n-elems 2)
+        hhn-elems (quot hn-elems 2)
+        src-data (repeatedly n-elems #(rand-int 100000000))
+        lhs (->array-list (take hn-elems src-data))
+        rhs (->array-list (drop hn-elems src-data))
+        llhs (->array-list (take hhn-elems src-data))
+        bfn (reify BiFunction (apply [this a b] (+ a b)))
+        ^PersistentHashMap hm1 (hamf-transient lhs)
+        hhm1 (hamf-transient llhs)
+        hm2 (hamf-transient rhs)
+        df1 (.intersection hm1 hm2 bfn)
+        df2 (.intersection hm1 hhm1 bfn)
+        hhn-sum (reduce + (range hhn-elems))]
+    (is (= 0 (count df1)))
+    (is (= (quot hn-elems 2) (count df2)))
+    (is (= (set/intersection (set lhs) (set llhs)) (set (keys df2))))
+    (is (= (* 2 hhn-sum) (reduce + (vals df2))))))
 
 
 (comment

@@ -26,6 +26,10 @@ public final class TransientHashMap
     hb = _hb;
   }
 
+  public TransientHashMap() {
+    hb = new BitmapTrie(PersistentHashMap.equivHashProvider);
+  }
+
   TransientHashMap(TransientHashMap other) {
     hb = new BitmapTrie(other.hb);
   }
