@@ -1,4 +1,4 @@
 #!/bin/bash
 
 scripts/compile
-clj -M:test
+clj -A:dev -M:test

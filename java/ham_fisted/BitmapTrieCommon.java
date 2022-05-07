@@ -6,7 +6,7 @@ import java.util.Objects;
 import java.util.Arrays;
 import java.util.Iterator;
 
-/** 
+/**
  * Interfaces and definitions used for implementing the bitmap trie.
  */
 public class BitmapTrieCommon {
@@ -26,7 +26,7 @@ public class BitmapTrieCommon {
     }
   }
 
-  /** 
+  /**
    * The default hashcode provide simply uses maxhash(obj.hashCode) and Objects.equals(a,b)
    */
   public static final HashProvider hashcodeProvider = new HashProvider(){};
@@ -41,7 +41,7 @@ public class BitmapTrieCommon {
     public void dec();
   }
 
-  /** 
+  /**
    * Return-by-reference pathway.
    */
   static final class Box {
@@ -82,6 +82,10 @@ public class BitmapTrieCommon {
     public int countLeaves();
     /** Return an iterator that returns the leaf nodes starting at this node. */
     public LeafNodeIterator iterator();
+    /** Return the leaf that corresponds to this key and hashcode */
+    public ILeaf get(Object key, int hashcode);
+    /** Remove an entry returning an new INode instance.  Return value may be nil */
+    public INode dissoc(TrieBase owner, Object key, int hashcode);
   }
 
   /**

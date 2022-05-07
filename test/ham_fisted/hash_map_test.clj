@@ -1,7 +1,10 @@
 (ns ham-fisted.hash-map-test
   (:require [clojure.test :refer [deftest is testing]]
-            [clojure.set :as set])
-  (:import [ham_fisted HashMap PersistentHashMap BitmapTrie]))
+            [clojure.set :as set]
+            [criterium.core :as crit])
+  (:import [ham_fisted HashMap PersistentHashMap BitmapTrie]
+           [java.util ArrayList Collections Map Collection]
+           [java.util.function BiFunction]))
 
 (defonce orig PersistentHashMap/EMPTY)
 
@@ -126,10 +129,152 @@
                      (map count)
                      (reduce +))))))
 
+
+
+(defmacro benchmark-us
+  [op]
+  `(let [bdata# (crit/quick-benchmark ~op nil)]
+     {:mean-μs (* (double (first (:mean bdata#))) 1e6)
+      :variance-μs (* (double (first (:variance bdata#))) 1e6)}))
+
+
+(defn ->collection
+  ^Collection [data]
+  (if (instance? Collection data)
+    data
+    (seq data)))
+
+
+(defn ->array-list
+  ^ArrayList [data]
+  (if (instance? ArrayList data)
+    data
+    (let [retval (ArrayList.)]
+      (.addAll retval (->collection data))
+      retval)))
+
+
+(defn time-dataset
+  [data constructor]
+  (let [dlist (doto (ArrayList.)
+                (.addAll ^Collection (seq data)))
+        _ (Collections/shuffle dlist)
+        ctime (benchmark-us (constructor dlist))
+        ^Map ds (constructor dlist)
+        nelems (.size dlist)
+        atime (benchmark-us
+               (dotimes [idx nelems]
+                 (.get ds (.get dlist idx))))]
+    {:construct-μs (:mean-μs ctime)
+     :access-μs (:mean-μs atime)}))
+
+
+(defn java-hashmap
+  [^ArrayList data]
+  (let [hm (java.util.HashMap.)
+        nelems (.size data)]
+    (dotimes [idx nelems]
+      (.put hm (.get data idx) idx))
+    hm))
+
+
+(defn hamf-hashmap
+  [^ArrayList data]
+  (let [hm (HashMap.)
+        nelems (.size data)]
+    (dotimes [idx nelems]
+      (.put hm (.get data idx) idx))
+    hm))
+
+
+(defn hamf-equiv-hashmap
+  [^ArrayList data]
+  (let [hm (HashMap. PersistentHashMap/equivHashProvider)
+        nelems (.size data)]
+    (dotimes [idx nelems]
+      (.put hm (.get data idx) idx))
+    hm))
+
+
+(defn clj-transient
+  [^ArrayList data]
+  (let [nelems (.size data)]
+    (loop [hm (transient {})
+           idx 0]
+      (if (< idx nelems)
+        (recur (assoc! hm (.get data idx) idx) (unchecked-inc idx))
+        (persistent! hm)))))
+
+
+(defn hamf-transient
+  [^ArrayList data]
+  (let [nelems (.size data)]
+    (loop [hm (transient PersistentHashMap/EMPTY)
+           idx 0]
+      (if (< idx nelems)
+        (recur (assoc! hm (.get data idx) idx) (unchecked-inc idx))
+        (persistent! hm)))))
+
+
+(def datastructures
+  [[:java-hashmap java-hashmap]
+   [:hamf-hashmap hamf-hashmap]
+
+   [:hamf-equiv-hashmap hamf-equiv-hashmap]
+   [:clj-transient clj-transient]
+   [:hamf-transient hamf-transient]
+   ])
+
+
+(defn compare-datastructures
+  [data]
+  (let [data (->array-list data)
+        ^Map hm (hamf-equiv-hashmap data)
+        ^Map thm (hamf-transient data)
+        nelems (.size data)]
+    (println "~~~HASHMAP~~~")
+    (.printNodes hm)
+    (crit/quick-bench (dotimes [idx nelems]
+                        (.get hm (.get data idx))))
+    (println "~~~Transient~~~~")
+    (.printNodes thm)
+    (crit/quick-bench (dotimes [idx nelems]
+                        (.get thm (.get data idx))))
+    ))
+
+
+(defn profile-datastructures
+  [data]
+  (let [data (->array-list data)]
+    (->> (shuffle datastructures)
+         (map (fn [[ds-name ctor]]
+                (-> (time-dataset data ctor)
+                    (assoc :ds-name ds-name))))
+         (sort-by :construct-μs))))
+
+
+(deftest union-test
+  (let [n-elems 1000
+        hn-elems (quot 1000 2)
+        src-data (repeatedly n-elems #(rand-int 100000000))
+        lhs (->array-list (take hn-elems src-data))
+        rhs (->array-list (drop hn-elems src-data))
+        ^PersistentHashMap hm1 (hamf-transient lhs)
+        bfn (reify BiFunction (apply [this a b] (+ a b)))
+        hm2 (hamf-transient rhs)
+        un1 (.union hm1 hm2 bfn)
+        un2 (.union un1 hm2 bfn)
+        single-sum (reduce + (range hn-elems))]
+    (is (= (count un1) 1000))
+    (is (= (set src-data) (set (keys un1))))
+    (is (= (count un2) 1000))
+    (is (= (* 2 single-sum) (reduce + (vals un1))))
+    (is (= (* 3 single-sum) (reduce + (vals un2))))))
+
+
 (comment
 
   (do
-    (require '[criterium.core :as crit])
     (def hm (HashMap.))
     (def orig PersistentHashMap/EMPTY)
     )
@@ -147,12 +292,24 @@
                         (.put hm idx idx))))
   ;;34ns
   ;;jdk-17 - 24ns
+  (crit/quick-bench (let [hm (HashMap.)]
+                      (dotimes [idx 2]
+                        (.put hm idx idx))
+                      (dotimes [idx 2]
+                        (.get hm idx))))
+
   (crit/quick-bench (let [hm (HashMap. PersistentHashMap/equivHashProvider)]
                       (dotimes [idx 2]
                         (.put hm idx idx))))
   ;;70ns - twice as fast as clojure's transient for small case.  hasheq is the long
   ;;poll in the tent.
   ;;jdk-17 - 61ns
+
+  (crit/quick-bench (let [hm (HashMap. PersistentHashMap/equivHashProvider)]
+                      (dotimes [idx 2]
+                        (.put hm idx idx))
+                      (dotimes [idx 2]
+                        (.get hm idx))))
 
   (crit/quick-bench (let [hm (java.util.HashMap.)]
                       (dotimes [idx 2]
@@ -168,6 +325,18 @@
                         (persistent! hm))))
   ;;113ns
   ;;jdk-17 - 136ns
+
+  (crit/quick-bench
+   (let [phm (loop [idx 0
+                    hm (transient {})]
+               (if (< idx 2)
+                 (recur (unchecked-inc idx)
+                        (assoc! hm idx idx))
+                 (persistent! hm)))]
+     (loop [idx 0]
+       (when (< idx 2)
+         (get phm idx)
+         (recur (unchecked-inc idx))))))
 
   (crit/quick-bench (loop [idx 0
                            hm (transient PersistentHashMap/EMPTY)]
@@ -188,17 +357,38 @@
                         (.put hm idx idx))))
   ;;21us
   ;;jdk-17 - 21us
+  (crit/quick-bench (let [hm (HashMap.)]
+                      (dotimes [idx 1000]
+                        (.put hm idx idx))
+                      (dotimes [idx 1000]
+                        (.get hm idx))))
+  ;;35us
+
   (crit/quick-bench (let [hm (HashMap. PersistentHashMap/equivHashProvider)]
                       (dotimes [idx 1000]
                         (.put hm idx idx))))
   ;;41us
   ;;jdk-17 - 39us
 
+  (crit/quick-bench (let [hm (HashMap. PersistentHashMap/equivHashProvider)]
+                      (dotimes [idx 1000]
+                        (.put hm idx idx))
+                      (dotimes [idx 1000]
+                        (.get hm idx))))
+  ;; 75us
+
   (crit/quick-bench (let [hm (java.util.HashMap.)]
                       (dotimes [idx 1000]
                         (.put hm idx idx))))
   ;;17us
   ;;jdk-17 - 21us
+  (crit/quick-bench (let [hm (java.util.HashMap.)]
+                      (dotimes [idx 1000]
+                        (.put hm idx idx))
+                      (dotimes [idx 1000]
+                        (.get hm idx))))
+  ;;20us
+
   (crit/quick-bench (loop [idx 0
                            hm (transient {})]
                       (if (< idx 1000)
@@ -207,6 +397,19 @@
                         (persistent! hm))))
   ;;112us
   ;;123us
+  (crit/quick-bench
+   (let [phm (loop [idx 0
+                    hm (transient {})]
+               (if (< idx 1000)
+                 (recur (unchecked-inc idx)
+                        (assoc! hm idx idx))
+                 (persistent! hm)))]
+     (loop [idx 0]
+       (when (< idx 1000)
+         (get phm idx)
+         (recur (unchecked-inc idx))))))
+  ;;168us
+
   (crit/quick-bench (loop [idx 0
                            hm (transient PersistentHashMap/EMPTY)]
                       (if (< idx 1000)
@@ -216,7 +419,18 @@
   ;;47us
   ;;jdk-17 50us
 
-
+  (crit/quick-bench
+   (let [phm (loop [idx 0
+                    hm (transient PersistentHashMap/EMPTY)]
+               (if (< idx 1000)
+                 (recur (unchecked-inc idx)
+                        (assoc! hm idx idx))
+                 (persistent! hm)))]
+     (loop [idx 0]
+       (when (< idx 1000)
+         (get phm idx)
+         (recur (unchecked-inc idx))))))
+  ;; 83us
 
   ;;Useful to profile small things sometimes.
   (dotimes [idx 100000000]
@@ -240,5 +454,60 @@
         _ (dotimes [idx 60]
             (.put hm idx idx))]
     (map iterator-seq (.splitKeys hm 7)))
+
+
+  (def int-profile (profile-datastructures (repeatedly 1000 #(rand-int 100000))))
+  ;; jdk-8
+  ;;  ({:construct-μs 24.788405885214008,
+  ;;  :access-μs 13.965560035219426,
+  ;;  :ds-name :java-hashmap}
+  ;; {:construct-μs 37.363700646042986,
+  ;;  :access-μs 27.359574198159564,
+  ;;  :ds-name :hamf-hashmap}
+  ;; {:construct-μs 66.22582915842672,
+  ;;  :access-μs 46.921109418931586,
+  ;;  :ds-name :hamf-equiv-hashmap}
+  ;; {:construct-μs 68.11221358447489,
+  ;;  :access-μs 54.25726681049983,
+  ;;  :ds-name :hamf-transient}
+  ;; {:construct-μs 113.06234441939121,
+  ;;  :access-μs 52.703857229753226,
+  ;;  :ds-name :clj-transient})
+  (def double-profile (profile-datastructures (repeatedly 1000 #(rand-int 100000))))
+  (def str-profile (profile-datastructures (map str (repeatedly 1000 #(rand-int 100000)))))
+  ;;jdk-8
+  ;;({:construct-μs 23.930453143122246,
+  ;;  :access-μs 13.627138225718937,
+  ;;  :ds-name :java-hashmap}
+  ;; {:construct-μs 43.07852368684701,
+  ;;  :access-μs 32.3816567357513,
+  ;;  :ds-name :hamf-hashmap}
+  ;; {:construct-μs 68.1719815066939,
+  ;;  :access-μs 58.411238927738935,
+  ;;  :ds-name :hamf-equiv-hashmap}
+  ;; {:construct-μs 73.45427547307133,
+  ;;  :access-μs 66.72418882978724,
+  ;;  :ds-name :hamf-transient}
+  ;; {:construct-μs 128.5458824027073,
+  ;;  :access-μs 53.36163036127426,
+  ;;  :ds-name :clj-transient})
+  (def kw-profile (profile-datastructures (map (comp keyword str)
+                                               (repeatedly 1000 #(rand-int 100000)))))
+  ;;jdk-8
+ ;;  ({:construct-μs 29.58943302505967,
+ ;;  :access-μs 19.902508271217474,
+ ;;  :ds-name :java-hashmap}
+ ;; {:construct-μs 38.35744891443167,
+ ;;  :access-μs 30.663697570397485,
+ ;;  :ds-name :hamf-equiv-hashmap}
+ ;; {:construct-μs 49.081114095052094,
+ ;;  :access-μs 40.52704244139046,
+ ;;  :ds-name :hamf-transient}
+ ;; {:construct-μs 52.87004256437204,
+ ;;  :access-μs 40.30576300499933,
+ ;;  :ds-name :hamf-hashmap}
+ ;; {:construct-μs 99.67729208250168,
+ ;;  :access-μs 33.36973040195426,
+ ;;  :ds-name :clj-transient})
 
   )

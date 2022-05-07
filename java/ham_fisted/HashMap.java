@@ -3,6 +3,13 @@ package ham_fisted;
 import static ham_fisted.IntegerOps.*;
 import static ham_fisted.BitmapTrieCommon.*;
 import static ham_fisted.BitmapTrie.*;
+import clojure.lang.ITransientMap;
+import clojure.lang.ITransientAssociative2;
+import clojure.lang.IPersistentMap;
+import clojure.lang.IPersistentVector;
+import clojure.lang.IObj;
+import clojure.lang.MapEntry;
+import clojure.lang.IMapEntry;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -13,13 +20,15 @@ import java.util.function.Function;
 import java.util.concurrent.ExecutorService;
 
 
-/** 
+/**
  * Implementation of the java.util.Map interface backed by a bitmap
  * trie.
  */
-public final class HashMap<K,V> implements Map<K,V> {
+public final class HashMap<K,V>
+  implements Map<K,V>, ITransientMap, ITransientAssociative2, IObj {
 
   final BitmapTrie hb;
+  boolean editable = true;
 
   public HashMap() {
     hb = new BitmapTrie();
@@ -137,13 +146,14 @@ public final class HashMap<K,V> implements Map<K,V> {
     hb.parallelUpdateValues(action);
   }
 
-
+  @SuppressWarnings("unchecked")
   public V getOrDefault(Object key, V defaultValue) {
-    @SuppressWarnings("unchecked") V retval = (V)hb.getOrDefault(key, defaultValue);
-    return retval;
+    return (V)hb.getOrDefault(key, defaultValue);
   }
+
+  @SuppressWarnings("unchecked")
   public V get(Object k) {
-    return getOrDefault(k,null);
+    return (V)hb.get(k);
   }
   public int hashCode() { return -1; }
   public boolean isEmpty() { return hb.size() == 0; }
@@ -187,7 +197,7 @@ public final class HashMap<K,V> implements Map<K,V> {
   public V put(K key, V value) {
     return (V)hb.getOrCreate(key).val(value);
   }
-  
+
   public void putAll(Map<? extends K,? extends V> m) {
     final Iterator iter = m.entrySet().iterator();
     while(iter.hasNext()) {
@@ -214,6 +224,92 @@ public final class HashMap<K,V> implements Map<K,V> {
   public int size() { return hb.size(); }
   public Collection<V> values() {
     return hb.new ValueCollection<V>(true);
+  }
+
+  public final PersistentHashMap union(HashMap<K,V> other, BiFunction<? super V,? super V,? extends V> remappingFunction) {
+    return new PersistentHashMap(hb.union(other.hb, remappingFunction));
+  }
+
+  public final PersistentHashMap difference(HashMap<K,V> other) {
+    return new PersistentHashMap(hb.difference(other.hb));
+  }
+
+  public final PersistentHashMap intersection(HashMap<K,V> other, BiFunction<? super V,? super V,? extends V> remappingFunction) {
+    return new PersistentHashMap(hb.intersection(other.hb, remappingFunction));
+  }
+
+  public final IMapEntry entryAt(Object key) {
+    LeafNode lf = (LeafNode)hb.get(key);
+    return lf == null ? null : new MapEntry(lf.key(), lf.val());
+  }
+
+  final void ensureEditable() {
+    if (!editable)
+      throw new RuntimeException("Transient map editted after persistent!");
+  }
+
+  @SuppressWarnings("unchecked")
+  public final HashMap<K,V> assoc(Object key, Object val) {
+    ensureEditable();
+    put((K)key, (V)val);
+    return this;
+  }
+
+  @SuppressWarnings("unchecked")
+  public final HashMap<K,V> conj(Object val) {
+    ensureEditable();
+    if (val instanceof IPersistentVector) {
+      IPersistentVector v = (IPersistentVector)val;
+      if (v.count() != 2)
+	throw new RuntimeException("Vector length != 2 during conj");
+      put((K)v.nth(0), (V)v.nth(1));
+    } else if (val instanceof Map.Entry) {
+      Map.Entry e = (Map.Entry)val;
+      put((K)e.getKey(), (V)e.getValue());
+    } else {
+      Iterator iter = ((Iterable)val).iterator();
+      while(iter.hasNext()) {
+	Map.Entry e = (Map.Entry)iter.next();
+	put((K)e.getKey(), (V)e.getValue());
+      }
+    }
+    return this;
+  }
+
+  public final ITransientMap without(Object key) {
+    ensureEditable();
+    hb.remove(key);
+    return this;
+  }
+
+  public final Object valAt(Object key) {
+    return hb.get(key);
+  }
+
+  public final Object valAt(Object key, Object notFound) {
+    return hb.getOrDefault(key, notFound);
+  }
+  public final Object invoke(Object arg1) {
+    return hb.get(arg1);
+  }
+
+  public final Object invoke(Object arg1, Object notFound) {
+    return hb.getOrDefault(arg1, notFound);
+  }
+  public int count() { return hb.size(); }
+
+  public IPersistentMap meta() { return hb.meta; }
+  public IObj withMeta(IPersistentMap newMeta) {
+    return new HashMap(hb.shallowClone(newMeta));
+  }
+
+  /**
+   * Further changes to this hashmap will also change the persistent map so you must allow
+   * this hashmap to fall out of scope after this call.
+   */
+  public PersistentHashMap persistent() {
+    editable = false;
+    return new PersistentHashMap(hb);
   }
   public void printNodes() { hb.printNodes(); }
 }

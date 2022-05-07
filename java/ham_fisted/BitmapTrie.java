@@ -99,6 +99,11 @@ public class BitmapTrie implements IObj, TrieBase {
 	return null;
       }
     }
+    public final LeafNode get(Object _k, int hc) {
+      if (hc == hashcode)
+	return get(_k);
+      return null;
+    }
     public final LeafNode remove(Object _k, Box b) {
       if(owner.equals(_k,k)) {
 	owner.dec();
@@ -150,6 +155,14 @@ public class BitmapTrie implements IObj, TrieBase {
 	}
       }
       return this;
+    }
+
+    public final INode dissoc(TrieBase nowner, Object _k, int _hashcode) {
+      if (hashcode == _hashcode) {
+	return dissoc(nowner, k);
+      } else {
+	return this;
+      }
     }
 
     static class LFIter implements LeafNodeIterator {
@@ -257,8 +270,10 @@ public class BitmapTrie implements IObj, TrieBase {
 	return retval;
       }
       final Object entry = objData[index];
-      final LeafNode lf = entry instanceof LeafNode ? (LeafNode)entry : null;
-      if (lf != null) {
+      if (entry instanceof BitmapNode) {
+	return ((BitmapNode)entry).getOrCreate(k, hash);
+      } else {
+	LeafNode lf = (LeafNode)entry;
 	if (hash == lf.hashcode) {
 	  return lf.getOrCreate(k);
 	} else {
@@ -266,8 +281,6 @@ public class BitmapTrie implements IObj, TrieBase {
 	  objData[index] = node;
 	  return node.getOrCreate(k, hash);
 	}
-      } else {
-	return ((BitmapNode)entry).getOrCreate(k, hash);
       }
     }
 
@@ -275,16 +288,11 @@ public class BitmapTrie implements IObj, TrieBase {
       final int bpos = bitpos(shift, hash);
       final int bm = bitmap;
       if ((bm & bpos) != 0) {
-	final Object[] objData = data;
-	final int index = index(bm,bpos);
-	final Object entry = objData[index];
-	final LeafNode lf = entry instanceof LeafNode ? (LeafNode)entry : null;
-	if (lf != null) {
-	  if (hash == lf.hashcode) {
-	    return lf.get(k);
-	  }
+	final Object entry = data[index(bm,bpos)];
+	if (entry instanceof BitmapNode) {
+	  return ((BitmapNode)entry).get(k,hash);
 	} else {
-	  return ((BitmapNode)entry).get(k, hash);
+	  return ((LeafNode)entry).get(k);
 	}
       }
       return null;
@@ -336,6 +344,16 @@ public class BitmapTrie implements IObj, TrieBase {
       return this;
     }
 
+    //Concrete assoc operation shared between assoc, union, and intersection
+    static final INode unionAssoc(TrieBase owner, INode entry, Object key, int hashcode, int shift, Object val) {
+      if(entry == null)
+	return new LeafNode(owner, key, hashcode, val);
+      else if (entry instanceof LeafNode) {
+	entry = new BitmapNode(owner, incShift(shift), (LeafNode)entry);
+      }
+      return ((BitmapNode)entry).assoc(owner, key, hashcode, val);
+    }
+
     public final BitmapNode assoc(TrieBase nowner, Object _k, int hash, Object _v) {
       final int bpos = bitpos(shift, hash);
       final boolean forceCopy = nowner != owner;
@@ -357,19 +375,7 @@ public class BitmapTrie implements IObj, TrieBase {
 	final INode[] srcData = data;
 	final INode[] dstData = forceCopy ? srcData.clone() : srcData;
 	final int index = index(bm,bpos);
-	final INode curVal = dstData[index];
-	if (curVal instanceof LeafNode) {
-	  final LeafNode lf = (LeafNode)curVal;
-	  if (lf.hashcode == hash) {
-	    dstData[index] = lf.assoc(nowner, _k, _v);
-	  } else {
-	    BitmapNode node = new BitmapNode(nowner, incShift(shift), lf);
-	    dstData[index] = node.assoc(nowner, _k, hash, _v);
-	  }
-	} else {
-	  final BitmapNode node = (BitmapNode)curVal;
-	  dstData[index] = node.assoc(nowner,_k,hash,_v);
-	}
+	dstData[index] = unionAssoc(nowner, dstData[index], _k, hash, shift, _v);
 	return forceCopy ? new BitmapNode(nowner, bm, shift, dstData) : this;
       }
     }
@@ -381,16 +387,8 @@ public class BitmapTrie implements IObj, TrieBase {
 	return this;
       final INode[] srcData = data;
       final int index = index(bm,bpos);
-      INode entry = srcData[index];
-      INode nentry = null;
-      final LeafNode lf = entry instanceof LeafNode ? (LeafNode)entry : null;
-      if (lf != null) {
-	if (lf.hashcode != hash)
-	  return this;
-	nentry = lf.dissoc(nowner, _k);
-      } else {
-	nentry = ((BitmapNode)entry).dissoc(nowner, _k, hash, true);
-      }
+      final INode entry = srcData[index];
+      final INode nentry = entry.dissoc(nowner, _k, hash);
       //No change
       if (nentry == entry)
 	return this;
@@ -431,6 +429,10 @@ public class BitmapTrie implements IObj, TrieBase {
       }
     }
 
+    public final INode dissoc(TrieBase nowner, Object k, int hash) {
+      return dissoc(nowner, k, hash, true);
+    }
+
     public final int countLeaves() {
       final INode[] mdata = data;
       final int nelems = Integer.bitCount(bitmap);
@@ -442,44 +444,37 @@ public class BitmapTrie implements IObj, TrieBase {
 
     static class BitmapNodeIterator implements LeafNodeIterator {
       final INode[] data;
+      final int len;
       int idx;
-      final int endidx;
       LeafNodeIterator nextObj;
-      BitmapNodeIterator(INode[] _data, int _endidx) {
+      BitmapNodeIterator(INode[] _data, int bitmap) {
 	data = _data;
+	len = Integer.bitCount(bitmap);
 	idx = -1;
-	endidx = _endidx;
 	advance();
       }
-      BitmapNodeIterator(INode[] _data) {
-	this(_data, _data.length);
-      }
-      void advance() {
+      final void advance() {
 	if (nextObj != null && nextObj.hasNext()) {
 	    return;
 	}
 	int curIdx = idx + 1;
-	final INode[] objData = data;
-	final int len = endidx;
-	for (; curIdx < len && objData[curIdx] == null; ++curIdx);
 	idx = curIdx;
-	Object iterObj = curIdx == len ? null : objData[curIdx];
-	if (iterObj == null) {
-	  nextObj = null;
-	} else if (iterObj instanceof LeafNode) {
-	  LeafNode lf = (LeafNode)iterObj;
-	  nextObj = lf.iterator();
+	if (idx < len) {
+	  final Object iterObj = data[curIdx];
+	  if (iterObj instanceof LeafNode)
+	    nextObj = ((LeafNode)iterObj).iterator();
+	  else
+	    nextObj = ((BitmapNode)iterObj).iterator();
 	} else {
-	  BitmapNode childNode = (BitmapNode)iterObj;
-	  nextObj = childNode.iterator();
+	  nextObj = null;
 	}
       }
 
-      public boolean hasNext() {
+      public final boolean hasNext() {
 	return nextObj != null;
       }
 
-      public ILeaf nextLeaf() {
+      public final ILeaf nextLeaf() {
 	if (nextObj == null)
 	  throw new UnsupportedOperationException();
 	ILeaf lf = nextObj.nextLeaf();
@@ -488,14 +483,14 @@ public class BitmapTrie implements IObj, TrieBase {
       }
     }
 
-    public final LeafNodeIterator iterator() { return new BitmapNodeIterator(data); }
+    public final LeafNodeIterator iterator() { return new BitmapNodeIterator(data, bitmap); }
 
 
     @SuppressWarnings("unchecked")
-    static final Object mapValue(LeafNode lhs, LeafNode rhs, BiFunction valueMapper) {
-      if (lhs == null) return rhs.v;
-      if (rhs == null) return lhs.v;
-      return valueMapper.apply(lhs.v, rhs.v);
+    static final Object mapValue(ILeaf lhs, ILeaf rhs, BiFunction valueMapper) {
+      if (lhs == null) return rhs.val();
+      if (rhs == null) return lhs.val();
+      return valueMapper.apply(lhs.val(), rhs.val());
     }
 
     @SuppressWarnings("unchecked")
@@ -517,53 +512,157 @@ public class BitmapTrie implements IObj, TrieBase {
 	  final INode oobj = odata[oidx];
 	  if (!mvalid) {
 	    mbm = mbm | bitpos;
-	    final int midx = index(mbm, bitpos);
-	    mdata = insert(mdata, oobj, midx, Integer.bitCount(mbm), copy);
+	    mdata = insert(mdata, oobj, index(mbm, bitpos), Integer.bitCount(mbm), copy);
 	    copy = false;
 	  } else {
 	    final int midx = index(mbm, bitpos);
 	    final INode mobj = mdata[midx];
 	    mdata = copy ? mdata.clone() : mdata;
 	    copy = false;
+	    INode entry = null;
 	    if (mobj instanceof LeafNode) {
-	      LeafNode mlf = (LeafNode) mobj;
-	      final Object key = mlf.key();
-	      if(oobj instanceof LeafNode) {
-		LeafNode olf = (LeafNode)oobj;
-		if (mlf.hashcode == olf.hashcode) {
-		  for(; olf != null; olf = olf.nextNode) {
-		    mlf = mlf.union(nowner, olf.k, olf.v, valueMapper);
-		  }
-		  mdata[midx] = mlf;
-		} else { //mlf.hashcode != olf.hashcode
-		  final BitmapNode node = new BitmapNode(nowner, 0, incShift(shift));
-		  node.getOrCreate(olf.k, olf.hashcode).v = olf.v;
-		  node.getOrCreate(mlf.k, mlf.hashcode).v = mlf.v;
-		  mdata[midx] = node;
-		}
-	      } else { //oobj instanceof BitmapNode
-		final BitmapNode onode = (BitmapNode)oobj;
-		mdata[midx] = onode.assoc(nowner, mlf.k, mlf.hashcode,
-					  mapValue(mlf,
-						   onode.get(mlf.key(), mlf.hashcode),
-						   valueMapper));
+	      entry = oobj;
+	      for(LeafNode mlf = (LeafNode)mobj; mlf != null; mlf = mlf.nextNode) {
+		ILeaf olf = oobj.get(mlf.k, mlf.hashcode);
+		entry = unionAssoc(nowner, entry, mlf.k, mlf.hashcode, shift, mapValue(mlf, olf, valueMapper));
 	      }
-	    } else { //mobj instanceof BitmapNode
-	      final BitmapNode mnode = (BitmapNode) mobj;
-	      if(oobj instanceof LeafNode) {
-		final LeafNode olf = (LeafNode)oobj;
-		mdata[midx] = mnode.assoc(nowner, olf.k, olf.hashcode,
-					  mapValue(mnode.get(olf.k, olf.hashcode),
-						   olf,
-						   valueMapper));
-	      } else {
-		mdata[midx] = mnode.union(nowner, (BitmapNode)oobj, valueMapper);
+	    } else if (oobj instanceof LeafNode) {
+	      entry = mobj;
+	      for(LeafNode olf = (LeafNode)oobj; olf != null; olf = olf.nextNode) {
+		ILeaf mlf = mobj.get(olf.k, olf.hashcode);
+		entry = unionAssoc(nowner, entry, olf.k, olf.hashcode, shift, mapValue(mlf, olf, valueMapper));
 	      }
+	    } else {
+	      entry = ((BitmapNode)mobj).union(nowner, (BitmapNode)oobj, valueMapper);
 	    }
+	    mdata[midx] = entry;
 	  }
 	}
       }
       return new BitmapNode(nowner, mbm, shift, mdata);
+    }
+
+    public final INode difference(BitmapTrie nowner, BitmapNode rhs, boolean collapse) {
+      int mbm = bitmap;
+      final int obm = rhs.bitmap;
+      final int overlap = mbm & obm;
+      if (overlap == 0)
+	return this;
+      INode[] mdata = data;
+      final INode[] odata = rhs.data;
+      boolean copy = owner != nowner;
+      for(int idx = 31; idx >= 0 && mbm != 0; --idx) {
+	final int bpos = 1 << idx;
+	//Remove shared values.
+	if ((overlap & bpos) != 0) {
+	  final INode mobj = mdata[index(mbm, bpos)];
+	  final INode oobj = odata[index(obm, bpos)];
+	  INode entry = mobj;
+	  if (mobj instanceof LeafNode) {
+	    for (LeafNode lf = (LeafNode)mobj; lf != null && entry != null; lf = lf.nextNode) {
+	      if (oobj.get(lf.k, lf.hashcode) != null) {
+		entry = entry.dissoc(nowner, lf.key(), lf.hashcode);
+	      }
+	    }
+	  } else if (oobj instanceof LeafNode) {
+	    for (LeafNode lf = (LeafNode)oobj; lf != null && entry != null; lf = lf.nextNode) {
+	      entry = entry.dissoc(nowner, lf.key(), lf.hashcode);
+	    }
+	  } else {
+	    entry = ((BitmapNode)mobj).difference(nowner, (BitmapNode)oobj, true);
+	  }
+
+	  if (entry == null) {
+	    mbm ^= bpos;
+	    mdata = BitmapTrieCommon.remove(mdata, index(mbm, bpos),
+					    Integer.bitCount(mbm), copy);
+	    copy = false;
+	  } else {
+	    mdata = copy ? mdata.clone() : mdata;
+	    copy = false;
+	    mdata[index(mbm,bpos)] = entry;
+	  }
+	}
+      } //end of foreach bit loop
+      if (collapse) {
+	int nelems = Integer.bitCount(mbm);
+	if (nelems == 0) {
+	  return null;
+	}
+	if(nelems == 1 && (mdata[0] instanceof LeafNode))
+	  return mdata[0];
+      }
+      if(mdata == data) {
+	//We may have just removed nodes but not allocated a new array in the case
+	//where owner == nowner;
+	bitmap = mbm;
+	return this;
+      } else {
+	return new BitmapNode(nowner, mbm, shift, mdata);
+      }
+    }
+
+    @SuppressWarnings("unchecked")
+    public final INode intersection(TrieBase nowner, BitmapNode other, BiFunction valueMapper, boolean collapse) {
+      int mbm = bitmap;
+      if (mbm == 0)
+	return this;
+      final int obm = other.bitmap;
+      final int overlap = mbm & obm;
+      if (overlap == 0) {
+	if (collapse) {
+	  return null;
+	}
+	else {
+	  return new BitmapNode(nowner, 0, shift, new INode[4]);
+	}
+      }
+      final INode[] mdata = data;
+      final INode[] odata = other.data;
+      INode[] rdata = null;
+      int rbm = 0;
+      int rnelems = 0;
+      for(int idx = 0; idx < 32; ++idx) {
+	int bpos = 1 << idx;
+	if ((overlap & bpos) != 0) {
+	  final INode mobj = mdata[index(mbm, bpos)];
+	  final INode oobj = odata[index(obm, bpos)];
+	  INode entry = null;
+	  if (oobj instanceof LeafNode) {
+	    for(LeafNode olf = (LeafNode)oobj; olf != null; olf = olf.nextNode) {
+	      ILeaf mlf = mobj.get(olf.k, olf.hashcode);
+	      if(mlf != null) {
+		entry = unionAssoc(nowner, entry, olf.k, olf.hashcode, shift, valueMapper.apply(mlf.val(), olf.v));
+	      }
+	    }
+	  } else if (mobj instanceof LeafNode) {
+	    for (LeafNode mlf = (LeafNode)mobj; mlf != null; mlf = mlf.nextNode) {
+	      ILeaf olf = oobj.get(mlf.k, mlf.hashcode);
+	      if (olf != null) {
+		entry = unionAssoc(nowner, entry, mlf.k, mlf.hashcode, shift, valueMapper.apply(mlf.v, olf.val()));
+	      }
+	    }
+	  } else {
+	    entry = ((BitmapNode)mobj).intersection(nowner, (BitmapNode)oobj, valueMapper, true);
+	  }
+
+	  if (entry != null) {
+	    if (rdata == null)
+	      rdata = new INode[4];
+	    rbm |= bpos;
+	    int ridx = rnelems;
+	    ++rnelems;
+	    rdata = insert(rdata, entry, ridx, rnelems, false);
+	  }
+	}
+      } //end bitmap for idx
+      if (collapse) {
+	if (rdata == null)
+	  return null;
+	if (rnelems == 1 && (rdata[0] instanceof LeafNode))
+	  return rdata[0];
+      }
+      return new BitmapNode(nowner, rbm, shift, rdata != null ? rdata : new INode[4]);
     }
 
     public void print(int indent) {
@@ -632,6 +731,14 @@ public class BitmapTrie implements IObj, TrieBase {
     count = _c;
     root = r;
     nullEntry = ne;
+    meta = _meta;
+  }
+
+  public BitmapTrie(HashProvider _hp, IPersistentMap _meta) {
+    count = 0;
+    nullEntry = null;
+    root = new BitmapNode(this, 0, 0, new INode[4]);
+    hp = _hp;
     meta = _meta;
   }
 
@@ -1018,9 +1125,57 @@ public class BitmapTrie implements IObj, TrieBase {
     return lf == null ? defaultValue : lf.val();
   }
 
-  public Object get(Object k) {
-    return getOrDefault(k,null);
+  final Object get(Object key) {
+    LeafNode lf = getNode(key);
+    return lf == null ? null : lf.val();
   }
+
+  @SuppressWarnings("unchecked")
+  final BitmapTrie union(BitmapTrie other, BiFunction valueMapper) {
+    BitmapTrie result = shallowClone();
+    if (other.nullEntry != null) {
+      if (nullEntry != null) {
+	result.nullEntry = new LeafNode(result, null, 0,
+					valueMapper.apply(nullEntry.val(),
+							  other.nullEntry.val()));
+      } else {
+	result.nullEntry = other.nullEntry;
+      }
+    } else if (nullEntry != null) {
+      result.nullEntry = nullEntry;
+    }
+    result.root = result.root.union(result, other.root, valueMapper);
+    //Currently count is not maintained by to avoid unnecessary traversal of datastructures during
+    //union operation.
+    result.count = -1;
+    return result;
+  }
+
+  final BitmapTrie difference(BitmapTrie other) {
+    BitmapTrie result = shallowClone();
+    if (nullEntry != null && other.nullEntry != null) {
+      result.nullEntry = null;
+    }
+    result.root = (BitmapNode)result.root.difference(result, other.root, false);
+    //Currently count is not maintained by to avoid traversal of datastructures during
+    //structural mapping.
+    result.count = -1;
+    return result;
+  }
+
+  @SuppressWarnings("unchecked")
+  final BitmapTrie intersection(BitmapTrie other, BiFunction valueMapper) {
+    BitmapTrie result = shallowClone();
+    result.count = 0;
+    if (nullEntry != null && other.nullEntry != null) {
+      result.nullEntry = new LeafNode(result, null, 0, valueMapper.apply(nullEntry.v, other.nullEntry.v));
+    }
+    result.root = (BitmapNode)root.intersection(result, other.root, valueMapper, false);
+    // For intersection the count is correct as we have to create new nodes in the trie for every
+    // overlapping value.
+    return result;
+  }
+
 
   public IObj withMeta(IPersistentMap meta) {
     return shallowClone(meta);

@@ -8,6 +8,7 @@ import clojure.lang.Util;
 import clojure.lang.MapEntry;
 import clojure.lang.IMapEntry;
 import clojure.lang.IPersistentMap;
+import clojure.lang.ITransientMap;
 import clojure.lang.IPersistentCollection;
 import clojure.lang.IteratorSeq;
 import clojure.lang.IEditableCollection;
@@ -39,23 +40,7 @@ public final class PersistentHashMap
 
   public static final HashProvider equivHashProvider = new HashProvider(){
       public int hash(Object obj) {
-	//Faster (slightly) implementation of hashcode work.
-	if (obj == null) return 0;
-	if (obj instanceof IHashEq)
-	  return ((IHashEq)obj).hasheq();
-
-	if (obj instanceof Long ||
-	    obj instanceof Integer ||
-	    obj instanceof Short ||
-	    obj instanceof Byte)
-	  return mixhash(obj.hashCode());
-	if (obj instanceof Double)
-	  return obj.equals(-0.0) ? 0 : mixhash(obj.hashCode());
-	if (obj instanceof Float)
-	  return obj.equals(-0.0F) ? 0 : mixhash(obj.hashCode());
-	if (obj instanceof Number)
-	  return Util.hasheq(obj);
-	return mixhash(obj);
+	return Util.hasheq(obj);
       }
       public boolean equals(Object lhs, Object rhs) {
 	return Util.equiv(lhs,rhs);
@@ -103,6 +88,14 @@ public final class PersistentHashMap
     return node != null ? MapEntry.create(key, node.val()) : null;
   }
   public final ISeq seq() { return  IteratorSeq.create(iterator()); }
+  @Override
+  public final Object get(Object key) {
+    return hb.get(key);
+  }
+  @Override
+  public final Object getOrDefault(Object key, Object defval) {
+    return hb.getOrDefault(key, defval);
+  }
   public final Object valAt(Object key, Object notFound) {
     return hb.getOrDefault(key, notFound);
   }
@@ -144,9 +137,9 @@ public final class PersistentHashMap
       return this;
     return new PersistentHashMap(hb.shallowClone().dissoc(key));
   }
-  
+
   public static PersistentHashMap EMPTY = new PersistentHashMap(new BitmapTrie(equivHashProvider));
-  
+
   public final IPersistentCollection empty() {
     return (IPersistentCollection)EMPTY.withMeta(hb.meta);
   }
@@ -164,10 +157,12 @@ public final class PersistentHashMap
     }
     return init;
   }
-  public final TransientHashMap asTransient() {
-    return new TransientHashMap(hb.shallowClone());
+  public final ITransientMap asTransient() {
+    if (size() == 0)
+      return new HashMap(new BitmapTrie(hb.hp, hb.meta));
+    else
+      return new TransientHashMap(hb.shallowClone());
   }
-  @Override
   public void forEach(BiConsumer action) {
     hb.forEach(action);
   }
@@ -184,8 +179,16 @@ public final class PersistentHashMap
   public <K,V> HashMap<K,V> copyToHashMap(K kTypeMarker, V vTypeMarker) {
     return new HashMap<K,V>(hb);
   }
+  public PersistentHashMap union(PersistentHashMap other, BiFunction remappingFunction) {
+    return new PersistentHashMap(hb.union(other.hb, remappingFunction));
+  }
+  public PersistentHashMap difference(PersistentHashMap other) {
+    return new PersistentHashMap(hb.difference(other.hb));
+  }
+  public PersistentHashMap intersection(PersistentHashMap other, BiFunction remappingFunction) {
+    return new PersistentHashMap(hb.intersection(other.hb, remappingFunction));
+  }
 
   public void printNodes() { hb.printNodes(); }
-
 
 }
