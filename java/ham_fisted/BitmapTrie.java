@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.ArrayList;
 import java.util.function.Function;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -28,7 +29,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ExecutionException;
 
 
-public class BitmapTrie implements IObj, TrieBase {
+class BitmapTrie implements IObj, TrieBase {
+
+  interface BitmapTrieOwner {
+    BitmapTrie bitmapTrie();
+  }
 
   public static final class LeafNode implements INode, ILeaf {
     public final TrieBase owner;
@@ -129,6 +134,16 @@ public class BitmapTrie implements IObj, TrieBase {
       }
       return retval;
     }
+
+    @SuppressWarnings("unchecked")
+    public final LeafNode immutUpdate(TrieBase nowner, BiFunction bfn) {
+      LeafNode retval = setOwner(nowner);
+      retval.val(bfn.apply(retval.k, retval.v));
+      retval.nextNode = retval.nextNode != null ? retval.nextNode.immutUpdate(nowner, bfn)
+	: null;
+      return retval;
+    }
+
     @SuppressWarnings("unchecked")
     public final LeafNode union(TrieBase nowner, Object _k, Object v, BiFunction valueMapper) {
       LeafNode retval = setOwner(nowner);
@@ -438,6 +453,16 @@ public class BitmapTrie implements IObj, TrieBase {
       return dissoc(nowner, k, hash, true);
     }
 
+    public final BitmapNode immutUpdate(TrieBase nowner, BiFunction bfn) {
+      final boolean copy = owner != nowner;
+      final INode[] mdata = copy ? data.clone() : data;
+      final int nelems = Integer.bitCount(bitmap);
+      for (int idx = 0; idx < nelems; ++idx) {
+	mdata[idx] = mdata[idx].immutUpdate(nowner, bfn);
+      }
+      return copy ? new BitmapNode(nowner, bitmap, shift, mdata) : this;
+    }
+
     public final int countLeaves() {
       final INode[] mdata = data;
       final int nelems = Integer.bitCount(bitmap);
@@ -451,38 +476,53 @@ public class BitmapTrie implements IObj, TrieBase {
       final INode[] data;
       final int len;
       int idx;
+      LeafNode leaf;
       LeafNodeIterator nextObj;
       BitmapNodeIterator(INode[] _data, int bitmap) {
 	data = _data;
 	len = Integer.bitCount(bitmap);
 	idx = -1;
+	leaf = null;
+	nextObj = null;
 	advance();
       }
       final void advance() {
 	if (nextObj != null && nextObj.hasNext()) {
 	    return;
 	}
+	if (leaf != null) {
+	  leaf = leaf.nextNode;
+	}
+	if (leaf != null)
+	  return;
+
 	int curIdx = idx + 1;
 	idx = curIdx;
-	if (idx < len) {
+	if (curIdx < len) {
 	  final Object iterObj = data[curIdx];
 	  if (iterObj instanceof LeafNode)
-	    nextObj = ((LeafNode)iterObj).iterator();
+	    leaf = (LeafNode)iterObj;
 	  else
 	    nextObj = ((BitmapNode)iterObj).iterator();
 	} else {
 	  nextObj = null;
+	  leaf = null;
 	}
       }
 
       public final boolean hasNext() {
-	return nextObj != null;
+	return nextObj != null || leaf != null;
       }
 
       public final ILeaf nextLeaf() {
-	if (nextObj == null)
+	ILeaf lf;
+	if (leaf != null) {
+	  lf = leaf;
+	} else if (nextObj != null) {
+	  lf = nextObj.nextLeaf();
+	} else {
 	  throw new UnsupportedOperationException();
-	ILeaf lf = nextObj.nextLeaf();
+	}
 	advance();
 	return lf;
       }
@@ -1085,6 +1125,15 @@ public class BitmapTrie implements IObj, TrieBase {
     parallelTraversal(lf->lf.val(action.apply(lf.key(), lf.val())));
   }
 
+  final BitmapTrie immutUpdate(BiFunction action) {
+    BitmapTrie retval = shallowClone();
+    if (nullEntry != null) {
+      retval.nullEntry = nullEntry.immutUpdate(retval, action);
+    }
+    retval.root = root.immutUpdate(retval, action);
+    return retval;
+  }
+
   final Object remove(Object key) {
     if (key == null) {
       if (nullEntry != null) {
@@ -1136,8 +1185,8 @@ public class BitmapTrie implements IObj, TrieBase {
   }
 
   @SuppressWarnings("unchecked")
-  final BitmapTrie union(BitmapTrie other, BiFunction valueMapper) {
-    BitmapTrie result = shallowClone();
+  final BitmapTrie union(BitmapTrie other, BiFunction valueMapper, boolean inPlace) {
+    BitmapTrie result = inPlace ? this : shallowClone();
     if (other.nullEntry != null) {
       if (nullEntry != null) {
 	result.nullEntry = new LeafNode(result, null, 0,
@@ -1154,6 +1203,10 @@ public class BitmapTrie implements IObj, TrieBase {
     //union operation.
     result.count = -1;
     return result;
+  }
+
+  final BitmapTrie union(BitmapTrie other, BiFunction valueMapper) {
+    return union(other,valueMapper,false);
   }
 
   final BitmapTrie difference(BitmapTrie other) {

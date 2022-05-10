@@ -1,10 +1,11 @@
 (ns ham-fisted.hash-map-test
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.set :as set]
+            [ham-fisted.api :as api]
             [criterium.core :as crit])
   (:import [ham_fisted HashMap PersistentHashMap BitmapTrie TransientHashMap]
            [java.util ArrayList Collections Map Collection]
-           [java.util.function BiFunction]))
+           [java.util.function BiFunction BiConsumer]))
 
 (defonce orig PersistentHashMap/EMPTY)
 
@@ -177,9 +178,16 @@
         nelems (.size dlist)
         atime (benchmark-us
                (dotimes [idx nelems]
-                 (.get ds (.get dlist idx))))]
+                 (.get ds (.get dlist idx))))
+        itime (benchmark-us
+               (let [iter (.iterator (.entrySet ds))]
+                 (loop [c? (.hasNext iter)]
+                   (when c?
+                     (.next iter)
+                     (recur (.hasNext iter))))))]
     {:construct-μs (:mean-μs ctime)
-     :access-μs (:mean-μs atime)}))
+     :access-μs (:mean-μs atime)
+     :iterate-μs (:mean-μs itime)}))
 
 
 (defn java-hashmap
@@ -232,7 +240,6 @@
 (def datastructures
   [[:java-hashmap java-hashmap]
    [:hamf-hashmap hamf-hashmap]
-
    [:hamf-equiv-hashmap hamf-equiv-hashmap]
    [:clj-transient clj-transient]
    [:hamf-transient hamf-transient]
@@ -320,6 +327,90 @@
     (is (= (quot hn-elems 2) (count df2)))
     (is (= (set/intersection (set lhs) (set llhs)) (set (keys df2))))
     (is (= (* 2 hhn-sum) (reduce + (vals df2))))))
+
+
+(def union-data
+  {:java-hashmap {:construct-fn java-hashmap
+                  :merge-fn api/map-union-java-hashmap
+                  :reduce-fn api/union-reduce-java-hashmap}
+   ;;jdk-8 - 1000
+   ;; {:union-disj-μs 20.413211065573773,
+   ;;  :union-μs 41.34100116886689,
+   ;;  :name :java-hashmap}
+   ;; 100000
+   ;; {:union-disj-μs 5050.580285714286,
+   ;;  :union-μs 8292.417935897436,
+   ;;  :name :java-hashmap}
+   :hamf-hashmap {:construct-fn hamf-hashmap
+                  :merge-fn api/map-union
+                  :reduce-fn api/union-reduce-maps}
+
+   :hamf-hashmap-serial {:construct-fn hamf-hashmap
+                         :merge-fn api/map-union
+                         :reduce-fn #(api/union-reduce-maps %1 %2 {:force-serial? true})}
+
+   :clj-transient (let [make-merge-fn (fn [bifn]
+                                        (fn [lhs rhs]
+                                          (.apply ^BiFunction bifn lhs rhs)))]
+                    {:construct-fn clj-transient
+                     :merge-fn #(merge-with (make-merge-fn %1) %2 %3)
+                     :reduce-fn #(apply merge-with (make-merge-fn %1) %2)})
+   ;;jdk-8 - 1000
+   ;; {:union-disj-μs 11.491328581829329,
+   ;;  :union-μs 30.876507346896837,
+   ;;  :name :hamf-hashmap}
+   ;; 100000
+   ;; {:union-disj-μs 2461.248479674797,
+   ;;  :union-μs 5106.405916666667,
+   ;;  :name :hamf-hashmap}
+   })
+
+
+(defn benchmark-union
+  [^long n-elems mapname]
+  (let [{:keys [construct-fn merge-fn]} (union-data mapname)
+        hn-elems (quot n-elems 2)
+        src-data (repeatedly n-elems #(rand-int 100000000))
+        lhs (->array-list (take hn-elems src-data))
+        rhs (->array-list (drop hn-elems src-data))
+        bfn (api/->bi-function +)
+        lhs-m (construct-fn lhs)
+        rhs-m (construct-fn rhs)
+        merged-m (merge-fn bfn lhs-m rhs-m)]
+    {:union-disj-μs (:mean-μs (benchmark-us (merge-fn bfn lhs-m rhs-m)))
+     :union-μs (:mean-μs (benchmark-us (merge-fn bfn lhs-m merged-m)))
+     :name mapname}))
+
+
+(defn benchmark-reduce-union
+  [^long n-elems mapname]
+  (let [{:keys [construct-fn reduce-fn]} (union-data mapname)
+        hn-elems (quot n-elems 2)
+        src-data (repeatedly n-elems #(rand-int 100000000))
+        lhs (->array-list (take hn-elems src-data))
+        rhs (->array-list (drop hn-elems src-data))
+        bfn (reify BiFunction
+              (apply [this a b]
+                (unchecked-add (unchecked-long a)
+                               (unchecked-long b))))
+        lhs-m (construct-fn lhs)
+        rhs-m (construct-fn rhs)
+        map-seq (vec (interleave (repeat 10 lhs-m) (repeat 10 rhs-m)))]
+    {:union-μs (:mean-μs (benchmark-us (reduce-fn bfn map-seq)))
+     :name mapname}))
+
+
+(defn benchmark-split-map-reduction
+  [^long n-elems]
+  (let [^PersistentHashMap src-map (hamf-transient (->array-list (repeatedly n-elems #(rand-int 10000000))))]
+    (benchmark-us
+     #(let [map-ary (.splitMaps src-map 10)
+            incrementor (reify BiFunction (apply [this lhs rhs]
+                                            (throw (Exception. "Never get here"))
+                                            (unchecked-add (unchecked-long lhs)
+                                                           (unchecked-long rhs))))]
+        (reduce (api/map-union incrementor %1 %2) map-ary)))))
+
 
 
 (comment
@@ -505,25 +596,78 @@
             (.put hm idx idx))]
     (map iterator-seq (.splitKeys hm 7)))
 
+  (def small-int-profile (profile-datastructures (repeatedly 2 #(rand-int 100000))))
+  ;;jdk-8
+  ;; ({:construct-μs 0.04544450409859743,
+  ;;   :access-μs 0.027821068093107824,
+  ;;   :iterate-μs 0.04819996541179101,
+  ;;   :ds-name :hamf-hashmap}
+  ;;  {:construct-μs 0.04554578396228026,
+  ;;   :access-μs 0.02409841194629,
+  ;;   :iterate-μs 0.03861166808377863,
+  ;;   :ds-name :java-hashmap}
+  ;;  {:construct-μs 0.09249262273824677,
+  ;;   :access-μs 0.07618066307443447,
+  ;;   :iterate-μs 0.048746529428492114,
+  ;;   :ds-name :hamf-equiv-hashmap}
+  ;;  {:construct-μs 0.11273793412685472,
+  ;;   :access-μs 0.042814700015951265,
+  ;;   :iterate-μs 0.006165632440946597,
+  ;;   :ds-name :clj-transient}
+  ;;  {:construct-μs 0.15366442381551126,
+  ;;   :access-μs 0.0755429996662735,
+  ;;   :iterate-μs 0.032593612346542504,
+  ;;   :ds-name :hamf-transient})
 
   (def int-profile (profile-datastructures (repeatedly 1000 #(rand-int 100000))))
   ;; jdk-8
-  ;;  ({:construct-μs 24.788405885214008,
-  ;;  :access-μs 13.965560035219426,
-  ;;  :ds-name :java-hashmap}
-  ;; {:construct-μs 37.363700646042986,
-  ;;  :access-μs 27.359574198159564,
-  ;;  :ds-name :hamf-hashmap}
-  ;; {:construct-μs 66.22582915842672,
-  ;;  :access-μs 46.921109418931586,
-  ;;  :ds-name :hamf-equiv-hashmap}
-  ;; {:construct-μs 68.11221358447489,
-  ;;  :access-μs 54.25726681049983,
-  ;;  :ds-name :hamf-transient}
-  ;; {:construct-μs 113.06234441939121,
-  ;;  :access-μs 52.703857229753226,
-  ;;  :ds-name :clj-transient})
-  (def double-profile (profile-datastructures (repeatedly 1000 #(rand-int 100000))))
+
+  ;; jdk-17
+  ;; ({:construct-μs 31.915435858163935,
+  ;;   :access-μs 12.193707814495532,
+  ;;   :iterate-μs 7.316710778209167,
+  ;;   :ds-name :java-hashmap}
+  ;;  {:construct-μs 45.07551537356322,
+  ;;   :access-μs 21.033255470685386,
+  ;;   :iterate-μs 22.979641088509506,
+  ;;   :ds-name :hamf-hashmap}
+  ;;  {:construct-μs 73.53580794223828,
+  ;;   :access-μs 49.47928398962892,
+  ;;   :iterate-μs 22.8927910698984,
+  ;;   :ds-name :hamf-equiv-hashmap}
+  ;;  {:construct-μs 77.98202366716494,
+  ;;   :access-μs 52.42915830218901,
+  ;;   :iterate-μs 20.852072754333744,
+  ;;   :ds-name :hamf-transient}
+  ;;  {:construct-μs 134.15703174603175,
+  ;;   :access-μs 47.73247937254903,
+  ;;   :iterate-μs 37.22873836295491,
+  ;;   :ds-name :clj-transient})
+
+  (def big-int-profile (profile-datastructures (repeatedly 100000 #(rand-int 100000))))
+  ;;jdk-8
+  ;; ({:construct-μs 4818.585603174603,
+  ;;   :access-μs 3115.862890625,
+  ;;   :iterate-μs 903.9770223214286,
+  ;;   :ds-name :java-hashmap}
+  ;;  {:construct-μs 8781.270125000001,
+  ;;   :access-μs 8000.021961538461,
+  ;;   :iterate-μs 1914.1505256410255,
+  ;;   :ds-name :hamf-hashmap}
+  ;;  {:construct-μs 12504.3571875,
+  ;;   :access-μs 11433.55188888889,
+  ;;   :iterate-μs 2047.054111111111,
+  ;;   :ds-name :hamf-equiv-hashmap}
+  ;;  {:construct-μs 12913.919562500001,
+  ;;   :access-μs 12543.427979166667,
+  ;;   :iterate-μs 2056.0890714285715,
+  ;;   :ds-name :hamf-transient}
+  ;;  {:construct-μs 13137.229833333335,
+  ;;   :access-μs 10124.450916666668,
+  ;;   :iterate-μs 3152.3616718750004,
+  ;;   :ds-name :clj-transient})
+
+  (def double-profile (profile-datastructures (repeatedly 1000 #(rand 100000))))
   (def str-profile (profile-datastructures (map str (repeatedly 1000 #(rand-int 100000)))))
   ;;jdk-8
   ;;({:construct-μs 23.930453143122246,
@@ -544,20 +688,25 @@
   (def kw-profile (profile-datastructures (map (comp keyword str)
                                                (repeatedly 1000 #(rand-int 100000)))))
   ;;jdk-8
- ;;  ({:construct-μs 29.58943302505967,
- ;;  :access-μs 19.902508271217474,
- ;;  :ds-name :java-hashmap}
- ;; {:construct-μs 38.35744891443167,
- ;;  :access-μs 30.663697570397485,
- ;;  :ds-name :hamf-equiv-hashmap}
- ;; {:construct-μs 49.081114095052094,
- ;;  :access-μs 40.52704244139046,
- ;;  :ds-name :hamf-transient}
- ;; {:construct-μs 52.87004256437204,
- ;;  :access-μs 40.30576300499933,
- ;;  :ds-name :hamf-hashmap}
- ;; {:construct-μs 99.67729208250168,
- ;;  :access-μs 33.36973040195426,
- ;;  :ds-name :clj-transient})
+  ;; ({:construct-μs 37.88887029341394,
+  ;;   :access-μs 18.842061234058516,
+  ;;   :iterate-μs 12.900347590258127,
+  ;;   :ds-name :java-hashmap}
+  ;;  {:construct-μs 40.78816281271129,
+  ;;   :access-μs 31.311148279404215,
+  ;;   :iterate-μs 26.028699949122363,
+  ;;   :ds-name :hamf-equiv-hashmap}
+  ;;  {:construct-μs 44.76396859578287,
+  ;;   :access-μs 37.260138704523115,
+  ;;   :iterate-μs 25.54532113194623,
+  ;;   :ds-name :hamf-transient}
+  ;;  {:construct-μs 48.99040834149526,
+  ;;   :access-μs 36.94391981651376,
+  ;;   :iterate-μs 26.269819758868937,
+  ;;   :ds-name :hamf-hashmap}
+  ;;  {:construct-μs 98.01407147466925,
+  ;;   :access-μs 33.85242917783735,
+  ;;   :iterate-μs 37.85340298225746,
+  ;;   :ds-name :clj-transient})
 
   )

@@ -10,6 +10,9 @@ import clojure.lang.IPersistentVector;
 import clojure.lang.IObj;
 import clojure.lang.MapEntry;
 import clojure.lang.IMapEntry;
+import clojure.lang.IPersistentCollection;
+import clojure.lang.IteratorSeq;
+import clojure.lang.ISeq;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -25,17 +28,36 @@ import java.util.concurrent.ExecutorService;
  * trie.
  */
 public final class HashMap<K,V>
-  implements Map<K,V>, ITransientMap, ITransientAssociative2, IObj {
+  implements Map<K,V>, ITransientMap, ITransientAssociative2, IObj, IPersistentCollection,
+	     MapSet, BitmapTrieOwner {
 
   final BitmapTrie hb;
   boolean editable = true;
 
+  public BitmapTrie bitmapTrie() { return hb; }
   public HashMap() {
     hb = new BitmapTrie();
   }
 
   public HashMap(HashProvider _hp) {
     hb = new BitmapTrie(_hp);
+  }
+
+  public HashMap(HashProvider _hp, boolean assoc, Object... kvs) {
+    HashMap<Object,Object> hm = new HashMap<Object,Object>(_hp);
+    final int nkvs = kvs.length;
+    if (0 != (nkvs % 2))
+      throw new RuntimeException("Uneven number of keyvals");
+
+    final int nks = nkvs / 2;
+    for (int idx = 0; idx < nks; ++idx) {
+      final int kidx = idx * 2;
+      final int vidx = kidx + 1;
+      hm.put(kvs[kidx], kvs[vidx]);
+    }
+    if (assoc == false && hm.size() != nks)
+      throw new RuntimeException("Duplicate key detected: " + String.valueOf(kvs));
+    hb = hm.hb;
   }
 
   //Unsafe construction without clone.
@@ -155,7 +177,16 @@ public final class HashMap<K,V>
   public V get(Object k) {
     return (V)hb.get(k);
   }
-  public int hashCode() { return -1; }
+  public boolean equiv(Object obj) { return false; }
+  public IPersistentCollection empty() { return new HashMap(hb.hp); }
+  @SuppressWarnings("unchecked")
+  public IPersistentCollection cons(Object val) {
+    ensureEditable();
+    return conj(val);
+  }
+  public ISeq seq() {
+    return IteratorSeq.create(entrySet().iterator());
+  }
   public boolean isEmpty() { return hb.size() == 0; }
   public Set<K> keySet() { return hb.new KeySet<K>(true); }
 
@@ -205,6 +236,7 @@ public final class HashMap<K,V>
       hb.getOrCreate(entry.getKey()).val(entry.getValue());
     }
   }
+
   @SuppressWarnings("unchecked")
   public V putIfAbsent(K key, V value) {
     int cval = hb.size();
@@ -216,6 +248,7 @@ public final class HashMap<K,V>
       return (V)lf.val();
     }
   }
+
   @SuppressWarnings("unchecked")
   public V remove(Object key) {
     return (V)hb.remove(key);
@@ -230,12 +263,30 @@ public final class HashMap<K,V>
     return new PersistentHashMap(hb.union(other.hb, remappingFunction));
   }
 
+  public final PersistentHashMap union(MapSet other, BiFunction remappingFunction) {
+    return new PersistentHashMap(hb.union(((BitmapTrieOwner)other).bitmapTrie(),
+					  remappingFunction));
+  }
+
   public final PersistentHashMap difference(HashMap<K,V> other) {
     return new PersistentHashMap(hb.difference(other.hb));
   }
 
+  public final PersistentHashMap difference(MapSet other) {
+    return new PersistentHashMap(hb.difference(((BitmapTrieOwner)other).bitmapTrie()));
+  }
+
   public final PersistentHashMap intersection(HashMap<K,V> other, BiFunction<? super V,? super V,? extends V> remappingFunction) {
     return new PersistentHashMap(hb.intersection(other.hb, remappingFunction));
+  }
+
+  public final PersistentHashMap intersection(MapSet other, BiFunction remappingFunction) {
+    return new PersistentHashMap(hb.intersection(((BitmapTrieOwner)other).bitmapTrie(),
+						 remappingFunction));
+  }
+
+  public final PersistentHashMap immutUpdateValues(BiFunction bfn) {
+    return new PersistentHashMap(hb.immutUpdate(bfn));
   }
 
   public final IMapEntry entryAt(Object key) {

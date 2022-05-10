@@ -26,17 +26,25 @@ import java.util.Collection;
 import java.util.Set;
 import java.util.Objects;
 import java.util.Map;
+import java.util.ArrayList;
 import java.util.function.BiFunction;
 import java.util.function.BiConsumer;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
 import java.math.BigDecimal;
 
 
 public final class PersistentHashMap
   extends APersistentMap
-  implements IObj, IMapIterable, IKVReduce, IEditableCollection {
+  implements IObj, IMapIterable, IKVReduce, IEditableCollection,
+	     MapSet, BitmapTrieOwner {
 
   final BitmapTrie hb;
+
+  public BitmapTrie bitmapTrie() { return hb; }
 
   public static final HashProvider equivHashProvider = new HashProvider(){
       public int hash(Object obj) {
@@ -53,20 +61,14 @@ public final class PersistentHashMap
   public PersistentHashMap(BitmapTrie hm) {
     hb = hm;
   }
+
   public PersistentHashMap(HashProvider _hp, boolean assoc, Object... kvs) {
-    HashMap<Object,Object> hm = new HashMap<Object,Object>(_hp);
-    final int nkvs = kvs.length;
-    if (0 != (nkvs % 2))
-      throw new RuntimeException("Uneven number of keyvals");
-    final int nks = nkvs / 2;
-    for (int idx = 0; idx < nks; ++idx) {
-      final int kidx = idx * 2;
-      final int vidx = kidx + 1;
-      hm.put(kvs[kidx], kvs[vidx]);
-    }
-    if (assoc == false && hm.size() != nks)
-      throw new RuntimeException("Duplicate key detected: " + String.valueOf(kvs));
+    HashMap<Object,Object> hm = new HashMap<Object,Object>(_hp, assoc, kvs);
     hb = hm.hb;
+  }
+
+  public PersistentHashMap(Object... kvs) {
+    this(equivHashProvider, false, kvs);
   }
   public final BitmapTrie unsafeGetBitmapTrie() { return hb; }
   public PersistentHashMap(boolean assoc, Object... kvs) {
@@ -112,6 +114,14 @@ public final class PersistentHashMap
 
   public final Iterator valIterator() {
     return hb.iterator(valIterFn);
+  }
+
+  public final PersistentHashMap[] splitMaps(int nsplits) {
+    BitmapTrie[] bases = hb.splitBases(nsplits);
+    PersistentHashMap[] retval = new PersistentHashMap[bases.length];
+    for (int idx = 0; idx < retval.length; ++idx)
+      retval[idx] = new PersistentHashMap(bases[idx]);
+    return retval;
   }
 
   public final Iterator[] splitKeys(int nsplits ) {
@@ -173,20 +183,109 @@ public final class PersistentHashMap
   public void parallelForEach(BiConsumer action) throws Exception {
     hb.parallelForEach(action);
   }
+
+  public final PersistentHashMap union(MapSet other, BiFunction remappingFunction) {
+    return new PersistentHashMap(hb.union(((BitmapTrieOwner)other).bitmapTrie(),
+					  remappingFunction));
+  }
+  public final PersistentHashMap difference(MapSet other) {
+    return new PersistentHashMap(hb.difference(((BitmapTrieOwner)other).bitmapTrie()));
+  }
+  public final PersistentHashMap intersection(MapSet other, BiFunction remappingFunction) {
+    return new PersistentHashMap(hb.intersection(((BitmapTrieOwner)other).bitmapTrie(),
+						 remappingFunction));
+  }
+  public final PersistentHashMap immutUpdateValues(BiFunction bfn) {
+    return new PersistentHashMap(hb.immutUpdate(bfn));
+  }
   public <K,V> HashMap<K,V> unsafeAsHashMap(K kTypeMarker, V vTypeMarker) {
     return new HashMap<K,V>(hb, true);
   }
   public <K,V> HashMap<K,V> copyToHashMap(K kTypeMarker, V vTypeMarker) {
     return new HashMap<K,V>(hb);
   }
-  public PersistentHashMap union(PersistentHashMap other, BiFunction remappingFunction) {
-    return new PersistentHashMap(hb.union(other.hb, remappingFunction));
+
+  final static BitmapTrie unpackFromObject(Object obj) {
+    if (obj instanceof BitmapTrie)
+      return (BitmapTrie) obj;
+    if (obj instanceof BitmapTrieOwner)
+      return ((BitmapTrieOwner)obj).bitmapTrie();
+    throw new RuntimeException("Cannot get bitmap trie from object: " + String.valueOf(obj));
   }
-  public PersistentHashMap difference(PersistentHashMap other) {
-    return new PersistentHashMap(hb.difference(other.hb));
+
+  @SuppressWarnings("unchecked")
+  public final static PersistentHashMap unionReduce(BiFunction valueMapper, Iterable bitmaps) {
+    Iterator bmIter = bitmaps.iterator();
+    if (bmIter.hasNext() == false)
+      return null;
+    BitmapTrie retval = unpackFromObject(bmIter.next());
+    if (bmIter.hasNext() == false)
+      return new PersistentHashMap(retval);
+    retval = retval.shallowClone(null);
+    while(bmIter.hasNext())
+      retval = retval.union(unpackFromObject(bmIter.next()), valueMapper, true);
+    return new PersistentHashMap(retval);
   }
-  public PersistentHashMap intersection(PersistentHashMap other, BiFunction remappingFunction) {
-    return new PersistentHashMap(hb.intersection(other.hb, remappingFunction));
+
+  @SuppressWarnings("unchecked")
+  public final static PersistentHashMap parallelUnionReduce(BiFunction valueMapper, Iterable bitmaps,
+							    ExecutorService executor, int parallelism)
+    throws Exception {
+
+    if((ForkJoinTask.inForkJoinPool()
+	&& executor == ForkJoinPool.commonPool())
+       || parallelism == 1) {
+      return unionReduce(valueMapper, bitmaps);
+    }
+
+    ArrayList<BitmapTrie> bms = new ArrayList();
+    for(Object obj : bitmaps) {
+      bms.add((obj instanceof BitmapTrie ? (BitmapTrie)obj :
+	       ((BitmapTrieOwner)obj).bitmapTrie()));
+    }
+    int nbms = bms.size();
+    if (nbms == 0)
+      return null;
+    if (nbms == 1)
+      return new PersistentHashMap(bms.get(0));
+    final BitmapTrie initial = bms.get(0);
+    //We can't currently split up maps in more than 1024 elems.
+    parallelism = Math.min(1024, parallelism);
+    final int nsplits = parallelism;
+    Future[] futures = new Future[parallelism];
+    for (int idx = 0; idx < parallelism; ++idx) {
+      final int splitidx = idx;
+      futures[idx] = executor.submit(new Callable<BitmapTrie>() {
+	  public BitmapTrie call() {
+	    BitmapTrie target = initial.keyspaceSplit(splitidx, nsplits).shallowClone(null);
+	    for( int bidx = 1; bidx < nbms; ++bidx) {
+	      target = target.union(bms.get(bidx).keyspaceSplit(splitidx, nsplits),
+				    valueMapper,
+				    true);
+	    }
+	    //Force traversal to calculate map size in the work thread.
+	    target.size();
+	    return target;
+	  }
+	});
+    }
+    //Second loop is hyper fast because we know the keys can't collide meaning the 'union'
+    //operation really is in-place with no merging and full structural sharing.
+    BitmapTrie result = (BitmapTrie)futures[0].get();
+    int sum = result.size();
+    for (int idx = 1; idx < parallelism; ++idx ) {
+      BitmapTrie nextTrie = (BitmapTrie)futures[idx].get();
+      sum += nextTrie.size();
+      result = result.union(nextTrie, valueMapper);
+    }
+    result.count = sum;
+    return new PersistentHashMap(result);
+  }
+
+  public final static PersistentHashMap parallelUnionReduce(BiFunction valueMapper, Iterable bitmaps)
+    throws Exception {
+    return parallelUnionReduce(valueMapper, bitmaps, ForkJoinPool.commonPool(),
+			       ForkJoinPool.getCommonPoolParallelism());
   }
 
   public void printNodes() { hb.printNodes(); }

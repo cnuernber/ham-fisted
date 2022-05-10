@@ -5,6 +5,7 @@ import static ham_fisted.IntegerOps.*;
 import java.util.Objects;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.function.BiFunction;
 
 /**
  * Interfaces and definitions used for implementing the bitmap trie.
@@ -70,13 +71,20 @@ public class BitmapTrieCommon {
     public default Object next() { return nextLeaf(); }
   }
 
+  public interface MapSet {
+    public MapSet intersection(MapSet rhs, BiFunction valueMap);
+    public MapSet union(MapSet rhs, BiFunction valueMap);
+    public MapSet difference(MapSet rhs);
+    public MapSet immutUpdateValues(BiFunction valueMap);
+  }
+
   /**
    * A node in the bitmap trie.  There aren't too many places where virtualizing the
    * nodes helps because in most cases the child's type indicates which algorithm the
    * parent should be using.  But the places where it is useful are defined here.
    */
   interface INode {
-    /** Clone this node incremented the node count of owner once per leaf */
+    /** Clone this node incrementing the node count of owner once per leaf */
     public INode clone(TrieBase owner);
     /** Count the number of leaves starting at this node */
     public int countLeaves();
@@ -86,6 +94,8 @@ public class BitmapTrieCommon {
     public ILeaf get(Object key, int hashcode);
     /** Remove an entry returning an new INode instance.  Return value may be nil */
     public INode dissoc(TrieBase owner, Object key, int hashcode);
+    /** Immutable update returning a new node */
+    public INode immutUpdate(TrieBase nowner, BiFunction bfn);
   }
 
   /**
