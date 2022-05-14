@@ -42,7 +42,7 @@
 (set! *warn-on-reflection* true)
 (def ^{:tag BitmapTrieCommon$HashProvider
        :doc "Hash provider based on Clojure's hasheq and equiv pathways - the same pathways
-that clojure's persistent datastructures use.  This is the default hash provider is somewhat
+that clojure's persistent datastructures use. This hash provider is somewhat
 (<2x) slower than the [[equal-hash-provider]]."}
   equiv-hash-provider BitmapTrieCommon/equivHashProvider)
 (def ^{:tag BitmapTrieCommon$HashProvider

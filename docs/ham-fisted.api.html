@@ -57,7 +57,7 @@ use the hasheq pathway.  This is fine for integer keys, strings, keywords, and s
 differs for objects such as doubles, floats, and BigDecimals.  This is the default
 hash provider.</p>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/api.clj#L48">view source</a></div></div><div class="public anchor" id="var-equiv-hash-provider"><h3>equiv-hash-provider</h3><div class="usage"></div><div class="doc"><div class="markdown"><p>Hash provider based on Clojure's hasheq and equiv pathways - the same pathways
-that clojure's persistent datastructures use.  This is the default hash provider is somewhat
+that clojure's persistent datastructures use. This hash provider is somewhat
 (&lt;2x) slower than the <a href="ham-fisted.api.html#var-equal-hash-provider">equal-hash-provider</a>.</p>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/api.clj#L43">view source</a></div></div><div class="public anchor" id="var-frequencies"><h3>frequencies</h3><div class="usage"><code>(frequencies coll)</code></div><div class="doc"><div class="markdown"><p>Faster (9X or so) implementation of clojure.core/frequencies.</p>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/api.clj#L547">view source</a></div></div><div class="public anchor" id="var-immut-map"><h3>immut-map</h3><div class="usage"><code>(immut-map)</code><code>(immut-map data)</code><code>(immut-map options data)</code></div><div class="doc"><div class="markdown"><p>Create an immutable map.  This object supports conversion to a transient map vial
