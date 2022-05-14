@@ -10,6 +10,8 @@
   change the immutable view of the data. All immutable datastructures support conversion to
   transient via the `transient` call.
 
+  On all maps getting the keyset (.keySet) returns a full PersistentHashSet of the keys.
+
   Very fast versions of union, difference and intersection are provided for maps and sets
   with the map version of union and difference requiring an extra argument,
   a java.util.BiFunction or an IFn taking 2 arguments to merge the left and right sides into
@@ -407,9 +409,7 @@ hash provider."}
 
 
 (defn intersection
-  "Intersect the keyspace of map1 and map2 returning a new map.  Each value is the result
-  of bfn applied to the map1-value and map2-value, respectively.  When both are maps
-  the keys are unioned and the values are the rhs values."
+  "Intersect the keyspace of set1 and set2 returning a new set."
   [s1 s2]
   (cond
     (and (map-set? s1) (map-set? s2))
