@@ -13,6 +13,8 @@ import clojure.lang.IMapEntry;
 import clojure.lang.IPersistentCollection;
 import clojure.lang.IteratorSeq;
 import clojure.lang.ISeq;
+import clojure.lang.ILookup;
+import clojure.lang.IHashEq;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -29,7 +31,7 @@ import java.util.concurrent.ExecutorService;
  */
 public final class HashMap<K,V>
   implements Map<K,V>, ITransientMap, ITransientAssociative2, IObj, IPersistentCollection,
-	     MapSet, BitmapTrieOwner {
+	     MapSet, BitmapTrieOwner, ILookup, IFnDef, IHashEq {
 
   final BitmapTrie hb;
   boolean editable = true;
@@ -81,6 +83,22 @@ public final class HashMap<K,V>
   //Safe construction with deep clone.
   HashMap(BitmapTrie bt) {
     hb = new BitmapTrie(bt);
+  }
+
+  public final int hashCode() {
+    return CljHash.mapHashcode(hb);
+  }
+
+  public final int hasheq() {
+    return hashCode();
+  }
+
+  public final boolean equals(Object o) {
+    return CljHash.mapEquiv(hb, o);
+  }
+
+  public final boolean equiv(Object o) {
+    return equals(o);
   }
 
   public HashMap<K,V> clone() {
@@ -145,9 +163,6 @@ public final class HashMap<K,V>
   public boolean containsValue(Object v) {
     return hb.containsValue(v);
   }
-  public boolean equals(Object o) {
-    throw new RuntimeException("unimplemented");
-  }
 
   public void forEach(BiConsumer<? super K,? super V> action) {
     hb.forEach(action);
@@ -177,8 +192,7 @@ public final class HashMap<K,V>
   public V get(Object k) {
     return (V)hb.get(k);
   }
-  public boolean equiv(Object obj) { return false; }
-  public IPersistentCollection empty() { return new HashMap(hb.hp); }
+  public IPersistentCollection empty() { return new HashMap(new BitmapTrie(hb.hp, hb.meta())); }
   @SuppressWarnings("unchecked")
   public IPersistentCollection cons(Object val) {
     ensureEditable();
@@ -188,7 +202,9 @@ public final class HashMap<K,V>
     return IteratorSeq.create(entrySet().iterator());
   }
   public boolean isEmpty() { return hb.size() == 0; }
-  public Set<K> keySet() { return hb.new KeySet<K>(true); }
+
+  @SuppressWarnings("unchecked")
+  public Set<K> keySet() { return (Set<K>)new PersistentHashSet(hb); }
 
   @SuppressWarnings("unchecked")
   public final Iterator<K>[] splitKeys(int nsplits ) {

@@ -1,29 +1,35 @@
 (ns ham-fisted.api
-  (:import [ham_fisted HashMap PersistentHashMap BitmapTrie TransientHashMap
-            BitmapTrieCommon$HashProvider BitmapTrieCommon
-            BitmapTrieCommon$MapSet BitmapTrie]
-           [clojure.lang ITransientAssociative2 ITransientMap Indexed MapEntry]
-           [java.util Map Map$Entry List RandomAccess]
-           [java.util.function Function BiFunction BiConsumer]
+  (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
+            BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet]
+           [clojure.lang ITransientAssociative2 ITransientMap Indexed MapEntry
+            ITransientSet ITransientCollection]
+           [java.util Map Map$Entry List RandomAccess Set Collection]
+           [java.util.function Function BiFunction BiConsumer Consumer]
            [java.util.concurrent ForkJoinPool ExecutorService])
-  (:refer-clojure :exclude [assoc!]))
+  (:refer-clojure :exclude [assoc! conj!]))
 
 (set! *warn-on-reflection* true)
-
-(def empty-map PersistentHashMap/EMPTY)
 (def ^{:tag BitmapTrieCommon$HashProvider
        :doc "Hash provider based on Clojure's hasheq and equiv pathways - the same pathways
 that clojure's persistent datastructures use.  This is the default hash provider is somewhat
 (<2x) slower than the [[equal-hash-provider]]."}
-  equiv-hash-provider PersistentHashMap/equivHashProvider)
+  equiv-hash-provider BitmapTrieCommon/equivHashProvider)
 (def ^{:tag BitmapTrieCommon$HashProvider
        :doc "Hash provider based on Object.hashCode and Object.equals - this is the same
-pathway that java.util.HashMap uses and is the fastest hash provider.  Hash-based
+pathway that java.util.HashMap uses and is the overall the fastest hash provider.  Hash-based
 datastructures based on this hash provider will be faster to create and access but will not
 use the hasheq pathway.  This is fine for integer keys, strings, keywords, and symbols, but
-differs for objects such as doubles, floats, and BigDecimals."}
-  equal-hash-provider BitmapTrieCommon/hashcodeProvider)
+differs for objects such as doubles, floats, and BigDecimals.  This is the default
+hash provider."}
+  equal-hash-provider BitmapTrieCommon/equalHashProvider)
 
+
+(defn- options->provider
+  ^BitmapTrieCommon$HashProvider [options]
+  (get options :hash-provider equal-hash-provider))
+
+
+(def empty-map (PersistentHashMap. (options->provider nil)))
 
 
 (def ^:private objary-cls (Class/forName "[Ljava.lang.Object;"))
@@ -38,158 +44,93 @@ differs for objects such as doubles, floats, and BigDecimals."}
 (defn mut-map
   "Create a mutable implementation of java.util.Map.  This object efficiently implements
   ITransient map so you can use assoc! and persistent! on it but you can additionally use
-  operations such as put!, remove!, compute-at! and comput-if-absent!."
-  (^HashMap [] (HashMap.))
-  (^HashMap [k v]
-   (let [hm (HashMap. PersistentHashMap/equivHashProvider)]
-     (.put hm k v)
-     hm))
-  (^HashMap [k1 v1 k2 v2]
-   (let [hm (HashMap. PersistentHashMap/equivHashProvider)]
-     (.put hm k1 v1)
-     (.put hm k2 v2)
-     hm))
-  (^HashMap [k1 v1 k2 v2 k3 v3]
-   (let [hm (HashMap. PersistentHashMap/equivHashProvider)]
-     (.put hm k1 v1)
-     (.put hm k2 v2)
-     (.put hm k3 v3)
-     hm))
-  (^HashMap [k1 v1 k2 v2 k3 v3 k4 v4]
-   (let [hm (HashMap. PersistentHashMap/equivHashProvider)]
-     (.put hm k1 v1)
-     (.put hm k2 v2)
-     (.put hm k3 v3)
-     (.put hm k4 v4)
-     hm))
-  (^HashMap [k1 v1 k2 v2 k3 v3 k4 v4 & args]
-   (HashMap. PersistentHashMap/equivHashProvider
-             false
-             (object-array (concat [k1 k1 k2 v2 k3 v3 k4 v4] args)))))
-
-
-(defn mut-mapv
-  "Create a mutable implementation of java.util.HashMap optionally providing a
-  hashcode provider.
+  operations such as put!, remove!, compute-at! and comput-if-absent!.  You can create
+  a persistent hashmap via the clojure `persistent!` call.
 
   Options:
 
-  * `:hash-provider` - Either [[equiv-hash-provider]] or [[equal-hash-provider]].  See related
-  documentation."
-  (^HashMap [args options]
-   (HashMap. (get options :hash-provider PersistentHashMap/equivHashProvider)
-             false
-             (->obj-ary args)))
-  (^HashMap [args]
-   (mut-mapv args nil)))
+  * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
+  the equal-hash-provider."
+  (^HashMap [] (HashMap. (options->provider nil)))
+  (^HashMap [data]
+   (into (HashMap. (options->provider nil)) data))
+  (^HashMap [options data]
+   (into (mut-map options) data)))
 
 
 (defn immut-map
-  "Create an immutable map.  For small maps (<= 4 keys) using Clojure's hash-map pathway is
-  the fastest - this pathway is guaranteed to produce an ham-fisted persistent hashmap."
+  "Create an immutable map.
+
+  Options:
+
+  * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
+  the equal-hash-provider."
   (^PersistentHashMap [] empty-map)
-  (^PersistentHashMap [k v]
-   (let [hm (HashMap. PersistentHashMap/equivHashProvider)]
-     (.put hm k v)
-     (persistent! hm)))
-  (^PersistentHashMap [k1 v1 k2 v2]
-   (let [hm (HashMap. PersistentHashMap/equivHashProvider)]
-     (.put hm k1 v1)
-     (.put hm k2 v2)
-     (persistent! hm)))
-  (^PersistentHashMap [k1 v1 k2 v2 k3 v3]
-   (let [hm (HashMap. PersistentHashMap/equivHashProvider)]
-     (.put hm k1 v1)
-     (.put hm k2 v2)
-     (.put hm k3 v3)
-     (persistent! hm)))
-  (^PersistentHashMap [k1 v1 k2 v2 k3 v3 k4 v4]
-   (let [hm (HashMap. PersistentHashMap/equivHashProvider)]
-     (.put hm k1 v1)
-     (.put hm k2 v2)
-     (.put hm k3 v3)
-     (.put hm k4 v4)
-     (persistent! hm)))
-  (^PersistentHashMap [k1 v1 k2 v2 k3 v3 k4 v4 & args]
-   (PersistentHashMap. (object-array (concat [k1 k1 k2 v2 k3 v3 k4 v4] args)))))
+  (^PersistentHashMap [data]
+   (into (PersistentHashMap. (options->provider nil)) data))
+  (^PersistentHashMap [options data]
+   (into (PersistentHashMap. (options->provider options)) data)))
 
 
-(defn immut-mapv
-  "Create an immutable map from args which must have length divisible by 2.
-
-    Options:
-
-  * `:hash-provider` - Either [[equiv-hash-provider]] or [[equal-hash-provider]].  See related
-  documentation, defaults to `equiv-hash-provider`."
-  (^PersistentHashMap [args options]
-   (PersistentHashMap. (get options :hash-provider equiv-hash-provider)
-                       false
-                       (->obj-ary args)))
-  (^PersistentHashMap [args]
-   (immut-mapv args)))
-
-
-(defn persistent-hash-map
-  "Create an empty persistent hash map optionally overriding the hash provider.
-
-  Options:
-
-  * `:hash-provider` - Either [[equiv-hash-provider]] or [[equal-hash-provider]].  See related
-  documentation, defaults to `equiv-hash-provider`."
-  (^PersistentHashMap
-   [options]
-   (-> (HashMap. ^BitmapTrieCommon$HashProvider (get options :hash-provider equiv-hash-provider))
-       (.persistent)))
-  (^PersistentHashMap [] empty-map))
-
-
-(defn hamf-hash-map
-  "Create an bitmap trie hash map optionally overriding the hash provider.
-
-  Options:
-
-  * `:hash-provider` - Either [[equiv-hash-provider]] or [[equal-hash-provider]].  See related
-  documentation, defaults to `equiv-hash-provider`."
-  (^HashMap [options] (HashMap. ^BitmapTrieCommon$HashProvider (get options :hash-provider equiv-hash-provider)))
-  (^HashMap [] (HashMap. equiv-hash-provider)))
-
-
-(defn java-hash-map
+(defn java-hashmap
+  "Create a java hashmap which is still the fastest possible way to solve a few problems."
   (^java.util.HashMap [] (java.util.HashMap.))
-  (^java.util.HashMap [k1 v1]
-   (doto (java.util.HashMap.)
-     (.put k1 v1)))
-  (^java.util.HashMap [k1 v1 k2 v2]
-   (doto (java.util.HashMap.)
-     (.put k1 v1)
-     (.put k2 v2)))
-  (^java.util.HashMap [k1 v1 k2 v2 k3 v3]
-   (doto (java.util.HashMap.)
-     (.put k1 v1)
-     (.put k2 v2)
-     (.put k3 v3)))
+  (^java.util.HashMap [data]
+   (if (instance? Map data)
+     (java.util.HashMap. ^Map data)
+     (let [retval (java.util.HashMap.)]
+       (doseq [item data]
+         (cond
+           (instance? Indexed item)
+           (.put retval (.nth ^Indexed item 0) (.nth ^Indexed item 1))
+           (instance? Map$Entry item)
+           (.put retval (.getKey ^Map$Entry item) (.getValue ^Map$Entry item))
+           :else
+           (throw (Exception. "Unrecognized map entry item type:" item))))
+       retval))))
 
-  (^java.util.HashMap [k1 v1 k2 v2 k3 v3 k4 v4]
-   (doto (java.util.HashMap.)
-     (.put k1 v1)
-     (.put k2 v2)
-     (.put k3 v3)
-     (.put k4 v4)))
 
-  (^java.util.HashMap [k1 v1 k2 v2 k3 v3 k4 v4 & args]
-   (when-not (== 0 (rem (count args) 2))
-     (throw (Exception. "Map arguments must be evenly divisible by 2")))
-   (let [hm (doto (java.util.HashMap.)
-              (.put k1 v1)
-              (.put k2 v2)
-              (.put k3 v3)
-              (.put k4 v4))]
-     (doseq [[k v] (partition 2 args)]
-       (.put hm k v))
-     hm)))
+(defn mut-set
+  "Create a mutable hashset based on the bitmap trie. You can create a persistent hashset via
+  the clojure `persistent!` call.
+
+  Options:
+
+  * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
+  the equal-hash-provider."
+  (^HashSet [] (HashSet. (options->provider nil)))
+  (^HashSet [data] (into (HashSet. (options->provider nil)) data))
+  (^HashSet [options data] (into (HashSet. (options->provider options)) data)))
+
+
+(defn immut-set
+  "
+
+  Options:
+
+  * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
+  the equal-hash-provider."
+  (^PersistentHashSet [] (PersistentHashSet. (options->provider nil)))
+  (^PersistentHashSet [data] (into (PersistentHashSet. (options->provider nil)) data))
+  (^PersistentHashSet [options data] (into (PersistentHashSet. (options->provider options)) data)))
+
+
+(defn java-hashset
+  "Create a java hashset which is still the fastest possible way to solve a few problems."
+  (^java.util.HashSet [] (java.util.HashSet.))
+  (^java.util.HashSet [data]
+   (if (instance? Set data)
+     (java.util.HashSet. ^Set data)
+     (let [retval (java.util.HashSet.)]
+       (doseq [item data]
+         (.add retval item))
+       retval))))
 
 
 (defn assoc!
+  "assoc! that works on transient collections, implementations of java.util.Map and
+  RandomAccess java.util.List implementations.  Be sure to keep track of return value
+  as some implementations return a different return value than the first argument."
   [obj k v]
   (cond
     (instance? ITransientAssociative2 obj)
@@ -197,7 +138,23 @@ differs for objects such as doubles, floats, and BigDecimals."}
     (instance? Map obj)
     (do (.put ^Map obj k v) obj)
     (instance? RandomAccess obj)
-    (.set ^List obj k v)))
+    (do (.set ^List obj k v) obj)
+    :else
+    (throw (Exception. "Item cannot be assoc!'d"))))
+
+
+(defn conj!
+  "conj! that works on transient collections, implementations of java.util.Set and
+  RandomAccess java.util.List implementations.  Be sure to keep track of return value
+  as some implementations return a different return value than the first argument."
+  [obj val]
+  (cond
+    (instance? ITransientCollection obj)
+    (.conj ^ITransientCollection obj val)
+    (instance? Set obj)
+    (do (.add ^Set obj val) obj)
+    :else
+    (throw (Exception. "Item cannot be conj!'d"))))
 
 
 (defn ->bi-function
@@ -256,6 +213,17 @@ differs for objects such as doubles, floats, and BigDecimals."}
   ^BitmapTrieCommon$MapSet [item] item)
 
 
+(defn- ->set
+  ^Set [item]
+  (cond
+    (instance? Set item)
+    item
+    (instance? Map item)
+    (.keySet ^Map item)
+    :else
+    (immut-set item)))
+
+
 (defn map-union
   "Take the union of two maps returning a new map.  bfn is a function that takes 2 arguments,
   map1-val and map2-val and returns a new value.  Has fallback if map1 and map2 aren't backed
@@ -270,12 +238,42 @@ differs for objects such as doubles, floats, and BigDecimals."}
   (let [bfn (->bi-function bfn)]
     (if (and (map-set? map1) (map-set? map2))
       (.union (as-map-set map1) (as-map-set map2) bfn)
-      (let [retval (HashMap. equiv-hash-provider)]
+      (let [retval (HashMap. equal-hash-provider)]
         (.putAll retval map1)
         (.forEach ^Map map2 (reify BiConsumer
                               (accept [this k v]
                                 (.merge retval k v bfn))))
         (persistent! retval)))))
+
+
+(defn- set-map-union-bfn
+  ^BiFunction [s1 s2]
+  (cond
+    (instance? Set s1)
+    HashSet/setValueMapper
+    ;; This ordering allows union to be used in place of merge for maps.
+    (instance? Map s2)
+    BitmapTrieCommon/rhsWins
+    (instance? Map s1)
+    BitmapTrieCommon/lhsWins
+    :else
+    HashSet/setValueMapper))
+
+
+(defn union
+  [s1 s2]
+  (cond
+    (and (map-set? s1) (map-set? s2))
+    (.union (as-map-set s1) (as-map-set s2) (set-map-union-bfn s1 s2))
+    (and (instance? Map s1) (instance? Map s2))
+    (map-union BitmapTrieCommon/rhsWins s1 s2)
+    :else
+    (let [retval (HashSet. equal-hash-provider)]
+      (.addAll retval s1)
+      (.forEach ^Collection s2 (reify Consumer
+                                 (accept [this v]
+                                   (.add retval v))))
+      (persistent! retval))))
 
 
 (defn map-union-java-hashmap
@@ -341,18 +339,29 @@ differs for objects such as doubles, floats, and BigDecimals."}
    (union-reduce-java-hashmap bfn maps nil)))
 
 
-(defn map-difference
-  "Take the difference of two maps returning a new map.  Return value is a map1 without the
-  keys present in map2."
+
+(defn difference
+  "Take the difference of two maps (or sets) returning a new map.  Return value is a map1
+  (or set1) without the keys present in map2."
   [map1 map2]
   (if (and (map-set? map1) (map-set? map2))
     (.difference (as-map-set map1) (as-map-set map2))
-    (let [retval (HashMap. equiv-hash-provider)]
-      (.forEach ^Map map1 (reify BiConsumer
-                            (accept [this k v]
-                              (when-not (.containsKey ^Map map2 k)
-                                (.put retval k v)))))
-      (persistent! retval))))
+    (if (instance? Map map1)
+      (let [retval (HashMap. equal-hash-provider)
+            rhs (->set map2)]
+        (.forEach ^Map map1 (reify BiConsumer
+                              (accept [this k v]
+                                (when-not (.contains rhs k)
+                                  (.put retval k v)))))
+        (persistent! retval))
+      (let [retval (HashSet. equal-hash-provider)
+            rhs (->set map2)]
+        (.forEach (->set map1)
+                  (reify Consumer
+                    (accept [this v]
+                      (when-not (.contains rhs v)
+                        (.add retval v)))))
+        (persistent! retval)))))
 
 
 (defn map-intersection
@@ -362,13 +371,35 @@ differs for objects such as doubles, floats, and BigDecimals."}
   (let [bfn (->bi-function bfn)]
     (if (and (map-set? map1) (map-set? map2))
       (.intersection (as-map-set map1) (as-map-set map2) bfn)
-      (let [retval (HashMap. equiv-hash-provider)]
+      (let [retval (HashMap. equal-hash-provider)]
         (.forEach ^Map map1 (reify BiConsumer
                               (accept [this k v]
                                 (let [vv (.getOrDefault ^Map map2 k ::failure)]
                                   (when-not (identical? vv ::failure)
                                     (.put retval k (.apply bfn v vv)))))))
         (persistent! retval)))))
+
+
+(defn intersection
+  "Intersect the keyspace of map1 and map2 returning a new map.  Each value is the result
+  of bfn applied to the map1-value and map2-value, respectively.  When both are maps
+  the keys are unioned and the values are the rhs values."
+  [s1 s2]
+  (cond
+    (and (map-set? s1) (map-set? s2))
+    (.intersection (as-map-set s1) (as-map-set s2)
+                   (set-map-union-bfn s1 s2))
+    (and (instance? Map s1) (instance? Map s2))
+    (map-intersection BitmapTrieCommon/rhsWins s1 s2)
+    :else
+    (let [retval (HashSet. equal-hash-provider)
+          s2 (->set s2)]
+      (.forEach (->set s1)
+                (reify Consumer
+                  (accept [this v]
+                    (when (.contains s2 v)
+                      (.add retval v)))))
+      (persistent! retval))))
 
 
 (defn update-values
@@ -378,7 +409,7 @@ differs for objects such as doubles, floats, and BigDecimals."}
   (let [bfn (->bi-function bfn)]
     (if (map-set? map)
       (.immutUpdateValues (as-map-set map) bfn)
-      (let [retval (HashMap. equiv-hash-provider)]
+      (let [retval (HashMap. equal-hash-provider)]
         (.forEach ^Map map
                   (reify BiConsumer
                     (accept [this k v]
@@ -387,9 +418,10 @@ differs for objects such as doubles, floats, and BigDecimals."}
 
 
 (defn map-map
-  "Clojure's missing piece :-).  Given a map or sequence of pairs map using map-fn which must
-  return a new pair.  Removing nil pairs, and return a new map.  If map-fn returns the same
-  [k v] pair the later pair will overwrite the earlier pair.
+  "Clojure's missing piece :-).  Map over the data in src-map which must be a map or sequence
+  of pairs using map-fn.  map-fn must return nil or a new key-value pair. Finally remove
+  nil pairs, and return a new map.  If map-fn returns the same [k v] pair the later pair
+  will overwrite the earlier pair.
 
   Logically the same as:
 
@@ -401,14 +433,14 @@ differs for objects such as doubles, floats, and BigDecimals."}
                    (.entrySet ^Map src-map)
                    src-map)
         pair-iter (.iterator ^Iterable pair-seq)
-        retval (HashMap. equiv-hash-provider)]
+        retval (HashMap. equal-hash-provider)]
     (loop [c (.hasNext pair-iter)]
       (when c
         (let [^Map$Entry entry (.next pair-iter)
               ;;Normalize map entries so this works with java hashmaps.
-              entry (if (instance? Indexed entry)
-                      entry
-                      [(.getKey entry) (.getValue entry)])
+              ^Indexed entry (if (instance? Indexed entry)
+                               entry
+                               [(.getKey entry) (.getValue entry)])
               result (map-fn entry)]
           (when result
             (.put retval (result 0) (result 1)))

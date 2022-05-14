@@ -24,7 +24,7 @@
                ;;Change this also in build.clj
                :version "1.000-alpha-1"
                :name "Ham-Fisted"
-               :description "HAMT exporations"
+               :description "Bitmap Trie exporations"
                :metadata {:doc/format :markdown}
                :html {:transforms [[:head] [:append [:script {:async true
                                                               :src "https://www.googletagmanager.com/gtag/js?id=G-XJYNJF48RM"}]]

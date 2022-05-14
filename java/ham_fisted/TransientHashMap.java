@@ -2,6 +2,7 @@ package ham_fisted;
 
 
 import static ham_fisted.BitmapTrie.*;
+import static ham_fisted.BitmapTrieCommon.*;
 import clojure.lang.ITransientMap;
 import clojure.lang.ITransientAssociative2;
 import clojure.lang.IPersistentMap;
@@ -27,7 +28,7 @@ public final class TransientHashMap
   }
 
   public TransientHashMap() {
-    hb = new BitmapTrie(PersistentHashMap.equivHashProvider);
+    hb = new BitmapTrie(equalHashProvider);
   }
 
   TransientHashMap(TransientHashMap other) {

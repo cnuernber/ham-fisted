@@ -6,6 +6,7 @@ import java.util.Objects;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.function.BiFunction;
+import clojure.lang.Util;
 
 /**
  * Interfaces and definitions used for implementing the bitmap trie.
@@ -30,7 +31,19 @@ public class BitmapTrieCommon {
   /**
    * The default hashcode provide simply uses maxhash(obj.hashCode) and Objects.equals(a,b)
    */
-  public static final HashProvider hashcodeProvider = new HashProvider(){};
+  public static final HashProvider equalHashProvider = new HashProvider(){};
+  /**
+   * Hashcode provider using Clojure's hasheq/equiv pathway
+   */
+  public static final HashProvider equivHashProvider = new HashProvider() {
+      public int hash(Object obj) {
+	return Util.hasheq(obj);
+      }
+      public boolean equals(Object lhs, Object rhs) {
+	return Util.equiv(lhs,rhs);
+      }
+    };
+
 
   /**
    * A base trie interface to define the information that nodes within the
@@ -77,6 +90,12 @@ public class BitmapTrieCommon {
     public MapSet difference(MapSet rhs);
     public MapSet immutUpdateValues(BiFunction valueMap);
   }
+
+  public static final BiFunction<Object,Object,Object> rhsWins = (a,b) -> b;
+  public static final BiFunction<Object,Object,Object> lhsWins = (a,b) -> a;
+  public static final BiFunction<Object,Object,Object> nonNilWins = (a,b) -> a == null ? b : a;
+  public static final BiFunction<Long,Long,Long> sumBiFn = (a,b) -> a + b;
+  public static final BiFunction<Object,Long,Long> incBiFn = (k,v) -> v == null ? 1 : 1 + v;
 
   /**
    * A node in the bitmap trie.  There aren't too many places where virtualizing the

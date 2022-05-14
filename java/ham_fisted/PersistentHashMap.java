@@ -40,23 +40,18 @@ import java.math.BigDecimal;
 public final class PersistentHashMap
   extends APersistentMap
   implements IObj, IMapIterable, IKVReduce, IEditableCollection,
-	     MapSet, BitmapTrieOwner {
+	     MapSet, BitmapTrieOwner, IHashEq {
 
   final BitmapTrie hb;
+  int cachedHash = 0;
 
   public BitmapTrie bitmapTrie() { return hb; }
 
-  public static final HashProvider equivHashProvider = new HashProvider(){
-      public int hash(Object obj) {
-	return Util.hasheq(obj);
-      }
-      public boolean equals(Object lhs, Object rhs) {
-	return Util.equiv(lhs,rhs);
-      }
-    };
-
   public PersistentHashMap() {
     hb = new BitmapTrie(equivHashProvider);
+  }
+  public PersistentHashMap(HashProvider hp) {
+    hb = new BitmapTrie(hp);
   }
   public PersistentHashMap(BitmapTrie hm) {
     hb = hm;
@@ -74,6 +69,24 @@ public final class PersistentHashMap
   public PersistentHashMap(boolean assoc, Object... kvs) {
     this(equivHashProvider, assoc, kvs);
   }
+
+  public final int hashCode() {
+    if (cachedHash == 0) {
+      return cachedHash = CljHash.mapHashcode(hb);
+    }
+    return cachedHash;
+  }
+
+  public final int hasheq() {
+    return hashCode();
+  }
+
+  public final boolean equals(Object o) {
+    return CljHash.mapEquiv(hb, o);
+  }
+  public final boolean equiv(Object o) {
+    return equals(o);
+  }
   public final boolean containsKey(Object key) {
     return hb.containsKey(key);
   }
@@ -82,14 +95,14 @@ public final class PersistentHashMap
   }
   public final int size() { return hb.size(); }
   public final int count() { return hb.size(); }
-  public final Set keySet() { return hb.keySet((Object)null, false); }
+  public final Set keySet() { return new PersistentHashSet(hb); }
   public final Set entrySet() { return hb.entrySet((Map.Entry<Object,Object>)null, false); }
   public final Collection values() { return hb.values((Object)null, false); }
   public final IMapEntry entryAt(Object key) {
     final LeafNode node = hb.getNode(key);
     return node != null ? MapEntry.create(key, node.val()) : null;
   }
-  public final ISeq seq() { return  IteratorSeq.create(iterator()); }
+  public final ISeq seq() { return IteratorSeq.create(iterator()); }
   @Override
   public final Object get(Object key) {
     return hb.get(key);
@@ -148,7 +161,7 @@ public final class PersistentHashMap
     return new PersistentHashMap(hb.shallowClone().dissoc(key));
   }
 
-  public static PersistentHashMap EMPTY = new PersistentHashMap(new BitmapTrie(equivHashProvider));
+  public static PersistentHashMap EMPTY = new PersistentHashMap(new BitmapTrie(equalHashProvider));
 
   public final IPersistentCollection empty() {
     return (IPersistentCollection)EMPTY.withMeta(hb.meta);

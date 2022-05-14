@@ -299,18 +299,25 @@ class BitmapTrie implements IObj, TrieBase {
       }
     }
 
-    public final LeafNode get(Object k, int hash) {
-      final int bpos = bitpos(shift, hash);
+    public final LeafNode get(Object k, int hash, int nshift, HashProvider hp) {
+      final int bpos = bitpos(nshift, hash);
       final int bm = bitmap;
       if ((bm & bpos) != 0) {
 	final Object entry = data[index(bm,bpos)];
 	if (entry instanceof BitmapNode) {
-	  return ((BitmapNode)entry).get(k,hash);
+	  return ((BitmapNode)entry).get(k,hash,incShift(nshift),hp);
 	} else {
-	  return ((LeafNode)entry).get(k);
+	  for (LeafNode lf = (LeafNode)entry; lf != null; lf = lf.nextNode) {
+	    if (hp.equals(lf.k,k))
+	      return lf;
+	  }
 	}
       }
       return null;
+    }
+
+    public final LeafNode get(Object k, int hash) {
+      return get(k,hash,shift,owner);
     }
 
     public final INode remove(Object k, int hash, Box b, boolean collapse) {
@@ -796,7 +803,7 @@ class BitmapTrie implements IObj, TrieBase {
   }
 
   public BitmapTrie() {
-    this(hashcodeProvider);
+    this(equalHashProvider);
   }
 
   //Unsafe shallow clone version
@@ -845,7 +852,7 @@ class BitmapTrie implements IObj, TrieBase {
   final LeafNode getNode(Object key) {
     if(key == null)
       return nullEntry;
-    return root.get(key, hp.hash(key));
+    return root.get(key, hp.hash(key), 0, hp);
   }
 
   final LeafNode getOrCreate(Object key) {
@@ -1235,7 +1242,7 @@ class BitmapTrie implements IObj, TrieBase {
   }
 
 
-  public IObj withMeta(IPersistentMap meta) {
+  public BitmapTrie withMeta(IPersistentMap meta) {
     return shallowClone(meta);
   }
 

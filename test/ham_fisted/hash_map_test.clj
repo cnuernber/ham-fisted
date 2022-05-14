@@ -7,7 +7,7 @@
            [java.util ArrayList Collections Map Collection]
            [java.util.function BiFunction BiConsumer]))
 
-(defonce orig PersistentHashMap/EMPTY)
+(defonce orig api/empty-map)
 
 
 (deftest simple-assoc
@@ -210,7 +210,7 @@
 
 (defn hamf-equiv-hashmap
   [^ArrayList data]
-  (let [hm (HashMap. PersistentHashMap/equivHashProvider)
+  (let [hm (HashMap. api/equiv-hash-provider)
         nelems (.size data)]
     (dotimes [idx nelems]
       (.put hm (.get data idx) idx))
@@ -412,6 +412,20 @@
         (reduce (api/map-union incrementor %1 %2) map-ary)))))
 
 
+(deftest hashcode-equal-hashmap
+  (is (= (.hasheq (api/mut-map [[:a 1] [:b 2]])) (.hasheq {:a 1 :b 2})))
+  (is (= (.hasheq (api/mut-map [[:a 1] [:b 2]])) (.hasheq (api/immut-map {:a 1 :b 2}))))
+  (is (not= (.hasheq (api/mut-map [[:a 1] [:b 3]])) (.hasheq {:a 1 :b 2})))
+  (is (.equals (api/immut-map [[:a 1] [:b 2]]) {:a 1 :b 2}))
+  (is (.equals (api/immut-map [[:a 1] [:b 2]]) (api/mut-map [[:a 1] [:b 2]])))
+  (is (not (.equals (api/immut-map [[:a 1] [:b 2]]) nil)))
+  (is (= (.hasheq (api/mut-set [:a :b])) (.hasheq #{:a :b})))
+  (is (not= (.hasheq (api/mut-set [:a :b :c])) (.hasheq #{:a :b})))
+  (is (.equals (api/immut-set [:a :b :c]) #{:a :b :c}))
+  (is (.equals (api/immut-set [:a :b :c]) (api/mut-set #{:a :b :c})))
+  (is (not (.equals (api/immut-set [:a :b :c]) nil))))
+
+
 
 (comment
 
@@ -598,30 +612,49 @@
 
   (def small-int-profile (profile-datastructures (repeatedly 2 #(rand-int 100000))))
   ;;jdk-8
-  ;; ({:construct-μs 0.04544450409859743,
-  ;;   :access-μs 0.027821068093107824,
-  ;;   :iterate-μs 0.04819996541179101,
-  ;;   :ds-name :hamf-hashmap}
-  ;;  {:construct-μs 0.04554578396228026,
-  ;;   :access-μs 0.02409841194629,
-  ;;   :iterate-μs 0.03861166808377863,
-  ;;   :ds-name :java-hashmap}
-  ;;  {:construct-μs 0.09249262273824677,
-  ;;   :access-μs 0.07618066307443447,
-  ;;   :iterate-μs 0.048746529428492114,
-  ;;   :ds-name :hamf-equiv-hashmap}
-  ;;  {:construct-μs 0.11273793412685472,
-  ;;   :access-μs 0.042814700015951265,
-  ;;   :iterate-μs 0.006165632440946597,
-  ;;   :ds-name :clj-transient}
-  ;;  {:construct-μs 0.15366442381551126,
-  ;;   :access-μs 0.0755429996662735,
-  ;;   :iterate-μs 0.032593612346542504,
-  ;;   :ds-name :hamf-transient})
+  ;;({:construct-μs 0.04298386356008815,
+  ;;  :access-μs 0.040345482495456206,
+  ;;  :iterate-μs 0.05087595836156305,
+  ;;  :ds-name :hamf-hashmap}
+  ;; {:construct-μs 0.044846695459721565,
+  ;;  :access-μs 0.02446975706544951,
+  ;;  :iterate-μs 0.04827733417909167,
+  ;;  :ds-name :java-hashmap}
+  ;; {:construct-μs 0.10289826952319454,
+  ;;  :access-μs 0.08631483123589048,
+  ;;  :iterate-μs 0.05130890786182448,
+  ;;  :ds-name :hamf-equiv-hashmap}
+  ;; {:construct-μs 0.14209144548280342,
+  ;;  :access-μs 0.08244324142027323,
+  ;;  :iterate-μs 0.04715165522789527,
+  ;;  :ds-name :clj-transient}
+  ;; {:construct-μs 0.16351660268608148,
+  ;;  :access-μs 0.09678529907937389,
+  ;;  :iterate-μs 0.05798288225070914,
+  ;;  :ds-name :hamf-transient})
 
   (def int-profile (profile-datastructures (repeatedly 1000 #(rand-int 100000))))
   ;; jdk-8
-
+  ;; ({:construct-μs 23.099907694058732,
+  ;;   :access-μs 11.601162415160529,
+  ;;   :iterate-μs 8.334938366460666,
+  ;;   :ds-name :java-hashmap}
+  ;;  {:construct-μs 34.1529201495073,
+  ;;   :access-μs 12.681086848216172,
+  ;;   :iterate-μs 14.304917063893303,
+  ;;   :ds-name :hamf-hashmap}
+  ;;  {:construct-μs 63.69087151015229,
+  ;;   :access-μs 48.95698405726371,
+  ;;   :iterate-μs 17.277700236284005,
+  ;;   :ds-name :hamf-equiv-hashmap}
+  ;;  {:construct-μs 66.86508244206775,
+  ;;   :access-μs 50.38417851142474,
+  ;;   :iterate-μs 21.130427287409592,
+  ;;   :ds-name :hamf-transient}
+  ;;  {:construct-μs 110.31809377289377,
+  ;;   :access-μs 44.23049499782514,
+  ;;   :iterate-μs 35.53727620563613,
+  ;;   :ds-name :clj-transient})
   ;; jdk-17
   ;; ({:construct-μs 31.915435858163935,
   ;;   :access-μs 12.193707814495532,
