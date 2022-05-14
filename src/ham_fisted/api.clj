@@ -601,7 +601,9 @@ hash provider."}
 (defn memoize
   "Efficient threadsafe version of clojure.core/memoize.  Unlike core/memoize this guarantees
   memo-fn will be called exactly once per argument vector even in high-contention
-  environments."
+  environments.
+
+  Also see [[clear-memoized-fn!]] to mutably clear the backing store."
   [memo-fn]
   (let [hm (ConcurrentHashMap.)
         compute-fn (reify Function
