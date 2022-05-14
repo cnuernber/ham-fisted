@@ -484,8 +484,10 @@ hash provider."}
            (mut-map) coll)))
 
 (defn merge
-  "Merge 2 maps with the rhs values winning any intersecting keys.  Uses map-union under
-  the with `BitmapTrieCommon/rhsWins`."
+  "Merge 2 maps with the rhs values winning any intersecting keys.  Uses map-union
+  with `BitmapTrieCommon/rhsWins`.
+
+  Returns a new persistent map."
   ([] nil)
   ([m1] m1)
   ([m1 m2] (map-union BitmapTrieCommon/rhsWins m1 m2))
@@ -500,6 +502,7 @@ hash provider."}
 (defn merge-with
   "Merge (union) any number of maps using `f` as the merge operator.  `f` gets passed two
   arguments, lhs-val and rhs-val and must return a new value.
+
   Returns a new persistent map."
   ([f] nil)
   ([f m1] m1)

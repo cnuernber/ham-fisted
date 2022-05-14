@@ -90,12 +90,13 @@ by bitmap tries.</p>
 <p>Returns a persistent map.</p>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/api.clj#L249">view source</a></div></div><div class="public anchor" id="var-map-union-java-hashmap"><h3>map-union-java-hashmap</h3><div class="usage"><code>(map-union-java-hashmap bfn lhs rhs)</code></div><div class="doc"><div class="markdown"><p>Take the union of two maps returning a new map.  See documentation for <a href="map-union">map-union</a>.
 Returns a java.util.HashMap.</p>
-</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/api.clj#L301">view source</a></div></div><div class="public anchor" id="var-merge"><h3>merge</h3><div class="usage"><code>(merge)</code><code>(merge m1)</code><code>(merge m1 m2)</code><code>(merge m1 m2 &amp; args)</code></div><div class="doc"><div class="markdown"><p>Merge 2 maps with the rhs values winning any intersecting keys.  Uses map-union under
-the with <code>BitmapTrieCommon/rhsWins</code>.</p>
+</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/api.clj#L301">view source</a></div></div><div class="public anchor" id="var-merge"><h3>merge</h3><div class="usage"><code>(merge)</code><code>(merge m1)</code><code>(merge m1 m2)</code><code>(merge m1 m2 &amp; args)</code></div><div class="doc"><div class="markdown"><p>Merge 2 maps with the rhs values winning any intersecting keys.  Uses map-union
+with <code>BitmapTrieCommon/rhsWins</code>.</p>
+<p>Returns a new persistent map.</p>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/api.clj#L486">view source</a></div></div><div class="public anchor" id="var-merge-with"><h3>merge-with</h3><div class="usage"><code>(merge-with f)</code><code>(merge-with f m1)</code><code>(merge-with f m1 m2)</code><code>(merge-with f m1 m2 &amp; args)</code></div><div class="doc"><div class="markdown"><p>Merge (union) any number of maps using <code>f</code> as the merge operator.  <code>f</code> gets passed two
-arguments, lhs-val and rhs-val and must return a new value.
-Returns a new persistent map.</p>
-</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/api.clj#L500">view source</a></div></div><div class="public anchor" id="var-mut-map"><h3>mut-map</h3><div class="usage"><code>(mut-map)</code><code>(mut-map data)</code><code>(mut-map options data)</code></div><div class="doc"><div class="markdown"><p>Create a mutable implementation of java.util.Map.  This object efficiently implements
+arguments, lhs-val and rhs-val and must return a new value.</p>
+<p>Returns a new persistent map.</p>
+</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/api.clj#L502">view source</a></div></div><div class="public anchor" id="var-mut-map"><h3>mut-map</h3><div class="usage"><code>(mut-map)</code><code>(mut-map data)</code><code>(mut-map options data)</code></div><div class="doc"><div class="markdown"><p>Create a mutable implementation of java.util.Map.  This object efficiently implements
 ITransient map so you can use assoc! and persistent! on it but you can additionally use
 operations such as put!, remove!, compute-at! and comput-if-absent!.  You can create
 a persistent hashmap via the clojure <code>persistent!</code> call.</p>
