@@ -38,9 +38,7 @@
                :output-path "docs"
                :doc-paths ["topics"]
                :source-uri "https://github.com/cnuernber/ham-fisted/blob/master/{filepath}#L{line}"
-               :namespaces [ham-fisted.api
-                            ham-fisted.coerce
-                            ham-fisted.parallel]}}
+               :namespaces [ham-fisted.api]}}
   :deploy
   {:replace-deps {slipset/deps-deploy {:mvn/version "0.1.5"}}
    :exec-fn deps-deploy.deps-deploy/deploy
