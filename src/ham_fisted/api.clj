@@ -1,12 +1,34 @@
 (ns ham-fisted.api
+  "Mutable and immutable pathways based on bitmap trie-based hashmaps.  Mutable pathways
+  implement the java.util.Map or Set interfaces respectively including the update-in-place
+  pathways such as compute or computeIfPresent.
+
+  All mutable maps or sets can be turned into their immutable counterparts via the Clojure
+  `persistent!` call.  This allows you to work in a mutable space for performance
+  (or ease of use) and switch to an immutable pathway when finished.  Please note that once
+  you call persistent! you should never change the mutable map or set again as this will
+  change the immutable view of the data. All immutable datastructures support conversion to
+  transient via the `transient` call.
+
+  Very fast versions of union, difference and intersection are provided for maps and sets
+  with the map version of union and difference requiring an extra argument,
+  a java.util.BiFunction or an IFn taking 2 arguments to merge the left and right sides into
+  the final map.  These versions are faster than what is possible given any other map
+  implementation on the JVM.  These boolean operators work across the map and set classes.
+
+  Additionally a fast value update pathway is provided so you can update all the values in a
+  given map quickly as well as a new map primitive - map-map - that allows you to transform
+  a given map into a new map quickly by mapping across all the entries.
+
+  Unlike the standard Java objects, under no circumstances is mutation-via-iterator supported."
+  (:require [ham-fisted.iterator :as iterator])
   (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet]
-           [clojure.lang ITransientAssociative2 ITransientMap Indexed MapEntry
-            ITransientSet ITransientCollection]
+           [clojure.lang ITransientAssociative2 ITransientCollection Indexed]
            [java.util Map Map$Entry List RandomAccess Set Collection]
            [java.util.function Function BiFunction BiConsumer Consumer]
            [java.util.concurrent ForkJoinPool ExecutorService])
-  (:refer-clojure :exclude [assoc! conj!]))
+  (:refer-clojure :exclude [assoc! conj! frequencies]))
 
 (set! *warn-on-reflection* true)
 (def ^{:tag BitmapTrieCommon$HashProvider
@@ -446,3 +468,13 @@ hash provider."}
             (.put retval (result 0) (result 1)))
           (recur (.hasNext pair-iter)))))
     (persistent! retval)))
+
+
+(defn frequencies
+  "Faster (9X or so) implementation of clojure.core/frequencies."
+  [coll]
+  (persistent!
+   (reduce (fn [counts x]
+             (compute! counts x BitmapTrieCommon/incBiFn)
+             counts)
+           (mut-map) coll)))
