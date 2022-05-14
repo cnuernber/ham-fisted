@@ -35,7 +35,7 @@ cljfn will be invoked with 2 arguments.</p>
 RandomAccess java.util.List implementations.  Be sure to keep track of return value
 as some implementations return a different return value than the first argument.</p>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/api.clj#L172">view source</a></div></div><div class="public anchor" id="var-clear.21"><h3>clear!</h3><div class="usage"><code>(clear! map-or-coll)</code></div><div class="doc"><div class="markdown"></div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/api.clj#L249">view source</a></div></div><div class="public anchor" id="var-clear-memoized-fn.21"><h3>clear-memoized-fn!</h3><div class="usage"><code>(clear-memoized-fn! memoize-fn)</code></div><div class="doc"><div class="markdown"><p>Clear the backstore behind a memoized function.</p>
-</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/api.clj#L631">view source</a></div></div><div class="public anchor" id="var-compute.21"><h3>compute!</h3><div class="usage"><code>(compute! m k bfn)</code></div><div class="doc"><div class="markdown"><p>Compute a new value in a map derived from an existing value.  bfn gets passed k, v where k
+</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/api.clj#L633">view source</a></div></div><div class="public anchor" id="var-compute.21"><h3>compute!</h3><div class="usage"><code>(compute! m k bfn)</code></div><div class="doc"><div class="markdown"><p>Compute a new value in a map derived from an existing value.  bfn gets passed k, v where k
 may be nil.  If the function returns nil the corresponding key is removed from the map.</p>
 <p>See <a href="https://docs.oracle.com/javase/8/docs/api/java/util/Map.html#compute-K-java.util.function.BiFunction-">Map.compute</a></p>
 <p>An example <code>bfn</code> for counting occurances would be <code>#(if % (inc (long %)) 1)</code>.</p>
@@ -107,6 +107,7 @@ will overwrite the earlier pair.</p>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/api.clj#L485">view source</a></div></div><div class="public anchor" id="var-memoize"><h3>memoize</h3><div class="usage"><code>(memoize memo-fn)</code></div><div class="doc"><div class="markdown"><p>Efficient threadsafe version of clojure.core/memoize.  Unlike core/memoize this guarantees
 memo-fn will be called exactly once per argument vector even in high-contention
 environments.</p>
+<p>Also see <a href="ham-fisted.api.html#var-clear-memoized-fn.21">clear-memoized-fn!</a> to mutably clear the backing store.</p>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/api.clj#L601">view source</a></div></div><div class="public anchor" id="var-merge"><h3>merge</h3><div class="usage"><code>(merge)</code><code>(merge m1)</code><code>(merge m1 m2)</code><code>(merge m1 m2 &amp; args)</code></div><div class="doc"><div class="markdown"><p>Merge 2 maps with the rhs values winning any intersecting keys.  Uses map-union
 with <code>BitmapTrieCommon/rhsWins</code>.</p>
 <p>Returns a new persistent map.</p>
