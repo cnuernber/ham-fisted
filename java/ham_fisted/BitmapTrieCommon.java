@@ -58,9 +58,10 @@ public class BitmapTrieCommon {
   /**
    * Return-by-reference pathway.
    */
-  static final class Box {
+  static public final class Box {
     public Object obj;
     public Box() { obj = null; }
+    public Box(Object _obj) { obj = _obj; }
   }
 
   /**

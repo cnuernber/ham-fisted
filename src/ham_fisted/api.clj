@@ -12,6 +12,11 @@
 
   On all maps getting the keyset (.keySet) returns a full PersistentHashSet of the keys.
 
+  All maps and sets support metadata but setting the metadata on mutable objects returns
+  a new mutable object that shares the backing store leading to possible issues.  Metadata
+  is transferred to the persistent versions of the mutable/transient objects upon
+  `persistent!`.
+
   Very fast versions of union, difference and intersection are provided for maps and sets
   with the map version of union and difference requiring an extra argument,
   a java.util.BiFunction or an IFn taking 2 arguments to merge the left and right sides into
@@ -19,18 +24,20 @@
   implementation on the JVM.  These boolean operators work across the map and set classes.
 
   Additionally a fast value update pathway is provided so you can update all the values in a
-  given map quickly as well as a new map primitive - map-map - that allows you to transform
+  given map quickly as well as a new map primitive - [[mapmap]] - that allows you to transform
   a given map into a new map quickly by mapping across all the entries.
 
   Unlike the standard Java objects, under no circumstances is mutation-via-iterator supported."
   (:require [ham-fisted.iterator :as iterator])
   (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
-            BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet]
+            BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
+            BitmapTrieCommon$Box]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed]
            [java.util Map Map$Entry List RandomAccess Set Collection]
            [java.util.function Function BiFunction BiConsumer Consumer]
-           [java.util.concurrent ForkJoinPool ExecutorService])
-  (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with]))
+           [java.util.concurrent ForkJoinPool ExecutorService Callable Future
+            ConcurrentHashMap])
+  (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize]))
 
 (set! *warn-on-reflection* true)
 (def ^{:tag BitmapTrieCommon$HashProvider
@@ -74,7 +81,7 @@ hash provider."}
   Options:
 
   * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
-  the equal-hash-provider."
+  the [[equal-hash-provider]]."
   (^HashMap [] (HashMap. (options->provider nil)))
   (^HashMap [data]
    (into (HashMap. (options->provider nil)) data))
@@ -83,12 +90,13 @@ hash provider."}
 
 
 (defn immut-map
-  "Create an immutable map.
+  "Create an immutable map.  This object supports conversion to a transient map vial
+  clojure's `transient` function.
 
   Options:
 
   * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
-  the equal-hash-provider."
+  the [[equal-hash-provider]]."
   (^PersistentHashMap [] empty-map)
   (^PersistentHashMap [data]
    (into (PersistentHashMap. (options->provider nil)) data))
@@ -103,15 +111,24 @@ hash provider."}
    (if (instance? Map data)
      (java.util.HashMap. ^Map data)
      (let [retval (java.util.HashMap.)]
-       (doseq [item data]
-         (cond
-           (instance? Indexed item)
-           (.put retval (.nth ^Indexed item 0) (.nth ^Indexed item 1))
-           (instance? Map$Entry item)
-           (.put retval (.getKey ^Map$Entry item) (.getValue ^Map$Entry item))
-           :else
-           (throw (Exception. "Unrecognized map entry item type:" item))))
+       (iterator/doiter
+        item data
+        (cond
+          (instance? Indexed item)
+          (.put retval (.nth ^Indexed item 0) (.nth ^Indexed item 1))
+          (instance? Map$Entry item)
+          (.put retval (.getKey ^Map$Entry item) (.getValue ^Map$Entry item))
+          :else
+          (throw (Exception. "Unrecognized map entry item type:" item))))
        retval))))
+
+
+(defn java-concurrent-hashmap
+  "Create a java concurrent hashmap which is still the fastest possible way to solve a
+  few concurrent problems."
+  (^ConcurrentHashMap [] (ConcurrentHashMap.))
+  (^ConcurrentHashMap [data]
+   (java-concurrent-hashmap nil data)))
 
 
 (defn mut-set
@@ -121,19 +138,20 @@ hash provider."}
   Options:
 
   * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
-  the equal-hash-provider."
+  the [[equal-hash-provider]]."
   (^HashSet [] (HashSet. (options->provider nil)))
   (^HashSet [data] (into (HashSet. (options->provider nil)) data))
   (^HashSet [options data] (into (HashSet. (options->provider options)) data)))
 
 
 (defn immut-set
-  "
+  "Create an immutable hashset based on the bitmap trie.  This object supports conversion
+  to transients via `transient`.
 
   Options:
 
   * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
-  the equal-hash-provider."
+  the [[equal-hash-provider]]."
   (^PersistentHashSet [] (PersistentHashSet. (options->provider nil)))
   (^PersistentHashSet [data] (into (PersistentHashSet. (options->provider nil)) data))
   (^PersistentHashSet [options data] (into (PersistentHashSet. (options->provider options)) data)))
@@ -228,6 +246,16 @@ hash provider."}
   (.computeIfAbsent ^Map m k (->function bfn)))
 
 
+(defn clear!
+  [map-or-coll]
+  (cond
+    (instance? Map map-or-coll)
+    (.clear ^Map map-or-coll)
+    (instance? Collection map-or-coll)
+    (.clear ^Collection map-or-coll))
+  map-or-coll)
+
+
 (defn- map-set?
   [item]
   (instance? BitmapTrieCommon$MapSet item))
@@ -285,6 +313,10 @@ hash provider."}
 
 
 (defn union
+  "Union of two sets or two maps.  When two maps are provided the righthand side
+  wins in the case of an intersection.
+
+  Result is either a set or a map, depending on if s1 is a set or map."
   [s1 s2]
   (cond
     (and (map-set? s1) (map-set? s2))
@@ -319,7 +351,7 @@ hash provider."}
   by this library this falls backs to `(reduce (partial union-maps bfn) maps)`.
 
   This operator is an example of how to write a parallelized map reduction but it itself
-  is only faster when you have many large maps to union into a final result.  `map-union`
+  is only faster when you have many large maps to union into a final result.  [map-union]
   is generally faster in normal use cases.
 
   Options:
@@ -367,7 +399,6 @@ hash provider."}
    (union-reduce-java-hashmap bfn maps nil)))
 
 
-
 (defn difference
   "Take the difference of two maps (or sets) returning a new map.  Return value is a map1
   (or set1) without the keys present in map2."
@@ -394,7 +425,14 @@ hash provider."}
 
 (defn map-intersection
   "Intersect the keyspace of map1 and map2 returning a new map.  Each value is the result
-  of bfn applied to the map1-value and map2-value, respectively."
+  of bfn applied to the map1-value and map2-value, respectively.  See documentation for
+  [[map-union]].
+
+  Clojure's `merge` functionality can be duplicate via:
+
+  ```clojure
+  (map-intersection (fn [lhs rhs] rhs) map1 map2)
+  ```"
   [bfn map1 map2]
   (let [bfn (->bi-function bfn)]
     (if (and (map-set? map1) (map-set? map2))
@@ -409,7 +447,8 @@ hash provider."}
 
 
 (defn intersection
-  "Intersect the keyspace of set1 and set2 returning a new set."
+  "Intersect the keyspace of set1 and set2 returning a new set.  Also works if s1 is a
+  map and s2 is a set - the map is trimmed to the intersecting keyspace of s1 and s2."
   [s1 s2]
   (cond
     (and (map-set? s1) (map-set? s2))
@@ -429,8 +468,8 @@ hash provider."}
 
 
 (defn update-values
-  "Immutably update all values in the map returning a new map.  bfn takes k,v and returns
-  a new v. Returns new persistent map."
+  "Immutably update all values in the map returning a new map.  bfn takes 2 arguments,
+  k,v and returns a new v. Returns new persistent map."
   [map bfn]
   (let [bfn (->bi-function bfn)]
     (if (map-set? map)
@@ -443,7 +482,7 @@ hash provider."}
         (persistent! retval)))))
 
 
-(defn map-map
+(defn mapmap
   "Clojure's missing piece :-).  Map over the data in src-map which must be a map or sequence
   of pairs using map-fn.  map-fn must return nil or a new key-value pair. Finally remove
   nil pairs, and return a new map.  If map-fn returns the same [k v] pair the later pair
@@ -458,20 +497,51 @@ hash provider."}
   (let [pair-seq (if (instance? Map src-map)
                    (.entrySet ^Map src-map)
                    src-map)
-        pair-iter (.iterator ^Iterable pair-seq)
         retval (HashMap. equal-hash-provider)]
-    (loop [c (.hasNext pair-iter)]
-      (when c
-        (let [^Map$Entry entry (.next pair-iter)
-              ;;Normalize map entries so this works with java hashmaps.
-              ^Indexed entry (if (instance? Indexed entry)
-                               entry
-                               [(.getKey entry) (.getValue entry)])
-              result (map-fn entry)]
+    (iterator/doiter
+     entry pair-seq
+     (let [;;Normalize map entries so this works with java hashmaps.
+           ^Indexed entry (if (instance? Indexed entry)
+                            entry
+                            [(.getKey ^Map$Entry entry)
+                             (.getValue ^Map$Entry entry)])
+           ^Indexed result (map-fn entry)]
           (when result
-            (.put retval (result 0) (result 1)))
-          (recur (.hasNext pair-iter)))))
+            (.put retval (.nth result 0) (.nth result 1)))))
     (persistent! retval)))
+
+
+(defn- pfor
+  [n-elems body-fn]
+  (let [parallelism (ForkJoinPool/getCommonPoolParallelism)
+        pool (ForkJoinPool/commonPool)
+        n-elems (long n-elems)
+        gsize (quot n-elems parallelism)
+        leftover (rem n-elems parallelism)]
+    (->> (range parallelism)
+         (mapv (fn [^long pidx]
+                 (let [start-idx (long (+ (* pidx gsize)
+                                          (min pidx leftover)))
+                       end-idx (long (+ (+ start-idx gsize)
+                                        (long (if (< pidx leftover)
+                                                1 0))))]
+                   (.submit pool ^Callable #(body-fn start-idx end-idx)))))
+         (eduction (map #(.get ^Future %))))))
+
+
+(defn ^:no-doc pfrequencies
+  "Parallelized frequencies.  Only useful when you have quite a lot of a things you need
+  to count and they are in a random-access container."
+  [tdata]
+  (let [n-elems (count tdata)]
+    (->> (pfor n-elems
+               (fn [^long start-idx ^long end-idx]
+                 (let [gsize (- end-idx start-idx)
+                       hm (mut-map)]
+                   (dotimes [idx gsize]
+                     (.compute hm (tdata (+ idx start-idx)) BitmapTrieCommon/incBiFn))
+                   hm)))
+         (reduce #(map-union BitmapTrieCommon/sumBiFn %1 %2)))))
 
 
 (defn frequencies
@@ -482,6 +552,20 @@ hash provider."}
              (compute! counts x BitmapTrieCommon/incBiFn)
              counts)
            (mut-map) coll)))
+
+
+(defn ^:no-doc pfrequencies-current-hashmap
+  "Parallelized frequencies.  Used for testing concurrentCompute functionality -
+  tdata must be random access and countable."
+  [tdata]
+  (let [n-elems (count tdata)
+        hm (java.util.concurrent.ConcurrentHashMap.)]
+    (pfor n-elems
+          (fn [^long start-idx ^long end-idx]
+            (let [gsize (- end-idx start-idx)]
+              (dotimes [idx gsize]
+                (.compute hm (tdata (+ idx start-idx))
+                          BitmapTrieCommon/incBiFn)))))))
 
 (defn merge
   "Merge 2 maps with the rhs values winning any intersecting keys.  Uses map-union
@@ -512,3 +596,42 @@ hash provider."}
      (reduce #(map-union f %1 %2)
              (map-union f m1 m2)
              args))))
+
+
+(defn memoize
+  "Efficient threadsafe version of clojure.core/memoize.  Unlike core/memoize this guarantees
+  memo-fn will be called exactly once per argument vector even in high-contention
+  environments."
+  [memo-fn]
+  (let [hm (ConcurrentHashMap.)
+        compute-fn (reify Function
+                     (apply [this argv]
+                       ;;wrapping in a vector to handle null case
+                       (BitmapTrieCommon$Box.
+                        (case (count argv)
+                          0 (memo-fn)
+                          1 (memo-fn (argv 0))
+                          2 (memo-fn (argv 0) (argv 1))
+                          3 (memo-fn (argv 0) (argv 1) (argv 2))
+                          4 (memo-fn (argv 0) (argv 1) (argv 2) (argv 3))
+                          (apply memo-fn argv)))))]
+    (vary-meta
+     (fn
+       ([] (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [] compute-fn)))
+       ([v0] (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [v0] compute-fn)))
+       ([v0 v1] (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [v0 v1] compute-fn)))
+       ([v0 v1 v2] (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [v0 v1 v2] compute-fn)))
+       ([v0 v1 v2 v3]
+        (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [v0 v1 v2 v3] compute-fn)))
+       ([v0 v1 v2 v3 & args]
+        (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm (into [v0 v1 v2 v3] args) compute-fn))))
+     assoc :cache hm)))
+
+
+(defn clear-memoized-fn!
+  "Clear the backstore behind a memoized function."
+  [memoize-fn]
+  (if-let [map (get (meta memoize-fn) :cache)]
+    (clear! map)
+    (throw (Exception. (str "Arg is not a memoized fn - " memoize-fn))))
+  memoize-fn)

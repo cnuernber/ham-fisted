@@ -3,9 +3,11 @@
             [clojure.set :as set]
             [ham-fisted.api :as api]
             [criterium.core :as crit])
-  (:import [ham_fisted HashMap PersistentHashMap BitmapTrie TransientHashMap]
+  (:import [ham_fisted HashMap PersistentHashMap BitmapTrie TransientHashMap
+            BitmapTrieCommon]
            [java.util ArrayList Collections Map Collection]
-           [java.util.function BiFunction BiConsumer]))
+           [java.util.function BiFunction BiConsumer]
+           [java.util.concurrent ForkJoinPool Future Callable]))
 
 (defonce orig api/empty-map)
 
@@ -414,6 +416,7 @@
 
 (deftest hashcode-equal-hashmap
   (is (= (.hasheq (api/mut-map [[:a 1] [:b 2]])) (.hasheq {:a 1 :b 2})))
+  (is (= (.hasheq (api/mut-map [[:a 1] [:b 2] [nil 3]])) (.hasheq {:a 1 :b 2 nil 3})))
   (is (= (.hasheq (api/mut-map [[:a 1] [:b 2]])) (.hasheq (api/immut-map {:a 1 :b 2}))))
   (is (not= (.hasheq (api/mut-map [[:a 1] [:b 3]])) (.hasheq {:a 1 :b 2})))
   (is (.equals (api/immut-map [[:a 1] [:b 2]]) {:a 1 :b 2}))
@@ -424,6 +427,16 @@
   (is (.equals (api/immut-set [:a :b :c]) #{:a :b :c}))
   (is (.equals (api/immut-set [:a :b :c]) (api/mut-set #{:a :b :c})))
   (is (not (.equals (api/immut-set [:a :b :c]) nil))))
+
+
+(deftest concurrentCompute
+  ;;Testing high contention first
+  (let [n-elems 10000
+        tdata (mapv #(rem (unchecked-long %) 7) (range n-elems))
+        answer (api/frequencies tdata)
+        panswer (api/pfrequencies tdata)]
+    (is (.equals answer panswer))))
+
 
 
 

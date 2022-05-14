@@ -855,15 +855,19 @@ class BitmapTrie implements IObj, TrieBase {
     return root.get(key, hp.hash(key), 0, hp);
   }
 
-  final LeafNode getOrCreate(Object key) {
+  final LeafNode getOrCreate(Object key, int hash) {
     if (key == null) {
       if (nullEntry == null) {
 	nullEntry = new LeafNode(this, null, 0);
       }
       return nullEntry;
     } else {
-      return root.getOrCreate(key, hp.hash(key));
+      return root.getOrCreate(key, hash);
     }
+  }
+
+  final LeafNode getOrCreate(Object key) {
+    return getOrCreate(key, hp.hash(key));
   }
 
   public void clear() {

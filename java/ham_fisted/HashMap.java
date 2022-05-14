@@ -131,11 +131,12 @@ public final class HashMap<K,V>
     }
   }
 
+  @SuppressWarnings("unchecked")
   public V computeIfAbsent(K key, Function<? super K,? extends V> mappingFunction) {
     int startc = hb.size();
     LeafNode node = hb.getOrCreate(key);
     try {
-      return applyMapping(key, node, node.val() == null ? mappingFunction.apply(key) : node.val());
+      return applyMapping(key, node, node.val() == null ? mappingFunction.apply(key) : (V)node.val());
     } catch(Exception e) {
       if (startc != hb.size())
 	remove(key);
