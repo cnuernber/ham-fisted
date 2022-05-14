@@ -28,7 +28,7 @@
            [java.util Map Map$Entry List RandomAccess Set Collection]
            [java.util.function Function BiFunction BiConsumer Consumer]
            [java.util.concurrent ForkJoinPool ExecutorService])
-  (:refer-clojure :exclude [assoc! conj! frequencies]))
+  (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with]))
 
 (set! *warn-on-reflection* true)
 (def ^{:tag BitmapTrieCommon$HashProvider
@@ -316,6 +316,10 @@ hash provider."}
   documentation for [map-union].  If any of the input maps are not implementations provided
   by this library this falls backs to `(reduce (partial union-maps bfn) maps)`.
 
+  This operator is an example of how to write a parallelized map reduction but it itself
+  is only faster when you have many large maps to union into a final result.  `map-union`
+  is generally faster in normal use cases.
+
   Options:
 
   * `:force-serial?` - Force the use of a serial reduction algorithm.
@@ -478,3 +482,30 @@ hash provider."}
              (compute! counts x BitmapTrieCommon/incBiFn)
              counts)
            (mut-map) coll)))
+
+(defn merge
+  "Merge 2 maps with the rhs values winning any intersecting keys.  Uses map-union under
+  the with `BitmapTrieCommon/rhsWins`."
+  ([] nil)
+  ([m1] m1)
+  ([m1 m2] (map-union BitmapTrieCommon/rhsWins m1 m2))
+  ([m1 m2 & args]
+   ;;I didn't use union-reduce here because it is only faster when you have large maps.
+   ;;Else union is just fine.
+   (reduce #(map-union BitmapTrieCommon/rhsWins %1 %2)
+           (map-union BitmapTrieCommon/rhsWins m1 m2)
+           args)))
+
+
+(defn merge-with
+  "Merge (union) any number of maps using `f` as the merge operator.  `f` gets passed two
+  arguments, lhs-val and rhs-val and must return a new value.
+  Returns a new persistent map."
+  ([f] nil)
+  ([f m1] m1)
+  ([f m1 m2] (map-union f m1 m2))
+  ([f m1 m2 & args]
+   (let [f (->bi-function f)]
+     (reduce #(map-union f %1 %2)
+             (map-union f m1 m2)
+             args))))
