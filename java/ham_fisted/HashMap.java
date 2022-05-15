@@ -30,7 +30,7 @@ import java.util.concurrent.ExecutorService;
  * trie.
  */
 public final class HashMap<K,V>
-  implements Map<K,V>, ITransientMap, ITransientAssociative2, IObj, IPersistentCollection,
+  implements Map<K,V>, ITransientMap, ITransientAssociative2, IObj,
 	     MapSet, BitmapTrieOwner, ILookup, IFnDef, IHashEq {
 
   final BitmapTrie hb;
@@ -192,12 +192,6 @@ public final class HashMap<K,V>
   @SuppressWarnings("unchecked")
   public V get(Object k) {
     return (V)hb.get(k);
-  }
-  public IPersistentCollection empty() { return new HashMap(new BitmapTrie(hb.hp, hb.meta())); }
-  @SuppressWarnings("unchecked")
-  public IPersistentCollection cons(Object val) {
-    ensureEditable();
-    return conj(val);
   }
   public ISeq seq() {
     return IteratorSeq.create(entrySet().iterator());

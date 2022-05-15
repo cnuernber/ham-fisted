@@ -22,7 +22,7 @@ import clojure.lang.IPersistentCollection;
 public class HashSet<E>
   extends AbstractSet<E>
   implements MapSet, BitmapTrieOwner, IObj, ITransientSet, Seqable,
-	     ILookup, IFnDef, IHashEq, IPersistentCollection {
+	     ILookup, IFnDef, IHashEq {
   BitmapTrie hb;
 
   public static final Object PRESENT = new Object();
@@ -85,12 +85,10 @@ public class HashSet<E>
     }
     return data;
   }
+
+
   public final int count() { return hb.size(); }
-  public IPersistentCollection empty() { return new HashSet(new BitmapTrie(hb.hp, hb.meta())); }
-  @SuppressWarnings("unchecked")
-  public IPersistentCollection cons(Object val) {
-    return conj(val);
-  }
+
 
   public PersistentHashSet intersection(MapSet rhs, BiFunction valueMap) {
     return new PersistentHashSet(hb.intersection(((BitmapTrieOwner)rhs).bitmapTrie(),

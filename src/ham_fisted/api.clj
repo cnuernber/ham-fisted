@@ -32,12 +32,14 @@
   (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
             BitmapTrieCommon$Box]
-           [clojure.lang ITransientAssociative2 ITransientCollection Indexed]
+           [clojure.lang ITransientAssociative2 ITransientCollection Indexed
+            IEditableCollection]
            [java.util Map Map$Entry List RandomAccess Set Collection]
            [java.util.function Function BiFunction BiConsumer Consumer]
            [java.util.concurrent ForkJoinPool ExecutorService Callable Future
             ConcurrentHashMap])
-  (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize]))
+  (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize
+                            into]))
 
 (set! *warn-on-reflection* true)
 (def ^{:tag BitmapTrieCommon$HashProvider
@@ -72,6 +74,37 @@ hash provider."}
     (object-array data)))
 
 
+(declare conj!)
+
+
+(defn into
+  "More general into operation designed to handle editable collections,
+  transients, and base java.util.Map, List and Set containers."
+  ([container data]
+   (cond
+     (instance? IEditableCollection container)
+     (-> (reduce conj! (transient container) data)
+         (persistent!))
+     (instance? ITransientCollection container)
+     (reduce conj! container data)
+     (instance? Map container)
+     (if (instance? Map data)
+       (do (.putAll ^Map container ^Map data) container)
+       (reduce conj! container data))
+     (instance? Set container)
+     (if (instance? Collection data)
+       (do (.addAll ^Set container data) container)
+       (reduce conj! container data))
+     (instance? Collection container)
+     (if (instance? Collection data)
+       (do (.addAll ^Collection container ^Collection data) container)
+       (reduce conj! container data))
+     :else
+     (throw (Exception. (str "Unable to ascertain container type: " (type container))))))
+  ([container xform data]
+   (into container (eduction xform data))))
+
+
 (defn mut-map
   "Create a mutable implementation of java.util.Map.  This object efficiently implements
   ITransient map so you can use assoc! and persistent! on it but you can additionally use
@@ -90,7 +123,7 @@ hash provider."}
 
 
 (defn immut-map
-  "Create an immutable map.  This object supports conversion to a transient map vial
+  "Create an immutable map.  This object supports conversion to a transient map via
   clojure's `transient` function.
 
   Options:
@@ -105,7 +138,7 @@ hash provider."}
 
 
 (defn java-hashmap
-  "Create a java hashmap which is still the fastest possible way to solve a few problems."
+  "Create a java.util.HashMap"
   (^java.util.HashMap [] (java.util.HashMap.))
   (^java.util.HashMap [data]
    (if (instance? Map data)
@@ -180,7 +213,7 @@ hash provider."}
     (instance? Map obj)
     (do (.put ^Map obj k v) obj)
     (instance? RandomAccess obj)
-    (do (.set ^List obj k v) obj)
+    (do (.set ^List obj (int k) v) obj)
     :else
     (throw (Exception. "Item cannot be assoc!'d"))))
 
@@ -195,6 +228,8 @@ hash provider."}
     (.conj ^ITransientCollection obj val)
     (instance? Set obj)
     (do (.add ^Set obj val) obj)
+    (instance? List obj)
+    (do (.add ^List obj val) obj)
     :else
     (throw (Exception. "Item cannot be conj!'d"))))
 
