@@ -62,7 +62,8 @@ hash provider."}
   (get options :hash-provider equal-hash-provider))
 
 
-(def empty-map (PersistentHashMap. (options->provider nil)))
+(def ^{:tag PersistentHashMap} empty-map (PersistentHashMap. (options->provider nil)))
+(def ^{:tag PersistentHashSet} empty-set (PersistentHashSet. (options->provider nil)))
 
 
 (def ^:private objary-cls (Class/forName "[Ljava.lang.Object;"))
@@ -160,8 +161,7 @@ hash provider."}
   "Create a java concurrent hashmap which is still the fastest possible way to solve a
   few concurrent problems."
   (^ConcurrentHashMap [] (ConcurrentHashMap.))
-  (^ConcurrentHashMap [data]
-   (java-concurrent-hashmap nil data)))
+  (^ConcurrentHashMap [data] (into (ConcurrentHashMap.) data)))
 
 
 (defn mut-set
@@ -185,7 +185,7 @@ hash provider."}
 
   * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
   the [[equal-hash-provider]]."
-  (^PersistentHashSet [] (PersistentHashSet. (options->provider nil)))
+  (^PersistentHashSet [] empty-set)
   (^PersistentHashSet [data] (into (PersistentHashSet. (options->provider nil)) data))
   (^PersistentHashSet [options data] (into (PersistentHashSet. (options->provider options)) data)))
 
@@ -193,13 +193,7 @@ hash provider."}
 (defn java-hashset
   "Create a java hashset which is still the fastest possible way to solve a few problems."
   (^java.util.HashSet [] (java.util.HashSet.))
-  (^java.util.HashSet [data]
-   (if (instance? Set data)
-     (java.util.HashSet. ^Set data)
-     (let [retval (java.util.HashSet.)]
-       (doseq [item data]
-         (.add retval item))
-       retval))))
+  (^java.util.HashSet [data] (into (java.util.HashSet.) data)))
 
 
 (defn assoc!
@@ -282,6 +276,7 @@ hash provider."}
 
 
 (defn clear!
+  "Mutably clear a map, set, list or implementation of java.util.Collection."
   [map-or-coll]
   (cond
     (instance? Map map-or-coll)
@@ -311,6 +306,17 @@ hash provider."}
     (immut-set item)))
 
 
+(defn- ->collection
+  ^Collection [item]
+  (cond
+    (instance? Collection item)
+    item
+    (instance? Map item)
+    (.entrySet ^Map item)
+    :else
+    (vec item)))
+
+
 (defn map-union
   "Take the union of two maps returning a new map.  bfn is a function that takes 2 arguments,
   map1-val and map2-val and returns a new value.  Has fallback if map1 and map2 aren't backed
@@ -325,8 +331,7 @@ hash provider."}
   (let [bfn (->bi-function bfn)]
     (if (and (map-set? map1) (map-set? map2))
       (.union (as-map-set map1) (as-map-set map2) bfn)
-      (let [retval (HashMap. equal-hash-provider)]
-        (.putAll retval map1)
+      (let [retval (mut-map map1)]
         (.forEach ^Map map2 (reify BiConsumer
                               (accept [this k v]
                                 (.merge retval k v bfn))))
@@ -359,8 +364,7 @@ hash provider."}
     (and (instance? Map s1) (instance? Map s2))
     (map-union BitmapTrieCommon/rhsWins s1 s2)
     :else
-    (let [retval (HashSet. equal-hash-provider)]
-      (.addAll retval s1)
+    (let [retval (mut-set s1)]
       (.forEach ^Collection s2 (reify Consumer
                                  (accept [this v]
                                    (.add retval v))))
@@ -372,8 +376,7 @@ hash provider."}
   Returns a java.util.HashMap."
   ^java.util.HashMap [bfn ^Map lhs ^Map rhs]
   (let [bfn (->bi-function bfn)
-        retval (java.util.HashMap. (.size lhs))]
-    (.putAll retval lhs)
+        retval (java-hashmap lhs)]
     (.forEach rhs (reify BiConsumer
                     (accept [this k v]
                       (.merge retval k v bfn))))
@@ -418,18 +421,15 @@ hash provider."}
      (if (nil? maps)
        nil
        (let [bfn (->bi-function bfn)
-             retval (java.util.HashMap. ^Map (first maps))
+             retval (java-hashmap (first maps))
              maps (rest maps)
              bic (reify BiConsumer
                    (accept [this k v]
-                     (.merge retval k v bfn)))
-             iter (.iterator ^Iterable maps)]
-         (loop [c (.hasNext iter)]
-           (if c
-             (do
-               (.forEach ^Map (.next iter) bic)
-               (recur (.hasNext iter)))
-             retval))))))
+                     (.merge retval k v bfn)))]
+         (reduce #(do (.forEach ^Map %2 bic)
+                      retval)
+                 retval
+                 maps)))))
   (^java.util.HashMap [bfn maps]
    (union-reduce-java-hashmap bfn maps nil)))
 
@@ -441,16 +441,16 @@ hash provider."}
   (if (and (map-set? map1) (map-set? map2))
     (.difference (as-map-set map1) (as-map-set map2))
     (if (instance? Map map1)
-      (let [retval (HashMap. equal-hash-provider)
+      (let [retval (mut-map)
             rhs (->set map2)]
         (.forEach ^Map map1 (reify BiConsumer
                               (accept [this k v]
                                 (when-not (.contains rhs k)
                                   (.put retval k v)))))
         (persistent! retval))
-      (let [retval (HashSet. equal-hash-provider)
+      (let [retval (mut-set)
             rhs (->set map2)]
-        (.forEach (->set map1)
+        (.forEach (->collection map1)
                   (reify Consumer
                     (accept [this v]
                       (when-not (.contains rhs v)
@@ -472,7 +472,7 @@ hash provider."}
   (let [bfn (->bi-function bfn)]
     (if (and (map-set? map1) (map-set? map2))
       (.intersection (as-map-set map1) (as-map-set map2) bfn)
-      (let [retval (HashMap. equal-hash-provider)]
+      (let [retval (mut-map)]
         (.forEach ^Map map1 (reify BiConsumer
                               (accept [this k v]
                                 (let [vv (.getOrDefault ^Map map2 k ::failure)]
@@ -492,7 +492,7 @@ hash provider."}
     (and (instance? Map s1) (instance? Map s2))
     (map-intersection BitmapTrieCommon/rhsWins s1 s2)
     :else
-    (let [retval (HashSet. equal-hash-provider)
+    (let [retval (mut-set)
           s2 (->set s2)]
       (.forEach (->set s1)
                 (reify Consumer
@@ -509,7 +509,7 @@ hash provider."}
   (let [bfn (->bi-function bfn)]
     (if (map-set? map)
       (.immutUpdateValues (as-map-set map) bfn)
-      (let [retval (HashMap. equal-hash-provider)]
+      (let [retval (mut-map)]
         (.forEach ^Map map
                   (reify BiConsumer
                     (accept [this k v]
