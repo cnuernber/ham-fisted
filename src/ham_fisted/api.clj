@@ -1,33 +1,35 @@
 (ns ham-fisted.api
-  "Mutable and immutable pathways based on bitmap trie-based hashmaps.  Mutable pathways
-  implement the java.util.Map or Set interfaces respectively including the update-in-place
-  pathways such as compute or computeIfPresent.
+  "Fast mutable and immutable associative data structures based on bitmap trie
+  hashmaps. Mutable pathways implement the `java.util.Map` or `Set` interfaces
+  including in-place update features such as compute or computeIfPresent.
 
-  All mutable maps or sets can be turned into their immutable counterparts via the Clojure
-  `persistent!` call.  This allows you to work in a mutable space for performance
-  (or ease of use) and switch to an immutable pathway when finished.  Please note that once
-  you call persistent! you should never change the mutable map or set again as this will
-  change the immutable view of the data. All immutable datastructures support conversion to
-  transient via the `transient` call.
+  Mutable maps or sets can be turned into their immutable counterparts via the
+  Clojure `persistent!` call. This allows working in a mutable space for
+  convenience and performance then switching to an immutable pathway when
+  necessary. Note: after `persistent!` one should never backdoor mutate map or
+  set again as this will break the contract of immutability Immutable
+  data structures also support conversion to transient via `transient`.
 
-  On all maps getting the keyset (.keySet) returns a full PersistentHashSet of the keys.
+  Map keysets (`.keySet`) are full `PersistentHashSet`s of keys.
 
-  All maps and sets support metadata but setting the metadata on mutable objects returns
-  a new mutable object that shares the backing store leading to possible issues.  Metadata
-  is transferred to the persistent versions of the mutable/transient objects upon
-  `persistent!`.
+  Maps and sets support metadata but setting the metadata on mutable objects
+  returns a new mutable object that shares the backing store leading to possible
+  issues. Metadata is transferred to the persistent versions of the
+  mutable/transient objects upon `persistent!`.
 
-  Very fast versions of union, difference and intersection are provided for maps and sets
-  with the map version of union and difference requiring an extra argument,
-  a java.util.BiFunction or an IFn taking 2 arguments to merge the left and right sides into
-  the final map.  These versions are faster than what is possible given any other map
-  implementation on the JVM.  These boolean operators work across the map and set classes.
+  Very fast versions of union, difference and intersection are provided for maps
+  and sets with the map version of union and difference requiring an extra
+  argument, a `java.util.BiFunction` or an `IFn` taking 2 arguments to merge the
+  left and right sides into the final map. These implementations of union,
+  difference, and intersection are the fastest implementation of these
+  operations we know of on the JVM.
 
-  Additionally a fast value update pathway is provided so you can update all the values in a
-  given map quickly as well as a new map primitive - [[mapmap]] - that allows you to transform
-  a given map into a new map quickly by mapping across all the entries.
+  Additionally a fast value update pathway is provided, enabling quickly
+  updating all the values in a given map. Additionally, a new map primitive
+  - [[mapmap]] - allows transforming a given map into a new map quickly by
+  mapping across all the entries.
 
-  Unlike the standard Java objects, under no circumstances is mutation-via-iterator supported."
+  Unlike the standard Java objects, mutation-via-iterator is not supported."
   (:require [ham-fisted.iterator :as iterator])
   (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
@@ -43,18 +45,18 @@
 
 (set! *warn-on-reflection* true)
 (def ^{:tag BitmapTrieCommon$HashProvider
-       :doc "Hash provider based on Clojure's hasheq and equiv pathways - the same pathways
-that clojure's persistent datastructures use. This hash provider is somewhat
-(<2x) slower than the [[equal-hash-provider]]."}
+       :doc "Hash provider based on Clojure's hasheq and equiv pathways - the
+  same algorithm that Clojure's persistent data structures use. This hash
+  provider is somewhat (<2x) slower than the [[equal-hash-provider]]."}
   equiv-hash-provider BitmapTrieCommon/equivHashProvider)
 (def ^{:tag BitmapTrieCommon$HashProvider
-       :doc "Hash provider based on Object.hashCode and Object.equals - this is the same
-pathway that java.util.HashMap uses and is the overall the fastest hash provider.  Hash-based
-datastructures based on this hash provider will be faster to create and access but will not
-use the hasheq pathway.  This is fine for integer keys, strings, keywords, and symbols, but
-differs for objects such as doubles, floats, and BigDecimals.  This is the default
-hash provider."}
-  equal-hash-provider BitmapTrieCommon/equalHashProvider)
+       :doc "Hash provider based on Object.hashCode and Object.equals - this is
+the same pathway that `java.util.HashMap` uses and is the overall the fastest
+hash provider.  Hash-based data structures based on this hash provider will be
+faster to create and access but will not use the hasheq pathway. This is fine
+for integer keys, strings, keywords, and symbols, but differs for objects such
+as doubles, floats, and BigDecimals. This is the default hash provider."}
+equal-hash-provider BitmapTrieCommon/equalHashProvider)
 
 
 (defn- options->provider
@@ -83,7 +85,7 @@ hash provider."}
 
 
 (defn into
-  "More general into operation designed to handle editable collections,
+  "Like clojure.core/into, but also designed to handle editable collections,
   transients, and base java.util.Map, List and Set containers."
   ([container data]
    (cond
@@ -113,7 +115,7 @@ hash provider."}
 (defn mut-map
   "Create a mutable implementation of java.util.Map.  This object efficiently implements
   ITransient map so you can use assoc! and persistent! on it but you can additionally use
-  operations such as put!, remove!, compute-at! and comput-if-absent!.  You can create
+  operations such as put!, remove!, compute-at! and compute-if-absent!.  You can create
   a persistent hashmap via the clojure `persistent!` call.
 
   Options:
@@ -129,7 +131,7 @@ hash provider."}
 
 (defn immut-map
   "Create an immutable map.  This object supports conversion to a transient map via
-  clojure's `transient` function.
+  Clojure's `transient` function.
 
   Options:
 
@@ -233,8 +235,8 @@ hash provider."}
 
 
 (defn ->bi-function
-  "Convert an object to a java.util.BiFunction.  Object can either already be a bi-function or
-  cljfn will be invoked with 2 arguments."
+  "Convert an object to a java.util.BiFunction. Object can either already be a
+  bi-function or an IFn to be invoked with 2 arguments."
   ^BiFunction [cljfn]
   (if (instance? BiFunction cljfn)
     cljfn
@@ -242,8 +244,8 @@ hash provider."}
 
 
 (defn ->function
-  "Convert an object to a java.util.BiFunction.  Object can either already be a bi-function or
-  cljfn will be invoked with 2 arguments."
+  "Convert an object to a java Function. Object can either already be a
+  Function or an IFn to be invoked."
   ^Function [cljfn]
   (if (instance? Function cljfn)
     cljfn
@@ -256,7 +258,7 @@ hash provider."}
 
   See [Map.compute](https://docs.oracle.com/javase/8/docs/api/java/util/Map.html#compute-K-java.util.function.BiFunction-)
 
-  An example `bfn` for counting occurances would be `#(if % (inc (long %)) 1)`."
+  An example `bfn` for counting occurrences would be `#(if % (inc (long %)) 1)`."
   [m k bfn]
   (.compute ^Map m k (->bi-function bfn)))
 
@@ -357,7 +359,7 @@ hash provider."}
 
 
 (defn union
-  "Union of two sets or two maps.  When two maps are provided the righthand side
+  "Union of two sets or two maps.  When two maps are provided the right hand side
   wins in the case of an intersection.
 
   Result is either a set or a map, depending on if s1 is a set or map."
@@ -522,15 +524,16 @@ hash provider."}
 
 
 (defn mapmap
-  "Clojure's missing piece :-).  Map over the data in src-map which must be a map or sequence
-  of pairs using map-fn.  map-fn must return nil or a new key-value pair. Finally remove
-  nil pairs, and return a new map.  If map-fn returns the same [k v] pair the later pair
-  will overwrite the earlier pair.
+  "Clojure's missing piece. Map over the data in src-map, which must be a map or
+  sequence of pairs, using map-fn. map-fn must return either a new key-value
+  pair or nil. Then, remove nil pairs, and return a new map. If map-fn returns
+  more than one pair with the same key later pair will overwrite the earlier
+  pair.
 
   Logically the same as:
 
   ```clojure
-  (->> src-map (map map-fn) (remove nil?) (into {}))
+  (->> (map map-fn src-map) (remove nil?) (into {}))
   ```"
   [map-fn src-map]
   (let [pair-seq (if (instance? Map src-map)
@@ -569,8 +572,7 @@ hash provider."}
 
 
 (defn ^:no-doc pfrequencies
-  "Parallelized frequencies.  Only useful when you have quite a lot of a things you need
-  to count and they are in a random-access container."
+  "Parallelized frequencies. Can be faster for large random-access containers."
   [tdata]
   (let [n-elems (count tdata)]
     (->> (pfor n-elems
@@ -584,7 +586,7 @@ hash provider."}
 
 
 (defn frequencies
-  "Faster (9X or so) implementation of clojure.core/frequencies."
+  "Faster (9X or so), implementation of clojure.core/frequencies."
   [coll]
   (persistent!
    (reduce (fn [counts x]
@@ -638,9 +640,9 @@ hash provider."}
 
 
 (defn memoize
-  "Efficient threadsafe version of clojure.core/memoize.  Unlike core/memoize this guarantees
-  memo-fn will be called exactly once per argument vector even in high-contention
-  environments.
+  "Efficient thread-safe version of clojure.core/memoize.  Unlike
+  clojure.core/memoize this version guarantees memo-fn will be called exactly
+  once per argument vector even in high-contention environments.
 
   Also see [[clear-memoized-fn!]] to mutably clear the backing store."
   [memo-fn]
@@ -670,7 +672,7 @@ hash provider."}
 
 
 (defn clear-memoized-fn!
-  "Clear the backstore behind a memoized function."
+  "Clear a memoized function backing store."
   [memoize-fn]
   (if-let [map (get (meta memoize-fn) :cache)]
     (clear! map)
