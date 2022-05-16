@@ -28,6 +28,7 @@ import java.util.Objects;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.BiConsumer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -302,5 +303,13 @@ public final class PersistentHashMap
   }
 
   public void printNodes() { hb.printNodes(); }
-
+  
+  public Function<Object[],PersistentHashMap> makeFactory(Object[] keys) {
+    Function<Object[], BitmapTrie> srcFn = BitmapTrie.makeFactory(hb.hp, keys);
+    return new Function<Object[], PersistentHashMap>() {
+      public PersistentHashMap apply(Object[] values) {
+	return new PersistentHashMap(srcFn.apply(values));
+      }
+    };
+  }
 }

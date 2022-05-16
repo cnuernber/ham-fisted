@@ -33,7 +33,7 @@
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
             BitmapTrieCommon$Box]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
-            IEditableCollection]
+            IEditableCollection RT]
            [java.util Map Map$Entry List RandomAccess Set Collection]
            [java.util.function Function BiFunction BiConsumer Consumer]
            [java.util.concurrent ForkJoinPool ExecutorService Callable Future
@@ -69,9 +69,13 @@ hash provider."}
 (def ^:private objary-cls (Class/forName "[Ljava.lang.Object;"))
 
 (defn- ->obj-ary
-  ^"[Ljava.lang.Object;" [data]
-  (if (instance? objary-cls data)
+  ^objects [data]
+  (cond
+    (instance? objary-cls data)
     data
+    (instance? Collection data)
+    (.toArray ^Collection data)
+    :else
     (object-array data)))
 
 
@@ -672,3 +676,91 @@ hash provider."}
     (clear! map)
     (throw (Exception. (str "Arg is not a memoized fn - " memoize-fn))))
   memoize-fn)
+
+
+(defn- obj-ary
+  (^objects [] (object-array 0))
+  (^objects [v0] (let [retval (object-array 1)]
+                   (aset retval 0 v0)
+                   retval))
+  (^objects [v0 v1] (let [retval (object-array 2)]
+                      (aset retval 0 v0)
+                      (aset retval 1 v1)
+                      retval))
+  (^objects [v0 v1 v2] (let [retval (object-array 3)]
+                         (aset retval 0 v0)
+                         (aset retval 1 v1)
+                         (aset retval 2 v2)
+                         retval))
+  (^objects [v0 v1 v2 v3]
+   (let [retval (object-array 4)]
+     (aset retval 0 v0)
+     (aset retval 1 v1)
+     (aset retval 2 v2)
+     (aset retval 3 v3)
+     retval))
+  (^objects [v0 v1 v2 v3 v4]
+   (let [retval (object-array 5)]
+     (aset retval 0 v0)
+     (aset retval 1 v1)
+     (aset retval 2 v2)
+     (aset retval 3 v3)
+     (aset retval 4 v4)
+     retval))
+  (^objects [v0 v1 v2 v3 v4 v5]
+   (let [retval (object-array 6)]
+     (aset retval 0 v0)
+     (aset retval 1 v1)
+     (aset retval 2 v2)
+     (aset retval 3 v3)
+     (aset retval 4 v4)
+     (aset retval 5 v5)
+     retval))
+  (^objects [v0 v1 v2 v3 v4 v5 args]
+   (let [retval (object-array (+ 6 (count args)))]
+     (aset retval 0 v0)
+     (aset retval 1 v1)
+     (aset retval 2 v2)
+     (aset retval 3 v3)
+     (aset retval 4 v4)
+     (aset retval 5 v5)
+     (loop [args args
+            idx 6]
+       (when args
+         (aset retval idx (RT/first args))
+         (recur (RT/next args) (unchecked-inc idx))))
+     retval)))
+
+
+(defn map-factory
+  "Create a factory to quickly produce maps with a fixed set of keys but arbitrary
+  values.  Returned IFn is same arity as the number of keys passed in and the values
+  will be set as values of the hashmap.  The factory produces PersistentHashMaps."
+  ([] (constantly empty-map))
+  ([k0] (let [mf (.makeFactory empty-map (obj-ary k0))]
+          (fn [v0] (.apply mf (obj-ary v0)))))
+  ([k0 k1] (let [mf (.makeFactory empty-map (obj-ary k0 k1))]
+             (fn [v0 v1] (.apply mf (obj-ary v0 v1)))))
+  ([k0 k1 k2] (let [mf (.makeFactory empty-map (obj-ary k0 k1 k2))]
+                (fn [v0 v1 v2] (.apply mf (obj-ary v0 v1 v2)))))
+  ([k0 k1 k2 k3] (let [mf (.makeFactory empty-map (obj-ary k0 k1 k2 k3))]
+                   (fn [v0 v1 v2 v3] (.apply mf (obj-ary v0 v1 v2 v3)))))
+  ([k0 k1 k2 k3 k4] (let [mf (.makeFactory empty-map (obj-ary k0 k1 k2 k3 k4))]
+                      (fn [v0 v1 v2 v3 v4] (.apply mf (obj-ary v0 v1 v2 v3 v4)))))
+  ([k0 k1 k2 k3 k4 k5] (let [mf (.makeFactory empty-map (obj-ary k0 k1 k2 k3 k4 k5))]
+                         (fn [v0 v1 v2 v3 v4 v5] (.apply mf (obj-ary v0 v1 v2 v3 v4 v5)))))
+  ([k0 k1 k2 k3 k4 k5 & args]
+   (let [mf (.makeFactory empty-map (obj-ary k0 k1 k2 k3 k4 k5 args))]
+     (fn [v0 v1 v2 v3 v4 v5 & args] (.apply mf (obj-ary v0 v1 v2 v3 v4 v5 args))))))
+
+
+(defn map-factoryv
+  "Create a factory to quickly produce maps with a fixed set of keys but arbitrary
+  values.  This version takes a vector or sequence of keys and returns and IFn that
+  takes a vector, object-array, or sequence of values.  The most efficient pathway will be
+  if values are already in an object array.
+
+  The factory produces PersistentHashMaps."
+  [keys]
+  (let [mf (.makeFactory empty-map (->obj-ary keys))]
+    (fn [vals] (.apply mf (->obj-ary vals)))))

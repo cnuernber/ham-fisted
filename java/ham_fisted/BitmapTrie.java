@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.function.Function;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -67,6 +68,11 @@ class BitmapTrie implements IObj, TrieBase {
       nowner = nowner == null ? owner : nowner;
       return new LeafNode(nowner, k, hashcode, v,
 			  nextNode != null ? nextNode.clone(nowner) : null);
+    }
+    public final LeafNode valueClone(TrieBase nowner, Iterator valIter) {
+      nowner = nowner == null ? owner : nowner;
+      return new LeafNode(nowner, k, hashcode, valIter.next(),
+			  nextNode != null ? nextNode.valueClone(nowner, valIter) : null);
     }
     public final LeafNode setOwner(TrieBase nowner) {
       if (owner == nowner)
@@ -242,6 +248,17 @@ class BitmapTrie implements IObj, TrieBase {
       for (int idx = 0; idx < len; ++idx) {
 	newData[idx] = srcData[idx].clone(nowner);
       }
+      return new BitmapNode(nowner, bitmap, shift, newData);
+    }
+
+    public final BitmapNode valueClone(TrieBase nowner, Iterator valIter) {
+      final INode[] srcData = data;
+      final int bm = bitmap;
+      final int len = Integer.bitCount(bm);
+      final INode[] newData = new INode[Math.max(4, nextPow2(len))];
+      for (int idx = 0; idx < len; ++idx)
+	newData[idx] = srcData[idx].valueClone(nowner, valIter);
+      
       return new BitmapNode(nowner, bitmap, shift, newData);
     }
 
@@ -823,6 +840,15 @@ class BitmapTrie implements IObj, TrieBase {
     meta = other.meta;
   }
 
+  /** Clone replacing values with values from valIter **/
+  public BitmapTrie(BitmapTrie other, Iterator valIter) {
+    hp = other.hp;
+    count = 0;
+    nullEntry = nullEntry  != null ? other.nullEntry.valueClone(this, valIter) : null;
+    root = other.root != null ? other.root.valueClone(this, valIter) : null;
+    meta = other.meta;
+  }
+
   BitmapTrie shallowClone(IPersistentMap newMeta) {
     return new BitmapTrie(this, true);
   }
@@ -1258,4 +1284,46 @@ class BitmapTrie implements IObj, TrieBase {
     root.print();
   }
 
+  static class IndexedIter implements Iterator {
+    final int[] indexes;
+    int idx;
+    final Object[] values;
+    final int nvals;
+    IndexedIter(int[] _indexes, Object[] _values) {
+      indexes = _indexes;
+      idx = 0;
+      values = _values;
+      nvals = _indexes.length;
+    }
+    public boolean hasNext() { return idx < nvals; }
+    public Object next() {
+      final Object nextVal = values[indexes[idx]];
+      ++idx;
+      return nextVal;
+    }
+  }
+  
+  public static Function<Object[],BitmapTrie> makeFactory(HashProvider hp, Object[] keys) {
+    final int nkeys = keys.length;
+    final BitmapTrie srcTrie = new BitmapTrie(hp);
+    for(int idx = 0; idx < nkeys; ++idx) {
+      LeafNode lf = srcTrie.getOrCreate(keys[idx]);
+      if (lf.v != null)
+	throw new RuntimeException("Duplicate key detected: " + String.valueOf(keys[idx]));
+      lf.v = idx;
+    }
+    final int[] indexes = new int[nkeys];
+    LeafNodeIterator lfIter = srcTrie.iterator(identityIterFn);
+    for(int idx = 0; idx < nkeys; ++idx) {
+      ILeaf lf = lfIter.nextLeaf();
+      indexes[idx] = (int)lf.val();
+    }
+    return new Function<Object[],BitmapTrie>() {
+      public BitmapTrie apply(Object[] values) {
+	if (values.length != nkeys)
+	  throw new RuntimeException("Value array len != key array len");
+	return new BitmapTrie(srcTrie, new IndexedIter(indexes, values));
+      }
+    };
+  }
 }

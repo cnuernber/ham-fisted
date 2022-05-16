@@ -374,4 +374,12 @@ public final class HashMap<K,V>
     return new PersistentHashMap(hb);
   }
   public void printNodes() { hb.printNodes(); }
+  public Function<V[],HashMap<K,V>> makeFactory(K[] keys) {
+    Function<Object[], BitmapTrie> srcFn = BitmapTrie.makeFactory(hb.hp, keys);
+    return new Function<V[], HashMap<K,V>>() {
+      public HashMap<K,V> apply(V[] values) {
+	return new HashMap<K,V>(srcFn.apply(values));
+      }
+    };
+  }
 }

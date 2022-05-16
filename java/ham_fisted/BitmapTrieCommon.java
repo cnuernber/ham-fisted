@@ -106,6 +106,8 @@ public class BitmapTrieCommon {
   interface INode {
     /** Clone this node incrementing the node count of owner once per leaf */
     public INode clone(TrieBase owner);
+    /** Clone this node but use iter for new values */
+    public INode valueClone(TrieBase owner, Iterator valIter);
     /** Count the number of leaves starting at this node */
     public int countLeaves();
     /** Return an iterator that returns the leaf nodes starting at this node. */
