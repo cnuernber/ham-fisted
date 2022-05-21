@@ -149,7 +149,11 @@ public final class PersistentHashMap
   }
 
   public final IPersistentMap assoc(Object key, Object val) {
-    return new PersistentHashMap(hb.shallowClone().assoc(key, val));
+    if (hb.size() == 0) {
+      return new PersistentHashMap(new BitmapTrie(hb.hp, hb.meta, key, val));
+    } else {
+      return new PersistentHashMap(hb.shallowClone().assoc(key, val));
+    }
   }
   public final IPersistentMap assocEx(Object key, Object val) {
     if(containsKey(key))
@@ -211,6 +215,9 @@ public final class PersistentHashMap
   }
   public final PersistentHashMap immutUpdateValues(BiFunction bfn) {
     return new PersistentHashMap(hb.immutUpdate(bfn));
+  }
+  public final PersistentHashMap immutUpdateValue(Object key, Function fn) {
+    return new PersistentHashMap(hb.immutUpdate(key, fn));
   }
   public <K,V> HashMap<K,V> unsafeAsHashMap(K kTypeMarker, V vTypeMarker) {
     return new HashMap<K,V>(hb, true);
@@ -303,7 +310,7 @@ public final class PersistentHashMap
   }
 
   public void printNodes() { hb.printNodes(); }
-  
+
   public Function<Object[],PersistentHashMap> makeFactory(Object[] keys) {
     Function<Object[], BitmapTrie> srcFn = BitmapTrie.makeFactory(hb.hp, keys);
     return new Function<Object[], PersistentHashMap>() {

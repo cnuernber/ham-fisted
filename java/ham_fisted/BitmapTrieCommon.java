@@ -6,6 +6,7 @@ import java.util.Objects;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import clojure.lang.Util;
 
 /**
@@ -90,6 +91,7 @@ public class BitmapTrieCommon {
     public MapSet union(MapSet rhs, BiFunction valueMap);
     public MapSet difference(MapSet rhs);
     public MapSet immutUpdateValues(BiFunction valueMap);
+    public MapSet immutUpdateValue(Object key, Function fn);
   }
 
   public static final BiFunction<Object,Object,Object> rhsWins = (a,b) -> b;
@@ -116,8 +118,10 @@ public class BitmapTrieCommon {
     public ILeaf get(Object key, int hashcode);
     /** Remove an entry returning an new INode instance.  Return value may be nil */
     public INode dissoc(TrieBase owner, Object key, int hashcode);
-    /** Immutable update returning a new node */
+    /** Immutable update all values returning a new node */
     public INode immutUpdate(TrieBase nowner, BiFunction bfn);
+    /** Immutable update a single key returning a new node **/
+    public INode immutUpdate(TrieBase nowner, Object key, int hashcode, Function fn);
   }
 
   /**

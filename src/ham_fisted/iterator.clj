@@ -2,7 +2,12 @@
   "Generialized pathways involving iterators.  Sometimes useful as opposed to reductions."
   (:import [java.util Iterator]
            [java.util.stream Stream]
-           [java.util.function Supplier Function BiFunction Consumer Predicate BiConsumer]))
+           [java.util.function Supplier Function BiFunction Consumer Predicate BiConsumer]
+           [clojure.lang ArraySeq]))
+
+
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 
 (defn- failed-coercion-message
@@ -60,6 +65,17 @@
     (ObjectArrayIter. ary-data 0 (alength ^objects ary-data))))
 
 
+(defn array-seq-iter
+  ^Iterator [^ArraySeq as]
+  (let [objs (.array as)]
+    (ObjectArrayIter. objs 0 (alength objs))))
+
+
+(defn array-seq-ary
+  ^objects [^ArraySeq as]
+  (.array as))
+
+
 (defn ->iterator
   "Convert a stream or an iterable into an iterator."
   ^Iterator [item]
@@ -68,8 +84,12 @@
     nil
     (instance? Iterator item)
     item
+    (instance? ArraySeq item)
+    (ObjectArrayIter. (.array ^ArraySeq item) (.index ^ArraySeq item)
+                      (alength (.array ^ArraySeq item)))
     (instance? Iterable item)
     (.iterator ^Iterable item)
+
     (.isArray (.getClass ^Object item))
     (ary-iter item)
     (instance? Stream item)

@@ -20,6 +20,7 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.Arrays;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 
 public class PersistentHashSet
@@ -123,7 +124,10 @@ public class PersistentHashSet
     return new PersistentHashSet(hb.difference(((BitmapTrieOwner)rhs).bitmapTrie()));
   }
   public PersistentHashSet immutUpdateValues(BiFunction valueMap) {
-    return new PersistentHashSet(hb);
+    throw new RuntimeException("Unimplemented");
+  }
+  public PersistentHashSet immutUpdateValue(Object key, Function valueMap) {
+    throw new RuntimeException("Unimplemented");
   }
   public final Object[] toArray() {
     Object[] retval = new Object[size()];

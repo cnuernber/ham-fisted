@@ -7,6 +7,7 @@ import java.util.AbstractSet;
 import java.util.Iterator;
 import java.util.Arrays;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import clojure.lang.IObj;
 import clojure.lang.ITransientSet;
 import clojure.lang.IPersistentMap;
@@ -102,7 +103,10 @@ public class HashSet<E>
     return new PersistentHashSet(hb.difference(((BitmapTrieOwner)rhs).bitmapTrie()));
   }
   public final PersistentHashSet immutUpdateValues(BiFunction valueMap) {
-    return new PersistentHashSet(hb);
+    throw new RuntimeException("Unimplemented");
+  }
+  public final PersistentHashSet immutUpdateValue(Object key, Function valueMap) {
+    throw new RuntimeException("Unimplemented");
   }
 
   public final IPersistentMap meta() { return hb.meta(); }

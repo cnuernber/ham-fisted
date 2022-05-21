@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Iterator;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.concurrent.ExecutorService;
@@ -43,6 +44,13 @@ public final class HashMap<K,V>
 
   public HashMap(HashProvider _hp) {
     hb = new BitmapTrie(_hp);
+  }
+
+  public HashMap(HashProvider _hp, IPersistentMap meta) {
+    hb = new BitmapTrie(_hp, meta);
+  }
+  public HashMap(HashProvider _hp, IPersistentMap meta, int nkeys) {
+    hb = new BitmapTrie(_hp, meta, nkeys);
   }
 
   public HashMap(HashProvider _hp, boolean assoc, Object... kvs) {
@@ -240,12 +248,22 @@ public final class HashMap<K,V>
     return (V)hb.getOrCreate(key).val(value);
   }
 
-  public void putAll(Map<? extends K,? extends V> m) {
+
+  public final void putAll(Map<? extends K,? extends V> m) {
     final Iterator iter = m.entrySet().iterator();
     while(iter.hasNext()) {
       Map.Entry entry = (Map.Entry)iter.next();
       hb.getOrCreate(entry.getKey()).val(entry.getValue());
     }
+  }
+
+  @SuppressWarnings("unchecked")
+  public final void putAll(Object[] data) {
+    if(!((data.length % 2) == 0))
+       throw new RuntimeException("data has odd length.");
+    final int alen = data.length;
+    for (int idx = 0; idx < alen; idx += 2)
+      put((K)data[idx], (V)data[idx+1]);
   }
 
   @SuppressWarnings("unchecked")
@@ -298,6 +316,10 @@ public final class HashMap<K,V>
 
   public final PersistentHashMap immutUpdateValues(BiFunction bfn) {
     return new PersistentHashMap(hb.immutUpdate(bfn));
+  }
+
+  public final PersistentHashMap immutUpdateValue(Object key, Function bfn) {
+    return new PersistentHashMap(hb.immutUpdate(key, bfn));
   }
 
   public final IMapEntry entryAt(Object key) {

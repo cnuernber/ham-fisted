@@ -33,17 +33,19 @@
   (:require [ham-fisted.iterator :as iterator])
   (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
-            BitmapTrieCommon$Box]
+            BitmapTrieCommon$Box PersistentArrayMap]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
-            IEditableCollection RT]
-           [java.util Map Map$Entry List RandomAccess Set Collection]
+            IEditableCollection RT IPersistentMap Associative Util]
+           [java.util Map Map$Entry List RandomAccess Set Collection ArrayList]
            [java.util.function Function BiFunction BiConsumer Consumer]
            [java.util.concurrent ForkJoinPool ExecutorService Callable Future
             ConcurrentHashMap])
   (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize
-                            into]))
+                            into assoc-in get-in update assoc]))
 
 (set! *warn-on-reflection* true)
+
+
 (def ^{:tag BitmapTrieCommon$HashProvider
        :doc "Hash provider based on Clojure's hasheq and equiv pathways - the
   same algorithm that Clojure's persistent data structures use. This hash
@@ -68,6 +70,70 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
 (def ^{:tag PersistentHashSet} empty-set (PersistentHashSet. (options->provider nil)))
 
 
+(declare assoc! conj!)
+
+
+(defn- empty-map?
+  [m]
+  (or (nil? m)
+      (and (instance? Map m)
+           (== 0 (.size ^Map m)))))
+
+(defn assoc
+  "Drop in faster or equivalent replacement for clojure.core/assoc especially for
+  small numbers of keyval pairs."
+  ([m a b]
+   (if (empty-map? m)
+     (PersistentArrayMap. equal-hash-provider a b nil)
+     (.assoc ^Associative m a b)))
+  ([m a b c d]
+   (if (and (empty-map? m) (PersistentArrayMap/different equal-hash-provider a c))
+     (PersistentArrayMap. equal-hash-provider a b c d nil)
+     (-> (assoc! (transient (or m PersistentArrayMap/EMPTY)) a b)
+         (assoc! c d)
+         (persistent!))))
+  ([m a b c d e f]
+   (if (and (empty-map? m) (PersistentArrayMap/different equal-hash-provider a c e))
+     (PersistentArrayMap. equal-hash-provider a b c d e f nil)
+     (-> (transient (or m PersistentArrayMap/EMPTY))
+         (assoc! a b)
+         (assoc! c d)
+         (assoc! e f)
+         (persistent!))))
+  ([m a b c d e f g h]
+   (if (and (empty-map? m) (PersistentArrayMap/different equal-hash-provider a c e g))
+     (PersistentArrayMap. equal-hash-provider a b c d e f g h nil)
+     (-> (transient (or m (PersistentArrayMap/EMPTY)))
+         (assoc! a b)
+         (assoc! c d)
+         (assoc! e f)
+         (assoc! g h)
+         (persistent!))))
+  ([m a b c d e f g h & args]
+   (when-not (== 0 (rem (count args) 2))
+     (throw (Exception. "Assoc takes an odd number of arguments.")))
+   (if (empty-map? m)
+     (let [m (HashMap. equal-hash-provider nil (+ 4 (quot (count args) 2)))]
+       (.put m a b)
+       (.put m c d)
+       (.put m e f)
+       (.put m g h)
+       (.putAll m (iterator/array-seq-ary args))
+       (persistent! m))
+     (loop [m (-> (transient m)
+                  (assoc! a b)
+                  (assoc! c d)
+                  (assoc! e f)
+                  (assoc! g h))
+            args args]
+       (if args
+         (let [k (RT/first args)
+               args (RT/next args)
+               v (RT/first args)]
+           (recur (assoc! m k v) (RT/next args)))
+         (persistent! m))))))
+
+
 (def ^:private objary-cls (Class/forName "[Ljava.lang.Object;"))
 
 (defn- ->obj-ary
@@ -79,9 +145,6 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
     (.toArray ^Collection data)
     :else
     (object-array data)))
-
-
-(declare conj!)
 
 
 (defn into
@@ -97,10 +160,6 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
      (instance? Map container)
      (if (instance? Map data)
        (do (.putAll ^Map container ^Map data) container)
-       (reduce conj! container data))
-     (instance? Set container)
-     (if (instance? Collection data)
-       (do (.addAll ^Set container data) container)
        (reduce conj! container data))
      (instance? Collection container)
      (if (instance? Collection data)
@@ -334,14 +393,18 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
 
   Returns a persistent map."
   [bfn map1 map2]
-  (let [bfn (->bi-function bfn)]
-    (if (and (map-set? map1) (map-set? map2))
-      (.union (as-map-set map1) (as-map-set map2) bfn)
-      (let [retval (mut-map map1)]
-        (.forEach ^Map map2 (reify BiConsumer
-                              (accept [this k v]
-                                (.merge retval k v bfn))))
-        (persistent! retval)))))
+  (cond
+    (nil? map1) map2
+    (nil? map2) map1
+    :else
+    (let [bfn (->bi-function bfn)]
+      (if (and (map-set? map1) (map-set? map2))
+        (.union (as-map-set map1) (as-map-set map2) bfn)
+        (let [retval (mut-map map1)]
+          (.forEach ^Map map2 (reify BiConsumer
+                                (accept [this k v]
+                                  (.merge retval k v bfn))))
+          (persistent! retval))))))
 
 
 (defn- set-map-union-bfn
@@ -365,6 +428,8 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
   Result is either a set or a map, depending on if s1 is a set or map."
   [s1 s2]
   (cond
+    (nil? s1) s2
+    (nil? s2) s1
     (and (map-set? s1) (map-set? s2))
     (.union (as-map-set s1) (as-map-set s2) (set-map-union-bfn s1 s2))
     (and (instance? Map s1) (instance? Map s2))
@@ -444,24 +509,26 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
   "Take the difference of two maps (or sets) returning a new map.  Return value is a map1
   (or set1) without the keys present in map2."
   [map1 map2]
-  (if (and (map-set? map1) (map-set? map2))
-    (.difference (as-map-set map1) (as-map-set map2))
-    (if (instance? Map map1)
-      (let [retval (mut-map)
-            rhs (->set map2)]
-        (.forEach ^Map map1 (reify BiConsumer
-                              (accept [this k v]
-                                (when-not (.contains rhs k)
-                                  (.put retval k v)))))
-        (persistent! retval))
-      (let [retval (mut-set)
-            rhs (->set map2)]
-        (.forEach (->collection map1)
-                  (reify Consumer
-                    (accept [this v]
-                      (when-not (.contains rhs v)
-                        (.add retval v)))))
-        (persistent! retval)))))
+  (if (nil? map2)
+    map1
+    (if (and (map-set? map1) (map-set? map2))
+      (.difference (as-map-set map1) (as-map-set map2))
+      (if (instance? Map map1)
+        (let [retval (mut-map)
+              rhs (->set map2)]
+          (.forEach ^Map map1 (reify BiConsumer
+                                (accept [this k v]
+                                  (when-not (.contains rhs k)
+                                    (.put retval k v)))))
+          (persistent! retval))
+        (let [retval (mut-set)
+              rhs (->set map2)]
+          (.forEach (->collection map1)
+                    (reify Consumer
+                      (accept [this v]
+                        (when-not (.contains rhs v)
+                          (.add retval v)))))
+          (persistent! retval))))))
 
 
 (defn map-intersection
@@ -475,16 +542,18 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
   (map-intersection (fn [lhs rhs] rhs) map1 map2)
   ```"
   [bfn map1 map2]
-  (let [bfn (->bi-function bfn)]
-    (if (and (map-set? map1) (map-set? map2))
-      (.intersection (as-map-set map1) (as-map-set map2) bfn)
-      (let [retval (mut-map)]
-        (.forEach ^Map map1 (reify BiConsumer
-                              (accept [this k v]
-                                (let [vv (.getOrDefault ^Map map2 k ::failure)]
-                                  (when-not (identical? vv ::failure)
-                                    (.put retval k (.apply bfn v vv)))))))
-        (persistent! retval)))))
+  (if (or (nil? map2) (nil? map2))
+    empty-map
+    (let [bfn (->bi-function bfn)]
+      (if (and (map-set? map1) (map-set? map2))
+        (.intersection (as-map-set map1) (as-map-set map2) bfn)
+        (let [retval (mut-map)]
+          (.forEach ^Map map1 (reify BiConsumer
+                                (accept [this k v]
+                                  (let [vv (.getOrDefault ^Map map2 k ::failure)]
+                                    (when-not (identical? vv ::failure)
+                                      (.put retval k (.apply bfn v vv)))))))
+          (persistent! retval))))))
 
 
 (defn intersection
@@ -492,6 +561,7 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
   map and s2 is a set - the map is trimmed to the intersecting keyspace of s1 and s2."
   [s1 s2]
   (cond
+    (or (nil? s1) (nil? s2)) empty-set
     (and (map-set? s1) (map-set? s2))
     (.intersection (as-map-set s1) (as-map-set s2)
                    (set-map-union-bfn s1 s2))
@@ -766,3 +836,96 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
   [keys]
   (let [mf (.makeFactory empty-map (->obj-ary keys))]
     (fn [vals] (.apply mf (->obj-ary vals)))))
+
+(defn- assoc-inv
+  [m ks ^long ksoff v]
+  (let [ksc (unchecked-subtract (count ks) ksoff)]
+    (case ksc
+      0 m
+      1 (assoc m (ks ksoff) v)
+      2 (let [k0 (ks ksoff)
+              k1 (ks (unchecked-add ksoff 1))]
+          (assoc m k0 (assoc (get m k0) k1 v)))
+      3 (let [k0 (ks ksoff)
+              k1 (ks (unchecked-add ksoff 1))
+              k2 (ks (unchecked-add ksoff 2))
+              m1 (get m k0)]
+          (->> (assoc (get m1 k1) k2 v)
+               (assoc m1 k1)
+               (assoc m k0)))
+      (assoc m (ks ksoff) (assoc-inv (get m (ks ksoff)) ks (unchecked-inc ksoff) v)))))
+
+
+(defmacro assoc-in
+  "Assoc-in drop-in more efficient replacement if ks is a known compile time constant
+  or a vector."
+  [m ks v]
+  (if (vector? ks)
+    (let [nargs (count ks)
+          nnargs (dec nargs)]
+      `(let [~@(->> (range nargs)
+                    (mapcat (fn [argidx]
+                              [(symbol (str "k" argidx)) (ks argidx)])))
+             ~@(->> (range nargs)
+                    (mapcat (fn [argidx]
+                              [(symbol (str "m" argidx))
+                               (if (== 0 argidx)
+                                 `~m
+                                 `(get ~(symbol (str "m" (dec argidx)))
+                                       ~(symbol (str "k" (dec argidx)))))])))]
+         ~(->> (range nargs)
+               (reduce (fn [retstmt argidx]
+                         (let [ridx (- nnargs (long argidx))]
+                           `(assoc ~(symbol (str "m" ridx))
+                                   ~(symbol (str "k" ridx))
+                                   ~retstmt)))
+                       v))))
+    `(assoc-inv ~m (if (vector? ~ks) ~ks (vec ~ks)) 0 ~v)))
+
+
+(defn- get-inv
+  [m ks ^long ksoff def-val]
+  (if (nil? m)
+    def-val
+    (let [ksc (unchecked-subtract (count ks) ksoff)]
+      (case ksc
+        0 (throw (Exception. "Empty key vector provided to get-in"))
+        1 (get m (ks ksoff) def-val)
+        2 (-> (get m (ks ksoff))
+              (get (ks (unchecked-add ksoff 1)) def-val))
+        3 (-> (get m (ks ksoff))
+              (get (ks (unchecked-add ksoff 1)))
+              (get (ks (unchecked-add ksoff 2)) def-val))
+        (get-inv (get m (ks ksoff)) ks (unchecked-inc ksoff) def-val)))))
+
+
+(defn get-in
+  "get-in drop-in more efficient replacement if ks is a vector."
+  ([m ks default-value]
+   (get-inv m (if (vector? ks) ks (vec ks)) 0 default-value))
+  ([m ks] (get-in m ks nil)))
+
+
+(defn update
+  "Slightly faster version of clojure.core/update when you have persistent maps from this
+  library."
+  ([m k f]
+   (if (map-set? m)
+     (.immutUpdateValue (as-map-set m) k (->function f))
+     (clojure.core/update m k f)))
+  ([m k f a]
+   (if (map-set? m)
+     (.immutUpdateValue (as-map-set m) k (->function #(f % a)))
+     (clojure.core/update m k f a)))
+  ([m k f a b]
+   (if (map-set? m)
+     (.immutUpdateValue (as-map-set m) k (->function #(f % a b)))
+     (clojure.core/update m k f a b)))
+  ([m k f a b c]
+   (if (map-set? m)
+     (.immutUpdateValue (as-map-set m) k (->function #(f % a b c)))
+     (clojure.core/update m k f a b c)))
+  ([m k f a b c & args]
+   (if (map-set? m)
+     (.immutUpdateValue (as-map-set m) k (->function #(apply f % a b c args)))
+     (apply clojure.core/update m k f a b c args))))

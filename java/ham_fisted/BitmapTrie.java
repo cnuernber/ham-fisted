@@ -151,6 +151,19 @@ class BitmapTrie implements IObj, TrieBase {
     }
 
     @SuppressWarnings("unchecked")
+    public final LeafNode immutUpdate(TrieBase nowner, Object key, int _hashcode, Function fn) {
+      LeafNode retval = setOwner(nowner);
+      if (nowner.equals(k, key)) {
+	retval.v = fn.apply(retval.v);
+	retval.nextNode = nextNode;
+	return retval;
+      }
+      retval.nextNode = nextNode != null ? nextNode.immutUpdate(nowner, key, _hashcode, fn)
+	: new LeafNode(nowner, key, _hashcode, fn.apply(null));
+      return retval;
+    }
+
+    @SuppressWarnings("unchecked")
     public final LeafNode union(TrieBase nowner, Object _k, Object v, BiFunction valueMapper) {
       LeafNode retval = setOwner(nowner);
       if(owner.equals(_k, k))
@@ -258,7 +271,7 @@ class BitmapTrie implements IObj, TrieBase {
       final INode[] newData = new INode[Math.max(4, nextPow2(len))];
       for (int idx = 0; idx < len; ++idx)
 	newData[idx] = srcData[idx].valueClone(nowner, valIter);
-      
+
       return new BitmapNode(nowner, bitmap, shift, newData);
     }
 
@@ -485,6 +498,20 @@ class BitmapTrie implements IObj, TrieBase {
 	mdata[idx] = mdata[idx].immutUpdate(nowner, bfn);
       }
       return copy ? new BitmapNode(nowner, bitmap, shift, mdata) : this;
+    }
+    @SuppressWarnings("unchecked")
+    public final BitmapNode immutUpdate(TrieBase nowner, Object key, int hashcode, Function fn) {
+      final int bpos = bitpos(shift, hashcode);
+      if ((bitmap & bpos) != 0) {
+	final boolean copy = owner != nowner;
+	final int idx = index(bitmap, bpos);
+	final INode[] mdata = copy ? data.clone() : data;
+	mdata[idx] = mdata[idx].immutUpdate(nowner, key, hashcode, fn);
+	return copy ? new BitmapNode(nowner, bitmap, shift, mdata) : this;
+      } else {
+	//There is no known value at that position.
+	return assoc(nowner, key, hashcode, fn.apply(null));
+      }
     }
 
     public final int countLeaves() {
@@ -803,12 +830,16 @@ class BitmapTrie implements IObj, TrieBase {
     meta = _meta;
   }
 
-  public BitmapTrie(HashProvider _hp, IPersistentMap _meta) {
+  public BitmapTrie(HashProvider _hp, IPersistentMap _meta, int nkeys) {
     count = 0;
     nullEntry = null;
-    root = new BitmapNode(this, 0, 0, new INode[4]);
+    root = new BitmapNode(this, 0, 0, new INode[Math.max(32, nextPow2(nkeys))]);
     hp = _hp;
     meta = _meta;
+  }
+
+  public BitmapTrie(HashProvider _hp, IPersistentMap _meta) {
+    this(_hp, _meta, 4);
   }
 
   public BitmapTrie(HashProvider _hp) {
@@ -817,6 +848,20 @@ class BitmapTrie implements IObj, TrieBase {
     root = new BitmapNode(this, 0, 0, new INode[4]);
     hp = _hp;
     meta = null;
+  }
+
+  public BitmapTrie(HashProvider _hp, IPersistentMap _meta, Object key, Object val) {
+    hp = _hp;
+    meta = _meta;
+    //Increments count
+    LeafNode lf = new LeafNode(this, key, _hp.hash(key), val);
+    if (key == null) {
+      nullEntry = lf;
+      root = new BitmapNode(this, 0, 0, new INode[4]);
+    } else {
+      nullEntry = null;
+      root = new BitmapNode(this, 0, lf);
+    }
   }
 
   public BitmapTrie() {
@@ -1171,6 +1216,20 @@ class BitmapTrie implements IObj, TrieBase {
     return retval;
   }
 
+  @SuppressWarnings("unchecked")
+  final BitmapTrie immutUpdate(Object key, Function action) {
+    final BitmapTrie retval = shallowClone();
+    if (key == null) {
+      if (nullEntry != null)
+	retval.nullEntry = nullEntry.immutUpdate(retval, key, 0, action);
+      else
+	retval.nullEntry = new LeafNode(retval, null, 0, action.apply(null));
+    } else {
+      retval.root = root.immutUpdate(retval, key, hp.hash(key), action);
+    }
+    return retval;
+  }
+
   final Object remove(Object key) {
     if (key == null) {
       if (nullEntry != null) {
@@ -1302,7 +1361,7 @@ class BitmapTrie implements IObj, TrieBase {
       return nextVal;
     }
   }
-  
+
   public static Function<Object[],BitmapTrie> makeFactory(HashProvider hp, Object[] keys) {
     final int nkeys = keys.length;
     final BitmapTrie srcTrie = new BitmapTrie(hp);
