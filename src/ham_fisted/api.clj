@@ -66,7 +66,7 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
   (get options :hash-provider equal-hash-provider))
 
 
-(def ^{:tag PersistentHashMap} empty-map (PersistentHashMap. (options->provider nil)))
+(def ^{:tag PersistentArrayMap} empty-map PersistentArrayMap/EMPTY)
 (def ^{:tag PersistentHashSet} empty-set (PersistentHashSet. (options->provider nil)))
 
 
@@ -751,10 +751,11 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
 
 
 (defn- obj-ary
-  (^objects [] (object-array 0))
+  (^objects []
+   (object-array 0))
   (^objects [v0] (let [retval (object-array 1)]
-                   (aset retval 0 v0)
-                   retval))
+                     (aset retval 0 v0)
+                     retval))
   (^objects [v0 v1] (let [retval (object-array 2)]
                       (aset retval 0 v0)
                       (aset retval 1 v1)
@@ -808,21 +809,21 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
   "Create a factory to quickly produce maps with a fixed set of keys but arbitrary
   values.  Returned IFn is same arity as the number of keys passed in and the values
   will be set as values of the hashmap.  The factory produces PersistentHashMaps."
-  ([] (constantly empty-map))
-  ([k0] (let [mf (.makeFactory empty-map (obj-ary k0))]
+  ([] (constantly PersistentHashMap/EMPTY))
+  ([k0] (let [mf (.makeFactory PersistentHashMap/EMPTY (obj-ary k0))]
           (fn [v0] (.apply mf (obj-ary v0)))))
-  ([k0 k1] (let [mf (.makeFactory empty-map (obj-ary k0 k1))]
+  ([k0 k1] (let [mf (.makeFactory PersistentHashMap/EMPTY (obj-ary k0 k1))]
              (fn [v0 v1] (.apply mf (obj-ary v0 v1)))))
-  ([k0 k1 k2] (let [mf (.makeFactory empty-map (obj-ary k0 k1 k2))]
+  ([k0 k1 k2] (let [mf (.makeFactory PersistentHashMap/EMPTY (obj-ary k0 k1 k2))]
                 (fn [v0 v1 v2] (.apply mf (obj-ary v0 v1 v2)))))
-  ([k0 k1 k2 k3] (let [mf (.makeFactory empty-map (obj-ary k0 k1 k2 k3))]
+  ([k0 k1 k2 k3] (let [mf (.makeFactory PersistentHashMap/EMPTY (obj-ary k0 k1 k2 k3))]
                    (fn [v0 v1 v2 v3] (.apply mf (obj-ary v0 v1 v2 v3)))))
-  ([k0 k1 k2 k3 k4] (let [mf (.makeFactory empty-map (obj-ary k0 k1 k2 k3 k4))]
+  ([k0 k1 k2 k3 k4] (let [mf (.makeFactory PersistentHashMap/EMPTY (obj-ary k0 k1 k2 k3 k4))]
                       (fn [v0 v1 v2 v3 v4] (.apply mf (obj-ary v0 v1 v2 v3 v4)))))
-  ([k0 k1 k2 k3 k4 k5] (let [mf (.makeFactory empty-map (obj-ary k0 k1 k2 k3 k4 k5))]
+  ([k0 k1 k2 k3 k4 k5] (let [mf (.makeFactory PersistentHashMap/EMPTY (obj-ary k0 k1 k2 k3 k4 k5))]
                          (fn [v0 v1 v2 v3 v4 v5] (.apply mf (obj-ary v0 v1 v2 v3 v4 v5)))))
   ([k0 k1 k2 k3 k4 k5 & args]
-   (let [mf (.makeFactory empty-map (obj-ary k0 k1 k2 k3 k4 k5 args))]
+   (let [mf (.makeFactory PersistentHashMap/EMPTY (obj-ary k0 k1 k2 k3 k4 k5 args))]
      (fn [v0 v1 v2 v3 v4 v5 & args] (.apply mf (obj-ary v0 v1 v2 v3 v4 v5 args))))))
 
 
@@ -834,7 +835,7 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
 
   The factory produces PersistentHashMaps."
   [keys]
-  (let [mf (.makeFactory empty-map (->obj-ary keys))]
+  (let [mf (.makeFactory PersistentHashMap/EMPTY (->obj-ary keys))]
     (fn [vals] (.apply mf (->obj-ary vals)))))
 
 (defn- assoc-inv
@@ -899,11 +900,24 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
         (get-inv (get m (ks ksoff)) ks (unchecked-inc ksoff) def-val)))))
 
 
-(defn get-in
-  "get-in drop-in more efficient replacement if ks is a vector."
+(defmacro get-in
+  "get-in drop-in more efficient replacement if ks is a vector especially if ks
+  is known at compile time."
   ([m ks default-value]
-   (get-inv m (if (vector? ks) ks (vec ks)) 0 default-value))
-  ([m ks] (get-in m ks nil)))
+   (if (vector? ks)
+     (let [nargs (count ks)
+           nnargs (dec nargs)]
+       `~(->> (range nargs)
+              (reduce (fn [curget ^long argidx]
+                        (if (== argidx nnargs)
+                          `(get ~curget
+                                ~(ks argidx)
+                                ~default-value)
+                          `(get ~curget ~(ks argidx))))
+                      m)))
+     `(get-inv ~m (if (vector? ~ks) ~ks (vec ~ks)) 0 ~default-value)))
+  ([m ks]
+   `(get-in m ks nil)))
 
 
 (defn update
