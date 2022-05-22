@@ -43,7 +43,7 @@ public class PersistentArrayMap
   final int nElems;
   final IPersistentMap meta;
   HashMap<Object,Object> cachedTrie = null;
-  public static final int MAX_SIZE = 4;
+  public static final int MAX_SIZE = 8;
 
   public static final PersistentArrayMap EMPTY = new PersistentArrayMap(equalHashProvider);
 
@@ -89,6 +89,52 @@ public class PersistentArrayMap
     nElems = 4;
     meta = _meta;
   }
+  
+  public PersistentArrayMap(HashProvider _hp,
+			    Object k, Object v, Object k2, Object v2,
+			    Object k3, Object v3, Object k4, Object v4,
+			    Object k5, Object v5,
+			    IPersistentMap _meta) {
+    hp = _hp;
+    kvs = new Object[] { k, v, k2, v2, k3, v3, k4, v4, k5, v5 };
+    nElems = 5;
+    meta = _meta;
+  }
+
+  public PersistentArrayMap(HashProvider _hp,
+			    Object k, Object v, Object k2, Object v2,
+			    Object k3, Object v3, Object k4, Object v4,
+			    Object k5, Object v5, Object k6, Object v6,
+			    IPersistentMap _meta) {
+    hp = _hp;
+    kvs = new Object[] { k, v, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6};
+    nElems = 6;
+    meta = _meta;
+  }
+
+  public PersistentArrayMap(HashProvider _hp,
+			    Object k, Object v, Object k2, Object v2,
+			    Object k3, Object v3, Object k4, Object v4,
+			    Object k5, Object v5, Object k6, Object v6,
+			    Object k7, Object v7,
+			    IPersistentMap _meta) {
+    hp = _hp;
+    kvs = new Object[] { k, v, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6, k7, v7};
+    nElems = 7;
+    meta = _meta;
+  }
+
+  public PersistentArrayMap(HashProvider _hp,
+			    Object k, Object v, Object k2, Object v2,
+			    Object k3, Object v3, Object k4, Object v4,
+			    Object k5, Object v5, Object k6, Object v6,
+			    Object k7, Object v7, Object k8, Object v8,
+			    IPersistentMap _meta) {
+    hp = _hp;
+    kvs = new Object[] { k, v, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6, k7, v7, k8, v8};
+    nElems = 8;
+    meta = _meta;
+  }
 
   public static final boolean different(HashProvider hp, Object a, Object b) {
     return !hp.equals(a,b);
@@ -100,6 +146,40 @@ public class PersistentArrayMap
     return !(hp.equals(a,b) || hp.equals(a,c) || hp.equals(a,d) ||
 	     hp.equals(b,c) || hp.equals(b,d) ||
 	     hp.equals(c,d));
+  }
+  public static final boolean different(HashProvider hp, Object a, Object b, Object c, Object d, Object e) {
+    return !(hp.equals(a,b) || hp.equals(a,c) || hp.equals(a,d) || hp.equals(a,e) ||
+	     hp.equals(b,c) || hp.equals(b,d) || hp.equals(b,e) ||
+	     hp.equals(c,d) || hp.equals(c,e) ||
+	     hp.equals(d,e)
+	    );
+  }
+  public static final boolean different(HashProvider hp, Object a, Object b, Object c, Object d, Object e, Object f) {
+    return !(hp.equals(a,b) || hp.equals(a,c) || hp.equals(a,d) || hp.equals(a,e) || hp.equals(a, f) ||
+	     hp.equals(b,c) || hp.equals(b,d) || hp.equals(b,e) || hp.equals(b, f) ||
+	     hp.equals(c,d) || hp.equals(c,e) || hp.equals(c,f) ||
+	     hp.equals(d,e) || hp.equals(d,f) ||
+	     hp.equals(e,f)
+	     );
+  }
+  public static final boolean different(HashProvider hp, Object a, Object b, Object c, Object d, Object e, Object f, Object g) {
+    return !(hp.equals(a,b) || hp.equals(a,c) || hp.equals(a,d) || hp.equals(a,e) || hp.equals(a,f) || hp.equals(a,g) ||
+	     hp.equals(b,c) || hp.equals(b,d) || hp.equals(b,e) || hp.equals(b,f) || hp.equals(b,g) ||
+	     hp.equals(c,d) || hp.equals(c,e) || hp.equals(c,f) || hp.equals(c,g) ||
+	     hp.equals(d,e) || hp.equals(d,f) || hp.equals(d,g) ||
+	     hp.equals(e,f) || hp.equals(e,g) ||
+	     hp.equals(f,g)
+	     );
+  }
+  public static final boolean different(HashProvider hp, Object a, Object b, Object c, Object d, Object e, Object f, Object g, Object h) {
+    return !(hp.equals(a,b) || hp.equals(a,c) || hp.equals(a,d) || hp.equals(a,e) || hp.equals(a,f) || hp.equals(a,g) || hp.equals(a,h) ||
+	     hp.equals(b,c) || hp.equals(b,d) || hp.equals(b,e) || hp.equals(b,f) || hp.equals(b,g) || hp.equals(b,h) ||
+	     hp.equals(c,d) || hp.equals(c,e) || hp.equals(c,f) || hp.equals(c,g) || hp.equals(c,h) ||
+	     hp.equals(d,e) || hp.equals(d,f) || hp.equals(d,g) || hp.equals(d,h) ||
+	     hp.equals(e,f) || hp.equals(e,g) || hp.equals(e,h) ||
+	     hp.equals(f,g) || hp.equals(f,h) ||
+	     hp.equals(g,h)
+	     );
   }
   public final int count() { return nElems; }
   public static final int indexOf(HashProvider hp, int ne, Object[] kvs, Object key) {
@@ -133,13 +213,48 @@ public class PersistentArrayMap
 	return retval.persistent();
       } else {
 	switch(ne) {
-	case 1: return new PersistentArrayMap(hp, data[0], data[1],
+	case 1: return new PersistentArrayMap(hp,
+					      data[0], data[1],
 					      k, v, meta);
-	case 2: return new PersistentArrayMap(hp, data[0], data[1],
-					      data[2], data[3], k, v, meta);
-	case 3: return new PersistentArrayMap(hp, data[0], data[1],
+	case 2: return new PersistentArrayMap(hp,
+					      data[0], data[1],
 					      data[2], data[3],
-					      data[4], data[5], k, v, meta);
+					      k, v, meta);
+	case 3: return new PersistentArrayMap(hp,
+					      data[0], data[1],
+					      data[2], data[3],
+					      data[4], data[5],
+					      k, v, meta);
+	case 4: return new PersistentArrayMap(hp,
+					      data[0], data[1],
+					      data[2], data[3],
+					      data[4], data[5],
+					      data[6], data[7],
+					      k, v, meta);
+	case 5: return new PersistentArrayMap(hp,
+					      data[0], data[1],
+					      data[2], data[3],
+					      data[4], data[5],
+					      data[6], data[7],
+					      data[8], data[9],
+					      k, v, meta);
+	case 6: return new PersistentArrayMap(hp,
+					      data[0], data[1],
+					      data[2], data[3],
+					      data[4], data[5],
+					      data[6], data[7],
+					      data[8], data[9],
+					      data[10], data[11],
+					      k, v, meta);
+	case 7: return new PersistentArrayMap(hp,
+					      data[0], data[1],
+					      data[2], data[3],
+					      data[4], data[5],
+					      data[6], data[7],
+					      data[8], data[9],
+					      data[10], data[11],
+					      data[12], data[13],
+					      k, v, meta);
 	}
 	final int newNe = ne+1;
 	final Object[] newData = Arrays.copyOf(data, newNe*2);

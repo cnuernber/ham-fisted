@@ -47,4 +47,43 @@ public class ObjArray {
     System.arraycopy(extra, 0, retval, 8, el);
     return retval;
   }
+  public static final Object[] create(Object a, Object b, Object c, Object d,
+				      Object e, Object f, Object g, Object h,
+				      Object i, Object j) {
+    return new Object[] {a, b, c, d, e, f, g, h, i, j};
+  }
+  public static final Object[] create(Object a, Object b, Object c, Object d,
+				      Object e, Object f, Object g, Object h,
+				      Object i, Object j, Object k, Object l) {
+    return new Object[] {a, b, c, d, e, f, g, h, i, j, k, l};
+  }
+  public static final Object[] create(Object a, Object b, Object c, Object d,
+				      Object e, Object f, Object g, Object h,
+				      Object i, Object j, Object k, Object l,
+				      Object m, Object n) {
+    return new Object[] {a, b, c, d, e, f, g, h, i, j, k, l, m, n};
+  }
+  public static final Object[] create(Object a, Object b, Object c, Object d,
+				      Object e, Object f, Object g, Object h,
+				      Object i, Object j, Object k, Object l,
+				      Object m, Object n, Object o, Object p) {
+    return new Object[] {a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p};
+  }
+  public static final Object[] createv(Object a, Object b, Object c, Object d,
+				       Object e, Object f, Object g, Object h,
+				       Object i, Object j, Object k, Object l,
+				       Object m, Object n, Object o, Object p,
+				       Object[] extra) {
+    final int el = extra.length;
+    final int len = 16 + el;
+    Object[] retval = new Object[len];
+    retval[0] = a; retval[1] = b; retval[2] = c;
+    retval[3] = d; retval[4] = e; retval[5] = f;
+    retval[6] = g; retval[7] = h; retval[8] = i;
+    retval[9] = j; retval[10] = k; retval[11] = l;
+    retval[12] = m; retval[13] = n; retval[14] = o;
+    retval[15] = p;
+    System.arraycopy(extra, 0, retval, 16, el);
+    return retval;
+  }
 }

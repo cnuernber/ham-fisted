@@ -167,8 +167,17 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
    (ObjArray/createv v0 v1 v2 v3 v4 v5 ^objects args))
   (^objects [v0 v1 v2 v3 v4 v5 v6 v7]
    (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7))
-  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 args]
-   (ObjArray/createv v0 v1 v2 v3 v4 v5 v6 v7 ^objects args)))
+  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9]
+   (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9))
+  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11]
+   (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11))
+  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13]
+   (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11 v12 v13))
+  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14 v15]
+   (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11 v12 v13 v14 v15))
+  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14 v15 args]
+   (ObjArray/createv v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11 v12 v13 v14 v15
+                     (iterator/array-seq-ary args))))
 
 
 (defn into
@@ -265,9 +274,16 @@ ham_fisted.PersistentHashMap
    (if (PersistentArrayMap/different equal-hash-provider a c e g)
      (PersistentArrayMap. equal-hash-provider a b c d e f g h nil)
      (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h))))
-  ([a b c d e f g h & args]
-   (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h
-                                                                (iterator/array-seq-ary args)))))
+  ([a b c d e f g h i j]
+   (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h i j)))
+  ([a b c d e f g h i j k l]
+   (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h i j k l)))
+  ([a b c d e f g h i j k l m n]
+   (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h i j k l m n)))
+  ([a b c d e f g h i j k l m n o p]
+   (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h i j k l m n o p)))
+  ([a b c d e f g h i j k l m n o p & args]
+   (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h i j k l m n o p args))))
 
 
 (defn java-hashmap
@@ -819,28 +835,6 @@ ham_fisted.PersistentHashMap
 
 (defn map-factory
   "Create a factory to quickly produce maps with a fixed set of keys but arbitrary
-  values.  Returned IFn is same arity as the number of keys passed in and the values
-  will be set as values of the hashmap.  The factory produces PersistentHashMaps."
-  ([] (constantly empty-map))
-  ([k0] (let [mf (PersistentHashMap/makeFactory equal-hash-provider (obj-ary k0))]
-          (fn [v0] (.apply mf (obj-ary v0)))))
-  ([k0 k1] (let [mf (PersistentHashMap/makeFactory equal-hash-provider (obj-ary k0 k1))]
-             (fn [v0 v1] (.apply mf (obj-ary v0 v1)))))
-  ([k0 k1 k2] (let [mf (PersistentHashMap/makeFactory equal-hash-provider (obj-ary k0 k1 k2))]
-                (fn [v0 v1 v2] (.apply mf (obj-ary v0 v1 v2)))))
-  ([k0 k1 k2 k3] (let [mf (PersistentHashMap/makeFactory equal-hash-provider (obj-ary k0 k1 k2 k3))]
-                   (fn [v0 v1 v2 v3] (.apply mf (obj-ary v0 v1 v2 v3)))))
-  ([k0 k1 k2 k3 k4] (let [mf (PersistentHashMap/makeFactory equal-hash-provider (obj-ary k0 k1 k2 k3 k4))]
-                      (fn [v0 v1 v2 v3 v4] (.apply mf (obj-ary v0 v1 v2 v3 v4)))))
-  ([k0 k1 k2 k3 k4 k5] (let [mf (PersistentHashMap/makeFactory equal-hash-provider (obj-ary k0 k1 k2 k3 k4 k5))]
-                         (fn [v0 v1 v2 v3 v4 v5] (.apply mf (obj-ary v0 v1 v2 v3 v4 v5)))))
-  ([k0 k1 k2 k3 k4 k5 & args]
-   (let [mf (PersistentHashMap/makeFactory equal-hash-provider (obj-ary k0 k1 k2 k3 k4 k5 args))]
-     (fn [v0 v1 v2 v3 v4 v5 & args] (.apply mf (obj-ary v0 v1 v2 v3 v4 v5 args))))))
-
-
-(defn map-factoryv
-  "Create a factory to quickly produce maps with a fixed set of keys but arbitrary
   values.  This version takes a vector or sequence of keys and returns and IFn that
   takes a vector, object-array, or sequence of values.  The most efficient pathway will be
   if values are already in an object array.
@@ -849,6 +843,7 @@ ham_fisted.PersistentHashMap
   [keys]
   (let [mf (PersistentHashMap/makeFactory equal-hash-provider (->obj-ary keys))]
     (fn [vals] (.apply mf (->obj-ary vals)))))
+
 
 (defn- assoc-inv
   [m ks ^long ksoff v]

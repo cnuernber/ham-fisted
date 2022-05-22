@@ -310,24 +310,15 @@ public final class PersistentHashMap
   }
 
   public void printNodes() { hb.printNodes(); }
+  
 
   static final void ensureDifferent(HashProvider hp, Object[] keys) {
-    switch(keys.length) {
-    case 1: break;
-    case 2:
-      if(!PersistentArrayMap.different(hp, keys[0], keys[1]))
-	throw new RuntimeException("Duplicate keys provided");
-      break;
-    case 3:
-      if(!PersistentArrayMap.different(hp, keys[0], keys[1], keys[2]))
-	throw new RuntimeException("Duplicate keys provided");
-      break;
-    case 4:
-      if(!PersistentArrayMap.different(hp, keys[0], keys[1], keys[2], keys[3]))
-	throw new RuntimeException("Duplicate keys provided");
-      break;
-    default:
-      throw new RuntimeException("Programmer error - too many provided.");
+    final int nk = keys.length;
+    for(int i = 0; i < nk; ++i) {
+      for(int j = i+1; j < nk; ++j) {
+	if (hp.equals(keys[i], keys[j]))	  
+	  throw new RuntimeException("Duplicate keys provided: " + String.valueOf(keys[i]));
+      }
     }
   }
 
@@ -348,6 +339,28 @@ public final class PersistentHashMap
       ensureDifferent(hp, keys);
       return objs -> new PersistentArrayMap(hp, keys[0], objs[0], keys[1], objs[1],
 					    keys[2], objs[2], keys[3], objs[3], null);
+    case 5:
+      ensureDifferent(hp, keys);
+      return objs -> new PersistentArrayMap(hp, keys[0], objs[0], keys[1], objs[1],
+					    keys[2], objs[2], keys[3], objs[3],
+					    keys[4], objs[4], null);
+    case 6:
+      ensureDifferent(hp, keys);
+      return objs -> new PersistentArrayMap(hp, keys[0], objs[0], keys[1], objs[1],
+					    keys[2], objs[2], keys[3], objs[3],
+					    keys[4], objs[4], keys[5], objs[5], null);
+    case 7:
+      ensureDifferent(hp, keys);
+      return objs -> new PersistentArrayMap(hp, keys[0], objs[0], keys[1], objs[1],
+					    keys[2], objs[2], keys[3], objs[3],
+					    keys[4], objs[4], keys[5], objs[5],
+					    keys[6], objs[6], null);
+    case 8:
+      ensureDifferent(hp, keys);
+      return objs -> new PersistentArrayMap(hp, keys[0], objs[0], keys[1], objs[1],
+					    keys[2], objs[2], keys[3], objs[3],
+					    keys[4], objs[4], keys[5], objs[5],
+					    keys[6], objs[6], keys[7], objs[7], null);
     default:
       final Function<Object[], BitmapTrie> srcFn = BitmapTrie.makeFactory(hp, keys);
       return objs -> new PersistentHashMap(srcFn.apply(objs));
@@ -380,6 +393,29 @@ public final class PersistentHashMap
       if (PersistentArrayMap.different(hp, kvs[0], kvs[2], kvs[4], kvs[6]))
 	retval = new PersistentArrayMap(hp, kvs[0], kvs[1], kvs[2], kvs[3],
 					kvs[4], kvs[5], kvs[6], kvs[7], null);
+      break;
+    case 5:
+      if (PersistentArrayMap.different(hp, kvs[0], kvs[2], kvs[4], kvs[6], kvs[8]))
+	retval = new PersistentArrayMap(hp, kvs[0], kvs[1], kvs[2], kvs[3],
+					kvs[4], kvs[5], kvs[6], kvs[7],
+					kvs[8], kvs[9], null);
+    case 6:
+      if (PersistentArrayMap.different(hp, kvs[0], kvs[2], kvs[4], kvs[6], kvs[8], kvs[10]))
+	retval = new PersistentArrayMap(hp, kvs[0], kvs[1], kvs[2], kvs[3],
+					kvs[4], kvs[5], kvs[6], kvs[7],
+					kvs[8], kvs[9], kvs[10], kvs[11], null);
+    case 7:
+      if (PersistentArrayMap.different(hp, kvs[0], kvs[2], kvs[4], kvs[6], kvs[8], kvs[10], kvs[12]))
+	retval = new PersistentArrayMap(hp, kvs[0], kvs[1], kvs[2], kvs[3],
+					kvs[4], kvs[5], kvs[6], kvs[7],
+					kvs[8], kvs[9], kvs[10], kvs[11],
+					kvs[12], kvs[13], null);
+    case 8:
+      if (PersistentArrayMap.different(hp, kvs[0], kvs[2], kvs[4], kvs[6], kvs[8], kvs[10], kvs[12], kvs[14]))
+	retval = new PersistentArrayMap(hp, kvs[0], kvs[1], kvs[2], kvs[3],
+					kvs[4], kvs[5], kvs[6], kvs[7],
+					kvs[8], kvs[9], kvs[10], kvs[11],
+					kvs[12], kvs[13], kvs[14], kvs[15], null);
       break;
     }
     if (retval == null) {
