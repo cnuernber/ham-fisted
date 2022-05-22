@@ -21,14 +21,30 @@ public class ObjArray {
 				      Object e, Object f) {
     return new Object[] {a, b, c, d, e, f};
   }
-  public static final Object[] create(Object a, Object b, Object c, Object d,
-				      Object e, Object f, Object... extra) {
+  public static final Object[] createv(Object a, Object b, Object c, Object d,
+				       Object e, Object f, Object[] extra) {
     final int el = extra.length;
     final int len = 6 + el;
     Object[] retval = new Object[len];
     retval[0] = a; retval[1] = b; retval[2] = c;
     retval[3] = d; retval[4] = e; retval[5] = f;
     System.arraycopy(extra, 0, retval, 6, el);
+    return retval;
+  }
+  public static final Object[] create(Object a, Object b, Object c, Object d,
+				      Object e, Object f, Object g, Object h) {
+    return new Object[] {a, b, c, d, e, f, g, h};
+  }
+  public static final Object[] createv(Object a, Object b, Object c, Object d,
+				       Object e, Object f, Object g, Object h,
+				       Object[] extra) {
+    final int el = extra.length;
+    final int len = 8 + el;
+    Object[] retval = new Object[len];
+    retval[0] = a; retval[1] = b; retval[2] = c;
+    retval[3] = d; retval[4] = e; retval[5] = f;
+    retval[6] = g; retval[7] = h;
+    System.arraycopy(extra, 0, retval, 8, el);
     return retval;
   }
 }

@@ -150,6 +150,9 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
     (object-array data)))
 
 
+(def ^:private empty-objs (object-array 0))
+
+
 (defn obj-ary
   "As quickly as possible, produce an object array from these inputs.  Very fast for arities
   <= 6."
@@ -160,8 +163,12 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
   (^objects [v0 v1 v2 v3] (ObjArray/create v0 v1 v2 v3))
   (^objects [v0 v1 v2 v3 v4] (ObjArray/create v0 v1 v2 v3 v4))
   (^objects [v0 v1 v2 v3 v4 v5] (ObjArray/create v0 v1 v2 v3 v4 v5))
-  (^objects [v0 v1 v2 v3 v4 v5 & args]
-   (ObjArray/create v0 v1 v2 v3 v4 v5 (iterator/array-seq-ary args))))
+  (^objects [v0 v1 v2 v3 v4 v5 args]
+   (ObjArray/createv v0 v1 v2 v3 v4 v5 ^objects args))
+  (^objects [v0 v1 v2 v3 v4 v5 v6 v7]
+   (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7))
+  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 args]
+   (ObjArray/createv v0 v1 v2 v3 v4 v5 v6 v7 ^objects args)))
 
 
 (defn into
@@ -259,7 +266,8 @@ ham_fisted.PersistentHashMap
      (PersistentArrayMap. equal-hash-provider a b c d e f g h nil)
      (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h))))
   ([a b c d e f g h & args]
-   (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h args))))
+   (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h
+                                                                (iterator/array-seq-ary args)))))
 
 
 (defn java-hashmap

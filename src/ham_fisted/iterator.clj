@@ -66,14 +66,18 @@
 
 
 (defn array-seq-iter
-  ^Iterator [^ArraySeq as]
-  (let [objs (.array as)]
-    (ObjectArrayIter. objs 0 (alength objs))))
+  ^Iterator [as]
+  (if (instance? ArraySeq as)
+    (let [objs (.array ^ArraySeq as)]
+      (ObjectArrayIter. objs 0 (alength objs)))
+    (.iterator ^Iterable as)))
 
 
 (defn array-seq-ary
-  ^objects [^ArraySeq as]
-  (.array as))
+  ^objects [as]
+  (if (instance? ArraySeq as)
+    (.array ^ArraySeq as)
+    (object-array as)))
 
 
 (defn ->iterator
