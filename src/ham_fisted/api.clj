@@ -33,15 +33,16 @@
   (:require [ham-fisted.iterator :as iterator])
   (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
-            BitmapTrieCommon$Box PersistentArrayMap]
+            BitmapTrieCommon$Box PersistentArrayMap ObjArray]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
-            IEditableCollection RT IPersistentMap Associative Util]
+            IEditableCollection RT IPersistentMap Associative Util IFn ArraySeq]
            [java.util Map Map$Entry List RandomAccess Set Collection ArrayList]
            [java.util.function Function BiFunction BiConsumer Consumer]
            [java.util.concurrent ForkJoinPool ExecutorService Callable Future
             ConcurrentHashMap])
   (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize
-                            into assoc-in get-in update assoc]))
+                            into assoc-in get-in update assoc update-in hash-map]))
+
 
 (set! *warn-on-reflection* true)
 
@@ -84,17 +85,17 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
   small numbers of keyval pairs."
   ([m a b]
    (if (empty-map? m)
-     (PersistentArrayMap. equal-hash-provider a b nil)
+     (PersistentArrayMap. equal-hash-provider a b (meta m))
      (.assoc ^Associative m a b)))
   ([m a b c d]
    (if (and (empty-map? m) (PersistentArrayMap/different equal-hash-provider a c))
-     (PersistentArrayMap. equal-hash-provider a b c d nil)
+     (PersistentArrayMap. equal-hash-provider a b c d (meta m))
      (-> (assoc! (transient (or m PersistentArrayMap/EMPTY)) a b)
          (assoc! c d)
          (persistent!))))
   ([m a b c d e f]
    (if (and (empty-map? m) (PersistentArrayMap/different equal-hash-provider a c e))
-     (PersistentArrayMap. equal-hash-provider a b c d e f nil)
+     (PersistentArrayMap. equal-hash-provider a b c d e f (meta m))
      (-> (transient (or m PersistentArrayMap/EMPTY))
          (assoc! a b)
          (assoc! c d)
@@ -102,7 +103,7 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
          (persistent!))))
   ([m a b c d e f g h]
    (if (and (empty-map? m) (PersistentArrayMap/different equal-hash-provider a c e g))
-     (PersistentArrayMap. equal-hash-provider a b c d e f g h nil)
+     (PersistentArrayMap. equal-hash-provider a b c d e f g h (meta m))
      (-> (transient (or m (PersistentArrayMap/EMPTY)))
          (assoc! a b)
          (assoc! c d)
@@ -113,7 +114,9 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
    (when-not (== 0 (rem (count args) 2))
      (throw (Exception. "Assoc takes an odd number of arguments.")))
    (if (empty-map? m)
-     (let [m (HashMap. equal-hash-provider nil (+ 4 (quot (count args) 2)))]
+     (let [m (HashMap. equal-hash-provider
+                       ^IPersistentMap (meta m)
+                       (+ 4 (quot (count args) 2)))]
        (.put m a b)
        (.put m c d)
        (.put m e f)
@@ -134,17 +137,31 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
          (persistent! m))))))
 
 
-(def ^:private objary-cls (Class/forName "[Ljava.lang.Object;"))
+(def ^:private obj-ary-cls (Class/forName "[Ljava.lang.Object;"))
 
 (defn- ->obj-ary
   ^objects [data]
   (cond
-    (instance? objary-cls data)
+    (instance? obj-ary-cls data)
     data
     (instance? Collection data)
     (.toArray ^Collection data)
     :else
     (object-array data)))
+
+
+(defn obj-ary
+  "As quickly as possible, produce an object array from these inputs.  Very fast for arities
+  <= 6."
+  (^objects [] (object-array 0))
+  (^objects [v0] (ObjArray/create v0))
+  (^objects [v0 v1] (ObjArray/create v0 v1))
+  (^objects [v0 v1 v2] (ObjArray/create v0 v1 v2))
+  (^objects [v0 v1 v2 v3] (ObjArray/create v0 v1 v2 v3))
+  (^objects [v0 v1 v2 v3 v4] (ObjArray/create v0 v1 v2 v3 v4))
+  (^objects [v0 v1 v2 v3 v4 v5] (ObjArray/create v0 v1 v2 v3 v4 v5))
+  (^objects [v0 v1 v2 v3 v4 v5 & args]
+   (ObjArray/create v0 v1 v2 v3 v4 v5 (iterator/array-seq-ary args))))
 
 
 (defn into
@@ -190,21 +207,63 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
 
 (defn immut-map
   "Create an immutable map.  This object supports conversion to a transient map via
-  Clojure's `transient` function.
+  Clojure's `transient` function.  Duplicate keys are treated as if by assoc.
+
+  If data is an object array it is treated as a flat key-value list which is distinctly
+  different than how conj! treats object arrays.  You have been warned.
 
   Options:
 
   * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
-  the [[equal-hash-provider]]."
+  the [[equal-hash-provider]].
+
+  Examples:
+
+  ```clojure
+ham-fisted.api> (immut-map (obj-ary :a 1 :b 2 :c 3 :d 4))
+{:a 1, :b 2, :c 3, :d 4}
+ham-fisted.api> (type *1)
+ham_fisted.PersistentArrayMap
+ham-fisted.api> (immut-map (obj-ary :a 1 :b 2 :c 3 :d 4 :e 5))
+{:d 4, :b 2, :c 3, :a 1, :e 5}
+ham-fisted.api> (type *1)
+ham_fisted.PersistentHashMap
+ham-fisted.api> (immut-map [[:a 1][:b 2][:c 3][:d 4][:e 5]])
+{:d 4, :b 2, :c 3, :a 1, :e 5}
+ham-fisted.api> (type *1)
+ham_fisted.PersistentHashMap
+```"
   (^PersistentHashMap [] empty-map)
   (^PersistentHashMap [data]
-   (into (PersistentHashMap. (options->provider nil)) data))
+   (immut-map nil data))
   (^PersistentHashMap [options data]
-   (into (PersistentHashMap. (options->provider options)) data)))
+   (if (instance? obj-ary-cls data)
+     (PersistentHashMap/create (options->provider options) false ^objects data)
+     (into (PersistentHashMap. (options->provider options)) data))))
+
+
+(defn hash-map
+  "Drop-in replacement to Clojure's hash-map function."
+  ([] empty-map)
+  ([a b] (PersistentArrayMap. equal-hash-provider a b nil))
+  ([a b c d]
+   (if (PersistentArrayMap/different equal-hash-provider a c)
+     (PersistentArrayMap. equal-hash-provider a b c d nil)
+     (hash-map c d)))
+  ([a b c d e f]
+   (if (PersistentArrayMap/different equal-hash-provider a c e)
+     (PersistentArrayMap. equal-hash-provider a b c d e f nil)
+     (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f))))
+  ([a b c d e f g h]
+   (if (PersistentArrayMap/different equal-hash-provider a c e g)
+     (PersistentArrayMap. equal-hash-provider a b c d e f g h nil)
+     (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h))))
+  ([a b c d e f g h & args]
+   (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h args))))
 
 
 (defn java-hashmap
-  "Create a java.util.HashMap"
+  "Create a java.util.HashMap.  Duplicate keys are treated as if map was created by assoc."
   (^java.util.HashMap [] (java.util.HashMap.))
   (^java.util.HashMap [data]
    (if (instance? Map data)
@@ -750,80 +809,25 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
   memoize-fn)
 
 
-(defn- obj-ary
-  (^objects []
-   (object-array 0))
-  (^objects [v0] (let [retval (object-array 1)]
-                     (aset retval 0 v0)
-                     retval))
-  (^objects [v0 v1] (let [retval (object-array 2)]
-                      (aset retval 0 v0)
-                      (aset retval 1 v1)
-                      retval))
-  (^objects [v0 v1 v2] (let [retval (object-array 3)]
-                         (aset retval 0 v0)
-                         (aset retval 1 v1)
-                         (aset retval 2 v2)
-                         retval))
-  (^objects [v0 v1 v2 v3]
-   (let [retval (object-array 4)]
-     (aset retval 0 v0)
-     (aset retval 1 v1)
-     (aset retval 2 v2)
-     (aset retval 3 v3)
-     retval))
-  (^objects [v0 v1 v2 v3 v4]
-   (let [retval (object-array 5)]
-     (aset retval 0 v0)
-     (aset retval 1 v1)
-     (aset retval 2 v2)
-     (aset retval 3 v3)
-     (aset retval 4 v4)
-     retval))
-  (^objects [v0 v1 v2 v3 v4 v5]
-   (let [retval (object-array 6)]
-     (aset retval 0 v0)
-     (aset retval 1 v1)
-     (aset retval 2 v2)
-     (aset retval 3 v3)
-     (aset retval 4 v4)
-     (aset retval 5 v5)
-     retval))
-  (^objects [v0 v1 v2 v3 v4 v5 args]
-   (let [retval (object-array (+ 6 (count args)))]
-     (aset retval 0 v0)
-     (aset retval 1 v1)
-     (aset retval 2 v2)
-     (aset retval 3 v3)
-     (aset retval 4 v4)
-     (aset retval 5 v5)
-     (loop [args args
-            idx 6]
-       (when args
-         (aset retval idx (RT/first args))
-         (recur (RT/next args) (unchecked-inc idx))))
-     retval)))
-
-
 (defn map-factory
   "Create a factory to quickly produce maps with a fixed set of keys but arbitrary
   values.  Returned IFn is same arity as the number of keys passed in and the values
   will be set as values of the hashmap.  The factory produces PersistentHashMaps."
-  ([] (constantly PersistentHashMap/EMPTY))
-  ([k0] (let [mf (.makeFactory PersistentHashMap/EMPTY (obj-ary k0))]
+  ([] (constantly empty-map))
+  ([k0] (let [mf (PersistentHashMap/makeFactory equal-hash-provider (obj-ary k0))]
           (fn [v0] (.apply mf (obj-ary v0)))))
-  ([k0 k1] (let [mf (.makeFactory PersistentHashMap/EMPTY (obj-ary k0 k1))]
+  ([k0 k1] (let [mf (PersistentHashMap/makeFactory equal-hash-provider (obj-ary k0 k1))]
              (fn [v0 v1] (.apply mf (obj-ary v0 v1)))))
-  ([k0 k1 k2] (let [mf (.makeFactory PersistentHashMap/EMPTY (obj-ary k0 k1 k2))]
+  ([k0 k1 k2] (let [mf (PersistentHashMap/makeFactory equal-hash-provider (obj-ary k0 k1 k2))]
                 (fn [v0 v1 v2] (.apply mf (obj-ary v0 v1 v2)))))
-  ([k0 k1 k2 k3] (let [mf (.makeFactory PersistentHashMap/EMPTY (obj-ary k0 k1 k2 k3))]
+  ([k0 k1 k2 k3] (let [mf (PersistentHashMap/makeFactory equal-hash-provider (obj-ary k0 k1 k2 k3))]
                    (fn [v0 v1 v2 v3] (.apply mf (obj-ary v0 v1 v2 v3)))))
-  ([k0 k1 k2 k3 k4] (let [mf (.makeFactory PersistentHashMap/EMPTY (obj-ary k0 k1 k2 k3 k4))]
+  ([k0 k1 k2 k3 k4] (let [mf (PersistentHashMap/makeFactory equal-hash-provider (obj-ary k0 k1 k2 k3 k4))]
                       (fn [v0 v1 v2 v3 v4] (.apply mf (obj-ary v0 v1 v2 v3 v4)))))
-  ([k0 k1 k2 k3 k4 k5] (let [mf (.makeFactory PersistentHashMap/EMPTY (obj-ary k0 k1 k2 k3 k4 k5))]
+  ([k0 k1 k2 k3 k4 k5] (let [mf (PersistentHashMap/makeFactory equal-hash-provider (obj-ary k0 k1 k2 k3 k4 k5))]
                          (fn [v0 v1 v2 v3 v4 v5] (.apply mf (obj-ary v0 v1 v2 v3 v4 v5)))))
   ([k0 k1 k2 k3 k4 k5 & args]
-   (let [mf (.makeFactory PersistentHashMap/EMPTY (obj-ary k0 k1 k2 k3 k4 k5 args))]
+   (let [mf (PersistentHashMap/makeFactory equal-hash-provider (obj-ary k0 k1 k2 k3 k4 k5 args))]
      (fn [v0 v1 v2 v3 v4 v5 & args] (.apply mf (obj-ary v0 v1 v2 v3 v4 v5 args))))))
 
 
@@ -835,14 +839,14 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
 
   The factory produces PersistentHashMaps."
   [keys]
-  (let [mf (.makeFactory PersistentHashMap/EMPTY (->obj-ary keys))]
+  (let [mf (PersistentHashMap/makeFactory equal-hash-provider (->obj-ary keys))]
     (fn [vals] (.apply mf (->obj-ary vals)))))
 
 (defn- assoc-inv
   [m ks ^long ksoff v]
   (let [ksc (unchecked-subtract (count ks) ksoff)]
     (case ksc
-      0 m
+      0 (assoc m nil v)
       1 (assoc m (ks ksoff) v)
       2 (let [k0 (ks ksoff)
               k1 (ks (unchecked-add ksoff 1))]
@@ -858,29 +862,31 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
 
 
 (defmacro assoc-in
-  "Assoc-in drop-in more efficient replacement if ks is a known compile time constant
+  "Assoc-in - more efficient replacement if ks is a known compile time constant
   or a vector."
   [m ks v]
   (if (vector? ks)
-    (let [nargs (count ks)
-          nnargs (dec nargs)]
-      `(let [~@(->> (range nargs)
-                    (mapcat (fn [argidx]
-                              [(symbol (str "k" argidx)) (ks argidx)])))
-             ~@(->> (range nargs)
-                    (mapcat (fn [argidx]
-                              [(symbol (str "m" argidx))
-                               (if (== 0 argidx)
-                                 `~m
-                                 `(get ~(symbol (str "m" (dec argidx)))
-                                       ~(symbol (str "k" (dec argidx)))))])))]
-         ~(->> (range nargs)
-               (reduce (fn [retstmt argidx]
-                         (let [ridx (- nnargs (long argidx))]
-                           `(assoc ~(symbol (str "m" ridx))
-                                   ~(symbol (str "k" ridx))
-                                   ~retstmt)))
-                       v))))
+    (if (== 0 (count ks))
+      `(assoc ~m nil ~v)
+      (let [nargs (count ks)
+            nnargs (dec nargs)]
+        `(let [~@(->> (range nargs)
+                      (mapcat (fn [argidx]
+                                [(symbol (str "k" argidx)) (ks argidx)])))
+               ~@(->> (range nargs)
+                      (mapcat (fn [argidx]
+                                [(symbol (str "m" argidx))
+                                 (if (== 0 argidx)
+                                   `~m
+                                   `(get ~(symbol (str "m" (dec argidx)))
+                                         ~(symbol (str "k" (dec argidx)))))])))]
+           ~(->> (range nargs)
+                 (reduce (fn [retstmt argidx]
+                           (let [ridx (- nnargs (long argidx))]
+                             `(assoc ~(symbol (str "m" ridx))
+                                     ~(symbol (str "k" ridx))
+                                     ~retstmt)))
+                         v)))))
     `(assoc-inv ~m (if (vector? ~ks) ~ks (vec ~ks)) 0 ~v)))
 
 
@@ -920,26 +926,126 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
    `(get-in m ks nil)))
 
 
+(defn- single-arg-fn
+  ([f] (reify
+         Function
+         (apply [this v] (f v))
+         IFn
+         (invoke [this v] (f v))))
+  ([f a]
+   (reify
+     Function
+     (apply [this v] (f v a))
+     IFn
+     (invoke [this v] (f v a))))
+
+  ([f a b]
+   (reify
+     Function
+     (apply [this v] (f v a b))
+     IFn
+     (invoke [this v] (f v a b))))
+
+  ([f a b c]
+   (reify
+     Function
+     (apply [this v] (f v a b c))
+     IFn
+     (invoke [this v] (f v a b c))))
+
+
+  ([f a b c d]
+   (reify
+     Function
+     (apply [this v] (f v a b c d))
+     IFn
+     (invoke [this v] (f v a b c d))))
+
+  ([f a b c d e]
+   (reify
+     Function
+     (apply [this v] (f v a b c d e))
+     IFn
+     (invoke [this v] (f v a b c d e))))
+
+  ([f a b c d e f]
+   (reify
+     Function
+     (apply [this v] (f v a b c d e f))
+     IFn
+     (invoke [this v] (f v a b c d e f))))
+
+  ([f a b c d e f args]
+   (reify
+     Function
+     (apply [this v] (apply f v a b c d e f args))
+     IFn
+     (invoke [this v] (apply f v a b c d e f args)))))
+
+
 (defn update
   "Slightly faster version of clojure.core/update when you have persistent maps from this
   library."
   ([m k f]
-   (if (map-set? m)
+   (cond
+     (empty-map? m)
+     (PersistentArrayMap. equal-hash-provider k (f nil) (meta m))
+     (map-set? m)
      (.immutUpdateValue (as-map-set m) k (->function f))
+     :else
      (clojure.core/update m k f)))
   ([m k f a]
-   (if (map-set? m)
-     (.immutUpdateValue (as-map-set m) k (->function #(f % a)))
-     (clojure.core/update m k f a)))
+   (update m k (single-arg-fn f a)))
   ([m k f a b]
-   (if (map-set? m)
-     (.immutUpdateValue (as-map-set m) k (->function #(f % a b)))
-     (clojure.core/update m k f a b)))
+   (update m k (single-arg-fn f a b)))
   ([m k f a b c]
-   (if (map-set? m)
-     (.immutUpdateValue (as-map-set m) k (->function #(f % a b c)))
-     (clojure.core/update m k f a b c)))
-  ([m k f a b c & args]
-   (if (map-set? m)
-     (.immutUpdateValue (as-map-set m) k (->function #(apply f % a b c args)))
-     (apply clojure.core/update m k f a b c args))))
+   (update m k (single-arg-fn f a b c)))
+  ([m k f a b c d]
+   (update m k (single-arg-fn f a b c d)))
+  ([m k f a b c d e]
+   (update m k (single-arg-fn f a b c d e)))
+  ([m k f a b c d e f]
+   (update m k (single-arg-fn f a b c d e f)))
+  ([m k f a b c d e f & args]
+   (update m k (single-arg-fn f a b c d e f args))))
+
+
+(defn- update-inv
+  [m ks ^long ksoff f]
+  (let [nks (unchecked-subtract (count ks) ksoff)]
+    (case nks
+      0 (update m nil f)
+      1 (update m (ks ksoff) f)
+      2 (let [k0 (ks ksoff)
+              k1 (ks (unchecked-add ksoff 1))
+              m1 (get m k0)]
+          (-> (update m1 k1 f)
+              (assoc m k0)))
+      3 (let [k0 (ks ksoff)
+              k1 (ks (unchecked-add ksoff 1))
+              k2 (ks (unchecked-add ksoff 2))
+              m1 (get m k0)
+              m2 (get m1 k1)]
+          (->> (update m2 k2 f)
+               (assoc m1 k1)
+               (assoc m k0)))
+      (update-inv (get m (ks ksoff)) ks (unchecked-inc ksoff) f))))
+
+
+(defn update-in
+  ([m ks f]
+   (update-inv m (if (vector? ks) ks (vec ks)) 0 f))
+  ([m ks f a]
+   (update-in m ks (single-arg-fn f a)))
+  ([m ks f a b]
+   (update-in m ks (single-arg-fn f a b)))
+  ([m ks f a b c]
+   (update-in m ks (single-arg-fn f a b c)))
+  ([m ks f a b c d]
+   (update-in m ks (single-arg-fn f a b c d)))
+  ([m ks f a b c d e]
+   (update-in m ks (single-arg-fn f a b c d e)))
+  ([m ks f a b c d e f]
+   (update-in m ks (single-arg-fn f a b c d e f)))
+  ([m ks f a b c d e f & args]
+   (update-in m ks (single-arg-fn f a b c d e f args))))

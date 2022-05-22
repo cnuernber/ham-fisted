@@ -311,12 +311,94 @@ public final class PersistentHashMap
 
   public void printNodes() { hb.printNodes(); }
 
-  public Function<Object[],PersistentHashMap> makeFactory(Object[] keys) {
-    Function<Object[], BitmapTrie> srcFn = BitmapTrie.makeFactory(hb.hp, keys);
-    return new Function<Object[], PersistentHashMap>() {
-      public PersistentHashMap apply(Object[] values) {
-	return new PersistentHashMap(srcFn.apply(values));
+  static final void ensureDifferent(HashProvider hp, Object[] keys) {
+    switch(keys.length) {
+    case 1: break;
+    case 2:
+      if(!PersistentArrayMap.different(hp, keys[0], keys[1]))
+	throw new RuntimeException("Duplicate keys provided");
+      break;
+    case 3:
+      if(!PersistentArrayMap.different(hp, keys[0], keys[1], keys[2]))
+	throw new RuntimeException("Duplicate keys provided");
+      break;
+    case 4:
+      if(!PersistentArrayMap.different(hp, keys[0], keys[1], keys[2], keys[3]))
+	throw new RuntimeException("Duplicate keys provided");
+      break;
+    default:
+      throw new RuntimeException("Programmer error - too many provided.");
+    }
+  }
+
+  public static final Function<Object[],IPersistentMap> makeFactory(HashProvider hp, Object[] keys) {
+    switch(keys.length) {
+    case 0:
+      final PersistentArrayMap zeroCase = new PersistentArrayMap(hp);
+      return objs -> zeroCase;
+    case 1: return objs -> new PersistentArrayMap(hp, keys[0], objs[0], null);
+    case 2:
+      ensureDifferent(hp, keys);
+      return objs -> new PersistentArrayMap(hp, keys[0], objs[0], keys[1], objs[1], null);
+    case 3:
+      ensureDifferent(hp, keys);
+      return objs -> new PersistentArrayMap(hp, keys[0], objs[0], keys[1], objs[1],
+					    keys[2], objs[2], null);
+    case 4:
+      ensureDifferent(hp, keys);
+      return objs -> new PersistentArrayMap(hp, keys[0], objs[0], keys[1], objs[1],
+					    keys[2], objs[2], keys[3], objs[3], null);
+    default:
+      final Function<Object[], BitmapTrie> srcFn = BitmapTrie.makeFactory(hp, keys);
+      return objs -> new PersistentHashMap(srcFn.apply(objs));
+    }
+  }
+
+  public static final IPersistentMap create(HashProvider hp,
+					    boolean errorOnDuplicate,
+					    Object... kvs) {
+    if (kvs == null || kvs.length == 0)
+      return new PersistentArrayMap(hp);
+    final int nelems = kvs.length;
+    if ((nelems % 2) != 0 )
+      throw new RuntimeException("Number of elements not divisible by 2");
+    final int nentries = nelems / 2;
+    IPersistentMap retval = null;
+    switch(nentries) {
+    case 1: retval = new PersistentArrayMap(hp, kvs[0], kvs[1], null);
+      break;
+    case 2:
+      if (PersistentArrayMap.different(hp, kvs[0], kvs[2]))
+	retval = new PersistentArrayMap(hp, kvs[0], kvs[1], kvs[2], kvs[3], null);
+      break;
+    case 3:
+      if (PersistentArrayMap.different(hp, kvs[0], kvs[2], kvs[4]))
+	retval = new PersistentArrayMap(hp, kvs[0], kvs[1], kvs[2], kvs[3],
+					kvs[4], kvs[5], null);
+      break;
+    case 4:
+      if (PersistentArrayMap.different(hp, kvs[0], kvs[2], kvs[4], kvs[6]))
+	retval = new PersistentArrayMap(hp, kvs[0], kvs[1], kvs[2], kvs[3],
+					kvs[4], kvs[5], kvs[6], kvs[7], null);
+      break;
+    }
+    if (retval == null) {
+      HashMap<Object,Object> hm = new HashMap<Object,Object>(hp);
+      for (int idx = 0; idx < nelems; idx += 2)
+	hm.put(kvs[idx], kvs[idx+1]);
+      retval = hm.persistent();
+    }
+    if (errorOnDuplicate && retval.count() != nentries) {
+      HashSet<Object> keySet = new HashSet<Object>(hp);
+      ArrayList<Object> dupKeys = new ArrayList<Object>();
+      for(int idx = 0; idx < nentries; ++idx) {
+	final Object k = kvs[idx*2];
+	if(keySet.contains(k))
+	  dupKeys.add(k);
+	keySet.add(k);
       }
-    };
+      throw new RuntimeException("Map contains duplicate keys: " + String.valueOf(dupKeys));
+    }
+    return retval;
   }
 }
