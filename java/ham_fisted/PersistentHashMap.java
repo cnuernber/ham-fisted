@@ -310,13 +310,13 @@ public final class PersistentHashMap
   }
 
   public void printNodes() { hb.printNodes(); }
-  
+
 
   static final void ensureDifferent(HashProvider hp, Object[] keys) {
     final int nk = keys.length;
     for(int i = 0; i < nk; ++i) {
       for(int j = i+1; j < nk; ++j) {
-	if (hp.equals(keys[i], keys[j]))	  
+	if (hp.equals(keys[i], keys[j]))
 	  throw new RuntimeException("Duplicate keys provided: " + String.valueOf(keys[i]));
       }
     }
@@ -399,17 +399,20 @@ public final class PersistentHashMap
 	retval = new PersistentArrayMap(hp, kvs[0], kvs[1], kvs[2], kvs[3],
 					kvs[4], kvs[5], kvs[6], kvs[7],
 					kvs[8], kvs[9], null);
+      break;
     case 6:
       if (PersistentArrayMap.different(hp, kvs[0], kvs[2], kvs[4], kvs[6], kvs[8], kvs[10]))
 	retval = new PersistentArrayMap(hp, kvs[0], kvs[1], kvs[2], kvs[3],
 					kvs[4], kvs[5], kvs[6], kvs[7],
 					kvs[8], kvs[9], kvs[10], kvs[11], null);
+      break;
     case 7:
       if (PersistentArrayMap.different(hp, kvs[0], kvs[2], kvs[4], kvs[6], kvs[8], kvs[10], kvs[12]))
 	retval = new PersistentArrayMap(hp, kvs[0], kvs[1], kvs[2], kvs[3],
 					kvs[4], kvs[5], kvs[6], kvs[7],
 					kvs[8], kvs[9], kvs[10], kvs[11],
 					kvs[12], kvs[13], null);
+      break;
     case 8:
       if (PersistentArrayMap.different(hp, kvs[0], kvs[2], kvs[4], kvs[6], kvs[8], kvs[10], kvs[12], kvs[14]))
 	retval = new PersistentArrayMap(hp, kvs[0], kvs[1], kvs[2], kvs[3],

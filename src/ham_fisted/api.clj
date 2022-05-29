@@ -7,7 +7,7 @@
   Clojure `persistent!` call. This allows working in a mutable space for
   convenience and performance then switching to an immutable pathway when
   necessary. Note: after `persistent!` one should never backdoor mutate map or
-  set again as this will break the contract of immutability Immutable
+  set again as this will break the contract of immutability.  Immutable
   data structures also support conversion to transient via `transient`.
 
   Map keysets (`.keySet`) are full `PersistentHashSet`s of keys.
