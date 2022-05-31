@@ -3,9 +3,15 @@ package ham_fisted;
 
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import static ham_fisted.IntegerOps.*;
 
 import clojure.lang.IPersistentMap;
+import clojure.lang.IFn;
+import clojure.lang.RT;
+import clojure.lang.IDeref;
+import clojure.lang.ISeq;
+import clojure.lang.IteratorSeq;
 
 
 
@@ -15,8 +21,7 @@ class ChunkedList {
   int capacity;
   //nElems for this sub-chunk - true nElems is nElems + offset
   int nElems;
-  //Implementing subList/subVector
-  final int offset;
+
   final IPersistentMap meta;
 
   public static final int CHUNKSIZE = 32;
@@ -32,11 +37,11 @@ class ChunkedList {
     final int leftover = capacity % CHUNKSIZE;
     if (leftover == 0)
       return CHUNKSIZE;
-    return Math.min(4, nextPow2(leftover));
+    return Math.max(4, nextPow2(leftover));
   }
 
   public ChunkedList(int initSize) {
-    initSize = Math.min(initSize, 4);
+    initSize = Math.max(initSize, 4);
     final int nChunks = numChunks(initSize);
     final int leftover = lastChunkSize(initSize);
     data = new Object[nChunks][];
@@ -45,8 +50,7 @@ class ChunkedList {
       data[idx] = new Object[idx == nnc ? leftover : CHUNKSIZE];
 
     nElems = 0;
-    offset = 0;
-    capacity = (CHUNKSIZE * nChunks) + leftover;
+    capacity = (CHUNKSIZE * (nChunks-1)) + leftover;
     meta = null;
   }
 
@@ -67,21 +71,12 @@ class ChunkedList {
     capacity = other.capacity;
     nElems = other.nElems;
     meta = other.meta;
-    offset = other.offset;
   }
 
-  ChunkedList(ChunkedList other, int off, int endoff) {
-    data = other.data;
-    capacity = other.capacity;
-    nElems = off - endoff;
-    meta = other.meta;
-    offset = other.offset + off;
-  }
-
-  void clear() {
+  void clear(int offset, int len) {
     final Object[][] mdata = data;
     final int nChunks = data.length;
-    final int ne = nElems;
+    final int ne = len;
     final int le = ne + offset;
     int idx = offset;
     while(idx < le) {
@@ -93,12 +88,16 @@ class ChunkedList {
     nElems = 0;
   }
 
+  void clear() { clear(0, nElems); }
+
   void enlarge(int cap) {
     if (cap <= capacity) return;
 
     final int nChunks = numChunks(cap);
     final int nnc = nChunks -1;
     final int leftover = lastChunkSize(cap);
+    // System.out.println("leftover: " + String.valueOf(leftover) + " Requested Capacity: " +
+    // 		       String.valueOf(cap));
     Object[][] mdata = data;
     if (nChunks != mdata.length)
       mdata = Arrays.copyOf(mdata, nChunks);
@@ -114,10 +113,10 @@ class ChunkedList {
       }
     }
     data = mdata;
-    capacity = (CHUNKSIZE * nChunks) + leftover;
+    capacity = (CHUNKSIZE * (nChunks-1)) + leftover;
   }
+
   final Object setValueRV(int idx, Object obj) {
-    idx = idx + offset;
     final Object[] ary = data[idx / CHUNKSIZE];
     final int eidx = idx % CHUNKSIZE;
     final Object rv = ary[eidx];
@@ -125,22 +124,85 @@ class ChunkedList {
     return rv;
   }
   final void setValue(int idx, Object obj) {
-    idx = idx + offset;
     data[idx / CHUNKSIZE][idx % CHUNKSIZE] = obj;
   }
   final Object getValue(int idx) {
-    idx = idx + offset;
     return data[idx / CHUNKSIZE][idx % CHUNKSIZE];
   }
+
   final boolean add(Object obj) {
     final int ne = nElems;
     final int cap = capacity;
-    if ((ne+offset) >= cap)
+    // System.out.println("Capacity: " + String.valueOf(cap) + " ne: " + String.valueOf(ne));
+    if (ne >= cap)
       enlarge(cap+1);
 
-    setValue(ne, obj);
+    data[nElems/32][nElems%32] = obj;
     nElems = ne + 1;
     return true;
+  }
+
+  final void widen(final int startidx, final int endidx) {
+    final int wne = endidx - startidx;
+    if (wne == 0) return;
+    final int ne = nElems;
+    final int cap = capacity;
+    enlarge(ne + wne);
+    int copyNe = ne - startidx;
+    final Object[][] mdata = data;
+    //Copy contiguous sections starting from the end so we
+    //do not overwrite elements we later need to move.
+    while(copyNe > 0) {
+      //Get the last valid index to move data into for start/end blocks
+      final int sidx = startidx + copyNe - 1;
+      final int eidx = endidx + copyNe - 1;
+      //Find chunks related to those indexes.
+      Object[] srcc = mdata[sidx / 32];
+      Object[] endc = mdata[eidx / 32];
+      //Find the relative end indexes in the blocks
+      final int srceidx = sidx % 32;
+      final int endeidx = eidx % 32;
+      final int copyLen = Math.min(copyNe, Math.min(srceidx+1, endeidx+1));
+      // System.out.println("Widen - srceidx: " + String.valueOf(srceidx)
+      // 			 + " - endeidx: " + String.valueOf(endeidx)
+      // 			 + " - copyNe: " + String.valueOf(copyNe)
+      // 			 + " - copyLen: " + String.valueOf(copyLen));
+      System.arraycopy(srcc, srceidx - copyLen + 1,
+		       endc, endeidx - copyLen + 1,
+		       copyLen);
+      copyNe -= copyLen;
+    }
+    nElems = ne + wne;
+  }
+
+  final void shorten(int startidx, int endidx) {
+    if(startidx == 0 && endidx == nElems) {
+      clear();
+      return;
+    }
+    final int ne = nElems;
+    final int wne = endidx - startidx;
+    int copyNe = ne - endidx;
+    final Object[][] mdata = data;
+    while(copyNe > 0) {
+      final Object[] startc = data[startidx/32];
+      final Object[] endc = data[endidx/32];
+      final int seidx = startidx % 32;
+      final int eeidx = endidx % 32;
+      int copyLen = Math.min(copyNe, Math.min(startc.length - seidx,
+					      endc.length - eeidx));
+      // System.out.println("Shorten - startidx: " + String.valueOf(startidx)
+      // 			 + " - endidx: " + String.valueOf(endidx)
+      // 			 + " - copyNe: " + String.valueOf(copyNe)
+      // 			 + " - copyLen: " + String.valueOf(copyLen));
+      System.arraycopy(endc, eeidx, startc, seidx, copyLen);
+      copyNe -= copyLen;
+      startidx += copyLen;
+      endidx += copyLen;
+    }
+    //Zero out remaining blocks to ensure we don't hold onto any object references.
+    clear(startidx, wne);
+    nElems = ne - wne;
   }
 
   //Extremely inefficent operation.  Make another list and insert the list all at once.
@@ -150,43 +212,22 @@ class ChunkedList {
     if (idx > ne)
       throw new RuntimeException("Index out of range: " + String.valueOf(idx) +
 				 " > " + String.valueOf(ne));
-    if (idx == ne)
+    if (idx == ne) {
       add(obj);
-
-    idx = idx + offset;
-    final int cidx = idx / CHUNKSIZE;
-    final int eidx = idx % CHUNKSIZE;
-    final int cap = capacity;
-    if ((ne+offset) >= cap)
-      enlarge(cap+1);
-    final Object[][] mdata = data;
-    final int nChunks = mdata.length;
-    final int leftover = lastChunkSize(ne);
-    final int nnc = nChunks - 1;
-    Object temp = obj;
-    for (int chunk = cidx; chunk < nChunks; ++chunk) {
-      final Object[] cdata = mdata[chunk];
-      final int ce = cdata.length;
-      final Object stored = chunk == cidx ? cdata[eidx] : cdata[ce-1];
-      final Object[] ndata = new Object[Math.min(CHUNKSIZE, ce+1)];
-      final int copyStart = chunk == cidx ? eidx : 0;
-      System.arraycopy(cdata, copyStart,
-		       cdata, copyStart+1,
-		       ce - copyStart - 1);
-      cdata[copyStart] = temp;
-      temp = cdata[ce-1];
+      return;
     }
-    nElems = ne + 1;
+
+    widen(idx, idx+1);
+    setValue(idx,obj);
   }
 
   final ChunkedList conj(Object obj) {
     ChunkedList retval = new ChunkedList(this, true);
     final int ne = nElems;
-    final int lne = ne + offset;
     final int cap = capacity;
-    final int cidx = lne / CHUNKSIZE;
+    final int cidx = ne / CHUNKSIZE;
     Object[][] mdata;
-    if (lne >= cap) {
+    if (ne >= cap) {
       retval.enlarge(cap+1);
       mdata = retval.data;
     } else {
@@ -194,7 +235,7 @@ class ChunkedList {
       mdata[cidx] = mdata[cidx].clone();
       retval.data = mdata;
     }
-    mdata[cidx][lne % CHUNKSIZE] = obj;
+    mdata[cidx][ne % CHUNKSIZE] = obj;
     retval.nElems = ne+1;
     return retval;
   }
@@ -203,7 +244,6 @@ class ChunkedList {
     if (idx == nElems)
       return conj(obj);
     ChunkedList retval = new ChunkedList(this, true);
-    idx = idx + offset;
     final int cidx = idx / CHUNKSIZE;
     final int eidx = idx % CHUNKSIZE;
     final Object[][] mdata = retval.data.clone();
@@ -216,29 +256,54 @@ class ChunkedList {
 
   final int size() { return nElems; }
 
-  final Object[] fillArray(Object[] retval) {
-    final int ne = nElems;
-    final int lne = ne + offset;
-    final int nChunks = numChunks(lne);
-    final int nnc = nChunks-1;
-    final int leftover = lastChunkSize(lne);
+  final Object[] fillArray(int startidx, int endidx, Object[] retval) {
+    final int finalCidx = endidx / 32;
+    final int finalEidx = endidx % 32;
+    int cidx = startidx / 32;
+    int eidx = startidx % 32;
     final Object[][] mdata = data;
-    final int startChunk = offset / CHUNKSIZE;
     int dstOff = 0;
-    int cidx = startChunk;
-    while(cidx < nChunks) {
-      int copyLen = cidx == nnc ? leftover :
-	cidx == startChunk ? CHUNKSIZE - (offset % CHUNKSIZE) : CHUNKSIZE;
-      System.arraycopy(mdata[cidx], cidx == startChunk ? offset : 0,
-		       retval, dstOff, copyLen);
+    while(cidx <= finalCidx) {
+      final int copyLen = cidx == finalCidx ? finalEidx - eidx : 32 - eidx;
+      System.arraycopy(mdata[cidx], eidx, retval, dstOff, copyLen);
       dstOff += copyLen;
+      eidx = 0;
       ++cidx;
     }
     return retval;
   }
 
+  final void fillRange(int startidx, int endidx, Object v) {
+    final Object[][] mdata = data;
+    for(; startidx < endidx; ++startidx)
+      mdata[startidx/32][startidx%32] = v;
+  }
+
+  final void fillRange(int startidx, List v) {
+    final Object[][] mdata = data;
+    final int endidx = startidx + v.size();
+    int idx = 0;
+    for(; startidx < endidx; ++startidx, ++idx)
+      mdata[startidx/32][startidx%32] = v.get(idx);
+  }
+
+  final void addRange(int startidx, int endidx, Object v) {
+    widen(startidx, endidx);
+    final Object[][] mdata = data;
+    for(; startidx < endidx; ++startidx)
+      mdata[startidx/32][startidx%32] = v;
+  }
+
+  final Object[] fillArray(Object[] retval) {
+    return fillArray(0, nElems, retval);
+  }
+
+  final Object[] toArray(int startidx, int endidx) {
+    return fillArray(startidx, endidx, new Object[endidx - startidx]);
+  }
+
   final Object[] toArray() {
-    return fillArray(new Object[nElems]);
+    return toArray(0, nElems);
   }
 
   static class CLIter implements Iterator {
@@ -248,12 +313,11 @@ class ChunkedList {
     int cidx;
     int eidx;
     Object[] chunk;
-    public CLIter(int offset, int nElems, Object[][] _data) {
-      final int lne = nElems + offset;
-      finalCidx = numChunks(lne);
-      finalEidx = lastChunkSize(lne);
-      cidx = offset / CHUNKSIZE;
-      eidx = (offset % CHUNKSIZE) - 1;
+    public CLIter(int startidx, int endidx, Object[][] _data) {
+      finalCidx = endidx / 32;
+      finalEidx = endidx % 32;
+      cidx = startidx / CHUNKSIZE;
+      eidx = (startidx % CHUNKSIZE) - 1;
       data = _data;
       advance();
     }
@@ -279,12 +343,48 @@ class ChunkedList {
     }
   }
 
+  public Iterator iterator(int startidx, int endidx) {
+    return new CLIter(startidx, endidx, data);
+  }
+
   public Iterator iterator() {
-    final int ne = nElems;
-    return new CLIter(offset, nElems, data);
+    return iterator(0, nElems);
   }
 
   interface ChunkedListOwner {
     public ChunkedList getChunkedList();
+  }
+
+  Object reduce(int startidx, int endidx, IFn f, Object start) {
+    final Object[][] mdata = data;
+    Object ret = f.invoke(start, getValue(startidx));
+    for(int x = startidx + 1; x < endidx; x++) {
+      if (RT.isReduced(ret))
+	return ((IDeref)ret).deref();
+      ret = f.invoke(ret, mdata[x/32][x%32]);
+    }
+    if (RT.isReduced(ret))
+      return ((IDeref)ret).deref();
+    return ret;
+  }
+
+  Object reduce(int startidx, int endidx, IFn f) {
+    if(startidx == endidx)
+      return f.invoke();
+    return reduce(startidx+1, endidx, f, getValue(startidx));
+  }
+
+  Object kvreduce(int startidx, int endidx, int idxoff, IFn f, Object init) {
+    final Object[][] mdata = data;
+    for (int i=startidx; i<endidx; i++) {
+      init = f.invoke(init, i + idxoff, mdata[i/32][i%32]);
+      if (RT.isReduced(init))
+	return ((IDeref)init).deref();
+    }
+    return init;
+  }
+
+  ISeq seq(int startidx, int endidx) {
+    return IteratorSeq.create(iterator(startidx, endidx));
   }
 }
