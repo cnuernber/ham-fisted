@@ -33,7 +33,8 @@
   (:require [ham-fisted.iterator :as iterator])
   (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
-            BitmapTrieCommon$Box PersistentArrayMap ObjArray]
+            BitmapTrieCommon$Box PersistentArrayMap ObjArray ImmutValues
+            MutList ImmutList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
             IEditableCollection RT IPersistentMap Associative Util IFn ArraySeq]
            [java.util Map Map$Entry List RandomAccess Set Collection ArrayList]
@@ -41,7 +42,8 @@
            [java.util.concurrent ForkJoinPool ExecutorService Callable Future
             ConcurrentHashMap])
   (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize
-                            into assoc-in get-in update assoc update-in hash-map]))
+                            into assoc-in get-in update assoc update-in hash-map
+                            group-by subvec group-by]))
 
 
 (set! *warn-on-reflection* true)
@@ -69,6 +71,7 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
 
 (def ^{:tag PersistentArrayMap} empty-map PersistentArrayMap/EMPTY)
 (def ^{:tag PersistentHashSet} empty-set (PersistentHashSet. (options->provider nil)))
+(def ^{:tag ImmutList} empty-vec ImmutList/EMPTY)
 
 
 (declare assoc! conj!)
@@ -344,6 +347,21 @@ ham_fisted.PersistentHashMap
   (^java.util.HashSet [data] (into (java.util.HashSet.) data)))
 
 
+(defn mut-list
+  "Create a mutable java list that is in-place convertible to a persistent list"
+  (^MutList [] (MutList.))
+  (^MutList [data] (if (instance? obj-ary-cls data)
+                     (MutList/create false ^objects data)
+                     (into (MutList.) data))))
+
+(defn immut-list
+  "Create a mutable java list that is in-place convertible to a persistent list"
+  (^ImmutList [] (MutList.))
+  (^ImmutList [data] (if (instance? obj-ary-cls data)
+                       (ImmutList/create false ^objects data)
+                       (into empty-vec data))))
+
+
 (defn assoc!
   "assoc! that works on transient collections, implementations of java.util.Map and
   RandomAccess java.util.List implementations.  Be sure to keep track of return value
@@ -438,10 +456,15 @@ ham_fisted.PersistentHashMap
   [item]
   (instance? BitmapTrieCommon$MapSet item))
 
-
 (defn- as-map-set
   ^BitmapTrieCommon$MapSet [item] item)
 
+(defn- immut-vals?
+  [item]
+  (instance? ImmutValues item))
+
+(defn as-immut-vals
+  ^ImmutValues [item] item)
 
 (defn- ->set
   ^Set [item]
@@ -666,14 +689,24 @@ ham_fisted.PersistentHashMap
   k,v and returns a new v. Returns new persistent map."
   [map bfn]
   (let [bfn (->bi-function bfn)]
-    (if (map-set? map)
-      (.immutUpdateValues (as-map-set map) bfn)
+    (cond
+      (immut-vals? map)
+      (.immutUpdateValues (as-immut-vals map) bfn)
+      (instance? Map map)
       (let [retval (mut-map)]
         (.forEach ^Map map
                   (reify BiConsumer
                     (accept [this k v]
                       (.put retval k (.apply bfn k v)))))
-        (persistent! retval)))))
+        (persistent! retval))
+      (instance? RandomAccess map)
+      (let [^List map map
+            retval (MutList.)]
+        (dotimes [idx (.size map)]
+          (.add retval (.apply bfn idx (.get map idx))))
+        (persistent! retval))
+      :else
+      (map-indexed #(.apply bfn %1 %2) map))))
 
 
 (defn mapmap
@@ -993,8 +1026,8 @@ ham_fisted.PersistentHashMap
    (cond
      (empty-map? m)
      (PersistentArrayMap. equal-hash-provider k (f nil) (meta m))
-     (map-set? m)
-     (.immutUpdateValue (as-map-set m) k (->function f))
+     (immut-vals? m)
+     (.immutUpdateValue (as-immut-vals m) k (->function f))
      :else
      (clojure.core/update m k f)))
   ([m k f a]
@@ -1052,3 +1085,28 @@ ham_fisted.PersistentHashMap
    (update-in m ks (single-arg-fn f a b c d e f)))
   ([m ks f a b c d e f & args]
    (update-in m ks (single-arg-fn f a b c d e f args))))
+
+
+(defn subvec
+  "More general and faster version of subvec.  Works for any java list implementation
+  including persistent vectors."
+  ([^List m sidx eidx]
+   (.subList m sidx eidx))
+  ([^List m sidx]
+   (.subList m sidx (.size m))))
+
+
+(defn group-by
+  "Group items in collection by the grouping function f.  Returns persistent map of
+  keys to persistent vectors."
+  [f coll]
+  (let [retval (HashMap.)
+        compute-fn (reify Function
+                     (apply [this k]
+                       (mut-list)))]
+    (iterator/doiter
+     v coll
+     (.add ^List (compute-if-absent! retval (f v) compute-fn) v))
+    (update-values retval (reify BiFunction
+                            (apply [this k v]
+                              (persistent! v))))))

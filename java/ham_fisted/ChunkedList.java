@@ -1,10 +1,15 @@
 package ham_fisted;
 
+import static ham_fisted.IntegerOps.*;
+import static ham_fisted.BitmapTrieCommon.*;
 
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import static ham_fisted.IntegerOps.*;
+import java.util.NoSuchElementException;
+import java.util.Collection;
+import java.util.ListIterator;
+import java.util.Objects;
 
 import clojure.lang.IPersistentMap;
 import clojure.lang.IFn;
@@ -12,6 +17,8 @@ import clojure.lang.RT;
 import clojure.lang.IDeref;
 import clojure.lang.ISeq;
 import clojure.lang.IteratorSeq;
+import clojure.lang.Util;
+import clojure.lang.Murmur3;
 
 
 
@@ -24,19 +31,16 @@ class ChunkedList {
 
   final IPersistentMap meta;
 
-  public static final int CHUNKSIZE = 32;
-  static final int CM1 = CHUNKSIZE - 1;
-
   static final int numChunks(int capacity) {
-    return (capacity + CM1)/CHUNKSIZE;
+    return (capacity + 31)/32;
   }
 
   static final int lastChunkSize(int capacity) {
     if (capacity == 0)
       return 4;
-    final int leftover = capacity % CHUNKSIZE;
+    final int leftover = capacity % 32;
     if (leftover == 0)
-      return CHUNKSIZE;
+      return 32;
     return Math.max(4, nextPow2(leftover));
   }
 
@@ -47,15 +51,21 @@ class ChunkedList {
     data = new Object[nChunks][];
     final int nnc = nChunks - 1;
     for (int idx = 0; idx < nChunks; ++idx)
-      data[idx] = new Object[idx == nnc ? leftover : CHUNKSIZE];
+      data[idx] = new Object[idx == nnc ? leftover : 32];
 
     nElems = 0;
-    capacity = (CHUNKSIZE * (nChunks-1)) + leftover;
+    capacity = (32 * (nChunks-1)) + leftover;
     meta = null;
   }
 
   public ChunkedList() {this(0);}
 
+  ChunkedList(Object[][] d, int c, int e, IPersistentMap m) {
+    data = d;
+    capacity = c;
+    nElems = e;
+    meta = m;
+  }
 
   ChunkedList(ChunkedList other, boolean shallow) {
     if (shallow) {
@@ -73,19 +83,83 @@ class ChunkedList {
     meta = other.meta;
   }
 
-  void clear(int offset, int len) {
-    final Object[][] mdata = data;
-    final int nChunks = data.length;
-    final int ne = len;
-    final int le = ne + offset;
-    int idx = offset;
-    while(idx < le) {
-      final Object[] chunk = mdata[idx / CHUNKSIZE];
-      final int eidx = idx % CHUNKSIZE;
-      Arrays.fill(chunk, eidx, chunk.length - eidx, null);
-      idx += CHUNKSIZE - eidx;
+  static ChunkedList create(boolean owning, Object... data) {
+    if (owning && data.length <= 32) {
+      return new ChunkedList( new Object[][] { data }, data.length, data.length, null);
+    } else {
+      final int nElems = data.length;
+      final int nChunks = numChunks(nElems);
+      final Object[][] mdata = new Object[nChunks][];
+      int idx = 0;
+      while(idx < nElems) {
+	final int clen = Math.min(32, nElems - idx);
+	final Object[] chunk = new Object[clen];
+	System.arraycopy(data, idx, chunk, 0, clen);
+	mdata[idx/32] = chunk;
+	idx += clen;
+      }
+      return new ChunkedList(mdata, nElems, nElems, null);
     }
-    nElems = 0;
+  }
+
+  ChunkedList clone(int startidx, int endidx, int extraAlloc, boolean deep) {
+    final int ne = endidx - startidx;
+    final int nne = ne + extraAlloc;
+    final boolean shallow = deep == false && ((startidx % 32) == 0);
+    final Object[][] mdata = data;
+    if(shallow) {
+      final Object[][] odata = Arrays.copyOfRange(mdata,
+						  startidx/32,
+						  (endidx + extraAlloc + 31)/32);
+      return new ChunkedList(odata, nne, nne, meta);
+    }
+    final int nChunks = numChunks(nne);
+    final int nnc = nChunks - 1;
+    final Object[][] retval = new Object[nChunks][];
+    final int sidx = startidx;
+    int dstCapacity = 0;
+    while(startidx < endidx) {
+      final int leftover = endidx - startidx;
+      final Object[] srcc = mdata[startidx/32];
+
+      final int eidx = startidx % 32;
+      final int deidx = (startidx - sidx) % 32;
+      final int dcidx = (startidx - sidx) / 32;
+      Object[] dstc = retval[dcidx];
+      if (dstc == null) {
+	dstc = dcidx == nnc ? new Object[nne%32] : new Object[32];
+	retval[dcidx] = dstc;
+	dstCapacity += dstc.length;
+      }
+      final int copyLen = Math.min(leftover, Math.min(srcc.length - eidx,
+						      dstc.length - deidx));
+      // System.out.println("srcc: " + String.valueOf(srcc.length) + " eidx: " + String.valueOf(eidx) +
+      // 			 " dstc: " + String.valueOf(dstc.length) + " deidx: " + String.valueOf(deidx) +
+      // 			 " copyLen: " + String.valueOf(copyLen));
+      System.arraycopy(srcc, eidx, dstc, deidx, copyLen);
+      startidx += copyLen;
+    }
+    return new ChunkedList(retval, dstCapacity, nne, meta);
+  }
+
+  ChunkedList clone(int startidx, int endidx) { return clone(startidx, endidx, 0, true); }
+
+  void clear(int offset, int len) {
+    if (offset == 0 && len == nElems) {
+      final Object[][] mdata = data;
+      final int nChunks = data.length;
+      final int ne = nElems;
+      int idx = 0;
+      while(idx < ne) {
+	final Object[] chunk = mdata[idx / 32];
+	final int eidx = idx % 32;
+	Arrays.fill(chunk, eidx, chunk.length - eidx, null);
+	idx += 32 - eidx;
+      }
+      nElems = 0;
+    } else {
+      shorten(offset, offset+len);
+    }
   }
 
   void clear() { clear(0, nElems); }
@@ -104,8 +178,8 @@ class ChunkedList {
 
     for(int idx = 0; idx < nChunks; ++idx) {
       final Object[] existing = mdata[idx];
-      if (existing == null || existing.length != CHUNKSIZE) {
-	final int targetLen = idx == nnc ? leftover : CHUNKSIZE;
+      if (existing == null || existing.length != 32) {
+	final int targetLen = idx == nnc ? leftover : 32;
 	final int exLen = existing == null ? 0 : existing.length;
 	if (exLen != targetLen) {
 	  mdata[idx] = existing == null ? new Object[targetLen] : Arrays.copyOf(existing, targetLen);
@@ -113,21 +187,49 @@ class ChunkedList {
       }
     }
     data = mdata;
-    capacity = (CHUNKSIZE * (nChunks-1)) + leftover;
+    capacity = (32 * (nChunks-1)) + leftover;
   }
 
   final Object setValueRV(int idx, Object obj) {
-    final Object[] ary = data[idx / CHUNKSIZE];
-    final int eidx = idx % CHUNKSIZE;
+    final Object[] ary = data[idx / 32];
+    final int eidx = idx % 32;
     final Object rv = ary[eidx];
     ary[eidx] = obj;
     return rv;
   }
   final void setValue(int idx, Object obj) {
-    data[idx / CHUNKSIZE][idx % CHUNKSIZE] = obj;
+    data[idx / 32][idx % 32] = obj;
   }
   final Object getValue(int idx) {
-    return data[idx / CHUNKSIZE][idx % CHUNKSIZE];
+    return data[idx / 32][idx % 32];
+  }
+
+  static final int indexCheck(int startidx, int nElems, int idx) {
+    if (idx < startidx)
+      throw new RuntimeException("Index underflow: " + String.valueOf(idx));
+    if(idx >= nElems)
+      throw new RuntimeException("Index out of range: " + String.valueOf(idx) + " : "
+				 + String.valueOf(nElems));
+    return idx + startidx;
+  }
+
+  static final int wrapIndexCheck(int startidx, int nElems, int idx) {
+    if (idx < 0)
+      idx = nElems + idx;
+    return indexCheck(startidx, nElems, idx);
+  }
+
+
+  static final void checkIndexRange(int startidx, int nElems, int sidx, int eidx) {
+    final int rne = eidx - sidx;
+    indexCheck(startidx, nElems, sidx);
+    if (rne < 0)
+      throw new RuntimeException("Range end point: " + String.valueOf(eidx)
+				 + " is less than start: " + String.valueOf(sidx));
+    if(eidx > nElems)
+      throw new RuntimeException("Range end point: " + String.valueOf(eidx)
+				 + " is past end of valid range: " +
+				 String.valueOf(nElems));
   }
 
   final boolean add(Object obj) {
@@ -221,36 +323,49 @@ class ChunkedList {
     setValue(idx,obj);
   }
 
-  final ChunkedList conj(Object obj) {
-    ChunkedList retval = new ChunkedList(this, true);
-    final int ne = nElems;
-    final int cap = capacity;
-    final int cidx = ne / CHUNKSIZE;
-    Object[][] mdata;
-    if (ne >= cap) {
-      retval.enlarge(cap+1);
-      mdata = retval.data;
+  final ChunkedList conj(int startidx, int endidx, Object obj) {
+    ChunkedList retval = clone(startidx, endidx, 1, false);
+    final int nc = endidx - startidx;
+    final Object[][] mdata = retval.data;
+    final int cidx = nc/32;
+    Object[] chunk = mdata[cidx];
+    final int eidx = nc % 32;
+    if (chunk == null) {
+      chunk = new Object[1];
     } else {
-      mdata = retval.data.clone();
-      mdata[cidx] = mdata[cidx].clone();
-      retval.data = mdata;
+      chunk = Arrays.copyOf(chunk, eidx+1);
     }
-    mdata[cidx][ne % CHUNKSIZE] = obj;
-    retval.nElems = ne+1;
+    mdata[cidx] = chunk;
+    chunk[eidx] = obj;
     return retval;
   }
 
-  final ChunkedList assoc(int idx, Object obj) {
-    if (idx == nElems)
-      return conj(obj);
-    ChunkedList retval = new ChunkedList(this, true);
-    final int cidx = idx / CHUNKSIZE;
-    final int eidx = idx % CHUNKSIZE;
-    final Object[][] mdata = retval.data.clone();
-    retval.data = mdata;
+  final ChunkedList assoc(int startidx, int endidx, int idx, Object obj) {
+    final int nc = endidx - startidx;
+    if (idx == nc)
+      return conj(startidx, endidx, obj);
+    ChunkedList retval = clone(startidx, endidx, 0, false);
+    final int cidx = idx / 32;
+    final int eidx = idx % 32;
+    final Object[][] mdata = retval.data;
     Object[] edata = mdata[cidx].clone();
     edata[eidx] = obj;
     mdata[cidx] = edata;
+    return retval;
+  }
+
+  final ChunkedList pop(int startidx, int endidx) {
+    ChunkedList retval = clone(startidx, endidx-1, 0, false);
+    final int nc = endidx - startidx;
+    final Object[][] rdata = retval.data;
+    final int cidx = nc/32;
+    if ( rdata.length > cidx ) {
+      final Object[] c = rdata[cidx];
+      final int eidx = nc % 32;
+      if (c.length > eidx) {
+	rdata[cidx] = Arrays.copyOf(c, eidx);
+      }
+    }
     return retval;
   }
 
@@ -316,14 +431,14 @@ class ChunkedList {
     public CLIter(int startidx, int endidx, Object[][] _data) {
       finalCidx = endidx / 32;
       finalEidx = endidx % 32;
-      cidx = startidx / CHUNKSIZE;
-      eidx = (startidx % CHUNKSIZE) - 1;
+      cidx = startidx / 32;
+      eidx = (startidx % 32) - 1;
       data = _data;
       advance();
     }
     final void advance() {
       ++eidx;
-      if (eidx == CHUNKSIZE) {
+      if (eidx == 32) {
 	++cidx;
 	eidx = 0;
 	chunk = null;
@@ -335,6 +450,9 @@ class ChunkedList {
       return eidx < finalEidx;
     }
     public final Object next() {
+      if ( cidx >= finalCidx &&
+	   eidx >= finalEidx )
+	throw new NoSuchElementException();
       if (chunk == null)
 	chunk = data[cidx];
       final Object retval = chunk[eidx];
@@ -351,17 +469,111 @@ class ChunkedList {
     return iterator(0, nElems);
   }
 
+  static class RIterator implements Iterator {
+    final int startidx;
+    final Object[][] data;
+    int idx;
+    public RIterator( int sidx, int eidx, Object[][] d) {
+      startidx = sidx;
+      idx = eidx;
+      data = d;
+      advance();
+    }
+    void advance() {
+      --idx;
+    }
+    public final boolean hasNext() { return idx >= startidx; }
+    public final Object next() {
+      if (idx < startidx)
+	throw new NoSuchElementException();
+      final Object retval = data[idx/32][idx%32];
+      advance();
+      return retval;
+    }
+  }
+
+  public Iterator riterator(int startidx, int endidx) {
+    return new RIterator(startidx, endidx, data);
+  }
+
+  static class ListIter<E> implements ListIterator<E> {
+    final int startidx;
+    final int endidx;
+    final Object[][] data;
+    int idx;
+    int prevIdx;
+
+    ListIter(int sidx, int eidx, Object[][] d) {
+      startidx = sidx;
+      endidx = eidx;
+      data = d;
+      idx = sidx;
+      prevIdx = idx;
+    }
+    public void add(E obj) { throw new RuntimeException("Unimplemented."); }
+    public void remove() { throw new RuntimeException("Unimplemented."); }
+    public final boolean hasNext() { return idx < endidx; }
+    public final boolean hasPrevious() { return idx > startidx; }
+    @SuppressWarnings("unchecked")
+    public final E next() {
+      if (idx == endidx)
+	throw new NoSuchElementException();
+      final Object retval = data[idx/32][idx%32];
+      prevIdx = idx;
+      ++idx;
+      return (E)retval;
+    }
+    public final int nextIndex() {
+      return idx - startidx;
+    }
+    @SuppressWarnings("unchecked")
+    public final E previous() {
+      --idx;
+      if (idx < startidx)
+	throw new NoSuchElementException();
+      prevIdx = idx;
+      return (E)data[idx/32][idx%32];
+    }
+    public final int previousIndex() {
+      return idx - startidx - 1;
+    }
+    @SuppressWarnings("unchecked")
+    public final void set(E v) {
+      data[prevIdx/32][prevIdx%32] = v;
+    }
+  }
+
+  <E> ListIterator<E> listIterator(int startidx, int endidx, E marker) {
+    return new ListIter<E>(startidx, endidx, data);
+  }
+
+  static class ChunkedListSection {
+    public final Object[][] data;
+    public final int startidx;
+    public final int endidx;
+    public int size() { return endidx - startidx; }
+    public ChunkedListSection(Object[][] cl, int sidx, int eidx) {
+      data = cl;
+      startidx = sidx;
+      endidx = eidx;
+    }
+  }
+
+
   interface ChunkedListOwner {
-    public ChunkedList getChunkedList();
+    ChunkedListSection getChunkedList();
   }
 
   Object reduce(int startidx, int endidx, IFn f, Object start) {
+    if (startidx == endidx)
+      return start;
     final Object[][] mdata = data;
     Object ret = f.invoke(start, getValue(startidx));
-    for(int x = startidx + 1; x < endidx; x++) {
+    startidx++;
+    for(; startidx < endidx; startidx++) {
       if (RT.isReduced(ret))
 	return ((IDeref)ret).deref();
-      ret = f.invoke(ret, mdata[x/32][x%32]);
+      ret = f.invoke(ret, mdata[startidx/32][startidx%32]);
     }
     if (RT.isReduced(ret))
       return ((IDeref)ret).deref();
@@ -374,17 +586,117 @@ class ChunkedList {
     return reduce(startidx+1, endidx, f, getValue(startidx));
   }
 
-  Object kvreduce(int startidx, int endidx, int idxoff, IFn f, Object init) {
+  Object kvreduce(int startidx, int endidx, IFn f, Object init) {
     final Object[][] mdata = data;
     for (int i=startidx; i<endidx; i++) {
-      init = f.invoke(init, i + idxoff, mdata[i/32][i%32]);
+      init = f.invoke(init, i - startidx, mdata[i/32][i%32]);
       if (RT.isReduced(init))
 	return ((IDeref)init).deref();
     }
     return init;
   }
 
-  ISeq seq(int startidx, int endidx) {
+  final ISeq seq(int startidx, int endidx) {
     return IteratorSeq.create(iterator(startidx, endidx));
+  }
+
+  final ISeq rseq(int startidx, int endidx) {
+    return IteratorSeq.create(riterator(startidx, endidx));
+  }
+
+  final int hasheq(int startidx, int endidx) {
+    int hash = 1;
+    final int n = endidx - startidx;
+    final Object[][] mdata = data;
+    for( ; startidx < endidx; ++startidx) {
+      hash = 31 * hash + Util.hasheq(mdata[startidx/32][startidx%32]);
+    }
+    hash = Murmur3.mixCollHash(hash, n);
+    return hash;
+  }
+
+  final boolean equiv(HashProvider hp, int startidx, int endidx, Object other) {
+    if (other == this) return true;
+    if (other == null) return false;
+    final int ne = endidx - startidx;
+    if (other instanceof ChunkedListOwner) {
+      ChunkedListSection oc = ((ChunkedListOwner)other).getChunkedList();
+      if ((oc.endidx - oc.startidx) != ne)
+	return false;
+      final Object[][] mdata = data;
+      final Object[][] odata = oc.data;
+      final int osidx = oc.startidx;
+      if (mdata == odata && osidx == startidx)
+	return true;
+      for (int idx = 0; idx < ne; ++idx) {
+	final int midx = idx + startidx;
+	final int oidx = idx + osidx;
+	if(!hp.equals(mdata[midx/32][midx%32], odata[oidx/32][oidx%32]))
+	  return false;
+      }
+      return true;
+    } else {
+      Collection oc;
+      if (other instanceof Collection)
+	oc = (Collection)other;
+      else
+	oc = (Collection)RT.seq(other);
+      if (oc.size() != ne)
+	return false;
+      Iterator miter = iterator(startidx, endidx);
+      Iterator oiter = oc.iterator();
+      while(miter.hasNext()) {
+	if (!hp.equals(miter.next(), oiter.next()))
+	  return false;
+      }
+      return true;
+    }
+  }
+  final IPersistentMap meta() { return meta; }
+  final ChunkedList withMeta(IPersistentMap m) {
+    return new ChunkedList(data, capacity, nElems, m);
+  }
+  final int indexOf(int startidx, int endidx, Object obj) {
+    final int ne = endidx - startidx;
+    final Object[][] mdata = data;
+    for(int idx = 0; idx < ne; ++idx)
+      if (Objects.equals(obj, mdata[idx/32][idx%32]))
+	return idx;
+    return -1;
+  }
+  final int lastIndexOf(int startidx, int endidx, Object obj) {
+    final int ne = endidx - startidx;
+    final int nne = ne - 1;
+    final Object[][] mdata = data;
+    for(int idx = 0; idx < ne; ++idx) {
+      final int ridx = nne - idx + startidx;
+      if (Objects.equals(obj, mdata[ridx/32][ridx%32]))
+	return ridx;
+    }
+    return -1;
+  }
+  final boolean contains(int startidx, int endidx, Object obj) {
+    return indexOf(startidx, endidx, obj) != -1;
+  }
+
+  final boolean containsAll(int startidx, int endidx, Collection<?> c) {
+    final int ne = endidx - startidx;
+    Iterator minC;
+    Iterator maxC;
+    if (ne < c.size()) {
+      minC = this.iterator(startidx, endidx);
+      maxC = c.iterator();
+    } else {
+      maxC = this.iterator(startidx, endidx);
+      minC = c.iterator();
+    }
+    //This set can contain null.
+    HashSet<Object> hc = new HashSet<Object>();
+    while(minC.hasNext()) hc.add(minC.next());
+    while(maxC.hasNext()) {
+      if (!hc.contains(maxC.next()))
+	return false;
+    }
+    return true;
   }
 }

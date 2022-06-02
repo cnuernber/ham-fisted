@@ -32,7 +32,9 @@ import java.util.concurrent.ExecutorService;
  */
 public final class HashMap<K,V>
   implements Map<K,V>, ITransientMap, ITransientAssociative2, IObj,
-	     MapSet, BitmapTrieOwner, ILookup, IFnDef, IHashEq {
+	     MapSet, BitmapTrieOwner, ILookup, IFnDef, IHashEq,
+	     ImmutValues
+{
 
   final BitmapTrie hb;
   boolean editable = true;

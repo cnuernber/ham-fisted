@@ -41,7 +41,7 @@ import java.math.BigDecimal;
 public final class PersistentHashMap
   extends APersistentMap
   implements IObj, IMapIterable, IKVReduce, IEditableCollection,
-	     MapSet, BitmapTrieOwner, IHashEq {
+	     MapSet, BitmapTrieOwner, IHashEq, ImmutValues {
 
   final BitmapTrie hb;
   int cachedHash = 0;

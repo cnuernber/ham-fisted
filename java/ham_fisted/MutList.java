@@ -1,7 +1,8 @@
 package ham_fisted;
 
-
+import static ham_fisted.BitmapTrieCommon.*;
 import static ham_fisted.ChunkedList.*;
+
 import java.util.List;
 import java.util.Objects;
 import java.util.RandomAccess;
@@ -11,19 +12,29 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.function.Function;
+import java.util.function.BiFunction;
 import clojure.lang.Indexed;
 import clojure.lang.RT;
 import clojure.lang.IReduce;
 import clojure.lang.IKVReduce;
 import clojure.lang.IFn;
+import clojure.lang.IHashEq;
+import clojure.lang.Seqable;
+import clojure.lang.Reversible;
+import clojure.lang.ISeq;
+import clojure.lang.IObj;
+import clojure.lang.IPersistentMap;
+import clojure.lang.ITransientVector;
+import clojure.lang.Util;
 
 
 public class MutList<E>
   implements List<E>, RandomAccess, Indexed, IFnDef, IReduce, IKVReduce,
-	     RangeList<E>
+	     RangeList<E>, IHashEq, Seqable, Reversible, ChunkedListOwner,
+	     Cloneable, IObj, ITransientVector, ImmutValues
 {
-
-  ChunkedList data;
+  final ChunkedList data;
   public MutList() { data = new ChunkedList(); }
   public MutList(int capacity) { data = new ChunkedList(capacity); }
   public MutList(ChunkedList other) {
@@ -31,12 +42,18 @@ public class MutList<E>
   }
   //deep cloning constructor
   public MutList(MutList<E> other) {
-    this(new ChunkedList(other.data, false));
+    this(other.data.clone(0, other.data.nElems, 0, true));
+  }
+  @SafeVarargs
+  public static <E> MutList<E> create(boolean owning, E... data) {
+    return new MutList<E>(ChunkedList.create(owning, data));
+  }
+  public final ChunkedListSection getChunkedList() {
+    return new ChunkedListSection(data.data, 0, data.nElems);
   }
   public final MutList<E> clone() { return new MutList<E>(this); }
   public final boolean add(E v) { data.add(v); return true; }
   public final void add(int idx, E v) { data.add(v,idx); }
-
   public final boolean addAll(Collection<? extends E> c) {
     if (c.isEmpty())
       return false;
@@ -71,38 +88,19 @@ public class MutList<E>
   public final void clear() { data.clear(); }
 
   public final boolean contains(Object v) {
-    final int ne = data.nElems;
-    for (E e:this)
-      if(Objects.equals(e,v))
-	return true;
-    return false;
+    return data.contains(0, data.nElems, v);
   }
 
   public final boolean containsAll(Collection<?> c) {
-    Collection<?> minC = size() < c.size() ? this : c;
-    //This set can contain null.
-    HashSet<Object> hc = new HashSet<Object>();
-    hc.addAll(minC);
-    Collection<?> maxC = size() < c.size() ? c : this;
-    for(Object e: maxC)
-      if(!hc.contains(e))
-	return false;
-    return true;
+    return data.containsAll(0, data.nElems, c);
   }
 
   final int indexCheck(int idx) {
-    if (idx < 0)
-      throw new RuntimeException("Index underflow: " + String.valueOf(idx));
-    if(idx >= data.nElems)
-      throw new RuntimeException("Index out of range: " + String.valueOf(idx) + " : "
-				 + String.valueOf(data.nElems));
-    return idx;
+    return ChunkedList.indexCheck(0, data.nElems, idx);
   }
 
   final int wrapIndexCheck(int idx) {
-    if (idx < 0)
-      idx = data.nElems + idx;
-    return indexCheck(idx);
+    return ChunkedList.wrapIndexCheck(0, data.nElems, idx);
   }
 
   @SuppressWarnings("unchecked")
@@ -116,11 +114,7 @@ public class MutList<E>
   }
 
   public final int indexOf(Object o) {
-    final int ne = data.nElems;
-    for(int idx = 0; idx < ne; ++idx)
-      if(Objects.equals(o, data.getValue(idx)))
-	return idx;
-    return -1;
+    return data.indexOf(0, data.nElems, o);
   }
   public final boolean isEmpty() { return data.nElems == 0; }
 
@@ -128,7 +122,10 @@ public class MutList<E>
   public final Iterator<E> iterator() { return (Iterator<E>)data.iterator(); }
 
   static class SubMutList<E> implements List<E>, RandomAccess, Indexed, IFnDef,
-					IReduce, IKVReduce, RangeList<E> {
+					IReduce, IKVReduce, RangeList<E>,
+					Seqable, Reversible, IHashEq, ChunkedListOwner,
+					Cloneable, IObj
+  {
     final int startidx;
     final int nElems;
     final ChunkedList data;
@@ -137,6 +134,14 @@ public class MutList<E>
       startidx = sidx;
       nElems = eidx - sidx;
       data = d;
+    }
+
+    public final ChunkedListSection getChunkedList() {
+      return new ChunkedListSection(data.data, startidx, startidx+nElems);
+    }
+
+    public final MutList<E> clone() {
+      return new MutList<E>(data.clone(startidx, startidx+nElems));
     }
 
     public final boolean add(E e) {
@@ -165,18 +170,11 @@ public class MutList<E>
     }
 
     final int indexCheck(int idx) {
-      if (idx < 0)
-	throw new RuntimeException("Index underflow: " + String.valueOf(idx));
-      if(idx >= nElems)
-	throw new RuntimeException("Index out of range: " + String.valueOf(idx) + " : "
-				   + String.valueOf(nElems));
-      return idx + startidx;
+      return ChunkedList.indexCheck(startidx, nElems, idx);
     }
 
     final int wrapIndexCheck(int idx) {
-      if (idx < 0)
-	idx = nElems + idx;
-      return indexCheck(idx);
+      return ChunkedList.wrapIndexCheck(startidx, nElems, idx);
     }
 
     public final void clear() {
@@ -193,40 +191,23 @@ public class MutList<E>
       return (E)data.getValue(wrapIndexCheck(idx));
     }
     public final int indexOf(Object obj) {
-      for(int idx = 0; idx < nElems; ++idx)
-	if (Objects.equals(obj, get(idx)))
-	  return idx;
-      return -1;
+      return data.indexOf(startidx, startidx+nElems, obj);
     }
     public final int lastIndexOf(Object obj) {
-      final int nne = nElems - 1;
-      for(int idx = 0; idx < nElems; ++idx) {
-	final int ridx = nne - idx;
-	if (Objects.equals(obj, get(ridx)))
-	  return ridx;
-      }
-      return -1;
+      return data.lastIndexOf(startidx, startidx+nElems, obj);
     }
     public final boolean contains(Object obj) {
-      return indexOf(obj) != -1;
+      return data.contains(startidx, startidx+nElems, obj);
     }
     public final boolean containsAll(Collection<?> c) {
-      Collection<?> minC = size() < c.size() ? this : c;
-      //This set can contain null.
-      HashSet<Object> hc = new HashSet<Object>();
-      hc.addAll(minC);
-      Collection<?> maxC = size() < c.size() ? c : this;
-      for(Object e: maxC)
-	if(!hc.contains(e))
-	  return false;
-      return true;
+      return data.containsAll(startidx, startidx+nElems, c);
     }
     @SuppressWarnings("unchecked")
     public final Iterator<E> iterator() {
       return (Iterator<E>)data.iterator(startidx, startidx + nElems);
     }
     public final ListIterator<E> listIterator(int idx) {
-      throw new RuntimeException("Unimplemented");
+      return data.listIterator(indexCheck(idx), startidx+nElems, (E)null);
     }
     public final ListIterator<E> listIterator() {
       return listIterator(0);
@@ -268,7 +249,7 @@ public class MutList<E>
     }
 
     public final Object kvreduce(IFn f, Object init) {
-      return data.kvreduce(startidx, startidx+nElems, startidx, f, init);
+      return data.kvreduce(startidx, startidx+nElems, f, init);
     }
     public void fillRange(int sidx, int eidx, E v) {
       final int ssidx = indexCheck(sidx);
@@ -289,26 +270,37 @@ public class MutList<E>
     public void removeRange(int startidx, int endidx) {
       throw new RuntimeException("Unimplemented");
     }
+    public final int hashCode() {
+      return data.hasheq(startidx, startidx + nElems);
+    }
+    public final int hasheq() {
+      return hashCode();
+    }
+    public final boolean equals(Object other) {
+      return data.equiv(equalHashProvider, startidx, startidx+nElems, other);
+    }
+    public final boolean equiv(Object other) {
+      return data.equiv(equivHashProvider, startidx, startidx+nElems, other);
+    }
+    public final ISeq seq() { return data.seq(startidx, startidx+nElems); }
+    public final ISeq rseq() { return data.rseq(startidx, startidx+nElems); }
+    public IPersistentMap meta() { return data.meta(); }
+    public SubMutList<E> withMeta(IPersistentMap m) {
+      return new SubMutList<E>(startidx, startidx + nElems, data.withMeta(m));
+    }
   }
 
   public final List<E> subList(int startidx, int endidx) {
     return new SubMutList<E>(startidx, endidx, data);
   }
 
-  public final ListIterator<E> listIterator(int idx) { throw new RuntimeException("Unimplemented"); }
+  public final ListIterator<E> listIterator(int idx) {
+    return data.listIterator(idx, data.nElems, (E)null);
+  }
   public final ListIterator<E> listIterator() { return listIterator(0); }
 
   public final int lastIndexOf(Object obj) {
-
-    final int nem1 = size() - 1;
-    final int ne = size();
-
-    for (int idx = 0; idx < ne; ++idx) {
-      final int ridx = nem1 - idx;
-      if(Objects.equals(data.getValue(ridx), obj))
-	return ridx;
-    }
-    return -1;
+    return data.lastIndexOf(0, data.nElems, obj);
   }
 
   @SuppressWarnings("unchecked")
@@ -400,7 +392,70 @@ public class MutList<E>
   }
 
   public final Object kvreduce(IFn f, Object init) {
-    return data.kvreduce(0, data.nElems, 0, f, init);
+    return data.kvreduce(0, data.nElems, f, init);
   }
 
+  public final ISeq seq() { return data.seq(0, data.nElems); }
+  public final ISeq rseq() { return data.rseq(0, data.nElems); }
+
+  public final int hashCode() {
+    return data.hasheq(0, data.nElems);
+  }
+  public final int hasheq() {
+    return hashCode();
+  }
+  public final boolean equals(Object other) {
+    if (other == this)
+      return true;
+    return data.equiv(equalHashProvider, 0, data.nElems, other);
+  }
+  public final boolean equiv(Object other) {
+    if (other == this)
+      return true;
+    return data.equiv(equivHashProvider, 0, data.nElems, other);
+  }
+  public IPersistentMap meta() { return data.meta(); }
+  public MutList<E> withMeta(IPersistentMap m) {
+    return new MutList<E>(data.withMeta(m));
+  }
+  @SuppressWarnings("unchecked")
+  public final MutList<E> assocN(int i, Object obj) {
+    if (i == data.nElems) add((E)obj);
+    set(indexCheck(i), (E)obj);
+    return this;
+  }
+  public final MutList<E> pop() {
+    if(data.nElems == 0)
+      throw new RuntimeException("Cannot pop empty vector.");
+    remove(data.nElems-1);
+    return this;
+  }
+  public final MutList<E> assoc(Object i, Object obj) {
+    if(!Util.isInteger(i))
+      throw new RuntimeException("Vectors must have integer keys");
+    return assocN(RT.intCast(i), obj);
+  }
+  @SuppressWarnings("unchecked")
+  public final MutList<E> conj(Object obj) {
+    add((E)obj);
+    return this;
+  }
+  public final Object valAt(Object key) {
+    return valAt(key, null);
+  }
+  public final Object valAt(Object key, Object notFound) {
+    if(Util.isInteger(key)) {
+      int k = RT.intCast(key);
+      if(k >= 0 && k < data.nElems)
+	return data.getValue(k);
+    }
+    return notFound;
+  }
+  public ImmutList persistent() { return new ImmutList(0, data.nElems, data); }
+  public ImmutList immutUpdateValues(BiFunction valueMap) {
+    return persistent().immutUpdateValues(valueMap);
+  }
+  public ImmutList immutUpdateValue(Object key, Function valueMap) {
+    return persistent().immutUpdateValue(key, valueMap);
+  }
 }

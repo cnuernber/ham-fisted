@@ -90,8 +90,6 @@ public class BitmapTrieCommon {
     public MapSet intersection(MapSet rhs, BiFunction valueMap);
     public MapSet union(MapSet rhs, BiFunction valueMap);
     public MapSet difference(MapSet rhs);
-    public MapSet immutUpdateValues(BiFunction valueMap);
-    public MapSet immutUpdateValue(Object key, Function fn);
   }
 
   public static final BiFunction<Object,Object,Object> rhsWins = (a,b) -> b;

@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class PersistentArrayMap
   implements IPersistentMap, Map, IObj, IEditableCollection, MapSet, BitmapTrieOwner,
-	     IMapIterable, IKVReduce, IHashEq {
+	     IMapIterable, IKVReduce, IHashEq, ImmutValues {
   final HashProvider hp;
   final Object[] kvs;
   final int nElems;
@@ -89,7 +89,7 @@ public class PersistentArrayMap
     nElems = 4;
     meta = _meta;
   }
-  
+
   public PersistentArrayMap(HashProvider _hp,
 			    Object k, Object v, Object k2, Object v2,
 			    Object k3, Object v3, Object k4, Object v4,
@@ -536,7 +536,7 @@ public class PersistentArrayMap
     return cachedMap().difference(rhs);
   }
   @SuppressWarnings("unchecked")
-  public MapSet immutUpdateValues(BiFunction valueMap) {
+  public ImmutValues immutUpdateValues(BiFunction valueMap) {
     final Object[] mdata = kvs;
     final int ne = nElems;
     final int nne = ne * 2;
@@ -550,12 +550,12 @@ public class PersistentArrayMap
     return new PersistentArrayMap(hp, ne, data, meta);
   }
   @SuppressWarnings("unchecked")
-  public MapSet immutUpdateValue(Object key, Function fn) {
+  public ImmutValues immutUpdateValue(Object key, Function fn) {
     final int ne = nElems;
     final Object[] mdata = kvs;
     final int idx = indexOf(hp, ne, mdata, key);
     if (idx == -1) {
-      return (MapSet)assoc(key, fn.apply(null));
+      return (ImmutValues)assoc(key, fn.apply(null));
     } else {
       final Object[] data = mdata.clone();
       data[idx+1] = fn.apply(data[idx+1]);
