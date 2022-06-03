@@ -31,7 +31,7 @@ public class PersistentHashSet
 
   public static final PersistentHashSet EMPTY = new PersistentHashSet();
 
-  public PersistentHashSet() { hb = new BitmapTrie(equalHashProvider); }
+  public PersistentHashSet() { hb = new BitmapTrie(defaultHashProvider); }
   public PersistentHashSet(HashProvider hp) { hb = new BitmapTrie(hp); }
   PersistentHashSet(BitmapTrie _hb) { hb = _hb; }
   public final int hashCode() {

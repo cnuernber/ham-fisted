@@ -43,7 +43,7 @@
             ConcurrentHashMap])
   (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize
                             into assoc-in get-in update assoc update-in hash-map
-                            group-by subvec group-by]))
+                            group-by subvec group-by mapv vec vector]))
 
 
 (set! *warn-on-reflection* true)
@@ -61,12 +61,28 @@ hash provider.  Hash-based data structures based on this hash provider will be
 faster to create and access but will not use the hasheq pathway. This is fine
 for integer keys, strings, keywords, and symbols, but differs for objects such
 as doubles, floats, and BigDecimals. This is the default hash provider."}
-equal-hash-provider BitmapTrieCommon/equalHashProvider)
+  equal-hash-provider BitmapTrieCommon/equalHashProvider)
+
+(def ^{:tag BitmapTrieCommon$HashProvider
+       :doc "Hash provider opportunistically using IHashEq pathway when provided else
+falling back to mixhash(obj.hashCode).  For equality strictly uses Util.equiv as equality
+has not shown up to be a profiler bottleneck while generating mumur3 compatible hashes has in
+some cases (integers).  This hash provider provides a middle ground offering more performance
+for simple datatypes but still using the more robust equiv pathways for more complex datatypes.
+This is currently the default hash provider for the library."}
+  hybrid-hash-provider BitmapTrieCommon/hybridHashProvider)
+
+
+(def ^{:tag BitmapTrieCommon$HashProvider
+       :doc "Default hash provider - currently set to the hybrid hash provider."}
+  default-hash-provider BitmapTrieCommon/defaultHashProvider)
+
+
 
 
 (defn- options->provider
   ^BitmapTrieCommon$HashProvider [options]
-  (get options :hash-provider equal-hash-provider))
+  (get options :hash-provider default-hash-provider))
 
 
 (def ^{:tag PersistentArrayMap} empty-map PersistentArrayMap/EMPTY)
@@ -74,7 +90,7 @@ equal-hash-provider BitmapTrieCommon/equalHashProvider)
 (def ^{:tag ImmutList} empty-vec ImmutList/EMPTY)
 
 
-(declare assoc! conj!)
+(declare assoc! conj! vec mapv vector)
 
 
 (defn- empty-map?
@@ -350,16 +366,22 @@ ham_fisted.PersistentHashMap
 (defn mut-list
   "Create a mutable java list that is in-place convertible to a persistent list"
   (^MutList [] (MutList.))
-  (^MutList [data] (if (instance? obj-ary-cls data)
-                     (MutList/create false ^objects data)
-                     (into (MutList.) data))))
+  (^MutList [data]
+   (cond
+     (instance? obj-ary-cls data)
+     (MutList/create false ^objects data)
+     (instance? Collection data)
+     (doto (MutList. )
+       (.addAll data))
+     :else
+     (into (MutList.) data))))
+
 
 (defn immut-list
   "Create a mutable java list that is in-place convertible to a persistent list"
-  (^ImmutList [] (MutList.))
-  (^ImmutList [data] (if (instance? obj-ary-cls data)
-                       (ImmutList/create false ^objects data)
-                       (into empty-vec data))))
+  (^ImmutList [] empty-vec)
+  (^ImmutList [data]
+   (persistent! (mut-list data))))
 
 
 (defn assoc!
@@ -686,7 +708,10 @@ ham_fisted.PersistentHashMap
 
 (defn update-values
   "Immutably update all values in the map returning a new map.  bfn takes 2 arguments,
-  k,v and returns a new v. Returns new persistent map."
+  k,v and returns a new v. Returns new persistent map.
+  If passed a vector, k is the index and v is the value.  Will return a new vector.
+  else map is assumed to be convertible to a sequence and this pathway works the same
+  as map-indexed."
   [map bfn]
   (let [bfn (->bi-function bfn)]
     (cond
@@ -1088,7 +1113,7 @@ ham_fisted.PersistentHashMap
 
 
 (defn subvec
-  "More general and faster version of subvec.  Works for any java list implementation
+  "More general version of subvec.  Works for any java list implementation
   including persistent vectors."
   ([^List m sidx eidx]
    (.subList m sidx eidx))
@@ -1098,9 +1123,10 @@ ham_fisted.PersistentHashMap
 
 (defn group-by
   "Group items in collection by the grouping function f.  Returns persistent map of
-  keys to persistent vectors."
+  keys to persistent vectors.  This version is a solid amount faster than clojure's
+  core group-by implementation."
   [f coll]
-  (let [retval (HashMap.)
+  (let [retval (mut-map)
         compute-fn (reify Function
                      (apply [this k]
                        (mut-list)))]
@@ -1110,3 +1136,38 @@ ham_fisted.PersistentHashMap
     (update-values retval (reify BiFunction
                             (apply [this k v]
                               (persistent! v))))))
+
+
+(defn mapv
+  "Faster version of mapv"
+  [map-fn coll]
+  (let [retval (mut-list)]
+    (iterator/doiter
+     v coll
+     (.add retval (map-fn v)))
+    (persistent! retval)))
+
+
+(defn vec
+  "Produce a persistent vector.  Optimized pathways exist for object arrays and
+  java List implementations."
+  [data]
+  (if (vector? data)
+    data
+    (immut-list data)))
+
+
+(defn vector
+  ([] empty-vec)
+  ([a] (ImmutList/create true, (obj-ary a)))
+  ([a b] (ImmutList/create true, (obj-ary a b)))
+  ([a b c] (ImmutList/create true, (obj-ary a b c)))
+  ([a b c d] (ImmutList/create true, (obj-ary a b c d)))
+  ([a b c d e] (ImmutList/create true, (obj-ary a b c d e)))
+  ([a b c d e f] (ImmutList/create true, (obj-ary a b c d e f)))
+  ([a b c d e f g] (ImmutList/create true, (obj-ary a b c d e f g)))
+  ([a b c d e f g h] (ImmutList/create true, (obj-ary a b c d e f g h)))
+  ([a b c d e f g h i] (ImmutList/create true, (obj-ary a b c d e f g h i)))
+  ([a b c d e f g h i j] (ImmutList/create true, (obj-ary a b c d e f g h i j)))
+  ([a b c d e f g h i j k] (ImmutList/create true, (obj-ary a b c d e f g h i j k)))
+  ([a b c d e f g h i j k & args] (ImmutList/create true, (apply obj-ary a b c d e f g h i j k args))))

@@ -8,6 +8,7 @@ import java.util.Iterator;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import clojure.lang.Util;
+import clojure.lang.IHashEq;
 
 /**
  * Interfaces and definitions used for implementing the bitmap trie.
@@ -44,6 +45,22 @@ public class BitmapTrieCommon {
 	return Util.equiv(lhs,rhs);
       }
     };
+
+  public static final HashProvider hybridHashProvider = new HashProvider() {
+      public int hash(Object obj) {
+	if (obj instanceof IHashEq)
+	  return ((IHashEq)obj).hasheq();
+	else if (obj == null)
+	  return 0;
+	else
+	  return mixhash(obj.hashCode());
+      }
+      public boolean equals(Object lhs, Object rhs) {
+	return Util.equiv(lhs,rhs);
+      }
+    };
+
+  public static final HashProvider defaultHashProvider = hybridHashProvider;
 
 
   /**

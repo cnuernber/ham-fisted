@@ -17,6 +17,7 @@ import java.util.function.BiFunction;
 import clojure.lang.Indexed;
 import clojure.lang.RT;
 import clojure.lang.IReduce;
+import clojure.lang.Counted;
 import clojure.lang.IKVReduce;
 import clojure.lang.IFn;
 import clojure.lang.IHashEq;
@@ -27,6 +28,7 @@ import clojure.lang.IObj;
 import clojure.lang.IPersistentMap;
 import clojure.lang.ITransientVector;
 import clojure.lang.Util;
+import clojure.lang.Counted;
 
 
 public class MutList<E>
@@ -58,10 +60,22 @@ public class MutList<E>
     if (c.isEmpty())
       return false;
     if (c instanceof RandomAccess) {
-      data.enlarge(c.size() + size());
+      final int cs = c.size();
+      data.enlarge(cs + size());
       int idx = data.nElems;
-      data.nElems = idx +  c.size();
-      for(E e: c) data.setValue(idx++, e);
+      data.nElems = idx +  cs;
+      final Object[][] mdata = data.data;
+      final List l = (List)c;
+      int cidx = 0;
+      while(cidx < cs) {
+	final Object[] chunk = mdata[idx/32];
+	int eidx = idx % 32;
+	final int groupLen = Math.min(chunk.length-eidx, cs - cidx);
+	for (int lidx = 0; lidx < groupLen; ++lidx, ++eidx, ++cidx) {
+	  chunk[eidx] = l.get(cidx);
+	}
+	idx += groupLen;
+      }
     } else {
       for (E e: c) add(e);
     }
@@ -71,7 +85,10 @@ public class MutList<E>
   public final boolean addAll(int idx, Collection<? extends E> c) {
     if (c.isEmpty())
       return false;
+    if (idx == data.nElems)
+      return addAll(c);
 
+    indexCheck(idx);
     if (! (c instanceof RandomAccess)) {
       ArrayList<E> al = new ArrayList<E>();
       al.addAll(c);
@@ -116,6 +133,7 @@ public class MutList<E>
   public final int indexOf(Object o) {
     return data.indexOf(0, data.nElems, o);
   }
+
   public final boolean isEmpty() { return data.nElems == 0; }
 
   @SuppressWarnings("unchecked")
@@ -277,10 +295,10 @@ public class MutList<E>
       return hashCode();
     }
     public final boolean equals(Object other) {
-      return data.equiv(equalHashProvider, startidx, startidx+nElems, other);
+      return data.equiv(defaultHashProvider, startidx, startidx+nElems, other);
     }
     public final boolean equiv(Object other) {
-      return data.equiv(equivHashProvider, startidx, startidx+nElems, other);
+      return data.equiv(defaultHashProvider, startidx, startidx+nElems, other);
     }
     public final ISeq seq() { return data.seq(startidx, startidx+nElems); }
     public final ISeq rseq() { return data.rseq(startidx, startidx+nElems); }
@@ -407,12 +425,12 @@ public class MutList<E>
   public final boolean equals(Object other) {
     if (other == this)
       return true;
-    return data.equiv(equalHashProvider, 0, data.nElems, other);
+    return data.equiv(defaultHashProvider, 0, data.nElems, other);
   }
   public final boolean equiv(Object other) {
     if (other == this)
       return true;
-    return data.equiv(equivHashProvider, 0, data.nElems, other);
+    return data.equiv(defaultHashProvider, 0, data.nElems, other);
   }
   public IPersistentMap meta() { return data.meta(); }
   public MutList<E> withMeta(IPersistentMap m) {

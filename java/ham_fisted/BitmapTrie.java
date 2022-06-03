@@ -865,7 +865,7 @@ class BitmapTrie implements IObj, TrieBase {
   }
 
   public BitmapTrie() {
-    this(equalHashProvider);
+    this(defaultHashProvider);
   }
 
   //Unsafe shallow clone version

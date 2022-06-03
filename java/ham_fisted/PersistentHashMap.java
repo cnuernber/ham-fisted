@@ -21,6 +21,7 @@ import clojure.lang.IDeref;
 import clojure.lang.IFn;
 import clojure.lang.IHashEq;
 import clojure.lang.Numbers;
+import clojure.lang.MapEquivalence;
 import java.util.Iterator;
 import java.util.Collection;
 import java.util.Set;
@@ -41,7 +42,7 @@ import java.math.BigDecimal;
 public final class PersistentHashMap
   extends APersistentMap
   implements IObj, IMapIterable, IKVReduce, IEditableCollection,
-	     MapSet, BitmapTrieOwner, IHashEq, ImmutValues {
+	     MapSet, BitmapTrieOwner, IHashEq, ImmutValues, MapEquivalence {
 
   final BitmapTrie hb;
   int cachedHash = 0;
@@ -49,7 +50,7 @@ public final class PersistentHashMap
   public BitmapTrie bitmapTrie() { return hb; }
 
   public PersistentHashMap() {
-    hb = new BitmapTrie(equivHashProvider);
+    hb = new BitmapTrie(defaultHashProvider);
   }
   public PersistentHashMap(HashProvider hp) {
     hb = new BitmapTrie(hp);
@@ -64,11 +65,11 @@ public final class PersistentHashMap
   }
 
   public PersistentHashMap(Object... kvs) {
-    this(equivHashProvider, false, kvs);
+    this(defaultHashProvider, false, kvs);
   }
   public final BitmapTrie unsafeGetBitmapTrie() { return hb; }
   public PersistentHashMap(boolean assoc, Object... kvs) {
-    this(equivHashProvider, assoc, kvs);
+    this(defaultHashProvider, assoc, kvs);
   }
 
   public final int hashCode() {
@@ -166,7 +167,7 @@ public final class PersistentHashMap
     return new PersistentHashMap(hb.shallowClone().dissoc(key));
   }
 
-  public static PersistentHashMap EMPTY = new PersistentHashMap(new BitmapTrie(equalHashProvider));
+  public static PersistentHashMap EMPTY = new PersistentHashMap(new BitmapTrie(defaultHashProvider));
 
   public final IPersistentCollection empty() {
     return (IPersistentCollection)EMPTY.withMeta(hb.meta);
@@ -376,6 +377,15 @@ public final class PersistentHashMap
     if ((nelems % 2) != 0 )
       throw new RuntimeException("Number of elements not divisible by 2");
     final int nentries = nelems / 2;
+    return createN(hp, errorOnDuplicate, nentries, kvs);
+  }
+
+  public static final IPersistentMap createN(HashProvider hp,
+					     boolean errorOnDuplicate,
+					     int nentries,
+					     Object[] kvs) {
+    if (nentries == 0)
+      return new PersistentArrayMap(hp);
     IPersistentMap retval = null;
     switch(nentries) {
     case 1: retval = new PersistentArrayMap(hp, kvs[0], kvs[1], null);
@@ -423,6 +433,7 @@ public final class PersistentHashMap
     }
     if (retval == null) {
       HashMap<Object,Object> hm = new HashMap<Object,Object>(hp);
+      final int nelems = nentries * 2;
       for (int idx = 0; idx < nelems; idx += 2)
 	hm.put(kvs[idx], kvs[idx+1]);
       retval = hm.persistent();

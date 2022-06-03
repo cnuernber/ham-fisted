@@ -28,7 +28,7 @@ public final class TransientHashMap
   }
 
   public TransientHashMap() {
-    hb = new BitmapTrie(equalHashProvider);
+    hb = new BitmapTrie(defaultHashProvider);
   }
 
   TransientHashMap(TransientHashMap other) {

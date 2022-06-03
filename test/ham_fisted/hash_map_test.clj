@@ -4,7 +4,7 @@
             [ham-fisted.api :as api]
             [criterium.core :as crit])
   (:import [ham_fisted HashMap PersistentHashMap BitmapTrie TransientHashMap
-            BitmapTrieCommon]
+            BitmapTrieCommon PersistentMapBuilder]
            [java.util ArrayList Collections Map Collection]
            [java.util.function BiFunction BiConsumer]
            [java.util.concurrent ForkJoinPool Future Callable]))
@@ -25,7 +25,9 @@
 
   (let [nilmap (assoc orig nil :b)]
     (is (= {nil :b} nilmap))
+    (is (= nilmap {nil :b}))
     (is (= {nil :b :a :b} (assoc nilmap :a :b)))
+    (is (= (assoc nilmap :a :b) {nil :b :a :b}))
     (is (= 1 (count nilmap)))
     (is (= 1 (count (dissoc nilmap :a))))
     (is (= 2 (count (assoc nilmap :a :b))))

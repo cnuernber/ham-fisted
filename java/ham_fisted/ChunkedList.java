@@ -200,7 +200,7 @@ class ChunkedList {
   final void setValue(int idx, Object obj) {
     data[idx / 32][idx % 32] = obj;
   }
-  final Object getValue(int idx) {
+  final Object getValue(final int idx) {
     return data[idx / 32][idx % 32];
   }
 
@@ -371,23 +371,6 @@ class ChunkedList {
 
   final int size() { return nElems; }
 
-  final Object[] fillArray(int startidx, int endidx, Object[] retval) {
-    final int finalCidx = endidx / 32;
-    final int finalEidx = endidx % 32;
-    int cidx = startidx / 32;
-    int eidx = startidx % 32;
-    final Object[][] mdata = data;
-    int dstOff = 0;
-    while(cidx <= finalCidx) {
-      final int copyLen = cidx == finalCidx ? finalEidx - eidx : 32 - eidx;
-      System.arraycopy(mdata[cidx], eidx, retval, dstOff, copyLen);
-      dstOff += copyLen;
-      eidx = 0;
-      ++cidx;
-    }
-    return retval;
-  }
-
   final void fillRange(int startidx, int endidx, Object v) {
     final Object[][] mdata = data;
     for(; startidx < endidx; ++startidx)
@@ -407,6 +390,23 @@ class ChunkedList {
     final Object[][] mdata = data;
     for(; startidx < endidx; ++startidx)
       mdata[startidx/32][startidx%32] = v;
+  }
+
+  final Object[] fillArray(int startidx, int endidx, Object[] retval) {
+    final int finalCidx = endidx / 32;
+    final int finalEidx = endidx % 32;
+    int cidx = startidx / 32;
+    int eidx = startidx % 32;
+    final Object[][] mdata = data;
+    int dstOff = 0;
+    while(cidx <= finalCidx) {
+      final int copyLen = cidx == finalCidx ? finalEidx - eidx : 32 - eidx;
+      System.arraycopy(mdata[cidx], eidx, retval, dstOff, copyLen);
+      dstOff += copyLen;
+      eidx = 0;
+      ++cidx;
+    }
+    return retval;
   }
 
   final Object[] fillArray(Object[] retval) {

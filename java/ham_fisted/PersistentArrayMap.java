@@ -23,6 +23,8 @@ import clojure.lang.IKVReduce;
 import clojure.lang.IHashEq;
 import clojure.lang.IFn;
 import clojure.lang.IDeref;
+import clojure.lang.MapEquivalence;
+import clojure.lang.Util;
 import java.util.Map;
 import java.util.Set;
 import java.util.Objects;
@@ -37,7 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class PersistentArrayMap
   implements IPersistentMap, Map, IObj, IEditableCollection, MapSet, BitmapTrieOwner,
-	     IMapIterable, IKVReduce, IHashEq, ImmutValues {
+	     IMapIterable, IKVReduce, IHashEq, ImmutValues, MapEquivalence {
   final HashProvider hp;
   final Object[] kvs;
   final int nElems;
@@ -45,7 +47,7 @@ public class PersistentArrayMap
   HashMap<Object,Object> cachedTrie = null;
   public static final int MAX_SIZE = 8;
 
-  public static final PersistentArrayMap EMPTY = new PersistentArrayMap(equalHashProvider);
+  public static final PersistentArrayMap EMPTY = new PersistentArrayMap(defaultHashProvider);
 
   public PersistentArrayMap(HashProvider _hp) {
     hp = _hp;
@@ -335,7 +337,7 @@ public class PersistentArrayMap
   public final PersistentArrayMap empty() { return EMPTY; }
 
   public final boolean equiv(Object o) {
-    return cachedMap().equals(o);
+    return equals(o);
   }
 
   public final int hasheq() {
@@ -389,7 +391,20 @@ public class PersistentArrayMap
     return false;
   }
   public boolean equals(Object o) {
-    return cachedMap().equals(o);
+    if (o == this)
+      return true;
+    if (! (o instanceof Map))
+      return false;
+    Map other = (Map)o;
+    if (size() != other.size())
+      return false;
+    for(Object obj: other.entrySet()) {
+      Map.Entry me = (Map.Entry)obj;
+      Object v = get(me.getKey());
+      if (v == null || Util.equiv(v, me.getValue()) == false)
+	return false;
+    }
+    return true;
   }
   public int hashCode() {
     return cachedMap().hashCode();
