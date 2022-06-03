@@ -3,7 +3,8 @@
   (:import [java.util Iterator]
            [java.util.stream Stream]
            [java.util.function Supplier Function BiFunction Consumer Predicate BiConsumer]
-           [clojure.lang ArraySeq]))
+           [clojure.lang ArraySeq]
+           [ham_fisted StringCollection]))
 
 
 (set! *warn-on-reflection* true)
@@ -96,6 +97,8 @@
 
     (.isArray (.getClass ^Object item))
     (ary-iter item)
+    (instance? CharSequence item)
+    (.iterator (StringCollection. ^CharSequence item))
     (instance? Stream item)
     (.iterator ^Stream item)
     (instance? Supplier item)

@@ -59,10 +59,33 @@ public class MutList<E>
   public final boolean addAll(Collection<? extends E> c) {
     if (c.isEmpty())
       return false;
-    if (c instanceof RandomAccess) {
-      final int cs = c.size();
-      data.enlarge(cs + size());
+    final int ne = size();
+    if (c instanceof ChunkedListOwner) {
+      final ChunkedListSection section = ((ChunkedListOwner)c).getChunkedList();
       int idx = data.nElems;
+      int oidx = section.startidx;
+      int one = section.endidx - oidx;
+      final int finalLen = idx + one;
+      data.enlarge(finalLen);
+      data.nElems = finalLen;
+      final Object[][] mdata = data.data;
+      final Object[][] odata = section.data;
+      while(idx < finalLen) {
+	final int cidx = idx / 32;
+	final int ocidx = oidx / 32;
+	final int leftover = finalLen - idx;
+	final int eidx = idx % 32;
+	final int oeidx = oidx % 32;
+	final int copyLen = Math.min(leftover, Math.min(32-eidx, 32-oeidx));
+	System.arraycopy(odata[ocidx], oeidx, mdata[cidx], eidx, copyLen);
+	idx += copyLen;
+	oidx += copyLen;
+      }
+    }
+    else if (c instanceof RandomAccess) {
+      final int cs = c.size();
+      data.enlarge(cs + ne);
+      int idx = ne;
       data.nElems = idx +  cs;
       final Object[][] mdata = data.data;
       final List l = (List)c;

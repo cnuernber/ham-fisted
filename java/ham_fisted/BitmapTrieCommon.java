@@ -80,12 +80,16 @@ public class BitmapTrieCommon {
     public Object obj;
     public Box() { obj = null; }
     public Box(Object _obj) { obj = _obj; }
+    @SuppressWarnings("unchecked")
+    public void inplaceUpdate(BiFunction bfn, Object newv) {
+      obj = obj == null ? newv : bfn.apply(obj, newv);
+    }
   }
 
   /**
    * Generic leaf.
    */
-  interface ILeaf {
+  public interface ILeaf {
     Object key();
     Object val();
     //Mutation of the leaf for in-place computation

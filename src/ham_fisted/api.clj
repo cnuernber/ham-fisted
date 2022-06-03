@@ -34,16 +34,16 @@
   (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
             BitmapTrieCommon$Box PersistentArrayMap ObjArray ImmutValues
-            MutList ImmutList]
+            MutList ImmutList StringCollection]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
             IEditableCollection RT IPersistentMap Associative Util IFn ArraySeq]
-           [java.util Map Map$Entry List RandomAccess Set Collection ArrayList]
+           [java.util Map Map$Entry List RandomAccess Set Collection ArrayList Arrays]
            [java.util.function Function BiFunction BiConsumer Consumer]
            [java.util.concurrent ForkJoinPool ExecutorService Callable Future
             ConcurrentHashMap])
   (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize
                             into assoc-in get-in update assoc update-in hash-map
-                            group-by subvec group-by mapv vec vector]))
+                            group-by subvec group-by mapv vec vector object-array]))
 
 
 (set! *warn-on-reflection* true)
@@ -90,7 +90,7 @@ This is currently the default hash provider for the library."}
 (def ^{:tag ImmutList} empty-vec ImmutList/EMPTY)
 
 
-(declare assoc! conj! vec mapv vector)
+(declare assoc! conj! vec mapv vector object-array)
 
 
 (defn- empty-map?
@@ -158,18 +158,8 @@ This is currently the default hash provider for the library."}
 
 (def ^:private obj-ary-cls (Class/forName "[Ljava.lang.Object;"))
 
-(defn- ->obj-ary
-  ^objects [data]
-  (cond
-    (instance? obj-ary-cls data)
-    data
-    (instance? Collection data)
-    (.toArray ^Collection data)
-    :else
-    (object-array data)))
 
-
-(def ^:private empty-objs (object-array 0))
+(def ^:private empty-objs (clojure.core/object-array 0))
 
 
 (defn obj-ary
@@ -214,8 +204,12 @@ This is currently the default hash provider for the library."}
        (do (.putAll ^Map container ^Map data) container)
        (reduce conj! container data))
      (instance? Collection container)
-     (if (instance? Collection data)
+     (cond
+       (instance? Collection data)
        (do (.addAll ^Collection container ^Collection data) container)
+       (instance? CharSequence data)
+       (do (.addAll ^Collection container (StringCollection. data)) container)
+       :else
        (reduce conj! container data))
      :else
      (throw (Exception. (str "Unable to ascertain container type: " (type container))))))
@@ -373,6 +367,9 @@ ham_fisted.PersistentHashMap
      (instance? Collection data)
      (doto (MutList. )
        (.addAll data))
+     (string? data)
+     (doto (MutList.)
+       (.addAll (StringCollection. data)))
      :else
      (into (MutList.) data))))
 
@@ -499,15 +496,22 @@ ham_fisted.PersistentHashMap
     (immut-set item)))
 
 
-(defn- ->collection
+(defn ->collection
+  "Ensure an item implements java.util.Collection.  This is inherently true for seqs and any
+  implementation of java.util.List but not true for object arrays.  For maps this returns
+  the entry set."
   ^Collection [item]
   (cond
     (instance? Collection item)
     item
     (instance? Map item)
     (.entrySet ^Map item)
+    (instance? obj-ary-cls item)
+    (Arrays/asList item)
+    (instance? CharSequence item)
+    (StringCollection. ^CharSequence item)
     :else
-    (vec item)))
+    (RT/seq item)))
 
 
 (defn map-union
@@ -899,8 +903,8 @@ ham_fisted.PersistentHashMap
 
   The factory produces PersistentHashMaps."
   [keys]
-  (let [mf (PersistentHashMap/makeFactory equal-hash-provider (->obj-ary keys))]
-    (fn [vals] (.apply mf (->obj-ary vals)))))
+  (let [mf (PersistentHashMap/makeFactory equal-hash-provider (object-array keys))]
+    (fn [vals] (.apply mf (object-array vals)))))
 
 
 (defn- assoc-inv
@@ -1123,7 +1127,7 @@ ham_fisted.PersistentHashMap
 
 (defn group-by
   "Group items in collection by the grouping function f.  Returns persistent map of
-  keys to persistent vectors.  This version is a solid amount faster than clojure's
+  keys to persistent vectors.  This version is a solid amount (2-4x) faster than clojure's
   core group-by implementation."
   [f coll]
   (let [retval (mut-map)
@@ -1136,6 +1140,56 @@ ham_fisted.PersistentHashMap
     (update-values retval (reify BiFunction
                             (apply [this k v]
                               (persistent! v))))))
+
+
+(defn group-by-reduce
+  "Group by key. Apply the reduce-fn the existing value and on each successive value.
+  reduce-fn is called during finalization with that the sole argument of the existing value.
+  If at any point result is reduced? group-by continues but further reductions one that
+  specific value cease.  In this case reduce-fn isn't called again but the result is simply
+  deref'd during finalization.
+
+  reduce-fn will not be called in the two-argument form if the value in the map doesn't
+  exist or is nil.  If there is anything in the map at that location it will be called
+  in the single argument form regardless if the value is nil? or not.
+
+  This type of reduction can be both signifcantly faster and use significantly less memory
+  than a reduction of the form `(->> group-by map into)` or `(->> group-by mapmap)`.
+
+```clojure
+ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) + (range 100))
+  {0 735, 1 750, 2 665, 3 679, 4 693, 5 707, 6 721}
+ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) max (shuffle (range 100)))
+  {0 98, 1 99, 2 93, 3 94, 4 95, 5 96, 6 97}
+
+ham-fisted.api> ;;Reduce to map of first value found
+ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r] l)) (range 100))
+{0 0, 1 1, 2 2, 3 3, 4 4, 5 5, 6 6}
+ham-fisted.api> ;;Reduce to map of last value found
+ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r] r)) (range 100))
+{0 98, 1 99, 2 93, 3 94, 4 95, 5 96, 6 97}
+```"
+  [key-fn reduce-fn coll]
+  (let [retval (mut-map)
+        box-fn (reify Function
+                 (apply [this k]
+                   (BitmapTrieCommon$Box.)))
+        update-fn (reify BiFunction
+                    (apply [this oldv newv]
+                      (if (reduced? oldv)
+                        oldv
+                        (reduce-fn oldv newv))))]
+    (iterator/doiter
+     v coll
+     (let [^BitmapTrieCommon$Box b (compute-if-absent! retval (key-fn v) box-fn)]
+       (.inplaceUpdate b update-fn v)))
+    (update-values retval (reify BiFunction
+                            (apply [this k b]
+                              (let [^BitmapTrieCommon$Box b b
+                                    v (.obj b)]
+                                (if (reduced? v)
+                                  (deref v)
+                                  (reduce-fn v))))))))
 
 
 (defn mapv
@@ -1159,15 +1213,77 @@ ham_fisted.PersistentHashMap
 
 (defn vector
   ([] empty-vec)
-  ([a] (ImmutList/create true, (obj-ary a)))
-  ([a b] (ImmutList/create true, (obj-ary a b)))
-  ([a b c] (ImmutList/create true, (obj-ary a b c)))
-  ([a b c d] (ImmutList/create true, (obj-ary a b c d)))
-  ([a b c d e] (ImmutList/create true, (obj-ary a b c d e)))
-  ([a b c d e f] (ImmutList/create true, (obj-ary a b c d e f)))
-  ([a b c d e f g] (ImmutList/create true, (obj-ary a b c d e f g)))
-  ([a b c d e f g h] (ImmutList/create true, (obj-ary a b c d e f g h)))
-  ([a b c d e f g h i] (ImmutList/create true, (obj-ary a b c d e f g h i)))
-  ([a b c d e f g h i j] (ImmutList/create true, (obj-ary a b c d e f g h i j)))
-  ([a b c d e f g h i j k] (ImmutList/create true, (obj-ary a b c d e f g h i j k)))
+  ([a] (ImmutList/create true, (ObjArray/create a)))
+  ([a b] (ImmutList/create true, (ObjArray/create a b)))
+  ([a b c] (ImmutList/create true, (ObjArray/create a b c)))
+  ([a b c d] (ImmutList/create true, (ObjArray/create a b c d)))
+  ([a b c d e] (ImmutList/create true, (ObjArray/create a b c d e)))
+  ([a b c d e f] (ImmutList/create true, (ObjArray/create a b c d e f)))
+  ([a b c d e f g] (ImmutList/create true, (ObjArray/create a b c d e f g)))
+  ([a b c d e f g h] (ImmutList/create true, (ObjArray/create a b c d e f g h)))
+  ([a b c d e f g h i] (ImmutList/create true, (ObjArray/create a b c d e f g h i)))
+  ([a b c d e f g h i j] (ImmutList/create true, (ObjArray/create a b c d e f g h i j)))
+  ([a b c d e f g h i j k] (ImmutList/create true, (ObjArray/create a b c d e f g h i j k)))
   ([a b c d e f g h i j k & args] (ImmutList/create true, (apply obj-ary a b c d e f g h i j k args))))
+
+
+(defn splice
+  "Splice v2 into v1 at idx.  Returns a persistent vector.  This is a much faster operation
+  if v1 implements java.util.List subList."
+  [v1 idx v2]
+  (let [retval (mut-list)]
+    (if (instance? RandomAccess v1)
+      (do
+        (.addAll retval (subvec v1 0 idx))
+        (.addAll retval (->collection v2))
+        (.addAll retval (subvec v1 idx)))
+      (do (.addAll retval (take idx v1))
+          (.addAll retval (->collection v2))
+          (.addAll retval (drop idx v1))))
+    (persistent! retval)))
+
+
+(defn concatv
+  "non-lazily concat a set of items returning a persistent vector.  "
+  ([v1 v2]
+   (cond
+     (nil? v1) v2
+     (nil? v2) v1
+     :else
+     (let [retval (mut-list)]
+       (.addAll retval (->collection v1))
+       (.addAll retval (->collection v2))
+       (persistent! retval))))
+  ([v1 v2 & args]
+   (let [retval (mut-list)]
+     (when-not (nil? v1) (.addAll retval (->collection v1)))
+     (when-not (nil? v2) (.addAll retval (->collection v2)))
+     (iterator/doiter
+      c args
+      (when-not (nil? c) (.addAll retval (->collection c))))
+     (when-not (== 0 (.size retval))
+       (persistent! retval)))))
+
+
+(defn object-array
+  "Faster version of object-array for java collections and strings."
+  ^objects [item]
+  (cond
+    (or (nil? item) (number? item))
+    (clojure.core/object-array item)
+    (instance? obj-ary-cls item)
+    item
+    (instance? Collection item)
+    (.toArray ^Collection item)
+    (instance? Map item)
+    (.toArray (.entrySet ^Map item))
+    (instance? String item)
+    (.toArray (StringCollection. item))
+    (.isArray (.getClass ^Object item))
+    (let [retval (clojure.core/object-array (count item))]
+      (ObjArray/iterFill retval 0 (iterator/->iterator item)))
+    (instance? Iterable item)
+    (let [alist (ArrayList.)]
+      (iterator/doiter
+       i item (.add alist i))
+      (.toArray alist))))

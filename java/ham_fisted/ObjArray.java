@@ -2,6 +2,7 @@ package ham_fisted;
 
 
 import java.util.Arrays;
+import java.util.Iterator;
 
 
 public class ObjArray {
@@ -32,6 +33,10 @@ public class ObjArray {
     return retval;
   }
   public static final Object[] create(Object a, Object b, Object c, Object d,
+				      Object e, Object f, Object g) {
+    return new Object[] {a, b, c, d, e, f, g};
+  }
+  public static final Object[] create(Object a, Object b, Object c, Object d,
 				      Object e, Object f, Object g, Object h) {
     return new Object[] {a, b, c, d, e, f, g, h};
   }
@@ -49,8 +54,18 @@ public class ObjArray {
   }
   public static final Object[] create(Object a, Object b, Object c, Object d,
 				      Object e, Object f, Object g, Object h,
+				      Object i) {
+    return new Object[] {a, b, c, d, e, f, g, h, i};
+  }
+  public static final Object[] create(Object a, Object b, Object c, Object d,
+				      Object e, Object f, Object g, Object h,
 				      Object i, Object j) {
     return new Object[] {a, b, c, d, e, f, g, h, i, j};
+  }
+  public static final Object[] create(Object a, Object b, Object c, Object d,
+				      Object e, Object f, Object g, Object h,
+				      Object i, Object j, Object k) {
+    return new Object[] {a, b, c, d, e, f, g, h, i, j, k};
   }
   public static final Object[] create(Object a, Object b, Object c, Object d,
 				      Object e, Object f, Object g, Object h,
@@ -60,8 +75,20 @@ public class ObjArray {
   public static final Object[] create(Object a, Object b, Object c, Object d,
 				      Object e, Object f, Object g, Object h,
 				      Object i, Object j, Object k, Object l,
+				      Object m) {
+    return new Object[] {a, b, c, d, e, f, g, h, i, j, k, l, m};
+  }
+  public static final Object[] create(Object a, Object b, Object c, Object d,
+				      Object e, Object f, Object g, Object h,
+				      Object i, Object j, Object k, Object l,
 				      Object m, Object n) {
     return new Object[] {a, b, c, d, e, f, g, h, i, j, k, l, m, n};
+  }
+  public static final Object[] create(Object a, Object b, Object c, Object d,
+				      Object e, Object f, Object g, Object h,
+				      Object i, Object j, Object k, Object l,
+				      Object m, Object n, Object o) {
+    return new Object[] {a, b, c, d, e, f, g, h, i, j, k, l, m, n, o};
   }
   public static final Object[] create(Object a, Object b, Object c, Object d,
 				      Object e, Object f, Object g, Object h,
@@ -85,5 +112,12 @@ public class ObjArray {
     retval[15] = p;
     System.arraycopy(extra, 0, retval, 16, el);
     return retval;
+  }
+
+
+  public static Object[] iterFill(Object[] data, int idx, Iterator iter) {
+    while(iter.hasNext())
+      data[idx++] = iter.next();
+    return data;
   }
 }

@@ -178,6 +178,7 @@ public final class HashMap<K,V>
   public void forEach(BiConsumer<? super K,? super V> action) {
     hb.forEach(action);
   }
+
   public void parallelForEach(BiConsumer<? super K,? super V> action, ExecutorService es,
 			      int parallelism) throws Exception {
     hb.parallelForEach(action, es, parallelism);

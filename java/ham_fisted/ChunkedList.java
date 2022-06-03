@@ -84,8 +84,9 @@ class ChunkedList {
   }
 
   static ChunkedList create(boolean owning, Object... data) {
-    if (owning && data.length <= 32) {
-      return new ChunkedList( new Object[][] { data }, data.length, data.length, null);
+    final int dlen = data.length;
+    if (owning && dlen <= 32) {
+      return new ChunkedList(new Object[][] { data }, dlen, dlen, null);
     } else {
       final int nElems = data.length;
       final int nChunks = numChunks(nElems);
