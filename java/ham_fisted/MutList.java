@@ -32,9 +32,7 @@ import clojure.lang.Counted;
 
 
 public class MutList<E>
-  implements List<E>, RandomAccess, Indexed, IFnDef, IReduce, IKVReduce,
-	     RangeList<E>, IHashEq, Seqable, Reversible, ChunkedListOwner,
-	     Cloneable, IObj, ITransientVector, ImmutValues
+  implements IMutList<E>, ChunkedListOwner, Cloneable, ITransientVector, ImmutValues
 {
   final ChunkedList data;
   public MutList() { data = new ChunkedList(); }
@@ -47,8 +45,8 @@ public class MutList<E>
     this(other.data.clone(0, other.data.nElems, 0, true));
   }
   @SafeVarargs
-  public static <E> MutList<E> create(boolean owning, E... data) {
-    return new MutList<E>(ChunkedList.create(owning, data));
+  public static <E> MutList<E> create(boolean owning, IPersistentMap meta, E... data) {
+    return new MutList<E>(ChunkedList.create(owning, meta, data));
   }
   public final ChunkedListSection getChunkedList() {
     return new ChunkedListSection(data.data, 0, data.nElems);
@@ -162,10 +160,7 @@ public class MutList<E>
   @SuppressWarnings("unchecked")
   public final Iterator<E> iterator() { return (Iterator<E>)data.iterator(); }
 
-  static class SubMutList<E> implements List<E>, RandomAccess, Indexed, IFnDef,
-					IReduce, IKVReduce, RangeList<E>,
-					Seqable, Reversible, IHashEq, ChunkedListOwner,
-					Cloneable, IObj
+  static class SubMutList<E> implements IMutList<E>, ChunkedListOwner, Cloneable
   {
     final int startidx;
     final int nElems;
@@ -292,24 +287,18 @@ public class MutList<E>
     public final Object kvreduce(IFn f, Object init) {
       return data.kvreduce(startidx, startidx+nElems, f, init);
     }
-    public void fillRange(int sidx, int eidx, E v) {
+    public void fillRange(int sidx, int eidx, Object v) {
       final int ssidx = indexCheck(sidx);
       if (eidx < sidx || eidx > nElems)
 	throw new RuntimeException("End index out of range: " + String.valueOf(eidx));
       data.fillRange(ssidx, eidx + startidx, v);
     }
-    public void fillRange(int sidx, List<? extends E> v) {
+    public void fillRange(int sidx, List v) {
       final int ssidx = indexCheck(sidx);
       final int eidx = sidx + v.size();
       if (eidx > nElems)
 	throw new RuntimeException("End index out of range: " + String.valueOf(eidx));
       data.fillRange(ssidx, v);
-    }
-    public void addRange(int startidx, int endidx, E v) {
-      throw new RuntimeException("Unimplemented");
-    }
-    public void removeRange(int startidx, int endidx) {
-      throw new RuntimeException("Unimplemented");
     }
     public final int hashCode() {
       return data.hasheq(startidx, startidx + nElems);
@@ -351,14 +340,14 @@ public class MutList<E>
     return retval;
   }
 
-  public void fillRange(int startidx, int endidx, E v) {
+  public void fillRange(int startidx, int endidx, Object v) {
     indexCheck(startidx);
     if(endidx < startidx || endidx > data.nElems)
       throw new RuntimeException("End index out of range: " + String.valueOf(endidx));
     data.fillRange(startidx, endidx, v);
   }
 
-  public void fillRange(int startidx, List<? extends E> v) {
+  public void fillRange(int startidx, List v) {
     indexCheck(startidx);
     final int endidx = v.size();
     if(endidx < startidx || endidx > data.nElems)
@@ -366,7 +355,7 @@ public class MutList<E>
     data.fillRange(startidx, v);
   }
 
-  public void addRange(int startidx, int endidx, E v) {
+  public void addRange(int startidx, int endidx, Object v) {
     indexCheck(startidx);
     data.addRange(startidx, endidx, v);
   }

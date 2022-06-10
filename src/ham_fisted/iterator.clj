@@ -4,7 +4,7 @@
            [java.util.stream Stream]
            [java.util.function Supplier Function BiFunction Consumer Predicate BiConsumer]
            [clojure.lang ArraySeq]
-           [ham_fisted StringCollection]))
+           [ham_fisted StringCollection ArrayLists]))
 
 
 (set! *warn-on-reflection* true)
@@ -17,60 +17,17 @@
           (type item) target-type))
 
 
-(defmacro ^:private define-array-iter
-  [name ary-type]
-  `(do
-     (deftype ~name [~(with-meta (symbol "ary") {:tag ary-type})
-                     ~(with-meta (symbol "idx") {:unsynchronized-mutable true
-                                                 :tag 'long})
-                     ~(with-meta (symbol "alen") {:tag 'long})]
-       Iterator
-       (hasNext [this] (< ~'idx ~'alen))
-       (next [this] (let [retval# (aget ~'ary ~'idx)]
-                      (set! ~'idx (unchecked-inc ~'idx))
-                      retval#)))
-     (def ~(with-meta (symbol (str name "-ary-type"))
-             {:private true
-              :tag 'Class}) ~(Class/forName ary-type))))
-
-
-(define-array-iter ByteArrayIter "[B")
-(define-array-iter ShortArrayIter "[S")
-(define-array-iter CharArrayIter "[C")
-(define-array-iter IntArrayIter "[I")
-(define-array-iter LongArrayIter "[J")
-(define-array-iter FloatArrayIter "[F")
-(define-array-iter DoubleArrayIter "[D")
-(define-array-iter ObjectArrayIter "[Ljava.lang.Object;")
-
-
 (defn ary-iter
   "Create an iterator for any primitive or object java array."
   ^Iterator [ary-data]
-  (cond
-    (instance? ByteArrayIter-ary-type ary-data)
-    (ByteArrayIter. ary-data 0 (alength ^bytes ary-data))
-    (instance? ShortArrayIter-ary-type ary-data)
-    (ShortArrayIter. ary-data 0 (alength ^shorts ary-data))
-    (instance? CharArrayIter-ary-type ary-data)
-    (CharArrayIter. ary-data 0 (alength ^chars ary-data))
-    (instance? IntArrayIter-ary-type ary-data)
-    (IntArrayIter. ary-data 0 (alength ^ints ary-data))
-    (instance? LongArrayIter-ary-type ary-data)
-    (LongArrayIter. ary-data 0 (alength ^longs ary-data))
-    (instance? FloatArrayIter-ary-type ary-data)
-    (FloatArrayIter. ary-data 0 (alength ^floats ary-data))
-    (instance? DoubleArrayIter-ary-type ary-data)
-    (DoubleArrayIter. ary-data 0 (alength ^doubles ary-data))
-    :else
-    (ObjectArrayIter. ary-data 0 (alength ^objects ary-data))))
+  (.iterator (ArrayLists/toList ary-data)))
 
 
 (defn array-seq-iter
   ^Iterator [as]
   (if (instance? ArraySeq as)
     (let [objs (.array ^ArraySeq as)]
-      (ObjectArrayIter. objs 0 (alength objs)))
+      (ary-iter objs))
     (.iterator ^Iterable as)))
 
 
@@ -90,8 +47,7 @@
     (instance? Iterator item)
     item
     (instance? ArraySeq item)
-    (ObjectArrayIter. (.array ^ArraySeq item) (.index ^ArraySeq item)
-                      (alength (.array ^ArraySeq item)))
+    (->iterator (.array ^ArraySeq item))
     (instance? Iterable item)
     (.iterator ^Iterable item)
 

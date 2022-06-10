@@ -51,8 +51,10 @@ public class ImmutList
     nElems = eidx - sidx;
     data = d;
   }
-  public static ImmutList create(boolean owning, Object... data) {
-    return new ImmutList(0, data.length, ChunkedList.create(owning, data));
+  public static IPersistentVector create(boolean owning, IPersistentMap meta, Object... data) {
+    if (data.length <= 32)
+      return ArrayImmutList.create(owning, meta, data);
+    return new ImmutList(0, data.length, ChunkedList.create(owning, meta, data));
   }
   final int indexCheck(int idx) {
     return ChunkedList.indexCheck(startidx, nElems, idx);

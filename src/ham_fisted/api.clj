@@ -1,6 +1,6 @@
 (ns ham-fisted.api
   "Fast mutable and immutable associative data structures based on bitmap trie
-  hashmaps. Mutable pathways implement the `java.util.Map` or `Set` interfaces
+  n  hashmaps. Mutable pathways implement the `java.util.Map` or `Set` interfaces
   including in-place update features such as compute or computeIfPresent.
 
   Mutable maps or sets can be turned into their immutable counterparts via the
@@ -34,16 +34,23 @@
   (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
             BitmapTrieCommon$Box PersistentArrayMap ObjArray ImmutValues
-            MutList ImmutList StringCollection]
+            MutList ImmutList StringCollection ArrayImmutList ArrayLists
+            ImmutSort IMutList ArrayLists$SummationConsumer]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
             IEditableCollection RT IPersistentMap Associative Util IFn ArraySeq]
            [java.util Map Map$Entry List RandomAccess Set Collection ArrayList Arrays]
-           [java.util.function Function BiFunction BiConsumer Consumer]
+           [java.util.function Function BiFunction BiConsumer Consumer
+            DoubleBinaryOperator LongBinaryOperator]
            [java.util.concurrent ForkJoinPool ExecutorService Callable Future
-            ConcurrentHashMap])
+            ConcurrentHashMap]
+           [it.unimi.dsi.fastutil.ints IntComparator IntArrays]
+           [it.unimi.dsi.fastutil.longs LongComparator]
+           [it.unimi.dsi.fastutil.floats FloatComparator]
+           [it.unimi.dsi.fastutil.doubles DoubleComparator])
   (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize
                             into assoc-in get-in update assoc update-in hash-map
-                            group-by subvec group-by mapv vec vector object-array]))
+                            group-by subvec group-by mapv vec vector object-array
+                            sort int-array long-array double-array float-array]))
 
 
 (set! *warn-on-reflection* true)
@@ -79,7 +86,6 @@ This is currently the default hash provider for the library."}
 
 
 
-
 (defn- options->provider
   ^BitmapTrieCommon$HashProvider [options]
   (get options :hash-provider default-hash-provider))
@@ -87,7 +93,7 @@ This is currently the default hash provider for the library."}
 
 (def ^{:tag PersistentArrayMap} empty-map PersistentArrayMap/EMPTY)
 (def ^{:tag PersistentHashSet} empty-set (PersistentHashSet. (options->provider nil)))
-(def ^{:tag ImmutList} empty-vec ImmutList/EMPTY)
+(def ^{:tag ArrayImmutList} empty-vec ArrayImmutList/EMPTY)
 
 
 (declare assoc! conj! vec mapv vector object-array)
@@ -363,13 +369,15 @@ ham_fisted.PersistentHashMap
   (^MutList [data]
    (cond
      (instance? obj-ary-cls data)
-     (MutList/create false ^objects data)
+     (MutList/create false nil ^objects data)
      (instance? Collection data)
      (doto (MutList. )
        (.addAll data))
      (string? data)
      (doto (MutList.)
        (.addAll (StringCollection. data)))
+     (.isArray (.getClass ^Object data))
+     (MutList/create false nil (.toArray (ArrayLists/toList data)))
      :else
      (into (MutList.) data))))
 
@@ -506,8 +514,8 @@ ham_fisted.PersistentHashMap
     item
     (instance? Map item)
     (.entrySet ^Map item)
-    (instance? obj-ary-cls item)
-    (Arrays/asList item)
+    (.isArray (.getClass ^Object item))
+    (ArrayLists/toList item)
     (instance? CharSequence item)
     (StringCollection. ^CharSequence item)
     :else
@@ -1213,18 +1221,18 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
 
 (defn vector
   ([] empty-vec)
-  ([a] (ImmutList/create true, (ObjArray/create a)))
-  ([a b] (ImmutList/create true, (ObjArray/create a b)))
-  ([a b c] (ImmutList/create true, (ObjArray/create a b c)))
-  ([a b c d] (ImmutList/create true, (ObjArray/create a b c d)))
-  ([a b c d e] (ImmutList/create true, (ObjArray/create a b c d e)))
-  ([a b c d e f] (ImmutList/create true, (ObjArray/create a b c d e f)))
-  ([a b c d e f g] (ImmutList/create true, (ObjArray/create a b c d e f g)))
-  ([a b c d e f g h] (ImmutList/create true, (ObjArray/create a b c d e f g h)))
-  ([a b c d e f g h i] (ImmutList/create true, (ObjArray/create a b c d e f g h i)))
-  ([a b c d e f g h i j] (ImmutList/create true, (ObjArray/create a b c d e f g h i j)))
-  ([a b c d e f g h i j k] (ImmutList/create true, (ObjArray/create a b c d e f g h i j k)))
-  ([a b c d e f g h i j k & args] (ImmutList/create true, (apply obj-ary a b c d e f g h i j k args))))
+  ([a] (ArrayImmutList/create true nil (ObjArray/create a)))
+  ([a b] (ArrayImmutList/create true nil (ObjArray/create a b)))
+  ([a b c] (ArrayImmutList/create true nil (ObjArray/create a b c)))
+  ([a b c d] (ArrayImmutList/create true nil (ObjArray/create a b c d)))
+  ([a b c d e] (ArrayImmutList/create true nil (ObjArray/create a b c d e)))
+  ([a b c d e f] (ArrayImmutList/create true nil (ObjArray/create a b c d e f)))
+  ([a b c d e f g] (ArrayImmutList/create true nil (ObjArray/create a b c d e f g)))
+  ([a b c d e f g h] (ArrayImmutList/create true nil (ObjArray/create a b c d e f g h)))
+  ([a b c d e f g h i] (ArrayImmutList/create true nil (ObjArray/create a b c d e f g h i)))
+  ([a b c d e f g h i j] (ArrayImmutList/create true nil (ObjArray/create a b c d e f g h i j)))
+  ([a b c d e f g h i j k] (ArrayImmutList/create true nil (ObjArray/create a b c d e f g h i j k)))
+  ([a b c d e f g h i j k & args] (ImmutList/create true nil (apply obj-ary a b c d e f g h i j k args))))
 
 
 (defn splice
@@ -1280,10 +1288,188 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
     (instance? String item)
     (.toArray (StringCollection. item))
     (.isArray (.getClass ^Object item))
-    (let [retval (clojure.core/object-array (count item))]
-      (ObjArray/iterFill retval 0 (iterator/->iterator item)))
+    (.toArray (ArrayLists/toList item))
     (instance? Iterable item)
     (let [alist (ArrayList.)]
       (iterator/doiter
        i item (.add alist i))
       (.toArray alist))))
+
+
+(defn- ->comparator
+  ^java.util.Comparator [comp]
+  (or comp compare))
+
+(defmacro long-comparator
+  ^LongComparator [lhsvar rhsvar & code]
+  (let [lhsvar (with-meta lhsvar {:tag 'long})
+        rhsvar (with-meta rhsvar {:tag 'long})
+        compsym (with-meta 'compare {:tag 'int})]
+    `(reify LongComparator
+       (~compsym [this# ~lhsvar ~rhsvar]
+         ~@code))))
+
+
+(defmacro double-comparator
+  ^DoubleComparator [lhsvar rhsvar & code]
+  (let [lhsvar (with-meta lhsvar {:tag 'double})
+        rhsvar (with-meta rhsvar {:tag 'double})
+        compsym (with-meta 'compare {:tag 'int})]
+    `(reify DoubleComparator
+       (~compsym [this# ~lhsvar ~rhsvar]
+        ~@code))))
+
+
+(defn sorta
+  "Sort returning an object array."
+  (^objects [coll] (sorta nil coll))
+  (^objects [comp coll]
+   (let [a (object-array coll)]
+     (Arrays/sort a (->comparator comp))
+     a)))
+
+
+(defn sort
+  "Exact replica of clojure.core/sort but instead of wrapping the final object array in a seq
+  which loses the fact the result is countable and random access."
+  ([coll] (sort nil coll))
+  ([comp coll]
+   (let [coll (->collection coll)]
+     (if (instance? ImmutSort coll)
+       (.immutSort ^ImmutSort coll comp)
+       (let [a (sorta comp coll)]
+         (ArrayLists/toList a 0 (alength a) ^IPersistentMap (meta coll)))))))
+
+
+(defn sort!
+  "If coll is a list, call the list sort method else call sort."
+  ([comp coll]
+   (if (instance? List coll)
+     (do (.sort ^List coll comp) coll)
+     (sort comp coll)))
+  ([coll]
+   (sort! nil coll)))
+
+(defn iarange
+  "Return an integer array holding the values of the range.  Use `->collection` to get a
+  list implementation wrapping for generic access."
+  (^ints [end]
+   (iarange 0 end 1))
+  (^ints [start end]
+   (iarange start end 1))
+  (^ints [start end step]
+   (ArrayLists/iarange start end step)))
+
+(defn larange
+  "Return a long array holding values of the range.  Use `->collection` get a list
+  implementation for generic access."
+  (^longs [end]
+   (larange 0 end 1))
+  (^longs [start end]
+   (larange start end 1))
+  (^longs [start end step]
+   (ArrayLists/larange start end step)))
+
+(defn darange
+  (^doubles [end]
+   (darange 0 end 1))
+  (^doubles [start end]
+   (darange start end 1))
+  (^doubles [start end step]
+   (ArrayLists/darange start end step)))
+
+
+(defn argsort
+  ([comp coll]
+   (let [^List coll (if (instance? RandomAccess coll)
+                      coll
+                      (let [coll (->collection coll)]
+                        (if (instance? RandomAccess coll)
+                          coll
+                          (doto (ArrayList.)
+                            (.addAll coll)))))]
+     (->
+      (if (instance? IMutList coll)
+        (.sortIndirect ^IMutList coll (when comp (->comparator comp)))
+        (let [sz (.size coll)
+              idata (iarange sz)
+              idx-comp (ArrayLists/intIndexComparator coll comp)]
+          (IntArrays/parallelQuickSort idata ^IntComparator idx-comp)
+          idata))
+      (->collection))))
+  ([coll]
+   (argsort nil coll)))
+
+
+(defn int-array
+  ^ints [data]
+  (if (instance? IMutList data)
+    (.toIntArray ^IMutList data)
+    (clojure.core/int-array data)))
+
+
+(defn long-array
+  ^longs [data]
+  (if (instance? IMutList data)
+    (.toLongArray ^IMutList data)
+    (clojure.core/long-array data)))
+
+
+(defn float-array
+  ^floats [data]
+  (if (instance? IMutList data)
+    (.toFloatArray ^IMutList data)
+    (clojure.core/float-array data)))
+
+
+(defn double-array
+  ^doubles [data]
+  (if (instance? IMutList data)
+    (.toDoubleArray ^IMutList data)
+    (clojure.core/double-array data)))
+
+
+(defmacro double-binary-operator
+  [lvar rvar & code]
+  `(reify DoubleBinaryOperator
+     (applyAsDouble [this ~lvar ~rvar]
+       ~@code)))
+
+
+(defn sum
+  ^double [coll]
+  (let [coll (->collection coll)]
+    (if (instance? IMutList coll)
+      (let [^IMutList coll coll]
+        (->> (pfor (.size coll)
+                   (fn [^long sidx ^long eidx]
+                     (.doubleReduction ^IMutList (.subList coll sidx eidx)
+                                       (double-binary-operator l r (unchecked-add l r))
+                                       0.0)))
+             (reduce +)))
+      (reduce + coll))))
+
+
+(comment
+
+  (require '[criterium.core :as crit])
+  (def data (double-array (shuffle (range 10000))))
+  (crit/quick-bench (argsort (double-comparator l r (Double/compare r l)) data))
+  ;; 861.1 us
+  (crit/quick-bench (sort data))
+  ;; 749.7 us
+  (crit/quick-bench (reduce + data))
+  ;; 309 us
+  (crit/quick-bench (reduce (fn [^double l ^double r]
+                              (unchecked-add l r)) data))
+  ;; 271 us
+  (crit/quick-bench (sum data))
+  (crit/quick-bench (dfn/sum-fast data))
+  ;; 10 us
+  (require '[tech.v3.datatype.argops :as argops])
+  (require '[tech.v3.datatype.functional :as dfn])
+  (import '[ham_fisted ArrayLists$ReductionConsumer])
+  (crit/quick-bench (let [dc (ArrayLists$ReductionConsumer. + 0)]
+                      (.forEach (->collection data) dc)
+                      (.value dc)))
+  )

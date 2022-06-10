@@ -1,8 +1,10 @@
 {:paths ["src" "target/classes"]
+ :deps {it.unimi.dsi/fastutil-core {:mvn/version "8.5.8"}}
  :aliases
  {;; Run with clj -T:build function-in-build
   :dev
-  {:deps {criterium/criterium {:mvn/version "0.4.5"}}}
+  {:extra-deps {criterium/criterium {:mvn/version "0.4.5"}
+                cnuernber/dtype-next {:mvn/version "9.028"}}}
   :build
   {:deps {io.github.clojure/tools.build {:git/tag "v0.8.1" :git/sha "7d40500"}}
    :ns-default build}

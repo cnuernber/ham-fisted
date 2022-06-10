@@ -83,7 +83,7 @@ class ChunkedList {
     meta = other.meta;
   }
 
-  static ChunkedList create(boolean owning, Object... data) {
+  static ChunkedList create(boolean owning, IPersistentMap meta, Object... data) {
     final int dlen = data.length;
     if (owning && dlen <= 32) {
       return new ChunkedList(new Object[][] { data }, dlen, dlen, null);
@@ -99,7 +99,7 @@ class ChunkedList {
 	mdata[idx/32] = chunk;
 	idx += clen;
       }
-      return new ChunkedList(mdata, nElems, nElems, null);
+      return new ChunkedList(mdata, nElems, nElems, meta);
     }
   }
 

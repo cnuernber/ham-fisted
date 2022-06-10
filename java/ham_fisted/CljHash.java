@@ -5,9 +5,13 @@ import static ham_fisted.BitmapTrie.*;
 import static ham_fisted.BitmapTrieCommon.*;
 import java.util.Map;
 import java.util.Set;
+import java.util.List;
+import java.util.RandomAccess;
+import java.util.Collection;
 import clojure.lang.Murmur3;
 import clojure.lang.APersistentMap;
 import clojure.lang.Util;
+import clojure.lang.RT;
 
 
 public class CljHash {
@@ -89,5 +93,38 @@ public class CljHash {
       return true;
     }
     return false;
+  }
+
+  public static int listHasheq(List l) {
+    int hash = 1;
+    final int n = l.size();
+    for(int idx = 0; idx < n; ++idx) {
+      hash = 31 * hash + Util.hasheq(l.get(idx));
+    }
+    hash = Murmur3.mixCollHash(hash, n);
+    return hash;
+  }
+  public static boolean listEquiv(List l, Object rhs) {
+    if (l == rhs) return true;
+    if (rhs == null) return false;
+    if (rhs instanceof RandomAccess) {
+      List r = (List)rhs;
+      final int sz = l.size();
+      if(sz != r.size()) return false;
+      for(int idx = 0; idx < sz; ++idx) {
+	if(!Util.equiv(l.get(idx), r.get(idx)))
+	  return false;
+      }
+      return true;
+    } else {
+      int idx = 0;
+      Collection r = rhs instanceof Collection ? (Collection)rhs : (Collection)RT.seq(rhs);
+      for(Object o:r) {
+	if(!Util.equiv(l.get(idx), o))
+	  return false;
+	++idx;
+      }
+      return true;
+    }
   }
 }
