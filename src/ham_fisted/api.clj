@@ -1637,8 +1637,15 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
                          (sum)))
   ;;151ms
 
+  (crit/quick-bench (->> (apply clojure.core/concat (repeat 200 (range 100)))
+                         (sum)))
+  ;;2.44ms
+
   (crit/quick-bench (->> (reduce concat (repeat 200 (range 100)))
                          (sum)))
   ;;737us
+  (crit/quick-bench (->> (apply concat (repeat 200 (range 100)))
+                         (sum)))
+  ;;263us
 
   )
