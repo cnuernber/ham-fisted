@@ -1509,15 +1509,15 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
      (instance? Transformables$IMapable arg)
      (.map ^Transformables$IMapable arg f)
      (instance? RandomAccess arg)
-     (Transformables$MapList. f nil (into-array List [arg]))
+     (Transformables$MapList/create f nil (into-array List [arg]))
      (.isArray (.getClass ^Object arg))
-     (Transformables$MapList. f nil (into-array List [(ArrayLists/toList arg)]))
+     (Transformables$MapList/create f nil (into-array List [(ArrayLists/toList arg)]))
      :else
      (Transformables$MapIterable. f nil (into-array Iterable [(->collection arg)]))))
   ([f arg & args]
    (let [args (clojure.core/concat [arg] args)]
      (if (every? #(instance? RandomAccess %) args)
-       (Transformables$MapList. f nil (into-array List args))
+       (Transformables$MapList/create f nil (into-array List args))
        (Transformables$MapIterable. f nil (into-array Iterable
                                                   (clojure.core/map ->collection args)))))))
 
@@ -1598,7 +1598,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
                          (map #(* (long %) 2))
                          (filter #(== 0 (rem (long %) 3)))
                          (sum)))
-  ;;410us
+  ;;259us
   (crit/quick-bench (->> (clojure.core/range 20000)
                          (map #(* (long %) 2))
                          (filter #(== 0 (rem (long %) 3)))
@@ -1624,7 +1624,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
                          (map #(+ 1 (long %)))
                          (filter #(== 0 (rem (long %) 3)))
                          (sum)))
-  ;;624us
+  ;;422us
   (crit/quick-bench (->> (clojure.core/range 20000)
                          (map #(* (long %) 2))
                          (map #(+ 1 (long %)))

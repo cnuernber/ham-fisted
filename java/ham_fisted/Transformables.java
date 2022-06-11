@@ -52,6 +52,7 @@ public class Transformables {
     }
     return c;
   }
+
   public static class MapIterable extends AbstractCollection implements Seqable, IMapable {
     final Iterable[] iterables;
     final IFn fn;
@@ -72,33 +73,62 @@ public class Transformables {
     public int size() {
       return iterCount(iterator());
     }
+    static class SingleIterator implements Iterator {
+      final Iterator iter;
+      final IFn fn;
+      public SingleIterator(IFn _fn, Iterator it) {
+	iter = it;
+	fn = _fn;
+      }
+      public boolean hasNext() { return iter.hasNext(); }
+      public Object next() { return fn.invoke(iter.next()); }
+    }
+
+    static class DualIterator implements Iterator {
+      final Iterator lhs;
+      final Iterator rhs;
+      final IFn fn;
+      public DualIterator(IFn f, Iterator l, Iterator r) {
+	lhs = l;
+	rhs = r;
+	fn = f;
+      }
+      public boolean hasNext() { return lhs.hasNext() && rhs.hasNext(); }
+      public Object next() {
+	return fn.invoke(lhs.next(), rhs.next());
+      }
+    }
+
     public Iterator iterator() {
       final int ss = iterables.length;
-      final Iterator[] iterators = new Iterator[ss];
-      for(int idx = 0; idx < ss; ++idx) {
-	iterators[idx] = iterables[idx].iterator();
-      }
-      return new Iterator() {
-	public boolean hasNext() {
-	  for(int idx = 0; idx < ss; ++idx)
-	    if( iterators[idx].hasNext() == false)
-	      return false;
-	  return true;
+      switch(ss) {
+      case 1: return new SingleIterator(fn, iterables[0].iterator());
+      case 2: return new DualIterator(fn, iterables[0].iterator(), iterables[1].iterator());
+      default:
+	final Iterator[] iterators = new Iterator[ss];
+	for(int idx = 0; idx < ss; ++idx) {
+	  iterators[idx] = iterables[idx].iterator();
 	}
-	public Object next() {
-	  switch(ss) {
-	  case 1: return fn.invoke(iterators[0].next());
-	  case 2: return fn.invoke(iterators[0].next(), iterators[1].next());
-	  case 3: return fn.invoke(iterators[0].next(), iterators[1].next(), iterators[2].next());
-	  case 4: return fn.invoke(iterators[0].next(), iterators[1].next(), iterators[2].next(), iterators[3].next());
-	  default:
-	    Object[] args = new Object[ss];
-	    for (int idx = 0; idx < ss; ++idx)
-	      args[idx] = iterators[idx].next();
-	    return fn.applyTo(ArraySeq.create(args));
+	return new Iterator() {
+	  public boolean hasNext() {
+	    for(int idx = 0; idx < ss; ++idx)
+	      if( iterators[idx].hasNext() == false)
+		return false;
+	    return true;
 	  }
-	}
-      };
+	  public Object next() {
+	    switch(ss) {
+	    case 3: return fn.invoke(iterators[0].next(), iterators[1].next(), iterators[2].next());
+	    case 4: return fn.invoke(iterators[0].next(), iterators[1].next(), iterators[2].next(), iterators[3].next());
+	    default:
+	      Object[] args = new Object[ss];
+	      for (int idx = 0; idx < ss; ++idx)
+		args[idx] = iterators[idx].next();
+	      return fn.applyTo(ArraySeq.create(args));
+	    }
+	  }
+	};
+      }
     }
     public ISeq seq() {
       return IteratorSeq.create(iterator());
@@ -261,6 +291,71 @@ public class Transformables {
     }
   }
 
+  public static class SingleMapList implements IMutList, IMapable {
+    final int nElems;
+    final List list;
+    final IFn fn;
+    final IPersistentMap meta;
+    public SingleMapList(IFn _fn, IPersistentMap m, List l) {
+      nElems = l.size();
+      list = l;
+      fn = _fn;
+      meta = m;
+    }
+    public SingleMapList(SingleMapList o, IPersistentMap m) {
+      nElems = o.nElems;
+      list = o.list;
+      fn = o.fn;
+      meta = m;
+    }
+    public int size() { return nElems; }
+    public Object get(int idx) { return fn.invoke(list.get(idx)); }
+    public SingleMapList subList(int sidx, int eidx) {
+      return new SingleMapList(fn, meta, list.subList(sidx, eidx));
+    }
+    public IPersistentMap meta() { return meta; }
+    public SingleMapList withMeta(IPersistentMap m) {
+      return new SingleMapList(this, m);
+    }
+    public SingleMapList map(IFn nfn) {
+      return new SingleMapList(new MapFn(fn, nfn), meta, list);
+    }
+  }
+
+  public static class DualMapList implements IMutList, IMapable {
+    final int nElems;
+    final List lhs;
+    final List rhs;
+    final IFn fn;
+    final IPersistentMap meta;
+    public DualMapList(IFn _fn, IPersistentMap m, List l, List r) {
+      nElems = Math.min(l.size(), r.size());
+      lhs = l;
+      rhs = r;
+      fn = _fn;
+      meta = m;
+    }
+    public DualMapList(DualMapList o, IPersistentMap m) {
+      nElems = o.nElems;
+      lhs = o.lhs;
+      rhs = o.rhs;
+      fn = o.fn;
+      meta = m;
+    }
+    public int size() { return nElems; }
+    public Object get(int idx) { return fn.invoke(lhs.get(idx), rhs.get(idx)); }
+    public DualMapList subList(int sidx, int eidx) {
+      return new DualMapList(fn, meta, lhs.subList(sidx, eidx), rhs.subList(sidx, eidx));
+    }
+    public IPersistentMap meta() { return meta; }
+    public DualMapList withMeta(IPersistentMap m) {
+      return new DualMapList(this, m);
+    }
+    public DualMapList map(IFn nfn) {
+      return new DualMapList(new MapFn(fn, nfn), meta, lhs, rhs);
+    }
+  }
+
   public static class MapList implements IMutList, IMapable {
     final int nElems;
     final List[] lists;
@@ -285,6 +380,14 @@ public class Transformables {
       lists = other.lists;
       fn = other.fn;
       meta = m;
+    }
+    public static IMutList create(IFn fn, IPersistentMap meta, List... lists) {
+      if (lists.length == 1)
+	return new SingleMapList(fn, meta, lists[0]);
+      else if (lists.length == 2)
+	return new DualMapList(fn, meta, lists[0], lists[1]);
+      else
+	return new MapList(fn, meta, lists);
     }
     public int size() { return nElems; }
     public Object get(int idx) {
