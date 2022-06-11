@@ -35,7 +35,10 @@
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
             BitmapTrieCommon$Box PersistentArrayMap ObjArray ImmutValues
             MutList ImmutList StringCollection ArrayImmutList ArrayLists
-            ImmutSort IMutList ArrayLists$SummationConsumer]
+            ImmutSort IMutList ArrayLists$SummationConsumer Ranges$LongRange
+            Ranges$DoubleRange IFnDef Transformables$MapIterable
+            Transformables$FilterIterable Transformables$CatIterable
+            Transformables$MapList Transformables$IMapable Transformables]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
             IEditableCollection RT IPersistentMap Associative Util IFn ArraySeq]
            [java.util Map Map$Entry List RandomAccess Set Collection ArrayList Arrays]
@@ -50,7 +53,8 @@
   (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize
                             into assoc-in get-in update assoc update-in hash-map
                             group-by subvec group-by mapv vec vector object-array
-                            sort int-array long-array double-array float-array]))
+                            sort int-array long-array double-array float-array
+                            range map concat filter]))
 
 
 (set! *warn-on-reflection* true)
@@ -96,7 +100,7 @@ This is currently the default hash provider for the library."}
 (def ^{:tag ArrayImmutList} empty-vec ArrayImmutList/EMPTY)
 
 
-(declare assoc! conj! vec mapv vector object-array)
+(declare assoc! conj! vec mapv vector object-array range)
 
 
 (defn- empty-map?
@@ -791,7 +795,7 @@ ham_fisted.PersistentHashMap
                                         (long (if (< pidx leftover)
                                                 1 0))))]
                    (.submit pool ^Callable #(body-fn start-idx end-idx)))))
-         (eduction (map #(.get ^Future %))))))
+         (eduction (clojure.core/map #(.get ^Future %))))))
 
 
 (defn ^:no-doc pfrequencies
@@ -1379,6 +1383,23 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
    (ArrayLists/darange start end step)))
 
 
+(defn- floating?
+  [item]
+  (or (double? item) (float? item)))
+
+
+(defn range
+  "When given arguments returns a range that implements random access java list
+  interfaces so nth, reverse and friends are efficient."
+  ([] (clojure.core/range))
+  ([end] (range 0 end 1))
+  ([start end] (range start end 1))
+  ([start end step]
+   (if (and (integer? start) (integer? end) (integer? step))
+     (Ranges$LongRange. start end step)
+     (Ranges$DoubleRange. start end step))))
+
+
 (defn argsort
   ([comp coll]
    (let [^List coll (if (instance? RandomAccess coll)
@@ -1403,51 +1424,127 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
 
 (defn int-array
   ^ints [data]
-  (if (instance? IMutList data)
-    (.toIntArray ^IMutList data)
-    (clojure.core/int-array data)))
+  (if (number? data)
+    (clojure.core/int-array data)
+    (let [data (->collection data)]
+      (if (instance? IMutList data)
+        (.toIntArray ^IMutList data)
+        (clojure.core/int-array data)))))
 
 
 (defn long-array
   ^longs [data]
-  (if (instance? IMutList data)
-    (.toLongArray ^IMutList data)
-    (clojure.core/long-array data)))
+  (if (number? data)
+    (clojure.core/long-array data)
+    (let [data (->collection data)]
+      (if (instance? IMutList data)
+        (.toLongArray ^IMutList data)
+        (clojure.core/long-array data)))))
 
 
 (defn float-array
   ^floats [data]
-  (if (instance? IMutList data)
-    (.toFloatArray ^IMutList data)
-    (clojure.core/float-array data)))
+  (if (number? data)
+    (clojure.core/float-array data)
+    (let [data (->collection data)]
+      (if (instance? IMutList data)
+        (.toFloatArray ^IMutList data)
+        (clojure.core/float-array data)))))
 
 
 (defn double-array
   ^doubles [data]
-  (if (instance? IMutList data)
-    (.toDoubleArray ^IMutList data)
-    (clojure.core/double-array data)))
+  (if (number? data)
+    (clojure.core/double-array data)
+    (let [data (->collection data)]
+      (if (instance? IMutList data)
+        (.toDoubleArray ^IMutList data)
+        (clojure.core/double-array data)))))
 
 
 (defmacro double-binary-operator
   [lvar rvar & code]
-  `(reify DoubleBinaryOperator
-     (applyAsDouble [this ~lvar ~rvar]
-       ~@code)))
+  `(reify
+     DoubleBinaryOperator
+     (applyAsDouble [this# ~lvar ~rvar]
+       ~@code)
+     IFnDef
+     (invoke [this# l# r#]
+       (.applyAsDouble this# l# r#))))
+
+
+(defmacro long-binary-operator
+  [lvar rvar & code]
+  `(reify
+     LongBinaryOperator
+     (applyAsLong [this ~lvar ~rvar]
+       ~@code)
+     IFnDef
+     (invoke [this# l# r#]
+       (.applyAsLong this# l# r#))))
 
 
 (defn sum
+  "Fast simple summation.  Does not do any summation compensation."
   ^double [coll]
   (let [coll (->collection coll)]
     (if (instance? IMutList coll)
-      (let [^IMutList coll coll]
-        (->> (pfor (.size coll)
-                   (fn [^long sidx ^long eidx]
-                     (.doubleReduction ^IMutList (.subList coll sidx eidx)
-                                       (double-binary-operator l r (unchecked-add l r))
-                                       0.0)))
-             (reduce +)))
-      (reduce + coll))))
+      (let [^IMutList coll coll
+            op (double-binary-operator l r (unchecked-add l r))]
+        (if (< (.size coll) 10000)
+            (.doubleReduction coll op 0.0)
+            (->> (pfor (.size coll)
+                       (fn [^long sidx ^long eidx]
+                         (.doubleReduction ^IMutList (.subList coll sidx eidx)
+                                           op
+                                           0.0)))
+                 (reduce +))))
+      (double (reduce + coll)))))
+
+
+(defn map
+  ([f arg]
+   (cond
+     (nil? arg) nil
+     (instance? Transformables$IMapable arg)
+     (.map ^Transformables$IMapable arg f)
+     (instance? RandomAccess arg)
+     (Transformables$MapList. f nil (into-array List [arg]))
+     (.isArray (.getClass ^Object arg))
+     (Transformables$MapList. f nil (into-array List [(ArrayLists/toList arg)]))
+     :else
+     (Transformables$MapIterable. f nil (into-array Iterable [(->collection arg)]))))
+  ([f arg & args]
+   (let [args (clojure.core/concat [arg] args)]
+     (if (every? #(instance? RandomAccess %) args)
+       (Transformables$MapList. f nil (into-array List args))
+       (Transformables$MapIterable. f nil (into-array Iterable
+                                                  (clojure.core/map ->collection args)))))))
+
+
+(defn concat
+  ([] nil)
+  ([& args]
+   (let [a (first args)
+         rargs (seq (rest args))]
+     (if (nil? rargs)
+       a
+       (if (instance? Transformables$IMapable a)
+         (.cat ^Transformables$IMapable a rargs)
+         (let [^IPersistentMap m nil
+               ^"[Ljava.lang.Iterable;" avs (into-array Iterable [args])]
+           (Transformables$CatIterable. m avs)))))))
+
+
+(defn filter
+  [pred coll]
+  (cond
+    (nil? coll)
+    nil
+    (instance? Transformables$IMapable coll)
+    (.filter ^Transformables$IMapable coll pred)
+    :else
+    (Transformables$FilterIterable. pred nil (Transformables/toIterable coll))))
 
 
 (comment
@@ -1472,4 +1569,76 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
   (crit/quick-bench (let [dc (ArrayLists$ReductionConsumer. + 0)]
                       (.forEach (->collection data) dc)
                       (.value dc)))
+
+  (crit/quick-bench (->> (clojure.core/range 20000)
+                         (clojure.core/filter #(== 0 (rem (long %) 3)))
+                         (sum)))
+  ;;369us
+  (crit/quick-bench (->> (range 20000)
+                         (filter #(== 0 (rem (long %) 3)))
+                         (sum)))
+  ;;183us
+  (crit/quick-bench (->> (clojure.core/range 20000)
+                         (filter #(== 0 (rem (long %) 3)))
+                         (sum)))
+  ;;261us
+  (crit/quick-bench (->> (clojure.core/range 20000)
+                         (clojure.core/map #(* (long %) 2))
+                         (clojure.core/filter #(== 0 (rem (long %) 3)))
+                         (sum)))
+  ;;688us
+  (crit/quick-bench (->> (clojure.core/range 20000)
+                         (eduction
+                          (comp
+                           (clojure.core/map #(* (long %) 2))
+                           (clojure.core/filter #(== 0 (rem (long %) 3)))))
+                         (sum)))
+  ;;575us
+  (crit/quick-bench (->> (range 20000)
+                         (map #(* (long %) 2))
+                         (filter #(== 0 (rem (long %) 3)))
+                         (sum)))
+  ;;410us
+  (crit/quick-bench (->> (clojure.core/range 20000)
+                         (map #(* (long %) 2))
+                         (filter #(== 0 (rem (long %) 3)))
+                         (sum)))
+  ;;421us
+
+  (crit/quick-bench (->> (clojure.core/range 20000)
+                         (clojure.core/map #(* (long %) 2))
+                         (clojure.core/map #(+ 1 (long %)))
+                         (clojure.core/filter #(== 0 (rem (long %) 3)))
+                         (sum)))
+  ;;1.0ms
+  (crit/quick-bench (->> (clojure.core/range 20000)
+                         (eduction
+                          (comp
+                           (clojure.core/map #(* (long %) 2))
+                           (clojure.core/map #(+ 1 (long %)))
+                           (clojure.core/filter #(== 0 (rem (long %) 3)))))
+                         (sum)))
+  ;;887us
+  (crit/quick-bench (->> (range 20000)
+                         (map #(* (long %) 2))
+                         (map #(+ 1 (long %)))
+                         (filter #(== 0 (rem (long %) 3)))
+                         (sum)))
+  ;;624us
+  (crit/quick-bench (->> (clojure.core/range 20000)
+                         (map #(* (long %) 2))
+                         (map #(+ 1 (long %)))
+                         (filter #(== 0 (rem (long %) 3)))
+                         (sum)))
+  ;;643us
+
+
+  (crit/quick-bench (->> (reduce clojure.core/concat (repeat 200 (range 100)))
+                         (sum)))
+  ;;151ms
+
+  (crit/quick-bench (->> (reduce concat (repeat 200 (range 100)))
+                         (sum)))
+  ;;737us
+
   )
