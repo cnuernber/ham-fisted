@@ -306,6 +306,7 @@ public class MutList<E>
     public final int hasheq() {
       return hashCode();
     }
+    public final String toString() { return Transformables.sequenceToString(this); }
     public final boolean equals(Object other) {
       return data.equiv(defaultHashProvider, startidx, startidx+nElems, other);
     }

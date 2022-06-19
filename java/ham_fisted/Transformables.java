@@ -10,6 +10,9 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
+import java.util.RandomAccess;
+import java.util.Collection;
 
 import clojure.lang.IFn;
 import clojure.lang.ArraySeq;
@@ -34,7 +37,7 @@ public class Transformables {
     }
   }
   public static boolean truthy(final Object obj) {
-    return obj != null && (!(obj.equals(RT.F)));
+    return !(obj == null || (Objects.equals(obj, RT.F)));
   }
   public static Iterable toIterable(Object obj) {
     if( obj == null) return null;
@@ -62,11 +65,15 @@ public class Transformables {
       meta = _meta;
       iterables = _its;
     }
+    public static MapIterable createSingle(IFn fn, IPersistentMap meta, Iterable single) {
+      return new MapIterable(fn, meta, new Iterable[] { single });
+    }
     public MapIterable(MapIterable o, IPersistentMap m) {
       fn = o.fn;
       iterables = o.iterables;
       meta = m;
     }
+    public String toString() { return sequenceToString(this); }
     public boolean isEmpty() {
       return seq() == null;
     }
@@ -157,6 +164,7 @@ public class Transformables {
       src = o.src;
       meta = m;
     }
+    public String toString() { return sequenceToString(this); }
     public boolean isEmpty() {
       return seq() == null;
     }
@@ -223,6 +231,7 @@ public class Transformables {
       data = other.data;
       meta = m;
     }
+    public String toString() { return sequenceToString(this); }
     public int size() { return iterCount(iterator()); }
     public boolean isEmpty() {
       return iterator().hasNext() == false;
@@ -308,6 +317,11 @@ public class Transformables {
       fn = o.fn;
       meta = m;
     }
+    public String toString() { return sequenceToString(this); }
+    public boolean equals(Object other) {
+      return equiv(other);
+    }
+    public int hashCode() { return hasheq(); }
     public int size() { return nElems; }
     public Object get(int idx) { return fn.invoke(list.get(idx)); }
     public SingleMapList subList(int sidx, int eidx) {
@@ -342,6 +356,11 @@ public class Transformables {
       fn = o.fn;
       meta = m;
     }
+    public String toString() { return sequenceToString(this); }
+    public boolean equals(Object other) {
+      return equiv(other);
+    }
+    public int hashCode() { return hasheq(); }
     public int size() { return nElems; }
     public Object get(int idx) { return fn.invoke(lhs.get(idx), rhs.get(idx)); }
     public DualMapList subList(int sidx, int eidx) {
@@ -389,6 +408,11 @@ public class Transformables {
       else
 	return new MapList(fn, meta, lists);
     }
+    public String toString() { return sequenceToString(this); }
+    public boolean equals(Object other) {
+      return equiv(other);
+    }
+    public int hashCode() { return hasheq(); }
     public int size() { return nElems; }
     public Object get(int idx) {
       if(idx < 0)
@@ -429,4 +453,47 @@ public class Transformables {
       return new MapList(this, m);
     }
   }
+
+  static void appendObjects(StringBuilder sb, Collection data) {
+    boolean first = true;
+    for(Object o: data) {
+      if(!first)
+	sb.append(" ");
+      first = false;
+      sb.append(o == null ? "nil" : o.toString());
+    }
+  }
+
+  public static String sequenceToString(Collection data) {
+    StringBuilder sb = new StringBuilder();
+    if(data instanceof RandomAccess) {
+      final List ra = (List) data;
+      final int sz = ra.size();
+      sb.append("[");
+      if(sz < 50) {
+	appendObjects(sb, ra);
+      } else {
+	appendObjects(sb, ra.subList(0, 20));
+	sb.append(" ... ");
+	appendObjects(sb, ra.subList(sz-20, sz));
+      }
+      sb.append("]");
+    } else {
+      sb.append("(");
+      int idx = 0;
+      for(Object o: data) {
+	if(idx >= 50) {
+	  sb.append(" ...");
+	  break;
+	}
+	if (idx > 0)
+	  sb.append(" ");
+	sb.append(o == null ? "nil" : o.toString());
+	++idx;
+      }
+      sb.append(")");
+    }
+    return sb.toString();
+  }
+
 }

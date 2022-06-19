@@ -30,7 +30,8 @@
   mapping across all the entries.
 
   Unlike the standard Java objects, mutation-via-iterator is not supported."
-  (:require [ham-fisted.iterator :as iterator])
+  (:require [ham-fisted.iterator :as iterator]
+            [com.climate.claypoole :as claypoole])
   (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
             BitmapTrieCommon$Box PersistentArrayMap ObjArray ImmutValues
@@ -38,23 +39,34 @@
             ImmutSort IMutList ArrayLists$SummationConsumer Ranges$LongRange
             Ranges$DoubleRange IFnDef Transformables$MapIterable
             Transformables$FilterIterable Transformables$CatIterable
-            Transformables$MapList Transformables$IMapable Transformables]
+            Transformables$MapList Transformables$IMapable Transformables
+            ReindexList ConstList ArrayLists$ObjectArrayList Transformables$SingleMapList
+            ArrayLists$IntArrayList ArrayLists$LongArrayList ArrayLists$DoubleArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
-            IEditableCollection RT IPersistentMap Associative Util IFn ArraySeq]
-           [java.util Map Map$Entry List RandomAccess Set Collection ArrayList Arrays]
+            IEditableCollection RT IPersistentMap Associative Util IFn ArraySeq
+            Reversible]
+           [java.util Map Map$Entry List RandomAccess Set Collection ArrayList Arrays
+            Comparator Random]
+           [java.lang.reflect Array]
            [java.util.function Function BiFunction BiConsumer Consumer
-            DoubleBinaryOperator LongBinaryOperator]
+            DoubleBinaryOperator LongBinaryOperator LongFunction IntFunction]
            [java.util.concurrent ForkJoinPool ExecutorService Callable Future
-            ConcurrentHashMap]
+            ConcurrentHashMap ForkJoinTask]
            [it.unimi.dsi.fastutil.ints IntComparator IntArrays]
            [it.unimi.dsi.fastutil.longs LongComparator]
            [it.unimi.dsi.fastutil.floats FloatComparator]
-           [it.unimi.dsi.fastutil.doubles DoubleComparator])
+           [it.unimi.dsi.fastutil.doubles DoubleComparator]
+           [it.unimi.dsi.fastutil.objects ObjectArrays]
+           [com.google.common.cache Cache CacheBuilder CacheLoader LoadingCache CacheStats]
+           [com.google.common.collect MinMaxPriorityQueue]
+           [java.time Duration])
   (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize
                             into assoc-in get-in update assoc update-in hash-map
                             group-by subvec group-by mapv vec vector object-array
                             sort int-array long-array double-array float-array
-                            range map concat filter]))
+                            range map concat filter first last pmap take take-last drop
+                            drop-last sort-by repeat repeatedly shuffle into-array
+                            empty?]))
 
 
 (set! *warn-on-reflection* true)
@@ -100,7 +112,7 @@ This is currently the default hash provider for the library."}
 (def ^{:tag ArrayImmutList} empty-vec ArrayImmutList/EMPTY)
 
 
-(declare assoc! conj! vec mapv vector object-array range)
+(declare assoc! conj! vec mapv vector object-array range first map take drop concat)
 
 
 (defn- empty-map?
@@ -114,25 +126,25 @@ This is currently the default hash provider for the library."}
   small numbers of keyval pairs."
   ([m a b]
    (if (empty-map? m)
-     (PersistentArrayMap. equal-hash-provider a b (meta m))
+     (PersistentArrayMap. default-hash-provider a b (meta m))
      (.assoc ^Associative m a b)))
   ([m a b c d]
-   (if (and (empty-map? m) (PersistentArrayMap/different equal-hash-provider a c))
-     (PersistentArrayMap. equal-hash-provider a b c d (meta m))
+   (if (and (empty-map? m) (PersistentArrayMap/different default-hash-provider a c))
+     (PersistentArrayMap. default-hash-provider a b c d (meta m))
      (-> (assoc! (transient (or m PersistentArrayMap/EMPTY)) a b)
          (assoc! c d)
          (persistent!))))
   ([m a b c d e f]
-   (if (and (empty-map? m) (PersistentArrayMap/different equal-hash-provider a c e))
-     (PersistentArrayMap. equal-hash-provider a b c d e f (meta m))
+   (if (and (empty-map? m) (PersistentArrayMap/different default-hash-provider a c e))
+     (PersistentArrayMap. default-hash-provider a b c d e f (meta m))
      (-> (transient (or m PersistentArrayMap/EMPTY))
          (assoc! a b)
          (assoc! c d)
          (assoc! e f)
          (persistent!))))
   ([m a b c d e f g h]
-   (if (and (empty-map? m) (PersistentArrayMap/different equal-hash-provider a c e g))
-     (PersistentArrayMap. equal-hash-provider a b c d e f g h (meta m))
+   (if (and (empty-map? m) (PersistentArrayMap/different default-hash-provider a c e g))
+     (PersistentArrayMap. default-hash-provider a b c d e f g h (meta m))
      (-> (transient (or m (PersistentArrayMap/EMPTY)))
          (assoc! a b)
          (assoc! c d)
@@ -143,7 +155,7 @@ This is currently the default hash provider for the library."}
    (when-not (== 0 (rem (count args) 2))
      (throw (Exception. "Assoc takes an odd number of arguments.")))
    (if (empty-map? m)
-     (let [m (HashMap. equal-hash-provider
+     (let [m (HashMap. default-hash-provider
                        ^IPersistentMap (meta m)
                        (+ 4 (quot (count args) 2)))]
        (.put m a b)
@@ -182,21 +194,16 @@ This is currently the default hash provider for the library."}
   (^objects [v0 v1 v2 v3] (ObjArray/create v0 v1 v2 v3))
   (^objects [v0 v1 v2 v3 v4] (ObjArray/create v0 v1 v2 v3 v4))
   (^objects [v0 v1 v2 v3 v4 v5] (ObjArray/create v0 v1 v2 v3 v4 v5))
-  (^objects [v0 v1 v2 v3 v4 v5 args]
-   (ObjArray/createv v0 v1 v2 v3 v4 v5 ^objects args))
-  (^objects [v0 v1 v2 v3 v4 v5 v6 v7]
-   (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7))
-  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9]
-   (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9))
-  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11]
-   (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11))
-  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13]
-   (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11 v12 v13))
-  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14 v15]
-   (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11 v12 v13 v14 v15))
-  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14 v15 args]
-   (ObjArray/createv v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11 v12 v13 v14 v15
-                     (iterator/array-seq-ary args))))
+  (^objects [v0 v1 v2 v3 v4 v5 v6] (ObjArray/create v0 v1 v2 v3 v4 v5 v6))
+  (^objects [v0 v1 v2 v3 v4 v5 v6 v7] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7))
+  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8))
+  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9))
+  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9) v10)
+  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11))
+  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11 v12))
+  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11 v12 v13))
+  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11 v12 v13 v14))
+  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14 v15] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11 v12 v13 v14 v15)))
 
 
 (defn into
@@ -236,7 +243,7 @@ This is currently the default hash provider for the library."}
   Options:
 
   * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
-  the [[equal-hash-provider]]."
+  the [[default-hash-provider]]."
   (^HashMap [] (HashMap. (options->provider nil)))
   (^HashMap [data]
    (into (HashMap. (options->provider nil)) data))
@@ -254,7 +261,7 @@ This is currently the default hash provider for the library."}
   Options:
 
   * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
-  the [[equal-hash-provider]].
+  the [[default-hash-provider]].
 
   Examples:
 
@@ -284,29 +291,29 @@ ham_fisted.PersistentHashMap
 (defn hash-map
   "Drop-in replacement to Clojure's hash-map function."
   ([] empty-map)
-  ([a b] (PersistentArrayMap. equal-hash-provider a b nil))
+  ([a b] (PersistentArrayMap. default-hash-provider a b nil))
   ([a b c d]
-   (if (PersistentArrayMap/different equal-hash-provider a c)
-     (PersistentArrayMap. equal-hash-provider a b c d nil)
+   (if (PersistentArrayMap/different default-hash-provider a c)
+     (PersistentArrayMap. default-hash-provider a b c d nil)
      (hash-map c d)))
   ([a b c d e f]
-   (if (PersistentArrayMap/different equal-hash-provider a c e)
-     (PersistentArrayMap. equal-hash-provider a b c d e f nil)
-     (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f))))
+   (if (PersistentArrayMap/different default-hash-provider a c e)
+     (PersistentArrayMap. default-hash-provider a b c d e f nil)
+     (PersistentHashMap/create default-hash-provider false (obj-ary a b c d e f))))
   ([a b c d e f g h]
-   (if (PersistentArrayMap/different equal-hash-provider a c e g)
-     (PersistentArrayMap. equal-hash-provider a b c d e f g h nil)
-     (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h))))
+   (if (PersistentArrayMap/different default-hash-provider a c e g)
+     (PersistentArrayMap. default-hash-provider a b c d e f g h nil)
+     (PersistentHashMap/create default-hash-provider false (obj-ary a b c d e f g h))))
   ([a b c d e f g h i j]
-   (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h i j)))
+   (PersistentHashMap/create default-hash-provider false (obj-ary a b c d e f g h i j)))
   ([a b c d e f g h i j k l]
-   (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h i j k l)))
+   (PersistentHashMap/create default-hash-provider false (obj-ary a b c d e f g h i j k l)))
   ([a b c d e f g h i j k l m n]
-   (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h i j k l m n)))
+   (PersistentHashMap/create default-hash-provider false (obj-ary a b c d e f g h i j k l m n)))
   ([a b c d e f g h i j k l m n o p]
-   (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h i j k l m n o p)))
+   (PersistentHashMap/create default-hash-provider false (obj-ary a b c d e f g h i j k l m n o p)))
   ([a b c d e f g h i j k l m n o p & args]
-   (PersistentHashMap/create equal-hash-provider false (obj-ary a b c d e f g h i j k l m n o p args))))
+   (PersistentHashMap/create default-hash-provider false (ObjArray/createv a b c d e f g h i j k l m n o p (object-array args)))))
 
 
 (defn java-hashmap
@@ -342,7 +349,7 @@ ham_fisted.PersistentHashMap
   Options:
 
   * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
-  the [[equal-hash-provider]]."
+  the [[default-hash-provider]]."
   (^HashSet [] (HashSet. (options->provider nil)))
   (^HashSet [data] (into (HashSet. (options->provider nil)) data))
   (^HashSet [options data] (into (HashSet. (options->provider options)) data)))
@@ -355,7 +362,7 @@ ham_fisted.PersistentHashMap
   Options:
 
   * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
-  the [[equal-hash-provider]]."
+  the [[default-hash-provider]]."
   (^PersistentHashSet [] empty-set)
   (^PersistentHashSet [data] (into (PersistentHashSet. (options->provider nil)) data))
   (^PersistentHashSet [options data] (into (PersistentHashSet. (options->provider options)) data)))
@@ -479,7 +486,11 @@ ham_fisted.PersistentHashMap
     (instance? Map map-or-coll)
     (.clear ^Map map-or-coll)
     (instance? Collection map-or-coll)
-    (.clear ^Collection map-or-coll))
+    (.clear ^Collection map-or-coll)
+    (instance? LoadingCache map-or-coll)
+    (.invalidateAll ^LoadingCache map-or-coll)
+    :else
+    (throw (Exception. (str "Unrecognized type for clear!: " map-or-coll))))
   map-or-coll)
 
 
@@ -514,16 +525,25 @@ ham_fisted.PersistentHashMap
   the entry set."
   ^Collection [item]
   (cond
+    (nil? item) empty-vec
     (instance? Collection item)
     item
     (instance? Map item)
     (.entrySet ^Map item)
     (.isArray (.getClass ^Object item))
     (ArrayLists/toList item)
-    (instance? CharSequence item)
-    (StringCollection. ^CharSequence item)
+    (instance? String item)
+    (StringCollection. item)
     :else
     (RT/seq item)))
+
+
+(defn ->random-access
+  ^List [item]
+  (let [c (->collection item)]
+    (if (instance? RandomAccess c)
+      c
+      (->collection (object-array c)))))
 
 
 (defn map-union
@@ -766,7 +786,7 @@ ham_fisted.PersistentHashMap
   (let [pair-seq (if (instance? Map src-map)
                    (.entrySet ^Map src-map)
                    src-map)
-        retval (HashMap. equal-hash-provider)]
+        retval (HashMap. default-hash-provider)]
     (iterator/doiter
      entry pair-seq
      (let [;;Normalize map entries so this works with java hashmaps.
@@ -780,29 +800,55 @@ ham_fisted.PersistentHashMap
     (persistent! retval)))
 
 
-(defn- pfor
-  [n-elems body-fn]
-  (let [parallelism (ForkJoinPool/getCommonPoolParallelism)
-        pool (ForkJoinPool/commonPool)
-        n-elems (long n-elems)
-        gsize (quot n-elems parallelism)
-        leftover (rem n-elems parallelism)]
-    (->> (range parallelism)
-         (mapv (fn [^long pidx]
-                 (let [start-idx (long (+ (* pidx gsize)
-                                          (min pidx leftover)))
-                       end-idx (long (+ (+ start-idx gsize)
-                                        (long (if (< pidx leftover)
-                                                1 0))))]
-                   (.submit pool ^Callable #(body-fn start-idx end-idx)))))
-         (eduction (clojure.core/map #(.get ^Future %))))))
+(defn in-fork-join-task?
+  "True if you are currently running in a fork-join task"
+  []
+  (ForkJoinTask/inForkJoinPool))
+
+
+(defn pgroups
+  "Run y groups across n-elems.   Y is common pool parallelism.
+
+  body-fn gets passed two longs, startidx and endidx.
+
+  Returns a sequence of the results of body-fn applied to each group of indexes.
+
+  Options:
+
+  * `:pgroup-min` - when provided n-elems must be more than this value for the computation
+    to be parallelized.
+  * `:batch-size` - max batch size.  Defaults to 64000."
+  ([n-elems body-fn options]
+   (let [n-elems (long n-elems)]
+     (if (or (in-fork-join-task?)
+             (< n-elems (long (get options :pgroup-min 0))))
+       [(body-fn 0 n-elems)]
+       (let [parallelism (ForkJoinPool/getCommonPoolParallelism)
+             pool (ForkJoinPool/commonPool)
+             n-elems (long n-elems)
+             max-batch-size (long (get options :batch-size 64000))
+             gsize (min max-batch-size (quot n-elems parallelism))
+             ngroups (quot (+ n-elems (dec gsize)) gsize)
+             leftover (rem n-elems gsize)]
+         (->> (range ngroups)
+              (mapv (fn [^long gidx]
+                      (let [start-idx (long (+ (* gidx gsize)
+                                               (min gidx leftover)))
+                            end-idx (min n-elems
+                                         (long (+ (+ start-idx gsize)
+                                                  (long (if (< gidx leftover)
+                                                          1 0)))))]
+                        (.submit pool ^Callable #(body-fn start-idx end-idx)))))
+              (map #(.get ^Future %)))))))
+  ([n-elems body-fn]
+   (pgroups n-elems body-fn nil)))
 
 
 (defn ^:no-doc pfrequencies
   "Parallelized frequencies. Can be faster for large random-access containers."
   [tdata]
   (let [n-elems (count tdata)]
-    (->> (pfor n-elems
+    (->> (pgroups n-elems
                (fn [^long start-idx ^long end-idx]
                  (let [gsize (- end-idx start-idx)
                        hm (mut-map)]
@@ -828,7 +874,7 @@ ham_fisted.PersistentHashMap
   [tdata]
   (let [n-elems (count tdata)
         hm (java.util.concurrent.ConcurrentHashMap.)]
-    (pfor n-elems
+    (pgroups n-elems
           (fn [^long start-idx ^long end-idx]
             (let [gsize (- end-idx start-idx)]
               (dotimes [idx gsize]
@@ -867,35 +913,71 @@ ham_fisted.PersistentHashMap
 
 
 (defn memoize
-  "Efficient thread-safe version of clojure.core/memoize.  Unlike
-  clojure.core/memoize this version guarantees memo-fn will be called exactly
-  once per argument vector even in high-contention environments.
+  "Efficient thread-safe version of clojure.core/memoize.
 
-  Also see [[clear-memoized-fn!]] to mutably clear the backing store."
-  [memo-fn]
-  (let [hm (ConcurrentHashMap.)
-        compute-fn (reify Function
-                     (apply [this argv]
-                       ;;wrapping in a vector to handle null case
-                       (BitmapTrieCommon$Box.
-                        (case (count argv)
-                          0 (memo-fn)
-                          1 (memo-fn (argv 0))
-                          2 (memo-fn (argv 0) (argv 1))
-                          3 (memo-fn (argv 0) (argv 1) (argv 2))
-                          4 (memo-fn (argv 0) (argv 1) (argv 2) (argv 3))
-                          (apply memo-fn argv)))))]
-    (vary-meta
-     (fn
-       ([] (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [] compute-fn)))
-       ([v0] (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [v0] compute-fn)))
-       ([v0 v1] (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [v0 v1] compute-fn)))
-       ([v0 v1 v2] (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [v0 v1 v2] compute-fn)))
-       ([v0 v1 v2 v3]
-        (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [v0 v1 v2 v3] compute-fn)))
-       ([v0 v1 v2 v3 & args]
-        (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm (into [v0 v1 v2 v3] args) compute-fn))))
-     assoc :cache hm)))
+  Also see [[clear-memoized-fn!]] to mutably clear the backing store.
+
+  Options.
+
+  * `:write-ttl-ms` - Time that values should remain in the cache after write in milliseconds.
+  * `:access-ttl-ms` - Time that values should remain in the cache after access in milliseconds.
+  * `:soft-values?` - When true, the cache will store [SoftReferences](https://docs.oracle.com/javase/7/docs/api/java/lang/ref/SoftReference.html) to the data.
+  * `:weak-values?` - When true, the cache will store [WeakReferences](https://docs.oracle.com/javase/7/docs/api/java/lang/ref/WeakReference.html) to the data.
+  * `:max-size` - When set, the cache will behave like an LRU cache.
+  * `:record-stats?` - When true, the LoadingCache will record access statistics.  You can
+     get those via the undocumented function memo-stats."
+  ([memo-fn]
+   (let [hm (ConcurrentHashMap.)
+         compute-fn (reify Function
+                      (apply [this argv]
+                        ;;wrapping in a vector to handle null case
+                        (BitmapTrieCommon$Box.
+                         (case (count argv)
+                           0 (memo-fn)
+                           1 (memo-fn (argv 0))
+                           2 (memo-fn (argv 0) (argv 1))
+                           3 (memo-fn (argv 0) (argv 1) (argv 2))
+                           4 (memo-fn (argv 0) (argv 1) (argv 2) (argv 3))
+                           (apply memo-fn argv)))))]
+     (vary-meta
+      (fn
+        ([] (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [] compute-fn)))
+        ([v0] (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [v0] compute-fn)))
+        ([v0 v1] (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [v0 v1] compute-fn)))
+        ([v0 v1 v2] (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [v0 v1 v2] compute-fn)))
+        ([v0 v1 v2 v3]
+         (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [v0 v1 v2 v3] compute-fn)))
+        ([v0 v1 v2 v3 & args]
+         (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm (into [v0 v1 v2 v3] args) compute-fn))))
+      assoc :cache hm)))
+  ([memo-fn {:keys [write-ttl-ms
+                    access-ttl-ms
+                    soft-values?
+                    weak-values?
+                    max-size
+                    record-stats?]}]
+   (let [^CacheBuilder new-builder
+         (cond-> (CacheBuilder/newBuilder)
+           access-ttl-ms
+           (.expireAfterAccess (Duration/ofMillis access-ttl-ms))
+           write-ttl-ms
+           (.expireAfterWrite (Duration/ofMillis write-ttl-ms))
+           soft-values?
+           (.softValues)
+           weak-values?
+           (.weakValues)
+           max-size
+           (.maximumSize (long max-size))
+           record-stats?
+           (.recordStats))
+         ^LoadingCache cache
+         (.build new-builder
+                 (proxy [CacheLoader] []
+                   (load [args]
+                     (BitmapTrieCommon$Box. (apply memo-fn args)))))]
+     (-> (fn [& args]
+           (.obj ^BitmapTrieCommon$Box (.get cache args)))
+         (with-meta {:cache cache})))))
 
 
 (defn clear-memoized-fn!
@@ -907,6 +989,25 @@ ham_fisted.PersistentHashMap
   memoize-fn)
 
 
+(defn ^:no-doc memo-stats
+  "Return the statistics from a google guava cache.  In order for a memoized function
+  to produce these the :record-stats? option must be true."
+  [memoize-fn]
+  (when-let [cache (:cache (meta memoize-fn))]
+    (when (instance? Cache cache)
+      (let [^Cache cache cache
+            ^CacheStats cache-map (.stats cache)]
+        {:hit-count (.hitCount cache-map)
+         :hit-rate (.hitRate cache-map)
+         :miss-count (.missCount cache-map)
+         :miss-rate (.missRate cache-map)
+         :load-success-count (.loadSuccessCount cache-map)
+         :load-exception-count (.loadExceptionCount cache-map)
+         :average-load-penalty-nanos (.averageLoadPenalty cache-map)
+         :total-load-time-nanos (.totalLoadTime cache-map)
+         :eviction-count (.evictionCount cache-map)}))))
+
+
 (defn map-factory
   "Create a factory to quickly produce maps with a fixed set of keys but arbitrary
   values.  This version takes a vector or sequence of keys and returns and IFn that
@@ -915,7 +1016,7 @@ ham_fisted.PersistentHashMap
 
   The factory produces PersistentHashMaps."
   [keys]
-  (let [mf (PersistentHashMap/makeFactory equal-hash-provider (object-array keys))]
+  (let [mf (PersistentHashMap/makeFactory default-hash-provider (object-array keys))]
     (fn [vals] (.apply mf (object-array vals)))))
 
 
@@ -1066,7 +1167,7 @@ ham_fisted.PersistentHashMap
   ([m k f]
    (cond
      (empty-map? m)
-     (PersistentArrayMap. equal-hash-provider k (f nil) (meta m))
+     (PersistentArrayMap. default-hash-provider k (f nil) (meta m))
      (immut-vals? m)
      (.immutUpdateValue (as-immut-vals m) k (->function f))
      :else
@@ -1130,17 +1231,18 @@ ham_fisted.PersistentHashMap
 
 (defn subvec
   "More general version of subvec.  Works for any java list implementation
-  including persistent vectors."
-  ([^List m sidx eidx]
-   (.subList m sidx eidx))
-  ([^List m sidx]
-   (.subList m sidx (.size m))))
+  including persistent vectors and any array."
+  ([m sidx eidx]
+   (let [^List m (if (instance? List m)
+                   m
+                   (->random-access m))]
+     (.subList m sidx eidx)))
+  ([m sidx] (subvec m sidx (count m))))
 
 
 (defn group-by
   "Group items in collection by the grouping function f.  Returns persistent map of
-  keys to persistent vectors.  This version is a solid amount (2-4x) faster than clojure's
-  core group-by implementation."
+  keys to persistent vectors."
   [f coll]
   (let [retval (mut-map)
         compute-fn (reify Function
@@ -1205,7 +1307,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
 
 
 (defn mapv
-  "Faster version of mapv"
+  "Produce a persistent vector from a collection"
   [map-fn coll]
   (let [retval (mut-list)]
     (iterator/doiter
@@ -1243,24 +1345,29 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
   "Splice v2 into v1 at idx.  Returns a persistent vector.  This is a much faster operation
   if v1 implements java.util.List subList."
   [v1 idx v2]
-  (let [retval (mut-list)]
-    (if (instance? RandomAccess v1)
-      (do
-        (.addAll retval (subvec v1 0 idx))
-        (.addAll retval (->collection v2))
-        (.addAll retval (subvec v1 idx)))
-      (do (.addAll retval (take idx v1))
-          (.addAll retval (->collection v2))
-          (.addAll retval (drop idx v1))))
+  (let [retval (mut-list)
+        v1 (->collection v1)]
+    (.addAll retval (subvec v1 0 idx))
+    (.addAll retval (->collection v2))
+    (.addAll retval (subvec v1 idx))
     (persistent! retval)))
+
+
+(defn empty?
+  [coll]
+  (if coll
+    (.isEmpty (->collection coll))
+    true))
 
 
 (defn concatv
   "non-lazily concat a set of items returning a persistent vector.  "
+  ([] empty-vec)
+  ([v1] (vec v1))
   ([v1 v2]
    (cond
-     (nil? v1) v2
-     (nil? v2) v1
+     (nil? v1) (vec v2)
+     (nil? v2) (vec v1)
      :else
      (let [retval (mut-list)]
        (.addAll retval (->collection v1))
@@ -1273,8 +1380,33 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
      (iterator/doiter
       c args
       (when-not (nil? c) (.addAll retval (->collection c))))
-     (when-not (== 0 (.size retval))
-       (persistent! retval)))))
+     (persistent! retval))))
+
+
+(defn concata
+  "non-lazily concat a set of items returning an object array.  This always returns an
+  object array an may return an empty array whereas concat may return nil."
+  (^objects [] (object-array nil))
+  (^objects [v1] (object-array v1))
+  (^objects [v1 v2]
+   (cond
+     (nil? v1) (object-array v2)
+     (nil? v2) (object-array v1)
+     :else
+     (let [retval (ArrayLists$ObjectArrayList.)]
+       (.addAll retval (->collection v1))
+       (.addAll retval (->collection v2))
+       (-> (.getArray retval)
+           (.array)))))
+  (^objects [v1 v2 & args]
+   (let [retval (ArrayLists$ObjectArrayList.)]
+     (when-not (nil? v1) (.addAll retval (->collection v1)))
+     (when-not (nil? v2) (.addAll retval (->collection v2)))
+     (iterator/doiter
+      c args
+      (when-not (nil? c) (.addAll retval (->collection c))))
+     (-> (.getArray retval)
+         (.array)))))
 
 
 (defn object-array
@@ -1300,28 +1432,95 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
       (.toArray alist))))
 
 
+(defn into-array
+  ([aseq] (into-array (if-let [item (first aseq)] (.getClass ^Object item) Object) aseq))
+  ([ary-type aseq]
+   (let [^Class ary-type (or ary-type Object)
+         aseq (->collection aseq)
+         ^List aseq (if (instance? RandomAccess aseq)
+                      aseq
+                      (doto (ArrayLists$ObjectArrayList.)
+                        (.addAll (->collection aseq))))]
+     (if (.isAssignableFrom Object ary-type)
+       (.toArray aseq (Array/newInstance ary-type 0))
+       (let [retval (Array/newInstance ary-type (.size aseq))
+             ^IMutList ml (ArrayLists/toList retval)]
+         (.fillRange ml 0 aseq)
+         retval))))
+  ([ary-type mapfn aseq]
+   (let [ary-type (or ary-type Object)]
+     (if mapfn
+       (into-array ary-type (if (instance? RandomAccess aseq)
+                              (Transformables$SingleMapList. mapfn nil aseq)
+                              (doto (ArrayLists$ObjectArrayList.)
+                                (.addAll (Transformables$MapIterable/createSingle
+                                          mapfn nil
+                                          (->collection aseq))))))
+       (into-array ary-type aseq)))))
+
+
 (defn- ->comparator
   ^java.util.Comparator [comp]
   (or comp compare))
 
+
 (defmacro long-comparator
-  ^LongComparator [lhsvar rhsvar & code]
+  "Make a comparator that gets passed two long arguments."
+  [lhsvar rhsvar & code]
   (let [lhsvar (with-meta lhsvar {:tag 'long})
         rhsvar (with-meta rhsvar {:tag 'long})
         compsym (with-meta 'compare {:tag 'int})]
-    `(reify LongComparator
+    `(reify
+       LongComparator
        (~compsym [this# ~lhsvar ~rhsvar]
-         ~@code))))
+        ~@code)
+       IFnDef
+       (invoke [this# l# r#]
+         (.compare this# l# r#)))))
 
 
 (defmacro double-comparator
-  ^DoubleComparator [lhsvar rhsvar & code]
+  "Make a comparator that gets passed two double arguments."
+  [lhsvar rhsvar & code]
   (let [lhsvar (with-meta lhsvar {:tag 'double})
         rhsvar (with-meta rhsvar {:tag 'double})
         compsym (with-meta 'compare {:tag 'int})]
-    `(reify DoubleComparator
+    `(reify
+       DoubleComparator
        (~compsym [this# ~lhsvar ~rhsvar]
-        ~@code))))
+        ~@code)
+       IFnDef
+       (invoke [this# l# r#]
+         (.compare this# l# r#)))))
+
+
+(defmacro make-comparator
+  "Make a java comparator."
+  [lhsvar rhsvar code]
+  `(reify
+     Comparator
+     (compare [this# ~lhsvar ~rhsvar]
+      ~@code)
+     IFnDef
+     (invoke [this# l# r#]
+       (.compare this# l# r#))))
+
+
+(def ^{:doc "A reverse comparator that sorts in descending order" }
+  rcomp
+  (reify
+    Comparator
+    (^int compare [this ^Object l ^Object r]
+      (.compareTo ^Comparable r l))
+    DoubleComparator
+    (^int compare [this ^double l ^double r]
+     (Double/compare r l))
+    LongComparator
+    (^int compare [this ^long l ^long r]
+     (Long/compare r l))
+    IFnDef
+    (invoke [this l r]
+      (.compare this l r))))
 
 
 (defn sorta
@@ -1329,7 +1528,13 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
   (^objects [coll] (sorta nil coll))
   (^objects [comp coll]
    (let [a (object-array coll)]
-     (Arrays/sort a (->comparator comp))
+     (if (< (alength a) 1000)
+       (if comp
+         (Arrays/sort a (->comparator comp))
+         (Arrays/sort a))
+       (if comp
+         (ObjectArrays/parallelQuickSort a (->comparator comp))
+         (ObjectArrays/parallelQuickSort a)))
      a)))
 
 
@@ -1346,13 +1551,21 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
 
 
 (defn sort!
-  "If coll is a list, call the list sort method else call sort."
+  "If coll is a list, call the list sort method to sort in-place else call sort."
   ([comp coll]
    (if (instance? List coll)
-     (do (.sort ^List coll comp) coll)
+     (do (.sort ^List coll (when comp (->comparator comp))) coll)
      (sort comp coll)))
   ([coll]
    (sort! nil coll)))
+
+
+(defn sort-by
+  ([keyfn coll]
+   (sort-by keyfn compare coll))
+  ([keyfn ^java.util.Comparator comp coll]
+   (sort (fn [x y] (. comp (compare (keyfn x) (keyfn y)))) coll)))
+
 
 (defn iarange
   "Return an integer array holding the values of the range.  Use `->collection` to get a
@@ -1412,8 +1625,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
      (->
       (if (instance? IMutList coll)
         (.sortIndirect ^IMutList coll (when comp (->comparator comp)))
-        (let [sz (.size coll)
-              idata (iarange sz)
+        (let [idata (iarange (.size coll))
               idx-comp (ArrayLists/intIndexComparator coll comp)]
           (IntArrays/parallelQuickSort idata ^IntComparator idx-comp)
           idata))
@@ -1462,6 +1674,56 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
         (clojure.core/double-array data)))))
 
 
+(defn object-array-list
+  "An array list that is as fast as java.util.ArrayList for add,get, etc but includes
+  many accelerated operations such as fill and an accelerated addAll when the src data
+  is an array list."
+  (^IMutList [] (ArrayLists$ObjectArrayList.))
+  (^IMutList [^long capacity] (ArrayLists$ObjectArrayList. capacity)))
+
+
+(defn int-array-list
+  "An array list that is as fast as java.util.ArrayList for add,get, etc but includes
+  many accelerated operations such as fill and an accelerated addAll when the src data
+  is an array list."
+  (^IMutList [] (ArrayLists$IntArrayList.))
+  (^IMutList [^long capacity] (ArrayLists$IntArrayList. capacity)))
+
+
+(defn long-array-list
+  "An array list that is as fast as java.util.ArrayList for add,get, etc but includes
+  many accelerated operations such as fill and an accelerated addAll when the src data
+  is an array list."
+  (^IMutList [] (ArrayLists$LongArrayList.))
+  (^IMutList [^long capacity] (ArrayLists$LongArrayList. capacity)))
+
+
+(defn double-array-list
+  "An array list that is as fast as java.util.ArrayList for add,get, etc but includes
+  many accelerated operations such as fill and an accelerated addAll when the src data
+  is an array list."
+  (^IMutList [] (ArrayLists$DoubleArrayList.))
+  (^IMutList [^long capacity] (ArrayLists$DoubleArrayList. capacity)))
+
+
+(def ^:private int-ary-cls (Class/forName "[I"))
+
+
+(defn reindex
+  "Permut coll by the given indexes.  Result is random-access and the same length as
+  the index collection.  Indexes are expected to be in the range of [0->count(coll))."
+  [coll indexes]
+  (let [^ints indexes (if (instance? int-ary-cls indexes)
+                        indexes
+                        (int-array indexes))
+        ^List coll (if (instance? RandomAccess coll)
+                     coll
+                     (->random-access coll))]
+    (if (instance? IMutList coll)
+      (.reindex ^IMutList coll indexes)
+      (ReindexList/create indexes coll (meta coll)))))
+
+
 (defmacro double-binary-operator
   [lvar rvar & code]
   `(reify
@@ -1493,13 +1755,20 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
             op (double-binary-operator l r (unchecked-add l r))]
         (if (< (.size coll) 10000)
             (.doubleReduction coll op 0.0)
-            (->> (pfor (.size coll)
-                       (fn [^long sidx ^long eidx]
-                         (.doubleReduction ^IMutList (.subList coll sidx eidx)
-                                           op
+            (->> (pgroups (.size coll)
+                          (fn [^long sidx ^long eidx]
+                            (.doubleReduction ^IMutList (.subList coll sidx eidx)
+                                              op
                                            0.0)))
                  (reduce +))))
       (double (reduce + coll)))))
+
+
+(defn mean
+  ^double [coll]
+  (let [coll (->collection coll)]
+    (/ (sum coll)
+       (.size coll))))
 
 
 (defn map
@@ -1509,17 +1778,16 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
      (instance? Transformables$IMapable arg)
      (.map ^Transformables$IMapable arg f)
      (instance? RandomAccess arg)
-     (Transformables$MapList/create f nil (into-array List [arg]))
+     (Transformables$MapList/create f nil (into-array List (vector arg)))
      (.isArray (.getClass ^Object arg))
-     (Transformables$MapList/create f nil (into-array List [(ArrayLists/toList arg)]))
+     (Transformables$MapList/create f nil (into-array List (vector (ArrayLists/toList arg))))
      :else
-     (Transformables$MapIterable. f nil (into-array Iterable [(->collection arg)]))))
+     (Transformables$MapIterable. f nil (into-array Iterable (vector (->collection arg))))))
   ([f arg & args]
-   (let [args (clojure.core/concat [arg] args)]
+   (let [args (concat [arg] args)]
      (if (every? #(instance? RandomAccess %) args)
        (Transformables$MapList/create f nil (into-array List args))
-       (Transformables$MapIterable. f nil (into-array Iterable
-                                                  (clojure.core/map ->collection args)))))))
+       (Transformables$MapIterable. f nil (into-array Iterable ->collection args))))))
 
 
 (defn concat
@@ -1545,6 +1813,144 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
     (.filter ^Transformables$IMapable coll pred)
     :else
     (Transformables$FilterIterable. pred nil (Transformables/toIterable coll))))
+
+
+(defn first
+  [coll]
+  (if (nil? coll)
+    nil
+    (let [coll (->collection coll)]
+      (if (instance? List coll)
+        (when-not (.isEmpty ^List coll)
+          (.get ^List coll 0))
+        (let [iter (.iterator coll)]
+          (when (.hasNext iter)
+            (.next iter)))))))
+
+
+(defn last
+  [coll]
+  (if (nil? coll)
+    nil
+    (let [coll (->collection coll)]
+      (cond
+        (instance? RandomAccess coll)
+        (when-not (.isEmpty coll)
+          (.get ^List coll (unchecked-dec (.size ^List coll))))
+        (instance? Reversible coll)
+        (RT/first (.rseq ^Reversible coll))
+        :else
+        (let [iter (.iterator coll)]
+          (when (.hasNext iter)
+            (loop [item (.next iter)]
+              (if (.hasNext iter)
+                (recur (.next iter))
+                item))))))))
+
+
+(defn take
+  [n coll]
+  (when coll
+    (let [coll (->collection coll)]
+      (if (instance? RandomAccess coll)
+        (.subList ^List coll 0 (min (long n) (.size coll)))
+        (clojure.core/take n coll)))))
+
+
+(defn take-last
+  [n coll]
+  (when coll
+    (let [coll (->collection coll)]
+      (if (instance? RandomAccess coll)
+        (let [ne (.size coll)
+              n (long n)]
+          (.subList ^List coll (- ne n 1) ne))
+        (clojure.core/take-last n coll)))))
+
+
+(defn take-min
+  ([n comp values]
+   (let [comp (->comparator comp)
+         queue (-> (MinMaxPriorityQueue/orderedBy comp)
+                   (.maximumSize (int n))
+                   (.create))
+         values (->collection values)]
+     (iterator/doiter
+      obj values
+      (.add queue obj))
+     (->collection (object-array queue))))
+  ([n values]
+   (take-min n nil values)))
+
+
+(defn drop
+  [n coll]
+  (when coll
+    (let [coll (->collection coll)]
+      (if (instance? RandomAccess coll)
+        (.subList ^List coll (min (long n) (dec (.size coll))) (.size coll))
+        (clojure.core/drop n coll)))))
+
+
+(defn drop-last
+  [n coll]
+  (when coll
+    (let [coll (->collection coll)]
+      (if (instance? RandomAccess coll)
+        (let [ne (.size coll)
+              n (long n)]
+          (.subList ^List coll 0 (- ne n)))
+        (clojure.core/take-last n coll)))))
+
+
+(defn repeat
+  "When called with no arguments, produce an infinite sequence of v.
+  When called with 2 arguments, produce a random access list that produces v at each
+  index."
+  ([v] (clojure.core/repeat v))
+  (^List [n v] (ConstList/create n v nil)))
+
+
+(defn repeatedly
+  "When called with one argument, produce infinite list of calls to v.
+  When called with two arguments, produce a random access list of length n of calls to v."
+  ([f] (clojure.core/repeatedly f))
+  (^List [n f] (repeatedly n f nil))
+  (^List [n f opts]
+   (let [obj-ary (object-array n)]
+     (->> (pgroups n (fn [^long sidx, ^long eidx]
+                       (ArrayLists/fill obj-ary sidx eidx (reify IntFunction
+                                                            (apply [this v]
+                                                              (f)))))
+                   {:pgroup-min (get opts :pgroup-min 1000)})
+          (dorun))
+     (->collection obj-ary))))
+
+
+(defn- seed->random
+  ^Random [seed]
+  (cond
+    (instance? Random seed) seed
+    (number? seed) (Random. (int seed))
+    (nil? seed) (Random.)
+    :else
+    (throw (Exception. (str "Invalid seed type: " seed)))))
+
+
+(defn shuffle
+  "shuffle values returning random access container.
+
+  Options:
+
+  * `:seed` - If instance of java.util.Random, use this.  If integer, use as seed.
+  If not provided a new instance of java.util.Random is created."
+  (^List [coll] (shuffle coll nil))
+  (^List [coll opts]
+   (let [coll (->random-access coll)
+         random (seed->random (get opts :seed))]
+     (if (instance? IMutList coll)
+       (.immutShuffle ^IMutList coll random)
+       (reindex coll (IntArrays/shuffle (iarange (.size coll)) random))))))
 
 
 (comment

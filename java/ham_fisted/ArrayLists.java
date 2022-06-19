@@ -5,11 +5,15 @@ import java.util.List;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Collections;
+import java.util.Collection;
+import java.util.Random;
+import java.util.RandomAccess;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.LongBinaryOperator;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.LongConsumer;
+import java.util.function.IntFunction;
 import clojure.lang.IPersistentMap;
 import clojure.lang.IObj;
 import clojure.lang.RT;
@@ -23,6 +27,7 @@ import it.unimi.dsi.fastutil.longs.LongArrays;
 import it.unimi.dsi.fastutil.longs.LongComparator;
 import it.unimi.dsi.fastutil.doubles.DoubleArrays;
 import it.unimi.dsi.fastutil.doubles.DoubleComparator;
+import it.unimi.dsi.fastutil.objects.ObjectArrays;
 
 
 public class ArrayLists {
@@ -62,7 +67,11 @@ public class ArrayLists {
     for(int idx = 0; idx < ne; ++idx)
       l.add(idx+startidx, v);
   }
-
+  public static void fill(Object[] data, int sidx, final int eidx, IntFunction f) {
+    for(; sidx < eidx; ++sidx)
+      data[sidx] = f.apply(sidx);
+  }
+  //Kahan compesated summation
   public static class SummationConsumer implements DoubleConsumer, Consumer {
     public double d0 = 0;
     //High order summation bits
@@ -144,6 +153,11 @@ public class ArrayLists {
       nElems = eidx - sidx;
       meta = m;
     }
+    public String toString() { return Transformables.sequenceToString(this); }
+    public boolean equals(Object other) {
+      return equiv(other);
+    }
+    public int hashCode() { return hasheq(); }
     public ArraySection getArray() { return this; }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
@@ -220,6 +234,12 @@ public class ArrayLists {
       retval.sort(c);
       return retval;
     }
+
+    public List immutShuffle(Random r) {
+      Object[] retval = toArray();
+      ObjectArrays.shuffle(retval, r);
+      return toList(retval);
+    }
   }
 
   public static class ObjectArrayList implements IArrayList {
@@ -236,6 +256,11 @@ public class ArrayLists {
     public ObjectArrayList() {
       this(4);
     }
+    public String toString() { return Transformables.sequenceToString(this); }
+    public boolean equals(Object other) {
+      return equiv(other);
+    }
+    public int hashCode() { return hasheq(); }
     public ArraySection getArray() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
@@ -270,6 +295,43 @@ public class ArrayLists {
       System.arraycopy(d, idx, d, idx+1, ne - idx);
       d[idx] = obj;
       nElems = ne+1;
+    }
+    public boolean addAll(Collection <? extends Object> c) {
+      if (c.isEmpty()) return false;
+      if (c instanceof RandomAccess) {
+	final int cs = c.size();
+	final int sz = size();
+	ensureCapacity(cs+sz);
+	nElems += cs;
+	//Hit fastpath
+	fillRange(sz, (List)c);
+      } else {
+	for(Object o: c) {
+	  add(o);
+	}
+      }
+      return true;
+    }
+    public boolean addAll(int sidx, Collection <? extends Object> c) {
+      sidx = wrapCheckIndex(sidx, nElems);
+      if (c.isEmpty()) return false;
+      final int cs = c.size();
+      final int sz = size();
+      final int eidx = sidx + cs;
+      ensureCapacity(cs+sz);
+      nElems += cs;
+      System.arraycopy(data, sidx, data, eidx, sz - sidx);
+      if (c instanceof List) {
+	//Hit fastpath
+	fillRange(sidx, (List)c);
+      } else {
+	int idx = sidx;
+	for(Object o: c) {
+	  set(idx, o);
+	  ++idx;
+	}
+      }
+      return true;
     }
     public Object remove(int idx) {
       idx = wrapCheckIndex(idx, nElems);
@@ -329,6 +391,9 @@ public class ArrayLists {
     public List immutSort(Comparator c) {
       return ((ImmutSort)subList(0, nElems)).immutSort(c);
     }
+    public List immutShuffle(Random r) {
+      return ((IMutList)subList(0, nElems)).immutShuffle(r);
+    }
     public static ObjectArrayList wrap(final Object[] data, int nElems, IPersistentMap m) {
       if (data.length < nElems)
 	throw new RuntimeException("Array len less than required");
@@ -348,6 +413,11 @@ public class ArrayLists {
   public static List<Object> toList(final byte[] data, final int sidx, final int eidx, final IPersistentMap meta) {
     final int dlen = eidx - sidx;
     return new ILongArrayList() {
+      public String toString() { return Transformables.sequenceToString(this); }
+      public boolean equals(Object other) {
+	return equiv(other);
+      }
+      public int hashCode() { return hasheq(); }
       public ArraySection getArray() { return new ArraySection(data, sidx, eidx); }
       public Class containedType() { return data.getClass().getComponentType(); }
       public int size() { return dlen; }
@@ -415,6 +485,14 @@ public class ArrayLists {
 	  init = op.applyAsLong(init, data[idx+ss]);
 	return init;
       }
+      public List immutShuffle(Random r) {
+	final int sz = size();
+	final int[] perm = IntArrays.shuffle(ArrayLists.iarange(0, sz, 1), r);
+	byte[] bdata = new byte[sz];
+	for(int idx = 0; idx < sz; ++idx)
+	  bdata[idx] = data[perm[idx]];
+	return toList(bdata);
+      }
     };
   }
   public static List<Object> toList(final byte[] data) { return toList(data, 0, data.length, null); }
@@ -422,6 +500,11 @@ public class ArrayLists {
   public static List<Object> toList(final short[] data, final int sidx, final int eidx, final IPersistentMap meta) {
     final int dlen = eidx - sidx;
     return new ILongArrayList() {
+      public String toString() { return Transformables.sequenceToString(this); }
+      public boolean equals(Object other) {
+	return equiv(other);
+      }
+      public int hashCode() { return hasheq(); }
       public ArraySection getArray() { return new ArraySection(data, sidx, eidx); }
       public Class containedType() { return data.getClass().getComponentType(); }
       public int size() { return dlen; }
@@ -494,6 +577,14 @@ public class ArrayLists {
 	  init = op.applyAsLong(init, data[idx+ss]);
 	return init;
       }
+      public List immutShuffle(Random r) {
+	final int sz = size();
+	final int[] perm = IntArrays.shuffle(ArrayLists.iarange(0, sz, 1), r);
+	final short[] bdata = new short[sz];
+	for(int idx = 0; idx < sz; ++idx)
+	  bdata[idx] = data[perm[idx]];
+	return toList(bdata);
+      }
     };
   }
   public static List<Object> toList(final short[] data) { return toList(data, 0, data.length, null); }
@@ -509,6 +600,11 @@ public class ArrayLists {
       nElems = eidx - sidx;
       meta = m;
     }
+    public String toString() { return Transformables.sequenceToString(this); }
+    public boolean equals(Object other) {
+      return equiv(other);
+    }
+    public int hashCode() { return hasheq(); }
     public ArraySection getArray() { return this; }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
@@ -685,6 +781,11 @@ public class ArrayLists {
       retval.sort(c);
       return retval;
     }
+    public List immutShuffle(Random r) {
+      int[] retval = toIntArray();
+      IntArrays.shuffle(retval, r);
+      return toList(retval);
+    }
   }
 
   public static class IntArrayList implements ILongArrayList {
@@ -701,6 +802,11 @@ public class ArrayLists {
     public IntArrayList() {
       this(4);
     }
+    public String toString() { return Transformables.sequenceToString(this); }
+    public boolean equals(Object other) {
+      return equiv(other);
+    }
+    public int hashCode() { return hasheq(); }
     public ArraySection getArray() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
@@ -739,6 +845,42 @@ public class ArrayLists {
       System.arraycopy(d, idx, d, idx+1, ne - idx);
       d[idx] = val;
       nElems = ne+1;
+    }
+    public boolean addAll(Collection <? extends Object> c) {
+      if (c.isEmpty()) return false;
+      if (c instanceof RandomAccess) {
+	//Hit fastpath
+	final int cs = c.size();
+	final int sz = size();
+	ensureCapacity(cs+sz);
+	nElems += cs;
+	fillRange(sz, (List)c);
+      } else {
+	for(Object o: c)
+	  add(o);
+      }
+      return true;
+    }
+    public boolean addAll(int sidx, Collection <? extends Object> c) {
+      sidx = wrapCheckIndex(sidx, nElems);
+      if (c.isEmpty()) return false;
+      final int cs = c.size();
+      final int sz = size();
+      final int eidx = sidx + cs;
+      ensureCapacity(cs+sz);
+      nElems += cs;
+      System.arraycopy(data, sidx, data, eidx, sz - sidx);
+      if (c instanceof List) {
+	//Hit fastpath
+	fillRange(sidx, (List)c);
+      } else {
+	int idx = sidx;
+	for(Object o: c) {
+	  set(idx, o);
+	  ++idx;
+	}
+      }
+      return true;
     }
     public Object remove(int idx) {
       idx = wrapCheckIndex(idx, nElems);
@@ -859,6 +1001,11 @@ public class ArrayLists {
       nElems = eidx - sidx;
       meta = m;
     }
+    public String toString() { return Transformables.sequenceToString(this); }
+    public boolean equals(Object other) {
+      return equiv(other);
+    }
+    public int hashCode() { return hasheq(); }
     public ArraySection getArray() { return this; }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
@@ -1035,6 +1182,11 @@ public class ArrayLists {
 	IntArrays.parallelQuickSort(retval, indexComparator(c));
       return retval;
     }
+    public List immutShuffle(Random r) {
+      long[] data = toLongArray();
+      LongArrays.shuffle(data, r);
+      return toList(data);
+    }
   }
 
   public static class LongArrayList implements ILongArrayList {
@@ -1051,6 +1203,11 @@ public class ArrayLists {
     public LongArrayList() {
       this(4);
     }
+    public String toString() { return Transformables.sequenceToString(this); }
+    public boolean equals(Object other) {
+      return equiv(other);
+    }
+    public int hashCode() { return hasheq(); }
     public ArraySection getArray() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
@@ -1089,6 +1246,43 @@ public class ArrayLists {
       System.arraycopy(d, idx, d, idx+1, ne - idx);
       d[idx] = val;
       nElems = ne+1;
+    }
+    public boolean addAll(Collection <? extends Object> c) {
+      if (c.isEmpty()) return false;
+      if (c instanceof RandomAccess) {
+	final int cs = c.size();
+	final int sz = size();
+	ensureCapacity(cs+sz);
+	nElems += cs;
+	//Hit fastpath
+	fillRange(sz, (List)c);
+      } else {
+	for(Object o: c) {
+	  add(o);
+	}
+      }
+      return true;
+    }
+    public boolean addAll(int sidx, Collection <? extends Object> c) {
+      sidx = wrapCheckIndex(sidx, nElems);
+      if (c.isEmpty()) return false;
+      final int cs = c.size();
+      final int sz = size();
+      final int eidx = sidx + cs;
+      ensureCapacity(cs+sz);
+      nElems += cs;
+      System.arraycopy(data, sidx, data, eidx, sz - sidx);
+      if (c instanceof List) {
+	//Hit fastpath
+	fillRange(sidx, (List)c);
+      } else {
+	int idx = sidx;
+	for(Object o: c) {
+	  set(idx, o);
+	  ++idx;
+	}
+      }
+      return true;
     }
     public Object remove(int idx) {
       idx = wrapCheckIndex(idx, nElems);
@@ -1176,6 +1370,11 @@ public class ArrayLists {
   public static List<Object> toList(final float[] data, final int sidx, final int eidx, IPersistentMap meta) {
     final int dlen = eidx - sidx;
     return new IDoubleArrayList() {
+      public String toString() { return Transformables.sequenceToString(this); }
+      public boolean equals(Object other) {
+	return equiv(other);
+      }
+      public int hashCode() { return hasheq(); }
       public ArraySection getArray() { return new ArraySection(data, sidx, eidx); }
       public int size() { return dlen; }
       public Float get(int idx) { return data[wrapCheckIndex(idx, dlen) + sidx]; }
@@ -1278,6 +1477,14 @@ public class ArrayLists {
 	  init = op.applyAsDouble(init, data[idx+sidx]);
 	return init;
       }
+      public List immutShuffle(Random r) {
+	final int sz = size();
+	final int[] perm = IntArrays.shuffle(ArrayLists.iarange(0, sz, 1), r);
+	final float[] bdata = new float[sz];
+	for(int idx = 0; idx < sz; ++idx)
+	  bdata[idx] = data[perm[idx]];
+	return toList(bdata);
+      }
     };
   }
   public static List<Object> toList(final float[] data) { return toList(data, 0, data.length, null); }
@@ -1293,6 +1500,11 @@ public class ArrayLists {
       nElems = eidx - sidx;
       meta = m;
     }
+    public String toString() { return Transformables.sequenceToString(this); }
+    public boolean equals(Object other) {
+      return equiv(other);
+    }
+    public int hashCode() { return hasheq(); }
     public ArraySection getArray() { return this; }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
@@ -1502,6 +1714,11 @@ public class ArrayLists {
 	IntArrays.parallelQuickSort(retval, indexComparator(c));
       return retval;
     }
+    public List immutShuffle(Random r) {
+      final double[] bdata = toDoubleArray();
+      DoubleArrays.shuffle(bdata, r);
+      return toList(bdata);
+    }
   }
 
   public static class DoubleArrayList implements IDoubleArrayList {
@@ -1518,6 +1735,11 @@ public class ArrayLists {
     public DoubleArrayList() {
       this(4);
     }
+    public String toString() { return Transformables.sequenceToString(this); }
+    public boolean equals(Object other) {
+      return equiv(other);
+    }
+    public int hashCode() { return hasheq(); }
     public ArraySection getArray() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
@@ -1556,6 +1778,42 @@ public class ArrayLists {
       System.arraycopy(d, idx, d, idx+1, ne - idx);
       d[idx] = val;
       nElems = ne+1;
+    }
+    public boolean addAll(Collection <? extends Object> c) {
+      if (c.isEmpty()) return false;
+      if (c instanceof RandomAccess) {
+	final int cs = c.size();
+	final int sz = size();
+	ensureCapacity(cs+sz);
+	nElems += cs;
+	//Hit fastpath
+	fillRange(sz, (List)c);
+      } else {
+	for(Object o: c)
+	  add(o);
+      }
+      return true;
+    }
+    public boolean addAll(int sidx, Collection <? extends Object> c) {
+      sidx = wrapCheckIndex(sidx, nElems);
+      if (c.isEmpty()) return false;
+      final int cs = c.size();
+      final int sz = size();
+      final int eidx = sidx + cs;
+      ensureCapacity(cs+sz);
+      nElems += cs;
+      System.arraycopy(data, sidx, data, eidx, sz - sidx);
+      if (c instanceof List) {
+	//Hit fastpath
+	fillRange(sidx, (List)c);
+      } else {
+	int idx = sidx;
+	for(Object o: c) {
+	  set(idx, o);
+	  ++idx;
+	}
+      }
+      return true;
     }
     public Object remove(int idx) {
       idx = wrapCheckIndex(idx, nElems);
@@ -1627,6 +1885,9 @@ public class ArrayLists {
     public int[] sortIndirect(Comparator c) {
       return ((IMutList)subList(0, nElems)).sortIndirect(c);
     }
+    public List immutShuffle(Random r) {
+      return ((IMutList)subList(0, nElems)).immutShuffle(r);
+    }
     public static DoubleArrayList wrap(final double[] data, int nElems, IPersistentMap m) {
       if (data.length < nElems)
 	throw new RuntimeException("Array len less than required");
@@ -1644,6 +1905,11 @@ public class ArrayLists {
   public static List<Object> toList(final char[] data, final int sidx, final int eidx, IPersistentMap meta) {
     final int dlen = eidx - sidx;
     return new ILongArrayList() {
+      public String toString() { return Transformables.sequenceToString(this); }
+      public boolean equals(Object other) {
+	return equiv(other);
+      }
+      public int hashCode() { return hasheq(); }
       public ArraySection getArray() { return new ArraySection(data, sidx, eidx); }
       public int size() { return dlen; }
       public Character get(int idx) { return data[wrapCheckIndex(idx, dlen) + sidx]; }
@@ -1708,6 +1974,11 @@ public class ArrayLists {
   public static List<Object> toList(final boolean[] data, final int sidx, final int eidx, IPersistentMap meta) {
     final int dlen = eidx - sidx;
     return new ILongArrayList() {
+      public String toString() { return Transformables.sequenceToString(this); }
+      public boolean equals(Object other) {
+	return equiv(other);
+      }
+      public int hashCode() { return hasheq(); }
       public ArraySection getArray() { return new ArraySection(data, sidx, eidx); }
       public int size() { return dlen; }
       public Boolean get(int idx) { return data[wrapCheckIndex(idx, dlen) + sidx]; }

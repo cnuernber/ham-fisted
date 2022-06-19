@@ -10,6 +10,7 @@ import java.util.NoSuchElementException;
 import java.util.Collection;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Random;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.LongBinaryOperator;
 import java.util.function.Consumer;
@@ -433,5 +434,11 @@ public interface IMutList<E>
     for(int idx = 0; idx < sz; ++idx)
       init = op.applyAsLong(init, getLong(idx));
     return init;
+  }
+  default List reindex(int[] indexes) {
+    return ReindexList.create(indexes, this, this.meta());
+  }
+  default List immutShuffle(Random r) {
+    return reindex(IntArrays.shuffle(ArrayLists.iarange(0, size(), 1), r));
   }
 }
