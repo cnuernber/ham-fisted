@@ -41,7 +41,8 @@
             Transformables$FilterIterable Transformables$CatIterable
             Transformables$MapList Transformables$IMapable Transformables
             ReindexList ConstList ArrayLists$ObjectArrayList Transformables$SingleMapList
-            ArrayLists$IntArrayList ArrayLists$LongArrayList ArrayLists$DoubleArrayList]
+            ArrayLists$IntArrayList ArrayLists$LongArrayList ArrayLists$DoubleArrayList
+            ReverseList TypedList DoubleMutList LongMutList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
             IEditableCollection RT IPersistentMap Associative Util IFn ArraySeq
             Reversible]
@@ -66,7 +67,7 @@
                             sort int-array long-array double-array float-array
                             range map concat filter first last pmap take take-last drop
                             drop-last sort-by repeat repeatedly shuffle into-array
-                            empty?]))
+                            empty? reverse]))
 
 
 (set! *warn-on-reflection* true)
@@ -1550,16 +1551,6 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
          (ArrayLists/toList a 0 (alength a) ^IPersistentMap (meta coll)))))))
 
 
-(defn sort!
-  "If coll is a list, call the list sort method to sort in-place else call sort."
-  ([comp coll]
-   (if (instance? List coll)
-     (do (.sort ^List coll (when comp (->comparator comp))) coll)
-     (sort comp coll)))
-  ([coll]
-   (sort! nil coll)))
-
-
 (defn sort-by
   ([keyfn coll]
    (sort-by keyfn compare coll))
@@ -1609,8 +1600,8 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
   ([start end] (range start end 1))
   ([start end step]
    (if (and (integer? start) (integer? end) (integer? step))
-     (Ranges$LongRange. start end step)
-     (Ranges$DoubleRange. start end step))))
+     (Ranges$LongRange. start end step nil)
+     (Ranges$DoubleRange. start end step nil))))
 
 
 (defn argsort
@@ -1848,6 +1839,96 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
                 item))))))))
 
 
+(defn reverse
+  [coll]
+  (let [coll (->collection coll)]
+    (cond
+      (instance? IMutList coll)
+      (.reverse ^IMutList coll)
+      (instance? RandomAccess coll)
+      (ReverseList/create coll (meta coll))
+      :else
+      (clojure.core/reverse coll))))
+
+
+(defn- int-primitive?
+  [cls]
+  (or (identical? Byte/TYPE cls)
+      (identical? Short/TYPE cls)
+      (identical? Integer/TYPE cls)
+      (identical? Long/TYPE cls)))
+
+
+(defn- double-primitive?
+  [cls]
+  (or (identical? Float/TYPE cls)
+      (identical? Double/TYPE cls)))
+
+
+(defmacro make-readonly-list
+  "Implement a readonly list.  If cls-type-kwd is provided it must be, at compile time,
+  either :int64, :float64 or :object and the getLong, getDouble or get interface methods
+  will be filled in, respectively.  In those cases read-code must return the appropriate
+  type."
+  ([n idxvar read-code]
+   `(make-readonly-list :object ~n ~idxvar ~read-code))
+  ([cls-type-kwd n idxvar read-code]
+   `(let [~'nElems (int ~n)]
+      ~(case cls-type-kwd
+         :int64
+         `(reify
+            TypedList
+            (containedType [this#] Long/TYPE)
+            LongMutList
+            (size [this#] ~'nElems)
+            (getLong [this# ~idxvar] ~read-code))
+         :float64
+         `(reify
+            TypedList
+            (containedType [this#] Double/TYPE)
+            DoubleMutList
+            (size [this#] ~'nElems)
+            (getDouble [this# ~idxvar] ~read-code))
+         :object
+         `(reify IMutList
+            (size [this#] ~'nElems)
+            (get [this# ~idxvar] ~read-code))))))
+
+
+(defn ^:no-doc contained-type
+  [coll]
+  (when (instance? TypedList coll)
+    (.containedType ^TypedList coll)))
+
+
+(defn shift
+  "Shift a collection forward or backward repeating either the first or the last entries.
+  Returns a random access list with the same elements as coll.
+
+  Example:
+
+```clojure
+ham-fisted.api> (shift 2 (range 10))
+[0 0 0 1 2 3 4 5 6 7]
+ham-fisted.api> (shift -2 (range 10))
+[2 3 4 5 6 7 8 9 9 9]
+```"
+  [n coll]
+  (let [n (long n)
+        coll (->random-access coll)
+        n-elems (.size coll)
+        ne (dec n-elems)
+        ctype (contained-type coll)
+        ^IMutList ml coll]
+    (cond
+      (int-primitive? ctype)
+      (make-readonly-list :int64 n-elems idx (.getLong ml (min ne (max 0 (- idx n)))))
+      (double-primitive? ctype)
+      (make-readonly-list :float64 n-elems idx (.getDouble ml (min ne (max 0 (- idx n)))))
+      :else
+      (make-readonly-list n-elems idx (.get coll (min ne (max 0 (- idx n))))))))
+
+
 (defn take
   [n coll]
   (when coll
@@ -1869,6 +1950,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
 
 
 (defn take-min
+  "Take the min n values of a collection.  This is not an order-preserving operation."
   ([n comp values]
    (let [comp (->comparator comp)
          queue (-> (MinMaxPriorityQueue/orderedBy comp)
@@ -1890,6 +1972,18 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
       (if (instance? RandomAccess coll)
         (.subList ^List coll (min (long n) (dec (.size coll))) (.size coll))
         (clojure.core/drop n coll)))))
+
+
+(defn drop-min
+  "Drop the min n values of a collection.  This is not an order-preserving operation."
+  ([n comp values]
+   (let [values (->random-access values)
+         tn (- (count values) (long n))]
+     (if (<= tn 0)
+       empty-vec
+       (take-min tn (.reversed (->comparator comp)) values))))
+  ([n values]
+   (drop-min n nil values)))
 
 
 (defn drop-last

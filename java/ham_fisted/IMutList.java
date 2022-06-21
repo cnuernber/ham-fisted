@@ -441,4 +441,7 @@ public interface IMutList<E>
   default List immutShuffle(Random r) {
     return reindex(IntArrays.shuffle(ArrayLists.iarange(0, size(), 1), r));
   }
+  default List reverse() {
+    return ReverseList.create(this, meta());
+  }
 }

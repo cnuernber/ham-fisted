@@ -2,6 +2,7 @@ package ham_fisted;
 
 
 import clojure.lang.RT;
+import clojure.lang.IPersistentMap;
 
 
 public class Ranges {
@@ -10,8 +11,9 @@ public class Ranges {
     public final long end;
     public final long step;
     public final int nElems;
+    public final IPersistentMap meta;
     int _hash = 0;
-    public LongRange(long s, long e, long _step) {
+    public LongRange(long s, long e, long _step, IPersistentMap m) {
       start = s;
       end = e;
       step = _step;
@@ -20,6 +22,7 @@ public class Ranges {
 	throw new RuntimeException("Invalid Range - start: " + String.valueOf(s)
 				   + " end: " + String.valueOf(e) + " step: " +
 				   String.valueOf(_step));
+      meta = m;
     }
     public boolean equals(Object other) {
       return equiv(other);
@@ -60,7 +63,11 @@ public class Ranges {
 	throw new RuntimeException("Start index out of range");
       if(eidx < sidx || eidx > sz)
 	throw new RuntimeException("End index out of range");
-      return new LongRange(start + sidx*step, start + eidx*step, step);
+      return new LongRange(start + sidx*step, start + eidx*step, step, meta);
+    }
+    public IPersistentMap meta() { return meta; }
+    public LongRange withMeta(IPersistentMap m) {
+      return new LongRange(start, end, step, m);
     }
   };
 
@@ -69,11 +76,13 @@ public class Ranges {
     public final double end;
     public final double step;
     public final int nElems;
+    public final IPersistentMap meta;
     int _hash = 0;
-    public DoubleRange(double s, double e, double _step) {
+    public DoubleRange(double s, double e, double _step, IPersistentMap _meta) {
       start = s;
       end = e;
       step = _step;
+      meta = _meta;
       nElems = RT.intCast((e - s)/_step);
       if (nElems < 0)
 	throw new RuntimeException("Invalid Range - start: " + String.valueOf(s)
@@ -125,7 +134,11 @@ public class Ranges {
 	throw new RuntimeException("Start index out of range");
       if(eidx < sidx || eidx > sz)
 	throw new RuntimeException("End index out of range");
-      return new DoubleRange(start + sidx*step, start + eidx*step, step);
+      return new DoubleRange(start + sidx*step, start + eidx*step, step, meta);
+    }
+    public IPersistentMap meta() { return meta; }
+    public DoubleRange withMeta(IPersistentMap m) {
+      return new DoubleRange(start, end, step, m);
     }
   };
 }

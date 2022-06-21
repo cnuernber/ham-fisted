@@ -42,6 +42,7 @@ public class ConstList implements IMutList<Object>, TypedList {
   public ConstList sort(Comparable c) { return this; }
   public ConstList immutSort(Comparable c) { return this; }
   public ConstList ImmutSort() { return this; }
+  public ConstList reverse() { return this; }
   public int[] sortIndirect() { return new int[nElems]; }
   public Object[] toArray() {
     Object[] retval = new Object[nElems];
