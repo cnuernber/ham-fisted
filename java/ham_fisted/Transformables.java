@@ -6,6 +6,7 @@ import static ham_fisted.BitmapTrieCommon.*;
 
 import java.util.List;
 import java.util.AbstractCollection;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Arrays;
@@ -13,6 +14,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.RandomAccess;
 import java.util.Collection;
+import java.util.BitSet;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.UnaryOperator;
 
 import clojure.lang.IFn;
 import clojure.lang.ArraySeq;
@@ -33,7 +37,7 @@ public class Transformables {
       return new FilterIterable(fn, meta(), this);
     }
     default IMapable cat(Iterable iters) {
-      return new CatIterable(meta(), new Iterable[]{iters});
+      return new CatIterable(meta(), new Iterable[]{ArrayLists.toList(new Iterable[] { this }), iters});
     }
   }
   public static boolean truthy(final Object obj) {
@@ -451,6 +455,80 @@ public class Transformables {
     public IPersistentMap meta() { return meta; }
     public MapList withMeta(IPersistentMap m) {
       return new MapList(this, m);
+    }
+  }
+
+  public static class CachingIterable extends AbstractCollection
+    implements Seqable {
+    final Iterable src;
+    final IPersistentMap meta;
+    AtomicReference<ISeq> seq;
+    public CachingIterable(Iterable _src, IPersistentMap _meta) {
+      src = _src;
+      meta = _meta;
+      seq = new AtomicReference<ISeq>();
+    }
+    CachingIterable(CachingIterable other, IPersistentMap m) {
+      src = other.src;
+      meta = m;
+      seq = other.seq;
+    }
+    public ISeq seq() {
+      return seq.updateAndGet(new UnaryOperator<ISeq>() {
+	  public ISeq apply(ISeq v) {
+	    if(v != null) return v;
+	    return src instanceof Seqable ? ((Seqable)src).seq() : IteratorSeq.create(src.iterator());
+	  }
+	});
+    }
+    public Iterator iterator() { return ((Collection)seq()).iterator(); }
+    public int size() { return ((Collection)seq()).size(); }
+    public IPersistentMap meta() { return meta; }
+    public CachingIterable withMeta(IPersistentMap m) { return new CachingIterable(src, m); }
+  }
+  public static class CachingList implements IMutList {
+    final List src;
+    final Object[] dataCache;
+    final BitSet cachedIndexes;
+    final IPersistentMap meta;
+    int _hash;
+    public CachingList(List srcData, IPersistentMap _meta) {
+      src = srcData;
+      meta = _meta;
+      dataCache = new Object[srcData.size()];
+      cachedIndexes = new BitSet();
+    }
+    CachingList(CachingList other, IPersistentMap _meta) {
+      src = other.src;
+      dataCache = other.dataCache;
+      cachedIndexes = other.cachedIndexes;
+      meta = _meta;
+    }
+    public int hashCode() {
+      return hasheq();
+    }
+    public int hasheq() {
+      if (_hash == 0)
+	_hash = IMutList.super.hasheq();
+      return _hash;
+    }
+    public boolean equals(Object other) {
+      return equiv(other);
+    }
+    public String toString() { return sequenceToString(this); }
+    public Object get(final int idx) {
+      synchronized(cachedIndexes) {
+	if(cachedIndexes.get(idx))
+	  return dataCache[idx];
+	final Object retval = src.get(idx);
+	dataCache[idx] = retval;
+	cachedIndexes.set(idx);
+	return retval;
+      }
+    }
+    public int size() { return src.size(); }
+    public CachingList withMeta(IPersistentMap m) {
+      return new CachingList(this, m);
     }
   }
 

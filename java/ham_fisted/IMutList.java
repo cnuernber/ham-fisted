@@ -14,6 +14,7 @@ import java.util.Random;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.LongBinaryOperator;
 import java.util.function.Consumer;
+import it.unimi.dsi.fastutil.objects.ObjectArrays;
 import it.unimi.dsi.fastutil.ints.IntArrays;
 import it.unimi.dsi.fastutil.ints.IntComparator;
 import it.unimi.dsi.fastutil.longs.LongComparator;
@@ -38,6 +39,7 @@ import clojure.lang.ISeq;
 import clojure.lang.IPersistentVector;
 import clojure.lang.IPersistentMap;
 import clojure.lang.IObj;
+import clojure.lang.ASeq;
 
 
 public interface IMutList<E>
@@ -120,9 +122,16 @@ public interface IMutList<E>
     }
     return size() == osz;
   }
+
+  @SuppressWarnings("unchecked")
   default List<E> subList(int startidx, int endidx) {
-    throw new RuntimeException("Unimplemented");
+    final int sz = size();
+    if (startidx == 0 && endidx == sz)
+      return this;
+    ChunkedList.checkIndexRange(0, sz, startidx, endidx);
+    return ReindexList.create(ArrayLists.iarange(startidx, endidx, 1), this, meta());
   }
+
   default int indexOf(Object o) {
     final int sz = size();
     for(int idx = 0; idx < sz; ++idx)
@@ -299,15 +308,20 @@ public interface IMutList<E>
     }
   }
 
+  @SuppressWarnings("unchecked")
   default int[] sortIndirect(Comparator c) {
     final int sz = size();
     int[] retval = ArrayLists.iarange(0, sz, 1);
-    if(sz < 2)
-      return retval;
-    if(c == null)
-      IntArrays.parallelQuickSort(retval, indexComparator());
+    final Object[] data = toArray();
+    if (c == null)
+      ObjectArrays.parallelQuickSortIndirect(retval, data);
     else
-      IntArrays.parallelQuickSort(retval, indexComparator(c));
+      IntArrays.parallelQuickSort(retval,
+				  new IntComparator() {
+				    public int compare(int lhs, int rhs) {
+				      return c.compare(data[lhs], data[rhs]);
+				    }
+				  });
     return retval;
   }
 
@@ -419,8 +433,84 @@ public interface IMutList<E>
   default boolean equiv(Object other) {
     return CljHash.listEquiv(this, other);
   }
-  default ISeq seq() { return IteratorSeq.create(iterator()); }
-  default ISeq rseq() { return IteratorSeq.create(riterator()); }
+  static class IndexSeq extends ASeq {
+    final List l;
+    final int idx;
+    final int ssz;
+    final Object v;
+    ISeq rest;
+    public IndexSeq(List _l, int _idx, IPersistentMap m) {
+      super(m);
+      l = _l;
+      idx = _idx;
+      ssz = l.size() - 1;
+      v = l.get(idx);
+    }
+    public IndexSeq(IndexSeq other, IPersistentMap m) {
+      super(m);
+      l = other.l;
+      idx = other.idx;
+      ssz = other.ssz;
+      v = other.v;
+      rest = other.rest;
+    }
+    public int size() { return ssz - idx +1; }
+    public Object first() { return v; }
+    public ISeq next() {
+      if (rest != null) return rest;
+      if (idx >= ssz) return null;
+      synchronized(this) {
+	if(rest == null) {
+	  rest = new IndexSeq(l, idx+1, meta());
+	}
+      }
+      return rest;
+    }
+    public IndexSeq withMeta(IPersistentMap m) {
+      return new IndexSeq(this, m);
+    }
+  }
+  static class RIndexSeq extends ASeq {
+    final List l;
+    final int idx;
+    final int ssz;
+    final Object v;
+    ISeq rest;
+    public RIndexSeq(List _l, int _idx, IPersistentMap m) {
+      super(m);
+      l = _l;
+      idx = _idx;
+      ssz = l.size() - 1;
+      v = l.get(ssz - idx);
+    }
+    public RIndexSeq(RIndexSeq other, IPersistentMap m) {
+      super(m);
+      l = other.l;
+      idx = other.idx;
+      ssz = other.ssz;
+      v = other.v;
+      rest = other.rest;
+    }
+    public boolean isEmpty() { return false; }
+    public int size() { return ssz - idx +1; }
+    public Object first() { return v; }
+    public ISeq next() {
+      if (rest != null) return rest;
+      if (idx >= ssz) return null;
+      synchronized(this) {
+	if(rest == null) {
+	  rest = new RIndexSeq(l, idx+1, meta());
+	}
+      }
+      return rest;
+    }
+    public RIndexSeq withMeta(IPersistentMap m) {
+      return new RIndexSeq(this, m);
+    }
+  }
+
+  default ISeq seq() { if(isEmpty()) return null; return new IndexSeq(this, 0, meta()); }
+  default ISeq rseq() { if(isEmpty()) return null; return new RIndexSeq(this, 0, meta()); }
   default IPersistentMap meta() { return null; }
   default IObj withMeta(IPersistentMap meta ) { throw new RuntimeException("Unimplemented"); }
   default double doubleReduction(DoubleBinaryOperator op, double init) {

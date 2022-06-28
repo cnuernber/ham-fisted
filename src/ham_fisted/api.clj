@@ -31,6 +31,10 @@
 
   Unlike the standard Java objects, mutation-via-iterator is not supported."
   (:require [ham-fisted.iterator :as iterator]
+            [ham-fisted.lazy-noncaching
+             :refer [map concat filter repeatedly into-array
+                     ->collection ->random-access reindex]]
+            [ham-fisted.lazy-caching :as lzc]
             [com.climate.claypoole :as claypoole])
   (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
@@ -113,7 +117,7 @@ This is currently the default hash provider for the library."}
 (def ^{:tag ArrayImmutList} empty-vec ArrayImmutList/EMPTY)
 
 
-(declare assoc! conj! vec mapv vector object-array range first map take drop concat)
+(declare assoc! conj! vec mapv vector object-array range first take drop)
 
 
 (defn- empty-map?
@@ -506,7 +510,7 @@ ham_fisted.PersistentHashMap
   [item]
   (instance? ImmutValues item))
 
-(defn as-immut-vals
+(defn- as-immut-vals
   ^ImmutValues [item] item)
 
 (defn- ->set
@@ -518,33 +522,6 @@ ham_fisted.PersistentHashMap
     (.keySet ^Map item)
     :else
     (immut-set item)))
-
-
-(defn ->collection
-  "Ensure an item implements java.util.Collection.  This is inherently true for seqs and any
-  implementation of java.util.List but not true for object arrays.  For maps this returns
-  the entry set."
-  ^Collection [item]
-  (cond
-    (nil? item) empty-vec
-    (instance? Collection item)
-    item
-    (instance? Map item)
-    (.entrySet ^Map item)
-    (.isArray (.getClass ^Object item))
-    (ArrayLists/toList item)
-    (instance? String item)
-    (StringCollection. item)
-    :else
-    (RT/seq item)))
-
-
-(defn ->random-access
-  ^List [item]
-  (let [c (->collection item)]
-    (if (instance? RandomAccess c)
-      c
-      (->collection (object-array c)))))
 
 
 (defn map-union
@@ -820,16 +797,16 @@ ham_fisted.PersistentHashMap
     to be parallelized.
   * `:batch-size` - max batch size.  Defaults to 64000."
   ([n-elems body-fn options]
-   (let [n-elems (long n-elems)]
+   (let [n-elems (long n-elems)
+         parallelism (ForkJoinPool/getCommonPoolParallelism)]
      (if (or (in-fork-join-task?)
-             (< n-elems (long (get options :pgroup-min 0))))
+             (< n-elems (max parallelism (long (get options :pgroup-min 0)))))
        [(body-fn 0 n-elems)]
-       (let [parallelism (ForkJoinPool/getCommonPoolParallelism)
-             pool (ForkJoinPool/commonPool)
+       (let [pool (ForkJoinPool/commonPool)
              n-elems (long n-elems)
              max-batch-size (long (get options :batch-size 64000))
              gsize (min max-batch-size (quot n-elems parallelism))
-             ngroups (quot (+ n-elems (dec gsize)) gsize)
+             ngroups (quot n-elems gsize)
              leftover (rem n-elems gsize)]
          (->> (range ngroups)
               (mapv (fn [^long gidx]
@@ -1430,34 +1407,10 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
     (let [alist (ArrayList.)]
       (iterator/doiter
        i item (.add alist i))
-      (.toArray alist))))
-
-
-(defn into-array
-  ([aseq] (into-array (if-let [item (first aseq)] (.getClass ^Object item) Object) aseq))
-  ([ary-type aseq]
-   (let [^Class ary-type (or ary-type Object)
-         aseq (->collection aseq)
-         ^List aseq (if (instance? RandomAccess aseq)
-                      aseq
-                      (doto (ArrayLists$ObjectArrayList.)
-                        (.addAll (->collection aseq))))]
-     (if (.isAssignableFrom Object ary-type)
-       (.toArray aseq (Array/newInstance ary-type 0))
-       (let [retval (Array/newInstance ary-type (.size aseq))
-             ^IMutList ml (ArrayLists/toList retval)]
-         (.fillRange ml 0 aseq)
-         retval))))
-  ([ary-type mapfn aseq]
-   (let [ary-type (or ary-type Object)]
-     (if mapfn
-       (into-array ary-type (if (instance? RandomAccess aseq)
-                              (Transformables$SingleMapList. mapfn nil aseq)
-                              (doto (ArrayLists$ObjectArrayList.)
-                                (.addAll (Transformables$MapIterable/createSingle
-                                          mapfn nil
-                                          (->collection aseq))))))
-       (into-array ary-type aseq)))))
+      (.toArray alist))
+    :else
+    (throw (Exception. (str "Unable to coerce item of type: " (type item)
+                            " to an object array")))))
 
 
 (defn- ->comparator
@@ -1465,7 +1418,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
   (or comp compare))
 
 
-(defmacro long-comparator
+(defmacro make-long-comparator
   "Make a comparator that gets passed two long arguments."
   [lhsvar rhsvar & code]
   (let [lhsvar (with-meta lhsvar {:tag 'long})
@@ -1480,7 +1433,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
          (.compare this# l# r#)))))
 
 
-(defmacro double-comparator
+(defmacro make-double-comparator
   "Make a comparator that gets passed two double arguments."
   [lhsvar rhsvar & code]
   (let [lhsvar (with-meta lhsvar {:tag 'double})
@@ -1553,9 +1506,12 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
 
 (defn sort-by
   ([keyfn coll]
-   (sort-by keyfn compare coll))
-  ([keyfn ^java.util.Comparator comp coll]
-   (sort (fn [x y] (. comp (compare (keyfn x) (keyfn y)))) coll)))
+   (sort-by keyfn nil coll))
+  ([keyfn comp coll]
+   (let [coll (->random-access coll)
+         ^IMutList data (map keyfn coll)
+         indexes (.sortIndirect data comp)]
+     (reindex coll indexes))))
 
 
 (defn iarange
@@ -1697,23 +1653,6 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
   (^IMutList [^long capacity] (ArrayLists$DoubleArrayList. capacity)))
 
 
-(def ^:private int-ary-cls (Class/forName "[I"))
-
-
-(defn reindex
-  "Permut coll by the given indexes.  Result is random-access and the same length as
-  the index collection.  Indexes are expected to be in the range of [0->count(coll))."
-  [coll indexes]
-  (let [^ints indexes (if (instance? int-ary-cls indexes)
-                        indexes
-                        (int-array indexes))
-        ^List coll (if (instance? RandomAccess coll)
-                     coll
-                     (->random-access coll))]
-    (if (instance? IMutList coll)
-      (.reindex ^IMutList coll indexes)
-      (ReindexList/create indexes coll (meta coll)))))
-
 
 (defmacro double-binary-operator
   [lvar rvar & code]
@@ -1762,50 +1701,6 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
        (.size coll))))
 
 
-(defn map
-  ([f arg]
-   (cond
-     (nil? arg) nil
-     (instance? Transformables$IMapable arg)
-     (.map ^Transformables$IMapable arg f)
-     (instance? RandomAccess arg)
-     (Transformables$MapList/create f nil (into-array List (vector arg)))
-     (.isArray (.getClass ^Object arg))
-     (Transformables$MapList/create f nil (into-array List (vector (ArrayLists/toList arg))))
-     :else
-     (Transformables$MapIterable. f nil (into-array Iterable (vector (->collection arg))))))
-  ([f arg & args]
-   (let [args (concat [arg] args)]
-     (if (every? #(instance? RandomAccess %) args)
-       (Transformables$MapList/create f nil (into-array List args))
-       (Transformables$MapIterable. f nil (into-array Iterable ->collection args))))))
-
-
-(defn concat
-  ([] nil)
-  ([& args]
-   (let [a (first args)
-         rargs (seq (rest args))]
-     (if (nil? rargs)
-       a
-       (if (instance? Transformables$IMapable a)
-         (.cat ^Transformables$IMapable a rargs)
-         (let [^IPersistentMap m nil
-               ^"[Ljava.lang.Iterable;" avs (into-array Iterable [args])]
-           (Transformables$CatIterable. m avs)))))))
-
-
-(defn filter
-  [pred coll]
-  (cond
-    (nil? coll)
-    nil
-    (instance? Transformables$IMapable coll)
-    (.filter ^Transformables$IMapable coll pred)
-    :else
-    (Transformables$FilterIterable. pred nil (Transformables/toIterable coll))))
-
-
 (defn first
   [coll]
   (if (nil? coll)
@@ -1849,84 +1744,6 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
       (ReverseList/create coll (meta coll))
       :else
       (clojure.core/reverse coll))))
-
-
-(defn- int-primitive?
-  [cls]
-  (or (identical? Byte/TYPE cls)
-      (identical? Short/TYPE cls)
-      (identical? Integer/TYPE cls)
-      (identical? Long/TYPE cls)))
-
-
-(defn- double-primitive?
-  [cls]
-  (or (identical? Float/TYPE cls)
-      (identical? Double/TYPE cls)))
-
-
-(defmacro make-readonly-list
-  "Implement a readonly list.  If cls-type-kwd is provided it must be, at compile time,
-  either :int64, :float64 or :object and the getLong, getDouble or get interface methods
-  will be filled in, respectively.  In those cases read-code must return the appropriate
-  type."
-  ([n idxvar read-code]
-   `(make-readonly-list :object ~n ~idxvar ~read-code))
-  ([cls-type-kwd n idxvar read-code]
-   `(let [~'nElems (int ~n)]
-      ~(case cls-type-kwd
-         :int64
-         `(reify
-            TypedList
-            (containedType [this#] Long/TYPE)
-            LongMutList
-            (size [this#] ~'nElems)
-            (getLong [this# ~idxvar] ~read-code))
-         :float64
-         `(reify
-            TypedList
-            (containedType [this#] Double/TYPE)
-            DoubleMutList
-            (size [this#] ~'nElems)
-            (getDouble [this# ~idxvar] ~read-code))
-         :object
-         `(reify IMutList
-            (size [this#] ~'nElems)
-            (get [this# ~idxvar] ~read-code))))))
-
-
-(defn ^:no-doc contained-type
-  [coll]
-  (when (instance? TypedList coll)
-    (.containedType ^TypedList coll)))
-
-
-(defn shift
-  "Shift a collection forward or backward repeating either the first or the last entries.
-  Returns a random access list with the same elements as coll.
-
-  Example:
-
-```clojure
-ham-fisted.api> (shift 2 (range 10))
-[0 0 0 1 2 3 4 5 6 7]
-ham-fisted.api> (shift -2 (range 10))
-[2 3 4 5 6 7 8 9 9 9]
-```"
-  [n coll]
-  (let [n (long n)
-        coll (->random-access coll)
-        n-elems (.size coll)
-        ne (dec n-elems)
-        ctype (contained-type coll)
-        ^IMutList ml coll]
-    (cond
-      (int-primitive? ctype)
-      (make-readonly-list :int64 n-elems idx (.getLong ml (min ne (max 0 (- idx n)))))
-      (double-primitive? ctype)
-      (make-readonly-list :float64 n-elems idx (.getDouble ml (min ne (max 0 (- idx n)))))
-      :else
-      (make-readonly-list n-elems idx (.get coll (min ne (max 0 (- idx n))))))))
 
 
 (defn take
@@ -2005,48 +1822,6 @@ ham-fisted.api> (shift -2 (range 10))
   (^List [n v] (ConstList/create n v nil)))
 
 
-(defn repeatedly
-  "When called with one argument, produce infinite list of calls to v.
-  When called with two arguments, produce a random access list of length n of calls to v."
-  ([f] (clojure.core/repeatedly f))
-  (^List [n f] (repeatedly n f nil))
-  (^List [n f opts]
-   (let [obj-ary (object-array n)]
-     (->> (pgroups n (fn [^long sidx, ^long eidx]
-                       (ArrayLists/fill obj-ary sidx eidx (reify IntFunction
-                                                            (apply [this v]
-                                                              (f)))))
-                   {:pgroup-min (get opts :pgroup-min 1000)})
-          (dorun))
-     (->collection obj-ary))))
-
-
-(defn- seed->random
-  ^Random [seed]
-  (cond
-    (instance? Random seed) seed
-    (number? seed) (Random. (int seed))
-    (nil? seed) (Random.)
-    :else
-    (throw (Exception. (str "Invalid seed type: " seed)))))
-
-
-(defn shuffle
-  "shuffle values returning random access container.
-
-  Options:
-
-  * `:seed` - If instance of java.util.Random, use this.  If integer, use as seed.
-  If not provided a new instance of java.util.Random is created."
-  (^List [coll] (shuffle coll nil))
-  (^List [coll opts]
-   (let [coll (->random-access coll)
-         random (seed->random (get opts :seed))]
-     (if (instance? IMutList coll)
-       (.immutShuffle ^IMutList coll random)
-       (reindex coll (IntArrays/shuffle (iarange (.size coll)) random))))))
-
-
 (comment
 
   (require '[criterium.core :as crit])
@@ -2074,14 +1849,21 @@ ham-fisted.api> (shift -2 (range 10))
                          (clojure.core/filter #(== 0 (rem (long %) 3)))
                          (sum)))
   ;;369us
+
   (crit/quick-bench (->> (range 20000)
                          (filter #(== 0 (rem (long %) 3)))
                          (sum)))
   ;;183us
+
+  (crit/quick-bench (->> (range 20000)
+                         (lzc/filter #(== 0 (rem (long %) 3)))
+                         (sum)))
+
   (crit/quick-bench (->> (clojure.core/range 20000)
                          (filter #(== 0 (rem (long %) 3)))
                          (sum)))
   ;;261us
+
   (crit/quick-bench (->> (clojure.core/range 20000)
                          (clojure.core/map #(* (long %) 2))
                          (clojure.core/filter #(== 0 (rem (long %) 3)))

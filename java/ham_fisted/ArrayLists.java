@@ -2046,7 +2046,9 @@ public class ArrayLists {
   public static int[] iarange(int start, int end, int step) {
     final int len = (end - start)/step;
     if (len < 0 )
-      throw new RuntimeException("Invalid range.");
+      throw new RuntimeException("Invalid range - start: " + String.valueOf(start) +
+				 " end: " + String.valueOf(end) +
+				 " step: " + String.valueOf(step));
     final int[] retval = new int[len];
     for(int idx = 0; idx < len; ++idx) {
       retval[idx] = start + idx * step;
