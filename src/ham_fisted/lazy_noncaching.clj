@@ -7,7 +7,7 @@
            [java.lang.reflect Array]
            [it.unimi.dsi.fastutil.ints IntArrays]
            [java.util RandomAccess Collection Map List Random]
-           [clojure.lang RT IPersistentMap])
+           [clojure.lang RT IPersistentMap IReduceInit])
   (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle]))
 
 
@@ -34,6 +34,13 @@
     (StringCollection. item)
     :else
     (RT/seq item)))
+
+
+(defn ->reducible
+  [item]
+  (if (instance? IReduceInit item)
+    item
+    (->collection item)))
 
 
 (defn ->random-access

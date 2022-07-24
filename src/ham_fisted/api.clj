@@ -33,7 +33,7 @@
   (:require [ham-fisted.iterator :as iterator]
             [ham-fisted.lazy-noncaching
              :refer [map concat filter repeatedly into-array
-                     ->collection ->random-access reindex]]
+                     ->collection ->random-access reindex ->reducible]]
             [ham-fisted.lazy-caching :as lzc]
             [com.climate.claypoole :as claypoole])
   (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
@@ -1679,7 +1679,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
 (defn sum
   "Fast simple summation.  Does not do any summation compensation."
   ^double [coll]
-  (let [coll (->collection coll)]
+  (let [coll (->reducible coll)]
     (if (instance? IMutList coll)
       (let [^IMutList coll coll
             op (double-binary-operator l r (unchecked-add l r))]
@@ -1691,7 +1691,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
                                               op
                                            0.0)))
                  (reduce +))))
-      (double (reduce + coll)))))
+      (double (reduce + 0.0 coll)))))
 
 
 (defn mean
@@ -1893,7 +1893,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
                          (clojure.core/filter #(== 0 (rem (long %) 3)))
                          (sum)))
   ;;1.0ms
-  (crit/quick-bench (->> (clojure.core/range 20000)
+  (crit/quick-bench (->> (range 20000)
                          (eduction
                           (comp
                            (clojure.core/map #(* (long %) 2))

@@ -26,6 +26,9 @@ import clojure.lang.IteratorSeq;
 import clojure.lang.ISeq;
 import clojure.lang.IObj;
 import clojure.lang.IPersistentMap;
+import clojure.lang.IReduce;
+import clojure.lang.IReduceInit;
+import clojure.lang.IDeref;
 
 
 public class Transformables {
@@ -59,8 +62,30 @@ public class Transformables {
     }
     return c;
   }
+  public static Object iterReduce(Object obj, IFn fn) {
+    final Iterator it = toIterable(obj).iterator();
+    Object init = it.hasNext() ? it.next() : null;
+    while(it.hasNext() && !RT.isReduced(init)) {
+      init = fn.invoke(init, it.next());
+    }
+    if (RT.isReduced(init))
+      return ((IDeref)init).deref();
+    return init;
+  }
 
-  public static class MapIterable extends AbstractCollection implements Seqable, IMapable {
+  public static Object iterReduce(Object obj, Object init, IFn fn) {
+    final Iterator it = toIterable(obj).iterator();
+    while(it.hasNext() && !RT.isReduced(init)) {
+      init = fn.invoke(init, it.next());
+    }
+    if (RT.isReduced(init))
+      return ((IDeref)init).deref();
+    return init;
+  }
+
+  public static class MapIterable
+    extends AbstractCollection
+    implements Seqable, IMapable, IReduce, IReduceInit {
     final Iterable[] iterables;
     final IFn fn;
     final IPersistentMap meta;
@@ -151,10 +176,16 @@ public class Transformables {
     public MapIterable withMeta(IPersistentMap m) {
       return new MapIterable(this, m);
     }
+    public Object reduce(IFn fn) {
+      return iterReduce(this, fn);
+    }
+    public Object reduce(IFn fn, Object init) {
+      return iterReduce(this, init, fn);
+    }
   }
   public static class FilterIterable
     extends AbstractCollection
-    implements Seqable, IMapable {
+    implements Seqable, IMapable, IReduce, IReduceInit {
     final IFn pred;
     final Iterable src;
     final IPersistentMap meta;
@@ -218,12 +249,18 @@ public class Transformables {
     public FilterIterable withMeta(IPersistentMap m) {
       return new FilterIterable(this, m);
     }
+    public Object reduce(IFn fn) {
+      return iterReduce(this, fn);
+    }
+    public Object reduce(IFn fn, Object init) {
+      return iterReduce(this, init, fn);
+    }
   }
 
 
   public static class CatIterable
     extends AbstractCollection
-    implements Seqable, IMapable {
+    implements Seqable, IMapable, IReduce, IReduceInit {
     //this is an array of iterables of iterables.
     final Iterable[] data;
     final IPersistentMap meta;
@@ -301,6 +338,12 @@ public class Transformables {
     public IPersistentMap meta() { return meta; }
     public CatIterable withMeta(IPersistentMap m) {
       return new CatIterable(this, m);
+    }
+    public Object reduce(IFn fn) {
+      return iterReduce(this, fn);
+    }
+    public Object reduce(IFn fn, Object init) {
+      return iterReduce(this, init, fn);
     }
   }
 
