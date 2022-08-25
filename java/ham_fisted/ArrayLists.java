@@ -21,6 +21,12 @@ import clojure.lang.IDeref;
 import clojure.lang.IFn;
 import clojure.lang.IReduce;
 import clojure.lang.IReduceInit;
+import clojure.lang.IPersistentVector;
+import clojure.lang.Associative;
+import clojure.lang.IMapEntry;
+import clojure.lang.Util;
+import clojure.lang.MapEntry;
+import clojure.lang.IPersistentStack;
 import it.unimi.dsi.fastutil.ints.IntArrays;
 import it.unimi.dsi.fastutil.ints.IntComparator;
 import it.unimi.dsi.fastutil.longs.LongArrays;
@@ -133,14 +139,82 @@ public class ArrayLists {
   public interface ArrayOwner {
     public ArraySection getArray();
   }
-  public interface IArrayList extends IMutList<Object>, ArrayOwner, TypedList {
-    default Class containedType() { return getArray().array.getClass().getComponentType(); }
+  public interface ArrayPersistentVector extends IMutList<Object>, IPersistentVector {
+    IPersistentVector unsafeImmut();
+    default boolean equiv(Object other) {
+      return IMutList.super.equiv(other);
+    }
+    default IPersistentVector cons(Object o) {
+      return unsafeImmut().cons(o);
+    }
+    default IPersistentVector assocN(int i, Object o) {
+      return unsafeImmut().assocN(i, o);
+    }
+    default int length() { return size(); }
+    default Associative assoc(Object idx, Object o) {
+      return unsafeImmut().assoc(idx, o);
+    }
+    default IMapEntry entryAt(Object key) {
+      if(Util.isInteger(key)) {
+	final int k = RT.intCast(key);
+	return MapEntry.create(k, get(k));
+      }
+      return null;
+    }
+    default boolean containsKey(Object key) {
+      if (Util.isInteger(key)) {
+	final int k = RT.intCast(key);
+	return k >= 0 && k < size();
+      }
+      return false;
+    }
+    default int count() { return size(); }
+    default Object valAt(Object obj, Object notFound) {
+      if(Util.isInteger(obj)) {
+	int k = RT.intCast(obj);
+	if (k >= 0 && k < size())
+	  return get(k);
+      }
+      return notFound;
+    }
+    default Object valAt(Object obj) {
+      return valAt(obj, null);
+    }
+    default IPersistentStack pop() {
+      final int nElems = size();
+      if (nElems == 0)
+	throw new RuntimeException("Can't pop empty vector");
+      if (nElems == 1)
+	return ImmutList.EMPTY.withMeta(meta());
+      return unsafeImmut().pop();
+    }
+    default Object peek() {
+      final int nElems = size();
+      if (nElems == 0)
+	return null;
+      return get(nElems-1);
+    }
+    default ImmutList empty() {
+      return ImmutList.EMPTY.withMeta(meta());
+    }
   }
-  public interface ILongArrayList extends LongMutList, ArrayOwner, TypedList {
+  public interface IArrayList extends IMutList<Object>, ArrayOwner, TypedList,
+				      ArrayPersistentVector {
+
     default Class containedType() { return getArray().array.getClass().getComponentType(); }
+    default IPersistentVector unsafeImmut() { return ImmutList.create(true, meta(), (Object[])getArray().array); }
   }
-  public interface IDoubleArrayList extends DoubleMutList, ArrayOwner, TypedList {
+  public interface ILongArrayList extends LongMutList, ArrayOwner, TypedList,
+					  ArrayPersistentVector
+  {
     default Class containedType() { return getArray().array.getClass().getComponentType(); }
+    default IPersistentVector unsafeImmut() { return ImmutList.create(true, meta(), toArray()); }
+  }
+  public interface IDoubleArrayList extends DoubleMutList, ArrayOwner, TypedList,
+					    ArrayPersistentVector
+  {
+    default Class containedType() { return getArray().array.getClass().getComponentType(); }
+    default IPersistentVector unsafeImmut() { return ImmutList.create(true, meta(), toArray()); }
   }
 
   public static class ObjectArraySubList extends ArraySection implements IArrayList {
