@@ -565,23 +565,25 @@ class ChunkedList {
     ChunkedListSection getChunkedList();
   }
 
-  Object reduce(int startidx, int endidx, IFn f, Object start) {
-    if (startidx == endidx)
-      return start;
+  Object reduce(final int startidx, final int endidx, final IFn f, final Object start) {
     final Object[][] mdata = data;
-    Object ret = f.invoke(start, getValue(startidx));
-    startidx++;
-    for(; startidx < endidx; startidx++) {
-      if (RT.isReduced(ret))
-	return ((IDeref)ret).deref();
-      ret = f.invoke(ret, mdata[startidx/32][startidx%32]);
+    Object ret = start;
+    int sidx = startidx;
+    while(sidx < endidx && !RT.isReduced(ret)) {
+      final Object[] cdata = mdata[sidx/32];
+      int cstart = sidx % 32;
+      final int clen = Math.min(endidx - sidx, 32 - cstart);
+      final int cstop = clen + cstart;
+      for(int idx = cstart; idx < cstop && !RT.isReduced(ret); ++idx)
+	ret = f.invoke(ret, cdata[idx]);
+      sidx += clen;
     }
     if (RT.isReduced(ret))
       return ((IDeref)ret).deref();
     return ret;
   }
 
-  Object reduce(int startidx, int endidx, IFn f) {
+  Object reduce(final int startidx, final int endidx, IFn f) {
     if(startidx == endidx)
       return f.invoke();
     return reduce(startidx+1, endidx, f, getValue(startidx));
