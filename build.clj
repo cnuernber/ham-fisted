@@ -10,6 +10,7 @@
 (def class-dir "target/classes")
 (def basis (b/create-basis {:project "deps.edn"}))
 (def jar-file (format "target/%s.jar" (name lib)))
+(def uber-file (format "target/uber-%s.jar" (name lib)))
 
 (defn clean [_]
   (b/delete {:path "target"}))
@@ -32,3 +33,18 @@
                :target-dir class-dir})
   (b/jar {:class-dir class-dir
           :jar-file jar-file}))
+
+
+(defn perftest [_]
+  (let [basis (b/create-basis {:aliases [:dev]})]
+    (clean nil)
+    (compile nil)
+    (b/copy-dir {:src-dirs ["src" "dev/resources" "dev/src"]
+                 :target-dir class-dir})
+    (b/compile-clj {:basis basis
+                    :src-dirs ["dev/src"]
+                    :class-dir class-dir})
+    (b/uber {:class-dir class-dir
+             :uber-file uber-file
+             :basis basis
+             :main 'perftest})))

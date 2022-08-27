@@ -55,6 +55,16 @@ public class Ranges {
     public double[] toDoubleArray() {
       return ArrayLists.darange(start, end, step);
     }
+    public Object[] toArray() {
+      final int sz = size();
+      final Object[] retval = new Object[sz];
+      long st = start;
+      final long se = step;
+      for(int idx = 0; idx < sz; ++idx, st += se)
+	retval[idx] = st;
+
+      return retval;
+    }
     public LongMutList subList(int sidx, int eidx) {
       final int sz = size();
       if (sidx == 0 && eidx == sz)
