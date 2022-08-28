@@ -19,18 +19,18 @@
     {:construction {:clj (bench/benchmark-us (into {} data))
                     :hamf (bench/benchmark-us (api/immut-map data))
                     :java (bench/benchmark-us (cons-hm))}
-     :access (let [method #(reduce (fn [m [k v]] (get m k) m)
-                                   %
-                                   data)
+     :access (let [method #(api/fast-reduce (fn [m [k v]] (get m k) m)
+                                            %
+                                            data)
                    clj-d (into {} data)
                    hm-d (api/immut-map data)
                    jv-d (cons-hm)]
                {:clj (bench/benchmark-us (method clj-d))
                 :hamf (bench/benchmark-us (method hm-d))
                 :java (bench/benchmark-us (method jv-d))})
-     :reduce (let [method #(reduce (fn [sum [k v]] (+ sum v))
-                                      0
-                                      %)
+     :reduce (let [method #(api/fast-reduce (fn [sum [k v]] (+ sum v))
+                                            0
+                                            %)
                    clj-d (into {} data)
                    hm-d (api/immut-map data)
                    jv-d (cons-hm)]
@@ -74,7 +74,7 @@
                 :hamf (bench/benchmark-us (method hm-d))
                 :jv-d (bench/benchmark-us (method jv-d))})
      :reduce (let [method (fn [vdata]
-                            (reduce + 0 vdata))
+                            (api/fast-reduce + 0 vdata))
                    clj-d (vec data)
                    hm-d (api/vec data)
                    jv-d (doto (ArrayList.) (.addAll data))]

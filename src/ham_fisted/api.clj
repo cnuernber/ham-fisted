@@ -46,10 +46,10 @@
             Transformables$MapList Transformables$IMapable Transformables
             ReindexList ConstList ArrayLists$ObjectArrayList Transformables$SingleMapList
             ArrayLists$IntArrayList ArrayLists$LongArrayList ArrayLists$DoubleArrayList
-            ReverseList TypedList DoubleMutList LongMutList]
+            ReverseList TypedList DoubleMutList LongMutList ArrayLists$ReductionConsumer]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
             IEditableCollection RT IPersistentMap Associative Util IFn ArraySeq
-            Reversible]
+            Reversible IReduce IReduceInit]
            [java.util Map Map$Entry List RandomAccess Set Collection ArrayList Arrays
             Comparator Random]
            [java.lang.reflect Array]
@@ -1818,6 +1818,32 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
   index."
   ([v] (clojure.core/repeat v))
   (^List [n v] (ConstList/create n v nil)))
+
+
+(defn iter-reduce
+  "Faster reduce for things like arraylists or hashmap entrysets that implement Iterable
+  but not IReduceInit."
+  ([rfn init iter] (Transformables/iterReduce iter init rfn))
+  ([rfn iter] (Transformables/iterReduce iter rfn)))
+
+
+(defn fast-reduce
+  ([rfn init iter]
+   (cond
+     (instance? IReduceInit iter)
+     (.reduce ^IReduceInit iter rfn init)
+     (instance? Map iter)
+     (iter-reduce rfn init (.entrySet ^Map iter))
+     :else
+     (iter-reduce rfn init (->collection iter))))
+  ([rfn iter]
+   (cond
+     (instance? IReduce iter)
+     (.reduce ^IReduce iter rfn)
+     (instance? Map iter)
+     (iter-reduce rfn (.entrySet ^Map iter))
+     :else
+     (iter-reduce rfn (->collection iter)))))
 
 
 (comment
