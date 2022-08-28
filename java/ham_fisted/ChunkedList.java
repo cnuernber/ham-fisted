@@ -45,7 +45,7 @@ class ChunkedList {
   }
 
   public ChunkedList(int initSize) {
-    initSize = Math.max(initSize, 4);
+    initSize = Math.max(initSize, 16);
     final int nChunks = numChunks(initSize);
     final int leftover = lastChunkSize(initSize);
     data = new Object[nChunks][];

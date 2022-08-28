@@ -59,7 +59,7 @@
   (let [odata (api/object-array data)
         n-elems (count data)]
     {:construction {:clj (bench/benchmark-us (vec data))
-                    :hamf (bench/benchmark-us (api/immut-list data))
+                    :hamf (bench/benchmark-us (api/vec data))
                     :java (bench/benchmark-us (doto (ArrayList.) (.addAll data)))}
      :cons-obj-ary {:clj (bench/benchmark-us (vec odata))
                     :hamf (bench/benchmark-us (api/immut-list odata))
@@ -80,18 +80,26 @@
                    jv-d (doto (ArrayList.) (.addAll data))]
                {:clj (bench/benchmark-us (method clj-d))
                 :hamf (bench/benchmark-us (method hm-d))
-                :jv-d (bench/benchmark-us (method jv-d))})}))
+                :jv-d (bench/benchmark-us (method jv-d))})
+     :to-array (let [clj-d (vec data)
+                     hm-d (api/vec data)
+                     jv-d (doto (ArrayList.) (.addAll data))]
+                 {:clj (bench/benchmark-us (.toArray ^List clj-d))
+                  :hamf (bench/benchmark-us (.toArray ^List hm-d))
+                  :jv-d (bench/benchmark-us (.toArray ^List jv-d))})}))
 
 
 (defn vec-data
   [^long n-elems]
-  (lzc/->random-access (object-array (api/range n-elems))))
+  (doto (ArrayList.)
+    (.addAll (range n-elems))))
 
 
 (defn general-persistent-vector
   []
   (log/info "persistent vector perftest")
   {:persistent-vec-1000 (vec-perftest (vec-data 1000))
+   :persistent-vec-10000 (vec-perftest (vec-data 10000))
    :persistent-vec-10 (vec-perftest (vec-data 10))})
 
 
@@ -99,7 +107,8 @@
   [& args]
   (let [perf-data (merge (general-hashmap)
                          (general-persistent-vector))
-        vs (System/getProperty "java.version")]
-    (println "Perf data for "vs "\n" perf-data)
-    (spit (str vs ".edn") (with-out-str (pp/pprint perf-data))))
+        vs (System/getProperty "java.version")
+        perfs (with-out-str (pp/pprint perf-data))]
+    (println "Perf data for "vs "\n" perfs)
+    (spit (str "results/jdk-" vs ".edn") perfs))
   (log/info "End - perftest"))

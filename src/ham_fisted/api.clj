@@ -387,10 +387,9 @@ ham_fisted.PersistentHashMap
      (instance? obj-ary-cls data)
      (MutList/create false nil ^objects data)
      (instance? Collection data)
-     (MutList/create true (meta data) (.toArray ^Collection data))
+     (doto (MutList/create true (meta data) (.toArray ^Collection data)))
      (string? data)
-     (doto (MutList.)
-       (.addAll (StringCollection. data)))
+     (doto (MutList.) (.addAll (StringCollection. data)))
      (.isArray (.getClass ^Object data))
      (MutList/create true nil (.toArray (ArrayLists/toList data)))
      :else

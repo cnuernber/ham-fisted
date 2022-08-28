@@ -1,5 +1,6 @@
 #!/bin/bash
 
 echo "Building uberjar"
+rm -rf target
 clj -T:build perftest
 java -jar target/uber-ham-fisted.jar
