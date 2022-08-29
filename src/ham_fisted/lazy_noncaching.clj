@@ -7,15 +7,13 @@
            [java.lang.reflect Array]
            [it.unimi.dsi.fastutil.ints IntArrays]
            [java.util RandomAccess Collection Map List Random]
-           [clojure.lang RT IPersistentMap IReduceInit])
+           [clojure.lang RT IPersistentMap IReduceInit IReduce])
   (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle]))
 
 
 (def ^{:tag ArrayImmutList} empty-vec ArrayImmutList/EMPTY)
 
-
 (declare concat)
-
 
 (defn ->collection
   "Ensure an item implements java.util.Collection.  This is inherently true for seqs and any
@@ -38,7 +36,8 @@
 
 (defn ->reducible
   [item]
-  (if (instance? IReduceInit item)
+  (if (or (instance? IReduceInit item)
+          (instance? IReduce item))
     item
     (->collection item)))
 

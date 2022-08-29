@@ -347,11 +347,7 @@
    ;;  :name :java-hashmap}
    :hamf-hashmap {:construct-fn hamf-hashmap
                   :merge-fn api/map-union
-                  :reduce-fn api/union-reduce-maps}
-
-   :hamf-hashmap-serial {:construct-fn hamf-hashmap
-                         :merge-fn api/map-union
-                         :reduce-fn #(api/union-reduce-maps %1 %2 {:force-serial? true})}
+                  :reduce-fn #(api/union-reduce-maps %1 %2)}
 
    :clj-transient (let [make-merge-fn (fn [bifn]
                                         (fn [lhs rhs]

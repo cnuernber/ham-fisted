@@ -403,6 +403,12 @@ ham_fisted.PersistentHashMap
    (persistent! (mut-list data))))
 
 
+(defn array-list
+  "Create an array list from existing data"
+  (^ArrayList [data] (doto (ArrayList.) (.addAll (->collection data))))
+  (^ArrayList [] (ArrayList.)))
+
+
 (defn assoc!
   "assoc! that works on transient collections, implementations of java.util.Map and
   RandomAccess java.util.List implementations.  Be sure to keep track of return value
@@ -597,38 +603,18 @@ ham_fisted.PersistentHashMap
 (defn union-reduce-maps
   "Do an efficient union reduction across many maps using bfn to update values.  See
   documentation for [map-union].  If any of the input maps are not implementations provided
-  by this library this falls backs to `(reduce (partial union-maps bfn) maps)`.
-
-  This operator is an example of how to write a parallelized map reduction but it itself
-  is only faster when you have many large maps to union into a final result.  [map-union]
-  is generally faster in normal use cases.
-
-  Options:
-
-  * `:force-serial?` - Force the use of a serial reduction algorithm.
-  * `:executor-service` - Use this executor service.  Falls back to ForkJoinPool/commonPool
-     when not provided.
-  * `:parallelism` - Use this many threads, must be a number from [1-1024] and defaults to
-     ForkJoinPool/getCommonPoolParallelism."
-  ([bfn maps options]
+  by this library this falls backs to `(reduce (partial union-maps bfn) maps)`."
+  ([bfn maps]
    (let [bfn (->bi-function bfn)]
      (if (every? map-set? maps)
-       (if (get options :force-serial?)
-         (PersistentHashMap/unionReduce bfn maps)
-         (let [^ExecutorService executor (get options :executor-service
-                                              (ForkJoinPool/commonPool))
-               parallelism (long (get options :parallelism
-                                      (ForkJoinPool/getCommonPoolParallelism)))]
-           (PersistentHashMap/parallelUnionReduce bfn maps executor parallelism)))
-       (reduce #(map-union bfn %1 %2) maps))))
-  ([bfn maps]
-   (union-reduce-maps bfn maps nil)))
+       (PersistentHashMap/unionReduce bfn maps)
+       (reduce #(map-union bfn %1 %2) maps)))))
 
 
 (defn union-reduce-java-hashmap
   "Do an efficient union of many maps into a single java.util.HashMap."
   (^java.util.HashMap [bfn maps options]
-   (let [maps (seq maps)]
+   (let [maps (->reducible maps)]
      (if (nil? maps)
        nil
        (let [bfn (->bi-function bfn)

@@ -4,39 +4,40 @@
             [ham-fisted.benchmark :as bench]
             [clojure.tools.logging :as log]
             [clojure.pprint :as pp])
-  (:import [java.util HashMap ArrayList Map List])
+  (:import [java.util HashMap ArrayList Map List]
+           [java.util.function BiFunction])
   (:gen-class))
+
+
+(defn clj-hashmap ^Map [data] (into {} data))
+(defn hamf-hashmap ^Map [data] (api/immut-map data))
+(defn java-hashmap ^Map [data] (reduce (fn [hm [k v]] (api/assoc! hm k v))
+                                       (HashMap.)
+                                       data))
 
 (defn hashmap-perftest
   [data]
-  (let [n-elems (count data)
-        cons-hm (fn [] (let [hm (HashMap.)]
-                         (reduce (fn [hm [k v]]
-                                   (.put ^Map hm k v)
-                                   hm)
-                                 hm
-                                 data)))]
-    {:construction {:clj (bench/benchmark-us (into {} data))
-                    :hamf (bench/benchmark-us (api/immut-map data))
-                    :java (bench/benchmark-us (cons-hm))}
-     :access (let [method #(api/fast-reduce (fn [m [k v]] (get m k) m)
-                                            %
-                                            data)
-                   clj-d (into {} data)
-                   hm-d (api/immut-map data)
-                   jv-d (cons-hm)]
-               {:clj (bench/benchmark-us (method clj-d))
-                :hamf (bench/benchmark-us (method hm-d))
-                :java (bench/benchmark-us (method jv-d))})
-     :reduce (let [method #(api/fast-reduce (fn [sum [k v]] (+ sum v))
-                                            0
-                                            %)
-                   clj-d (into {} data)
-                   hm-d (api/immut-map data)
-                   jv-d (cons-hm)]
-                  {:clj (bench/benchmark-us (method clj-d))
-                   :hamf (bench/benchmark-us (method hm-d))
-                   :java (bench/benchmark-us (method jv-d))})}))
+  {:construction {:clj (bench/benchmark-us (clj-hashmap data))
+                  :hamf (bench/benchmark-us (hamf-hashmap data))
+                  :java (bench/benchmark-us (java-hashmap data))}
+   :access (let [method #(api/fast-reduce (fn [m [k v]] (get m k) m)
+                                          %
+                                          data)
+                 clj-d (clj-hashmap data)
+                 hm-d (hamf-hashmap data)
+                 jv-d (java-hashmap data)]
+             {:clj (bench/benchmark-us (method clj-d))
+              :hamf (bench/benchmark-us (method hm-d))
+              :java (bench/benchmark-us (method jv-d))})
+   :reduce (let [method #(api/fast-reduce (fn [sum [k v]] (+ sum v))
+                                          0
+                                          %)
+                 clj-d (clj-hashmap data)
+                 hm-d (hamf-hashmap data)
+                 jv-d (java-hashmap data)]
+             {:clj (bench/benchmark-us (method clj-d))
+              :hamf (bench/benchmark-us (method hm-d))
+              :java (bench/benchmark-us (method jv-d))})})
 
 (defn map-data
   [^long n-elems]
@@ -50,8 +51,75 @@
 (defn general-hashmap
   []
   (log/info "hashmap perftest")
-  {:hashmap-1000 (hashmap-perftest (map-data 1000))
+  {:hashmap-10000 (hashmap-perftest (map-data 10000))
    :hashmap-10 (hashmap-perftest (map-data 10))})
+
+
+
+
+
+(def union-data
+  {:java-hashmap {:construct-fn java-hashmap
+                  :merge-fn api/map-union-java-hashmap
+                  :reduce-fn api/union-reduce-java-hashmap}
+   :hamf-hashmap {:construct-fn hamf-hashmap
+                  :merge-fn api/map-union
+                  :reduce-fn #(api/union-reduce-maps %1 %2)}
+
+   :clj-hashmap (let [make-merge-fn (fn [bifn]
+                                      (fn [lhs rhs]
+                                        (.apply ^BiFunction bifn lhs rhs)))]
+                  {:construct-fn clj-hashmap
+                   :merge-fn #(merge-with (make-merge-fn %1) %2 %3)
+                   :reduce-fn #(apply merge-with (make-merge-fn %1) %2)})
+   })
+
+
+(defn benchmark-union
+  [^long n-elems mapname]
+  (let [{:keys [construct-fn merge-fn]} (union-data mapname)
+        hn-elems (quot n-elems 2)
+        src-data (map-data n-elems)
+        lhs (api/array-list (take hn-elems src-data))
+        rhs (api/array-list (drop hn-elems src-data))
+        bfn (api/->bi-function +)
+        lhs-m (construct-fn lhs)
+        rhs-m (construct-fn rhs)
+        merged-m (merge-fn bfn lhs-m rhs-m)]
+    {:union-disj-μs (:mean-μs (bench/benchmark-us (merge-fn bfn lhs-m rhs-m)))
+     :union-μs (:mean-μs (bench/benchmark-us (merge-fn bfn lhs-m merged-m)))
+     :name mapname}))
+
+
+(defn benchmark-union-reduce
+  [^long n-elems mapname]
+  (let [{:keys [construct-fn reduce-fn]} (union-data mapname)
+        hn-elems (quot n-elems 2)
+        src-data (map-data n-elems)
+        lhs (api/array-list (take hn-elems src-data))
+        rhs (api/array-list (drop hn-elems src-data))
+        bfn (reify BiFunction
+              (apply [this a b]
+                (unchecked-add (unchecked-long a)
+                               (unchecked-long b))))
+        lhs-m (construct-fn lhs)
+        rhs-m (construct-fn rhs)
+        map-seq (vec (interleave (repeat 10 lhs-m) (repeat 10 rhs-m)))]
+    {:union-μs (:mean-μs (bench/benchmark-us (reduce-fn bfn map-seq)))
+     :name mapname}))
+
+
+(defn union-perftest
+  []
+  (let [keys [:java-hashmap :clj-hashmap :hamf-hashmap]]
+    {:union-10 (->> (map (fn [k] [k (benchmark-union 10 k)]))
+                    (into {}))
+     :union-10000 (->> (map (fn [k] [k (benchmark-union 10000 k)]))
+                       (into {}))
+     :union-reduce-10 (->> (map (fn [k] [k (benchmark-union-reduce 10 k)]))
+                           (into {}))
+     :union-reduce-10000 (->> (map (fn [k] [k (benchmark-union-reduce 10000 k)]))
+                              (into {}))}))
 
 
 (defn vec-perftest
@@ -106,7 +174,8 @@
 (defn -main
   [& args]
   (let [perf-data (merge (general-hashmap)
-                         (general-persistent-vector))
+                         (general-persistent-vector)
+                         (union-perftest))
         vs (System/getProperty "java.version")
         perfs (with-out-str (pp/pprint perf-data))]
     (println "Perf data for "vs "\n" perfs)
