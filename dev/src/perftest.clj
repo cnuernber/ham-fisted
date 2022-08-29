@@ -111,14 +111,19 @@
 
 (defn union-perftest
   []
+  (log/info "union perftest")
   (let [keys [:java-hashmap :clj-hashmap :hamf-hashmap]]
-    {:union-10 (->> (map (fn [k] [k (benchmark-union 10 k)]))
+    {:union-10 (->> keys
+                    (map (fn [k] [k (benchmark-union 10 k)]))
                     (into {}))
-     :union-10000 (->> (map (fn [k] [k (benchmark-union 10000 k)]))
+     :union-10000 (->> keys
+                       (map (fn [k] [k (benchmark-union 10000 k)]))
                        (into {}))
-     :union-reduce-10 (->> (map (fn [k] [k (benchmark-union-reduce 10 k)]))
+     :union-reduce-10 (->> keys
+                           (map (fn [k] [k (benchmark-union-reduce 10 k)]))
                            (into {}))
-     :union-reduce-10000 (->> (map (fn [k] [k (benchmark-union-reduce 10000 k)]))
+     :union-reduce-10000 (->> keys
+                              (map (fn [k] [k (benchmark-union-reduce 10000 k)]))
                               (into {}))}))
 
 
@@ -128,16 +133,16 @@
         n-elems (count data)]
     {:construction {:clj (bench/benchmark-us (vec data))
                     :hamf (bench/benchmark-us (api/vec data))
-                    :java (bench/benchmark-us (doto (ArrayList.) (.addAll data)))}
+                    :java (bench/benchmark-us (api/array-list data))}
      :cons-obj-ary {:clj (bench/benchmark-us (vec odata))
                     :hamf (bench/benchmark-us (api/immut-list odata))
-                    :java (bench/benchmark-us (doto (ArrayList.) (.addAll data)))}
+                    :java (bench/benchmark-us (api/array-list odata))}
      :access (let [method (fn [vdata]
                             (dotimes [idx n-elems]
                               (.get ^List vdata idx)))
                    clj-d (vec data)
                    hm-d (api/vec data)
-                   jv-d (doto (ArrayList.) (.addAll data))]
+                   jv-d (api/array-list data)]
                {:clj (bench/benchmark-us (method clj-d))
                 :hamf (bench/benchmark-us (method hm-d))
                 :jv-d (bench/benchmark-us (method jv-d))})
@@ -145,7 +150,7 @@
                             (api/fast-reduce + 0 vdata))
                    clj-d (vec data)
                    hm-d (api/vec data)
-                   jv-d (doto (ArrayList.) (.addAll data))]
+                   jv-d (api/array-list data)]
                {:clj (bench/benchmark-us (method clj-d))
                 :hamf (bench/benchmark-us (method hm-d))
                 :jv-d (bench/benchmark-us (method jv-d))})
