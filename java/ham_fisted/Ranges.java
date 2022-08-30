@@ -5,6 +5,8 @@ import java.util.Random;
 import java.util.List;
 import clojure.lang.RT;
 import clojure.lang.IPersistentMap;
+import clojure.lang.IFn;
+import clojure.lang.IDeref;
 
 
 
@@ -77,6 +79,14 @@ public class Ranges {
       if(eidx < sidx || eidx > sz)
 	throw new RuntimeException("End index out of range");
       return new LongRange(start + sidx*step, start + eidx*step, step, meta);
+    }
+    public Object reduce(final IFn fn, Object init) {
+      final int sz = size();
+      long st = start;
+      final long se = step;
+      for(int idx = 0; idx < sz && !RT.isReduced(init); ++idx, st += se)
+	init = fn.invoke(init, st);
+      return RT.isReduced(init) ? ((IDeref)init).deref() : init;
     }
     public IPersistentMap meta() { return meta; }
     public LongRange withMeta(IPersistentMap m) {

@@ -179,8 +179,18 @@ public class Transformables {
     public Object reduce(IFn fn) {
       return iterReduce(this, fn);
     }
-    public Object reduce(IFn fn, Object init) {
-      return iterReduce(this, init, fn);
+    public Object reduce(IFn rfn, Object init) {
+      if(iterables.length == 1 && iterables[0] instanceof IReduceInit) {
+	IReduceInit reducer = (IReduceInit)iterables[0];
+	final IFn mfn = fn;
+	return reducer.reduce(new IFnDef() {
+	    public Object invoke(Object lhs, Object rhs) {
+	      return rfn.invoke(lhs, mfn.invoke(rhs));
+	    }
+	  }, init);
+      } else {
+	return iterReduce(this, init, fn);
+      }
     }
     public Object[] toArray() {
       return ArrayLists.toArray(this);
@@ -266,15 +276,26 @@ public class Transformables {
       return RT.isReduced(ret) ? ((IDeref)ret).deref() : ret;
     }
     public Object reduce(final IFn fn, final Object init) {
-      final Iterator iter = src.iterator();
+      if(src instanceof IReduceInit) {
+	return ((IReduceInit)src).reduce(new IFnDef() {
+	    public Object invoke(Object lhs, Object rhs) {
+	      if(truthy(pred.invoke(rhs)))
+		return fn.invoke(lhs, rhs);
+	      else
+		return lhs;
+	    }
+	  }, init);
+      } else {
+	final Iterator iter = src.iterator();
 
-      Object ret = init;
-      while(iter.hasNext() && !RT.isReduced(ret)) {
-	final Object nobj = iter.next();
-	if(truthy(pred.invoke(nobj)))
-	  ret = fn.invoke(ret, nobj);
+	Object ret = init;
+	while(iter.hasNext() && !RT.isReduced(ret)) {
+	  final Object nobj = iter.next();
+	  if(truthy(pred.invoke(nobj)))
+	    ret = fn.invoke(ret, nobj);
+	}
+	return RT.isReduced(ret) ? ((IDeref)ret).deref() : ret;
       }
-      return RT.isReduced(ret) ? ((IDeref)ret).deref() : ret;
     }
     public Object[] toArray() {
       return ArrayLists.toArray(this);
@@ -407,6 +428,19 @@ public class Transformables {
     }
     public SingleMapList map(IFn nfn) {
       return new SingleMapList(new MapFn(fn, nfn), meta, list);
+    }
+    public Object reduce(IFn rfn, Object init) {
+      if(list instanceof IReduceInit) {
+	IReduceInit reducer = (IReduceInit)list;
+	final IFn mfn = fn;
+	return reducer.reduce(new IFnDef() {
+	    public Object invoke(Object lhs, Object rhs) {
+	      return rfn.invoke(lhs, mfn.invoke(rhs));
+	    }
+	  }, init);
+      } else {
+	return iterReduce(this, init, fn);
+      }
     }
   }
 
