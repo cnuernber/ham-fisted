@@ -32,8 +32,9 @@
   Unlike the standard Java objects, mutation-via-iterator is not supported."
   (:require [ham-fisted.iterator :as iterator]
             [ham-fisted.lazy-noncaching
-             :refer [map concat filter repeatedly into-array
-                     ->collection ->random-access reindex ->reducible]]
+             :refer [map concat filter repeatedly
+                     ->collection ->random-access reindex ->reducible]
+             :as lznc]
             [ham-fisted.lazy-caching :as lzc]
             [com.climate.claypoole :as claypoole])
   (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
@@ -117,7 +118,8 @@ This is currently the default hash provider for the library."}
 (def ^{:tag ArrayImmutList} empty-vec ArrayImmutList/EMPTY)
 
 
-(declare assoc! conj! vec mapv vector object-array range first take drop)
+(declare assoc! conj! vec mapv vector object-array range first take drop into-array shuffle
+         object-array-list)
 
 
 (defn- empty-map?
@@ -1271,11 +1273,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
 (defn mapv
   "Produce a persistent vector from a collection"
   [map-fn coll]
-  (let [retval (mut-list)]
-    (iterator/doiter
-     v coll
-     (.add retval (map-fn v)))
-    (persistent! retval)))
+  (mut-list (map map-fn coll)))
 
 
 (defn vec
@@ -1373,28 +1371,13 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
 
 (defn object-array
   "Faster version of object-array for java collections and strings."
-  ^objects [item]
-  (cond
-    (or (nil? item) (number? item))
-    (clojure.core/object-array item)
-    (instance? obj-ary-cls item)
-    item
-    (instance? Collection item)
-    (.toArray ^Collection item)
-    (instance? Map item)
-    (.toArray (.entrySet ^Map item))
-    (instance? String item)
-    (.toArray (StringCollection. item))
-    (.isArray (.getClass ^Object item))
-    (.toArray (ArrayLists/toList item))
-    (instance? Iterable item)
-    (let [alist (ArrayList.)]
-      (iterator/doiter
-       i item (.add alist i))
-      (.toArray alist))
-    :else
-    (throw (Exception. (str "Unable to coerce item of type: " (type item)
-                            " to an object array")))))
+  ^objects [item] (lznc/object-array item))
+
+
+(defn into-array
+  ([aseq] (lznc/into-array aseq))
+  ([ary-type aseq] (lznc/into-array ary-type aseq))
+  ([ary-type mapfn aseq] (lznc/into-array ary-type mapfn aseq)))
 
 
 (defn- ->comparator
@@ -1498,6 +1481,17 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
      (reindex coll indexes))))
 
 
+(defn shuffle
+  "shuffle values returning random access container.
+
+  Options:
+
+  * `:seed` - If instance of java.util.Random, use this.  If integer, use as seed.
+  If not provided a new instance of java.util.Random is created."
+  (^List [coll] (lznc/shuffle coll nil))
+  (^List [coll opts] (lznc/shuffle coll opts)))
+
+
 (defn iarange
   "Return an integer array holding the values of the range.  Use `->collection` to get a
   list implementation wrapping for generic access."
@@ -1551,8 +1545,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
                       (let [coll (->collection coll)]
                         (if (instance? RandomAccess coll)
                           coll
-                          (doto (ArrayList.)
-                            (.addAll coll)))))]
+                          (object-array-list coll))))]
      (->
       (if (instance? IMutList coll)
         (.sortIndirect ^IMutList coll (when comp (->comparator comp)))
@@ -1608,7 +1601,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
 (defn object-array-list
   "An array list that is as fast as java.util.ArrayList for add,get, etc but includes
   many accelerated operations such as fill and an accelerated addAll when the src data
-  is an array list."
+  is an object array based list."
   (^IMutList [] (ArrayLists$ObjectArrayList.))
   (^IMutList [^long capacity] (ArrayLists$ObjectArrayList. capacity)))
 
@@ -1639,6 +1632,8 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
 
 
 (defmacro double-binary-operator
+  "Create a binary operator that is specialized for double values.  Useful to speed up
+  operations such as sorting or summation."
   [lvar rvar & code]
   `(reify
      DoubleBinaryOperator
@@ -1650,6 +1645,8 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
 
 
 (defmacro long-binary-operator
+  "Create a binary operator that is specialized for long values.  Useful to speed up
+  operations such as sorting or summation."
   [lvar rvar & code]
   `(reify
      LongBinaryOperator
@@ -1661,7 +1658,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
 
 
 (defn sum
-  "Fast simple summation.  Does not do any summation compensation."
+  "Fast simple double summation.  Does not do any summation compensation."
   ^double [coll]
   (let [coll (->reducible coll)]
     (if (instance? IMutList coll)

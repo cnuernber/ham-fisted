@@ -1,6 +1,6 @@
 (ns perftest
   (:require [ham-fisted.api :as api]
-            [ham-fisted.lazy-noncaching :as lzc]
+            [ham-fisted.lazy-noncaching :as lznc]
             [ham-fisted.benchmark :as bench]
             [clojure.tools.logging :as log]
             [clojure.pprint :as pp])
@@ -41,11 +41,11 @@
 
 (defn map-data
   [^long n-elems]
-  (lzc/->random-access
+  (lznc/->random-access
    (object-array
-    (lzc/map
+    (lznc/map
      #(api/vector % %)
-     (lzc/repeatedly 1000 #(rand-int 100000))))))
+     (lznc/repeatedly 1000 #(rand-int 100000))))))
 
 
 (defn general-hashmap
@@ -176,11 +176,83 @@
    :persistent-vec-10 (vec-perftest (vec-data 10))})
 
 
+(defn sequence-summation
+  []
+  (log/info "sequence perftest")
+  {:sequence-summation
+   {:map-filter-clj (bench/benchmark-us (->> (clojure.core/range 20000)
+                                             (clojure.core/map #(* (long %) 2))
+                                             (clojure.core/map #(+ 1 (long %)))
+                                             (clojure.core/filter #(== 0 (rem (long %) 3)))
+                                             (api/sum)))
+    :map-filter-eduction (bench/benchmark-us (->> (range 20000)
+                                                  (eduction
+                                                   (comp
+                                                    (clojure.core/map #(* (long %) 2))
+                                                    (clojure.core/map #(+ 1 (long %)))
+                                                    (clojure.core/filter #(== 0 (rem (long %) 3)))))
+                                                  (api/sum)))
+    :map-filter-hamf (bench/benchmark-us (->> (range 20000)
+                                              (lznc/map #(* (long %) 2))
+                                              (lznc/map #(+ 1 (long %)))
+                                              (lznc/filter #(== 0 (rem (long %) 3)))
+                                              (api/sum)))}})
+
+
+(defn object-array-perftest
+  []
+  (log/info "obj array perftest")
+  (let [init-seq (->> (range 20000)
+                      (lznc/map #(* (long %) 2))
+                      (lznc/map #(+ 1 (long %)))
+                      (lznc/filter #(== 0 (rem (long %) 3))))]
+    {:obj-array
+     {:clj-obj-ary (bench/benchmark-us (object-array init-seq))
+      :hamf-obj-ary (bench/benchmark-us (api/object-array init-seq))}}))
+
+
+(defn shuffle-perftest
+  []
+  (log/info "shuffle")
+  (let [init-data (range 10000)]
+    {:shuffle
+     {:clj-shuffle (bench/benchmark-us (shuffle init-data))
+      :hamf-shuffle (bench/benchmark-us (api/shuffle init-data))}}))
+
+
+(defn sort-perftest
+  []
+  (log/info "sort")
+  (let [init-data (api/shuffle (range 10000))]
+    {:sort
+     {:clj-sort (bench/benchmark-us (sort init-data))
+      :hamf-sort (bench/benchmark-us (api/sort init-data))}}))
+
+
+(defn object-list-perftest
+  []
+  (log/info "object list")
+  (let [init-data (->> (range 20000)
+                       (lznc/map #(* (long %) 2))
+                       (lznc/map #(+ 1 (long %)))
+                       (lznc/filter #(== 0 (rem (long %) 3))))]
+    {:object-list
+     {:java-array-list (bench/benchmark-us (doto (ArrayList.)
+                                             (.addAll init-data)))
+      :hamf-alist (bench/benchmark-us (doto (api/object-array-list)
+                                        (.addAll init-data)))}}))
+
+
 (defn -main
   [& args]
   (let [perf-data (merge (general-hashmap)
                          (general-persistent-vector)
-                         (union-perftest))
+                         (union-perftest)
+                         (sequence-summation)
+                         (object-array-perftest)
+                         (shuffle-perftest)
+                         (object-list-perftest)
+                         (sort-perftest))
         vs (System/getProperty "java.version")
         perfs (with-out-str (pp/pprint perf-data))]
     (println "Perf data for "vs "\n" perfs)

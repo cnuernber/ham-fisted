@@ -1,187 +1,215 @@
-{:union-reduce-10
- {:java-hashmap {:union-μs 283.234082867784, :name :java-hashmap},
-  :clj-hashmap {:union-μs 3326.292317204301, :name :clj-hashmap},
-  :hamf-hashmap {:union-μs 527.5620176767677, :name :hamf-hashmap}},
+{:shuffle
+ {:clj-shuffle
+  {:mean-μs 416.8813333333334, :variance-μs 1.942063934787594E-5},
+  :hamf-shuffle
+  {:mean-μs 217.08042078853052, :variance-μs 4.066070393866424E-6}},
+ :union-reduce-10
+ {:java-hashmap {:union-μs 278.09449863760216, :name :java-hashmap},
+  :clj-hashmap {:union-μs 3640.589, :name :clj-hashmap},
+  :hamf-hashmap {:union-μs 516.3393095238096, :name :hamf-hashmap}},
  :union-10000
  {:java-hashmap
-  {:union-disj-μs 17.426689288774636,
-   :union-μs 61.20856961137821,
+  {:union-disj-μs 17.513314067642717,
+   :union-μs 62.90118091430915,
    :name :java-hashmap},
   :clj-hashmap
-  {:union-disj-μs 0.10374579228961793,
-   :union-μs 317.42887925696596,
+  {:union-disj-μs 0.10697640631781362,
+   :union-μs 342.9581757369615,
    :name :clj-hashmap},
   :hamf-hashmap
-  {:union-disj-μs 0.11512379071337918,
-   :union-μs 63.13977565707135,
+  {:union-disj-μs 0.0729947661843546,
+   :union-μs 71.815533685446,
    :name :hamf-hashmap}},
+ :obj-array
+ {:clj-obj-ary
+  {:mean-μs 1124.9354836956525, :variance-μs 5.5476449207120356E-5},
+  :hamf-obj-ary
+  {:mean-μs 754.5592450248756, :variance-μs 1.675298814436757E-5}},
  :persistent-vec-10
  {:construction
   {:clj
-   {:mean-μs 0.076450150676688, :variance-μs 7.748432864645456E-13},
+   {:mean-μs 0.07884542198890311, :variance-μs 8.17755063789253E-13},
    :hamf
-   {:mean-μs 0.08792420803146192, :variance-μs 1.0482898850189092E-12},
+   {:mean-μs 0.08949975623055173, :variance-μs 2.3761725909845103E-12},
    :java
-   {:mean-μs 0.03896442325887515, :variance-μs 4.927554734969783E-13}},
+   {:mean-μs 0.04127194385689003, :variance-μs 3.290914528270259E-13}},
   :cons-obj-ary
   {:clj
-   {:mean-μs 0.07841766261957095, :variance-μs 8.300567335459175E-13},
+   {:mean-μs 0.08194150640765653, :variance-μs 6.033140864456241E-13},
    :hamf
-   {:mean-μs 0.06167452184441215, :variance-μs 4.36437733859672E-13},
+   {:mean-μs 0.05511777754379575, :variance-μs 4.032666594976349E-14},
    :java
-   {:mean-μs 0.08417379223435793,
-    :variance-μs 1.4520542935871602E-12}},
+   {:mean-μs 0.08422743499943017, :variance-μs 3.755525121748995E-13}},
   :access
   {:clj
-   {:mean-μs 0.023450581141576075,
-    :variance-μs 1.8396046216292317E-14},
+   {:mean-μs 0.02523628081615932, :variance-μs 3.418786211745533E-14},
    :hamf
-   {:mean-μs 0.043678307516398764, :variance-μs 7.44655551720251E-14},
+   {:mean-μs 0.04333140777878084, :variance-μs 1.9584004192785326E-13},
    :jv-d
-   {:mean-μs 0.05177646957606108, :variance-μs 9.273131012763666E-14}},
+   {:mean-μs 0.054298653452642016,
+    :variance-μs 2.1982316206649073E-12}},
   :reduce
   {:clj
-   {:mean-μs 0.1533039987420104, :variance-μs 1.7989375603781236E-12},
+   {:mean-μs 0.15750469708037967, :variance-μs 4.634370808206162E-12},
    :hamf
-   {:mean-μs 0.1543857449506512, :variance-μs 1.0765210355900656E-13},
+   {:mean-μs 0.1598857531343996, :variance-μs 6.647456568897336E-13},
    :jv-d
-   {:mean-μs 0.3085013648716537, :variance-μs 2.1609095462109426E-12}},
+   {:mean-μs 0.324533379466744, :variance-μs 5.449531805828718E-11}},
   :to-array
   {:clj
-   {:mean-μs 0.03128498997810351, :variance-μs 9.634765667341507E-14},
+   {:mean-μs 0.03426523759073063, :variance-μs 7.994281357067936E-14},
    :hamf
-   {:mean-μs 0.029037450583387022, :variance-μs 1.433090865461001E-13},
+   {:mean-μs 0.030041268769548976,
+    :variance-μs 2.5515587478144335E-14},
    :jv-d
-   {:mean-μs 0.013024965697866915,
-    :variance-μs 1.3874111449155594E-14}}},
+   {:mean-μs 0.014304429934287283,
+    :variance-μs 3.360888967369539E-14}}},
+ :object-list
+ {:java-array-list
+  {:mean-μs 1044.877809027778, :variance-μs 2.229278631365756E-5},
+  :hamf-alist
+  {:mean-μs 519.8519788494078, :variance-μs 2.6579402446704875E-5}},
  :union-reduce-10000
- {:java-hashmap {:union-μs 257.02666751918156, :name :java-hashmap},
-  :clj-hashmap {:union-μs 3038.9690343137254, :name :clj-hashmap},
-  :hamf-hashmap {:union-μs 471.1745459501558, :name :hamf-hashmap}},
+ {:java-hashmap {:union-μs 248.40793488943487, :name :java-hashmap},
+  :clj-hashmap {:union-μs 3330.01494623656, :name :clj-hashmap},
+  :hamf-hashmap {:union-μs 477.9655976744186, :name :hamf-hashmap}},
  :hashmap-10
  {:construction
   {:clj
-   {:mean-μs 173.39874601820253, :variance-μs 2.3225749813628004E-9},
+   {:mean-μs 149.43955863273456, :variance-μs 1.763446594664698E-7},
    :hamf
-   {:mean-μs 67.63144227803481, :variance-μs 1.958191931993945E-7},
+   {:mean-μs 61.95163827160494, :variance-μs 2.0391348476431355E-7},
    :java
-   {:mean-μs 100.5362492639843, :variance-μs 3.235445433638753E-6}},
+   {:mean-μs 55.53637451199108, :variance-μs 1.0282190927756364E-7}},
   :access
   {:clj
-   {:mean-μs 87.27543384659255, :variance-μs 4.191417410128556E-7},
+   {:mean-μs 87.02115223665223, :variance-μs 4.370769065226658E-7},
    :hamf
-   {:mean-μs 82.42886144740382, :variance-μs 3.3397784393736063E-7},
+   {:mean-μs 75.20781001727116, :variance-μs 1.802276561732029E-6},
    :java
-   {:mean-μs 71.42365090867266, :variance-μs 2.0348494094539978E-7}},
+   {:mean-μs 67.45118529476221, :variance-μs 7.672990721643987E-6}},
   :reduce
-  {:clj {:mean-μs 94.39608589147286, :variance-μs 6.54038665235177E-7},
+  {:clj
+   {:mean-μs 75.47424216629658, :variance-μs 9.127358773215693E-7},
    :hamf
-   {:mean-μs 77.41261735330836, :variance-μs 3.1598273798463343E-7},
+   {:mean-μs 64.01262115425418, :variance-μs 1.6961995523846707E-7},
    :java
-   {:mean-μs 147.4034076671342, :variance-μs 7.154927511823643E-6}}},
+   {:mean-μs 134.04457627865963, :variance-μs 2.46014260518934E-6}}},
  :union-10
  {:java-hashmap
-  {:union-disj-μs 29.024681926221717,
-   :union-μs 23.32667030902538,
+  {:union-disj-μs 36.91867885728359,
+   :union-μs 31.516575445173384,
    :name :java-hashmap},
   :clj-hashmap
-  {:union-disj-μs 255.23868341708544,
-   :union-μs 256.5632638888889,
+  {:union-disj-μs 282.9258578024008,
+   :union-μs 285.8130926966292,
    :name :clj-hashmap},
   :hamf-hashmap
-  {:union-disj-μs 0.8033900583499519,
-   :union-μs 0.8367382616067093,
+  {:union-disj-μs 0.7646232103937712,
+   :union-μs 0.8839684667167882,
    :name :hamf-hashmap}},
+ :sequence-summation
+ {:map-filter-clj
+  {:mean-μs 1205.150136904762, :variance-μs 2.582922532466412E-4},
+  :map-filter-eduction
+  {:mean-μs 501.0168590381427, :variance-μs 1.2178121855044772E-6},
+  :map-filter-hamf
+  {:mean-μs 530.503097368421, :variance-μs 1.1713121417442324E-6}},
  :persistent-vec-10000
  {:construction
-  {:clj
-   {:mean-μs 108.54871997874602, :variance-μs 3.5964812415822236E-6},
+  {:clj {:mean-μs 93.5029005276226, :variance-μs 2.635939736898421E-7},
    :hamf
-   {:mean-μs 11.943807214515246, :variance-μs 6.621204814235822E-9},
+   {:mean-μs 11.183205504143904, :variance-μs 2.377179107089328E-9},
    :java
-   {:mean-μs 6.821438365246315, :variance-μs 3.262337137863637E-9}},
+   {:mean-μs 6.193289788862823, :variance-μs 2.7685035394899622E-9}},
   :cons-obj-ary
   {:clj
-   {:mean-μs 106.20713343663914, :variance-μs 1.8556927178883532E-5},
+   {:mean-μs 90.67609795057263, :variance-μs 3.277554087344265E-8},
    :hamf
-   {:mean-μs 8.468885216803315, :variance-μs 9.350474562567886E-10},
+   {:mean-μs 8.028469728489892, :variance-μs 1.5749738027136429E-9},
    :java
-   {:mean-μs 6.978759454086533, :variance-μs 1.559963997739789E-8}},
+   {:mean-μs 6.343247846819596, :variance-μs 2.22261587312106E-9}},
   :access
   {:clj
-   {:mean-μs 61.16439347389558, :variance-μs 5.105522628129881E-7},
+   {:mean-μs 53.293646488469605, :variance-μs 1.5983225245010223E-6},
    :hamf
-   {:mean-μs 38.541475274040856, :variance-μs 1.6923017719824832E-7},
+   {:mean-μs 30.05562279647436, :variance-μs 1.4803651541676345E-8},
    :jv-d
-   {:mean-μs 46.599572470238094, :variance-μs 1.8588763616921808E-7}},
+   {:mean-μs 40.303221889155346, :variance-μs 6.26872101928206E-7}},
   :reduce
   {:clj
-   {:mean-μs 143.61307227769854, :variance-μs 1.9439036656058935E-6},
+   {:mean-μs 122.03614580801946, :variance-μs 1.7041390139224772E-6},
    :hamf
-   {:mean-μs 147.2860262254902, :variance-μs 1.1872608224988457E-6},
+   {:mean-μs 120.05265550239235, :variance-μs 3.534693724264649E-7},
    :jv-d
-   {:mean-μs 197.46593268608416, :variance-μs 1.922061409810781E-6}},
+   {:mean-μs 176.08921280760626, :variance-μs 1.1798684923793383E-4}},
   :to-array
-  {:clj {:mean-μs 58.5104663555037, :variance-μs 8.414816776978414E-7},
+  {:clj
+   {:mean-μs 59.804528855721394, :variance-μs 1.135530905642545E-6},
    :hamf
-   {:mean-μs 4.376855439695618, :variance-μs 3.3799622298578476E-9},
+   {:mean-μs 4.545177572330432, :variance-μs 7.902393755771187E-9},
    :jv-d
-   {:mean-μs 3.4895653997484626, :variance-μs 4.056230260180359E-10}}},
+   {:mean-μs 3.594795951095962, :variance-μs 1.331555730500704E-9}}},
  :hashmap-10000
  {:construction
   {:clj
-   {:mean-μs 170.6824585420145, :variance-μs 2.3329245535733192E-7},
+   {:mean-μs 146.0400687984496, :variance-μs 3.244532512366598E-7},
    :hamf
-   {:mean-μs 56.905783502252255, :variance-μs 3.524407037556126E-7},
+   {:mean-μs 59.019437499999995, :variance-μs 5.298533362176547E-7},
    :java
-   {:mean-μs 57.595359196961475, :variance-μs 8.522119105891097E-6}},
+   {:mean-μs 50.59384680134681, :variance-μs 5.542208610975912E-8}},
   :access
   {:clj
-   {:mean-μs 58.136039306358384, :variance-μs 1.0822028317685235E-7},
+   {:mean-μs 52.21622331947332, :variance-μs 6.798894638372616E-8},
    :hamf
-   {:mean-μs 52.187771347736636, :variance-μs 3.401784090850385E-7},
+   {:mean-μs 48.265074420463634, :variance-μs 2.732478282870951E-7},
    :java
-   {:mean-μs 44.1594881563927, :variance-μs 9.947632961813808E-8}},
+   {:mean-μs 38.574640084550346, :variance-μs 2.733663709183399E-8}},
   :reduce
   {:clj
-   {:mean-μs 89.93497134038802, :variance-μs 5.802172516344249E-7},
+   {:mean-μs 74.45535401280156, :variance-μs 8.346422469109377E-7},
    :hamf
-   {:mean-μs 71.72363830776382, :variance-μs 1.9305256670667283E-7},
+   {:mean-μs 61.03408459214502, :variance-μs 2.980666529311211E-7},
    :java
-   {:mean-μs 146.24403874883288, :variance-μs 2.768669134532765E-6}}},
+   {:mean-μs 130.60574252275683, :variance-μs 5.3784664589424314E-8}}},
+ :sort
+ {:clj-sort
+  {:mean-μs 2761.111594594595, :variance-μs 6.618325666450445E-4},
+  :hamf-sort
+  {:mean-μs 1358.7670444444445, :variance-μs 8.76358435525686E-5}},
  :persistent-vec-1000
  {:construction
   {:clj
-   {:mean-μs 5.262526663250491, :variance-μs 2.574926865713798E-10},
+   {:mean-μs 4.516118776522623, :variance-μs 1.426363022711352E-9},
    :hamf
-   {:mean-μs 1.1637895759263308, :variance-μs 7.973042571701924E-11},
+   {:mean-μs 1.0837266888917754, :variance-μs 5.5435501609985265E-12},
    :java
-   {:mean-μs 0.6869682705432706, :variance-μs 3.740109432330385E-11}},
+   {:mean-μs 0.647451193850241, :variance-μs 2.06082496348839E-12}},
   :cons-obj-ary
   {:clj
-   {:mean-μs 4.722672318915774, :variance-μs 3.1868570946466487E-10},
+   {:mean-μs 4.033518011478958, :variance-μs 7.483607147721949E-10},
    :hamf
-   {:mean-μs 0.8423313556289799, :variance-μs 4.452448899731032E-11},
+   {:mean-μs 0.7705103648328886, :variance-μs 6.956966101742795E-11},
    :java
-   {:mean-μs 0.7435411589473914, :variance-μs 1.0445654061554697E-10}},
+   {:mean-μs 0.6980098532997563, :variance-μs 1.2062485970063905E-10}},
   :access
   {:clj
-   {:mean-μs 4.852679182728153, :variance-μs 9.285043432832181E-10},
+   {:mean-μs 4.250690013025258, :variance-μs 5.29245882894904E-10},
    :hamf
-   {:mean-μs 3.7667788816920997, :variance-μs 5.509753135096244E-10},
+   {:mean-μs 3.016513209059932, :variance-μs 3.978254148652284E-10},
    :jv-d
-   {:mean-μs 4.598688670916382, :variance-μs 7.281018763587398E-10}},
+   {:mean-μs 4.034010740785466, :variance-μs 1.882688666160315E-9}},
   :reduce
   {:clj
-   {:mean-μs 14.264183044999054, :variance-μs 7.956368996785171E-9},
+   {:mean-μs 12.715208222978939, :variance-μs 7.98296628706274E-9},
    :hamf
-   {:mean-μs 14.433537180406214, :variance-μs 1.4336270420112076E-8},
+   {:mean-μs 12.30881522737254, :variance-μs 1.7249735029096578E-7},
    :jv-d
-   {:mean-μs 19.556337449760147, :variance-μs 1.36730396765189E-9}},
+   {:mean-μs 16.935450293387497, :variance-μs 7.558518933554948E-8}},
   :to-array
   {:clj
-   {:mean-μs 5.102870057785888, :variance-μs 1.9621690677674998E-9},
+   {:mean-μs 4.530169105472771, :variance-μs 1.1682361297326387E-9},
    :hamf
-   {:mean-μs 0.5182489575865878, :variance-μs 1.5753030227113577E-11},
+   {:mean-μs 0.4697934360209641, :variance-μs 5.298818289899912E-11},
    :jv-d
-   {:mean-μs 0.3277363106779072, :variance-μs 5.744199535635865E-13}}}}
+   {:mean-μs 0.3373197767302529, :variance-μs 1.3840265605136457E-10}}}}

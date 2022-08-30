@@ -8,7 +8,7 @@
            [it.unimi.dsi.fastutil.ints IntArrays]
            [java.util RandomAccess Collection Map List Random]
            [clojure.lang RT IPersistentMap IReduceInit IReduce])
-  (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle]))
+  (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle object-array]))
 
 
 (def ^{:tag ArrayImmutList} empty-vec ArrayImmutList/EMPTY)
@@ -40,6 +40,34 @@
           (instance? IReduce item))
     item
     (->collection item)))
+
+
+(def ^:private obj-ary-cls (Class/forName "[Ljava.lang.Object;"))
+
+
+(defn object-array
+  "Faster version of object-array for java collections and strings."
+  ^objects [item]
+  (cond
+    (or (nil? item) (number? item))
+    (clojure.core/object-array item)
+    (instance? obj-ary-cls item)
+    item
+    (instance? Collection item)
+    (.toArray ^Collection item)
+    (instance? Map item)
+    (.toArray (.entrySet ^Map item))
+    (instance? String item)
+    (.toArray (StringCollection. item))
+    (.isArray (.getClass ^Object item))
+    (.toArray (ArrayLists/toList item))
+    (instance? Iterable item)
+    (let [alist (ArrayLists$ObjectArrayList.)]
+      (.addAll alist item)
+      (.toArray alist))
+    :else
+    (throw (Exception. (str "Unable to coerce item of type: " (type item)
+                            " to an object array")))))
 
 
 (defn ->random-access
