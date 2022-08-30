@@ -1,6 +1,8 @@
 package ham_fisted;
 
-
+import java.util.Random;
+import java.util.List;
+import it.unimi.dsi.fastutil.doubles.DoubleArrays;
 import it.unimi.dsi.fastutil.ints.IntComparator;
 import java.util.function.DoubleConsumer;
 
@@ -31,5 +33,10 @@ public interface DoubleMutList extends IMutList<Object> {
 	return Double.compare(getDouble(lidx), getDouble(ridx));
       }
     };
+  }
+  default List immutShuffle(Random r) {
+    final double[] bdata = toDoubleArray();
+    DoubleArrays.shuffle(bdata, r);
+    return ArrayLists.toList(bdata);
   }
 }

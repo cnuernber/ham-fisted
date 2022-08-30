@@ -104,7 +104,7 @@
                                (unchecked-long b))))
         lhs-m (construct-fn lhs)
         rhs-m (construct-fn rhs)
-        map-seq (vec (interleave (repeat 10 lhs-m) (repeat 10 rhs-m)))]
+        map-seq (api/vec (interleave (repeat 10 lhs-m) (repeat 10 rhs-m)))]
     {:union-μs (:mean-μs (bench/benchmark-us (reduce-fn bfn map-seq)))
      :name mapname}))
 
@@ -165,7 +165,7 @@
 (defn vec-data
   [^long n-elems]
   (doto (ArrayList.)
-    (.addAll (range n-elems))))
+    (.addAll (api/range n-elems))))
 
 
 (defn general-persistent-vector
@@ -185,14 +185,14 @@
                                              (clojure.core/map #(+ 1 (long %)))
                                              (clojure.core/filter #(== 0 (rem (long %) 3)))
                                              (api/sum)))
-    :map-filter-eduction (bench/benchmark-us (->> (range 20000)
+    :map-filter-eduction (bench/benchmark-us (->> (api/range 20000)
                                                   (eduction
                                                    (comp
                                                     (clojure.core/map #(* (long %) 2))
                                                     (clojure.core/map #(+ 1 (long %)))
                                                     (clojure.core/filter #(== 0 (rem (long %) 3)))))
                                                   (api/sum)))
-    :map-filter-hamf (bench/benchmark-us (->> (range 20000)
+    :map-filter-hamf (bench/benchmark-us (->> (api/range 20000)
                                               (lznc/map #(* (long %) 2))
                                               (lznc/map #(+ 1 (long %)))
                                               (lznc/filter #(== 0 (rem (long %) 3)))
@@ -202,7 +202,7 @@
 (defn object-array-perftest
   []
   (log/info "obj array perftest")
-  (let [init-seq (->> (range 20000)
+  (let [init-seq (->> (api/range 20000)
                       (lznc/map #(* (long %) 2))
                       (lznc/map #(+ 1 (long %)))
                       (lznc/filter #(== 0 (rem (long %) 3))))]
@@ -214,7 +214,7 @@
 (defn shuffle-perftest
   []
   (log/info "shuffle")
-  (let [init-data (range 10000)]
+  (let [init-data (api/range 10000)]
     {:shuffle
      {:clj-shuffle (bench/benchmark-us (shuffle init-data))
       :hamf-shuffle (bench/benchmark-us (api/shuffle init-data))}}))
@@ -223,7 +223,7 @@
 (defn sort-perftest
   []
   (log/info "sort")
-  (let [init-data (api/shuffle (range 10000))]
+  (let [init-data (api/shuffle (api/range 10000))]
     {:sort
      {:clj-sort (bench/benchmark-us (sort init-data))
       :hamf-sort (bench/benchmark-us (api/sort init-data))}}))

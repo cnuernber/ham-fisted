@@ -1,6 +1,8 @@
 package ham_fisted;
 
-
+import java.util.Random;
+import java.util.List;
+import it.unimi.dsi.fastutil.longs.LongArrays;
 import it.unimi.dsi.fastutil.ints.IntComparator;
 import java.util.function.LongConsumer;
 
@@ -31,5 +33,10 @@ public interface LongMutList extends IMutList<Object> {
 	return Long.compare(getLong(lidx), getLong(ridx));
       }
     };
+  }
+  default List immutShuffle(Random r) {
+    final long[] data = toLongArray();
+    LongArrays.shuffle(data, r);
+    return ArrayLists.toList(data);
   }
 }

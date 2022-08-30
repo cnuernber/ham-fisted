@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.Collection;
 import java.util.Random;
 import java.util.RandomAccess;
+import java.util.Iterator;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.LongBinaryOperator;
 import java.util.function.Consumer;
@@ -380,8 +381,16 @@ public class ArrayLists {
 	//Hit fastpath
 	fillRange(sz, (List)c);
       } else {
-	for(Object o: c) {
-	  add(o);
+	final Iterator iter = c.iterator();
+	while(iter.hasNext()) {
+	  final int ne = nElems;
+	  final Object[] d = ensureCapacity(ne+16);
+	  int idx = ne;
+	  final int eidx = idx + 16;
+	  for (; idx < eidx && iter.hasNext(); ++idx) {
+	    d[idx] = iter.next();
+	  }
+	  nElems = idx;
 	}
       }
       return true;
@@ -476,6 +485,13 @@ public class ArrayLists {
     public static ObjectArrayList wrap(final Object[] data, IPersistentMap m) {
       return new ObjectArrayList(data, data.length, m);
     }
+  }
+
+  @SuppressWarnings("unchecked")
+  public static Object[] toArray(Collection c) {
+    final ObjectArrayList res = new ObjectArrayList();
+    res.addAll(c);
+    return res.toArray();
   }
 
   public static List<Object> toList(final Object[] data, final int sidx, final int eidx, final IPersistentMap meta) {
@@ -1787,11 +1803,6 @@ public class ArrayLists {
       else
 	IntArrays.parallelQuickSort(retval, indexComparator(c));
       return retval;
-    }
-    public List immutShuffle(Random r) {
-      final double[] bdata = toDoubleArray();
-      DoubleArrays.shuffle(bdata, r);
-      return toList(bdata);
     }
   }
 

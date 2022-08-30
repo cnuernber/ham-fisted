@@ -182,6 +182,9 @@ public class Transformables {
     public Object reduce(IFn fn, Object init) {
       return iterReduce(this, init, fn);
     }
+    public Object[] toArray() {
+      return ArrayLists.toArray(this);
+    }
   }
   public static class FilterIterable
     extends AbstractCollection
@@ -254,6 +257,9 @@ public class Transformables {
     }
     public Object reduce(IFn fn, Object init) {
       return iterReduce(this, init, fn);
+    }
+    public Object[] toArray() {
+      return ArrayLists.toArray(this);
     }
   }
 
@@ -344,6 +350,9 @@ public class Transformables {
     }
     public Object reduce(IFn fn, Object init) {
       return iterReduce(this, init, fn);
+    }
+    public Object[] toArray() {
+      return ArrayLists.toArray(this);
     }
   }
 

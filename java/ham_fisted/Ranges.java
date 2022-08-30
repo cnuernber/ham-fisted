@@ -1,8 +1,11 @@
 package ham_fisted;
 
 
+import java.util.Random;
+import java.util.List;
 import clojure.lang.RT;
 import clojure.lang.IPersistentMap;
+
 
 
 public class Ranges {
