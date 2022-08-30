@@ -253,10 +253,28 @@ public class Transformables {
       return new FilterIterable(this, m);
     }
     public Object reduce(IFn fn) {
-      return iterReduce(this, fn);
+      final Iterator iter = src.iterator();
+
+      if(iter.hasNext() == false) return fn.invoke();
+
+      Object ret = iter.next();
+      while(iter.hasNext() && !RT.isReduced(ret)) {
+	final Object nobj = iter.next();
+	if(truthy(pred.invoke(nobj)))
+	  ret = fn.invoke(ret, nobj);
+      }
+      return RT.isReduced(ret) ? ((IDeref)ret).deref() : ret;
     }
-    public Object reduce(IFn fn, Object init) {
-      return iterReduce(this, init, fn);
+    public Object reduce(final IFn fn, final Object init) {
+      final Iterator iter = src.iterator();
+
+      Object ret = init;
+      while(iter.hasNext() && !RT.isReduced(ret)) {
+	final Object nobj = iter.next();
+	if(truthy(pred.invoke(nobj)))
+	  ret = fn.invoke(ret, nobj);
+      }
+      return RT.isReduced(ret) ? ((IDeref)ret).deref() : ret;
     }
     public Object[] toArray() {
       return ArrayLists.toArray(this);
