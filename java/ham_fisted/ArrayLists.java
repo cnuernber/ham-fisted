@@ -380,6 +380,13 @@ public class ArrayLists {
 	nElems += cs;
 	//Hit fastpath
 	fillRange(sz, (List)c);
+      } else if (c instanceof IReduceInit) {
+	((IReduceInit)c).reduce(new IFnDef() {
+	    public Object invoke(Object lhs, Object rhs) {
+	      add(rhs);
+	      return this;
+	    }
+	  }, this);
       } else {
 	final Iterator iter = c.iterator();
 	while(iter.hasNext()) {
