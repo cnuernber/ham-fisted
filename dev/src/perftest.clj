@@ -332,9 +332,12 @@
        (vec)))
 
 
+(def column-order [:test :n-elems :java :clj :eduction :hamf :norm-factor-μs])
+
+
 (defn print-dataset
   [dataset]
-  (pp/print-table [:test :n-elems :java :clj :eduction :hamf :norm-factor-μs] dataset))
+  (pp/print-table column-order [:test :n-elems :java :clj :eduction :hamf :norm-factor-μs] dataset))
 
 
 (defn -main

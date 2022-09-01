@@ -829,7 +829,7 @@ ham_fisted.PersistentHashMap
 
 
 (defn frequencies
-  "Faster (9X or so), implementation of clojure.core/frequencies."
+  "Faster implementation of clojure.core/frequencies."
   [coll]
   (persistent!
    (reduce (fn [counts x]
