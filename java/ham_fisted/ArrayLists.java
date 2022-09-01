@@ -38,16 +38,14 @@ import it.unimi.dsi.fastutil.objects.ObjectArrays;
 
 
 public class ArrayLists {
-  static int wrapCheckIndex(int idx, int dlen) {
+  static int wrapCheckIndex(int idx, final int dlen) {
     if(idx < 0)
       idx += dlen;
     if(idx < 0 || idx >= dlen)
       throw new RuntimeException("Index out of range: " + String.valueOf(idx));
     return idx;
   }
-  static int checkIndex(int idx, int dlen) {
-    if(idx < 0)
-      idx += dlen;
+  static int checkIndex(final int idx, final int dlen) {
     if(idx < 0 || idx >= dlen)
       throw new RuntimeException("Index out of range: " + String.valueOf(idx));
     return idx;
