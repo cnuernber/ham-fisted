@@ -45,6 +45,13 @@ public class ArrayLists {
       throw new RuntimeException("Index out of range: " + String.valueOf(idx));
     return idx;
   }
+  static int checkIndex(int idx, int dlen) {
+    if(idx < 0)
+      idx += dlen;
+    if(idx < 0 || idx >= dlen)
+      throw new RuntimeException("Index out of range: " + String.valueOf(idx));
+    return idx;
+  }
   static void checkIndexRange(int sidx, int dlen, int ssidx, int seidx) {
     if (ssidx <0 || ssidx >= dlen)
       throw new RuntimeException("Index out of range: " + String.valueOf(ssidx));
@@ -236,7 +243,7 @@ public class ArrayLists {
     public ArraySection getArray() { return this; }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
-    public Object get(int idx) { return data[wrapCheckIndex(idx, nElems) + sidx]; }
+    public Object get(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
     public Object set(int idx, Object obj) {
       idx = wrapCheckIndex(idx, nElems) + sidx;
       final Object retval = data[idx];
@@ -339,7 +346,7 @@ public class ArrayLists {
     public ArraySection getArray() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
-    public Object get(int idx) { return data[wrapCheckIndex(idx, nElems)]; }
+    public Object get(int idx) { return data[checkIndex(idx, nElems)]; }
     public Object set(int idx, Object obj) {
       idx = wrapCheckIndex(idx, nElems);
       final Object retval = data[idx];
@@ -518,8 +525,8 @@ public class ArrayLists {
       public ArraySection getArray() { return new ArraySection(data, sidx, eidx); }
       public Class containedType() { return data.getClass().getComponentType(); }
       public int size() { return dlen; }
-      public Byte get(int idx) { return data[wrapCheckIndex(idx, dlen) + sidx]; }
-      public long getLong(int idx) { return data[wrapCheckIndex(idx, dlen) + sidx]; }
+      public Byte get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
+      public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
       public Byte set(int idx, Object oobj) {
 	return (byte)setLong(idx, Casts.longCast(oobj));
       }
@@ -605,8 +612,8 @@ public class ArrayLists {
       public ArraySection getArray() { return new ArraySection(data, sidx, eidx); }
       public Class containedType() { return data.getClass().getComponentType(); }
       public int size() { return dlen; }
-      public Short get(int idx) { return data[wrapCheckIndex(idx, dlen) + sidx]; }
-      public long getLong(int idx) { return data[wrapCheckIndex(idx, dlen) + sidx]; }
+      public Short get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
+      public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
       public Short set(int idx, Object oobj) {
 	return (short)setLong(idx, Casts.longCast(oobj));
       }
@@ -705,8 +712,8 @@ public class ArrayLists {
     public ArraySection getArray() { return this; }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
-    public Object get(int idx) { return data[wrapCheckIndex(idx, nElems) + sidx]; }
-    public long getLong(int idx) { return data[wrapCheckIndex(idx, nElems) + sidx]; }
+    public Object get(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
+    public long getLong(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
     static int setLong(final int[] d, final int sidx, final int nElems,
 		       int idx, final long obj) {
       int v = RT.intCast(obj);
@@ -907,8 +914,8 @@ public class ArrayLists {
     public ArraySection getArray() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
-    public Object get(int idx) { return data[wrapCheckIndex(idx, nElems)]; }
-    public long getLong(int idx) { return data[wrapCheckIndex(idx, nElems)]; }
+    public Object get(int idx) { return data[checkIndex(idx, nElems)]; }
+    public long getLong(int idx) { return data[checkIndex(idx, nElems)]; }
     public Object set(int idx, Object obj) {
       return IntArraySubList.setLong(data, 0, nElems, idx, Casts.longCast(obj));
     }
@@ -1106,8 +1113,8 @@ public class ArrayLists {
     public ArraySection getArray() { return this; }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
-    public Object get(int idx) { return data[wrapCheckIndex(idx, nElems) + sidx]; }
-    public long getLong(int idx) { return data[wrapCheckIndex(idx, nElems) + sidx]; }
+    public Object get(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
+    public long getLong(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
     static long setLong(final long[] d, final int sidx, final int nElems,
 			int idx, final long v) {
       idx = wrapCheckIndex(idx, nElems) + sidx;
@@ -1308,8 +1315,8 @@ public class ArrayLists {
     public ArraySection getArray() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
-    public Object get(int idx) { return data[wrapCheckIndex(idx, nElems)]; }
-    public long getLong(int idx) { return data[wrapCheckIndex(idx, nElems)]; }
+    public Object get(int idx) { return data[checkIndex(idx, nElems)]; }
+    public long getLong(int idx) { return data[checkIndex(idx, nElems)]; }
     public Object set(int idx, Object obj) {
       return LongArraySubList.setLong(data, 0, nElems, idx, Casts.longCast(obj));
     }
@@ -1474,8 +1481,8 @@ public class ArrayLists {
       public int hashCode() { return hasheq(); }
       public ArraySection getArray() { return new ArraySection(data, sidx, eidx); }
       public int size() { return dlen; }
-      public Float get(int idx) { return data[wrapCheckIndex(idx, dlen) + sidx]; }
-      public double getDouble(int idx) { return data[wrapCheckIndex(idx, dlen) + sidx];}
+      public Float get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
+      public double getDouble(int idx) { return data[checkIndex(idx, dlen) + sidx];}
       public Float set(int idx, Object obj) {
 	return (float)setDouble(idx, Casts.doubleCast(obj));
       }
@@ -1605,8 +1612,8 @@ public class ArrayLists {
     public ArraySection getArray() { return this; }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
-    public Object get(int idx) { return data[wrapCheckIndex(idx, nElems) + sidx]; }
-    public double getDouble(int idx) { return data[wrapCheckIndex(idx, nElems) + sidx]; }
+    public Object get(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
+    public double getDouble(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
     static double setDouble(final double[] d, final int sidx, final int nElems,
 			int idx, final double v) {
       idx = wrapCheckIndex(idx, nElems) + sidx;
@@ -1835,8 +1842,8 @@ public class ArrayLists {
     public ArraySection getArray() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
-    public Object get(int idx) { return data[wrapCheckIndex(idx, nElems)]; }
-    public double getDouble(int idx) { return data[wrapCheckIndex(idx, nElems)]; }
+    public Object get(int idx) { return data[checkIndex(idx, nElems)]; }
+    public double getDouble(int idx) { return data[checkIndex(idx, nElems)]; }
     public Object set(int idx, Object obj) {
       return DoubleArraySubList.setDouble(data, 0, nElems, idx, Casts.longCast(obj));
     }
@@ -2004,8 +2011,8 @@ public class ArrayLists {
       public int hashCode() { return hasheq(); }
       public ArraySection getArray() { return new ArraySection(data, sidx, eidx); }
       public int size() { return dlen; }
-      public Character get(int idx) { return data[wrapCheckIndex(idx, dlen) + sidx]; }
-      public long getLong(int idx) { return data[wrapCheckIndex(idx, dlen) + sidx]; }
+      public Character get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
+      public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
       public Character set(int idx, Character obj) {
 	return (char)setLong(idx, Casts.longCast(obj));
       }
@@ -2073,8 +2080,8 @@ public class ArrayLists {
       public int hashCode() { return hasheq(); }
       public ArraySection getArray() { return new ArraySection(data, sidx, eidx); }
       public int size() { return dlen; }
-      public Boolean get(int idx) { return data[wrapCheckIndex(idx, dlen) + sidx]; }
-      public long getLong(int idx) { return data[wrapCheckIndex(idx, dlen) + sidx] ? 1 : 0; }
+      public Boolean get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
+      public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx] ? 1 : 0; }
       public Boolean set(int idx, Object obj) {
 	boolean bval = Casts.booleanCast(obj);
 	idx = wrapCheckIndex(idx, dlen) + sidx;

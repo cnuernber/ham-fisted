@@ -334,7 +334,7 @@ public interface IMutList<E>
   default Object nth(int idx, Object notFound) {
     final int sz = size();
     if (idx < 0)
-      idx = idx + size();
+      idx = idx + sz;
     return idx < sz && idx > -1 ? get(idx) : notFound;
   }
   default E set(int idx, E v) { throw new RuntimeException("Unimplemented"); }

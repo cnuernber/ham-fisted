@@ -148,7 +148,7 @@ public class MutList<E>
 
   @SuppressWarnings("unchecked")
   public final E get(int idx) {
-    return (E)data.getValue(wrapIndexCheck(idx));
+    return (E)data.getValue(indexCheck(idx));
   }
 
   public final int indexOf(Object o) {

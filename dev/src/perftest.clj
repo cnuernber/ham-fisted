@@ -149,13 +149,13 @@
       :n-elems n-elems
       :test :vector-construction}
      {:clj (bench/benchmark-us (vec odata))
-      :hamf (bench/benchmark-us (api/immut-list odata))
+      :hamf (bench/benchmark-us (api/vec odata))
       :java (bench/benchmark-us (api/array-list odata))
       :n-elems n-elems
       :test :vector-cons-obj-array}
      (let [method (fn [vdata]
-                    (dotimes [idx n-elems]
-                      (.get ^List vdata idx)))
+                    (dotimes [idx 10000]
+                      (.get ^List vdata (unchecked-int (rem idx n-elems)))))
            clj-d (vec data)
            hm-d (api/vec data)
            jv-d (api/array-list data)]
@@ -323,18 +323,27 @@
                (sort-perftest)
                (frequencies-perftest)))
 
+(defn process-dataset
+  [dataset]
+  (->> dataset
+       (data->dataset)
+       (normalize-rows)
+       (sort-by :test)
+       (vec)))
+
+
+(defn print-dataset
+  [dataset]
+  (pp/print-table [:test :n-elems :java :clj :eduction :hamf :norm-factor-μs] dataset))
+
 
 (defn -main
   [& args]
-  (let [perf-data (->> (profile)
-                       (data->dataset)
-                       (normalize-rows)
-                       (sort-by :test)
-                       (vec))
+  (let [perf-data (process-dataset (profile))
         vs (System/getProperty "java.version")
         mn (machine-name)
         gs (git-sha)
-        fname (str "results/" mn "-" gs "-jdk-" vs ".edn")]
-    (pp/print-table [:test :n-elems :java :clj :eduction :hamf :norm-factor-μs] perf-data)
+        fname (str "results/" gs "-" mn "-jdk-" vs ".edn")]
+    (print-dataset perf-data)
     (println "Results stored to:" fname)
     (spit fname (with-out-str (pp/pprint {:machine-name mn :git-sha gs :jdk-version vs :dataset perf-data})))))

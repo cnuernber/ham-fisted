@@ -399,12 +399,12 @@ ham_fisted.PersistentHashMap
 
 
 (defn immut-list
-  "Create a mutable java list that is in-place convertible to a persistent list"
+  "Create a persistent list.  Object arrays will be treated as if this new object owns them."
   (^ImmutList [] empty-vec)
   (^ImmutList [data]
    (cond
      (instance? obj-ary-cls data)
-     (ArrayImmutList/create false nil data)
+     (ArrayImmutList/create true nil data)
      (or (instance? IReduceInit data) (instance? Collection data))
      (ArrayImmutList/create true (meta data) (object-array data))
      :else

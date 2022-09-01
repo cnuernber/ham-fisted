@@ -4,7 +4,7 @@
             [ham-fisted.api :as api]
             [criterium.core :as crit])
   (:import [ham_fisted HashMap PersistentHashMap BitmapTrie TransientHashMap
-            BitmapTrieCommon PersistentMapBuilder]
+            BitmapTrieCommon]
            [java.util ArrayList Collections Map Collection]
            [java.util.function BiFunction BiConsumer]
            [java.util.concurrent ForkJoinPool Future Callable]))

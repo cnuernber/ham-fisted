@@ -117,7 +117,7 @@ public class ImmutList
   }
   @SuppressWarnings("unchecked")
   public final Object get(int idx) {
-    return data.getValue(wrapIndexCheck(idx));
+    return data.getValue(indexCheck(idx));
   }
   public final int indexOf(Object obj) {
     return data.indexOf(startidx, startidx+nElems, obj);
