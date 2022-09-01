@@ -249,6 +249,16 @@
       :hamf (bench/benchmark-us (api/sort init-data))}]))
 
 
+(defn frequencies-perftest
+  []
+  (let [n-elems 10000
+        tdata (mapv #(rem (unchecked-long %) 7) (range n-elems))]
+    [{:n-elems n-elems
+      :test :frequencies
+      :clj (bench/benchmark-us (frequencies tdata))
+      :hamf (bench/benchmark-us (api/frequencies tdata))}]))
+
+
 (defn object-list-perftest
   []
   (log/info "object list")
@@ -310,7 +320,8 @@
                (object-array-perftest)
                (shuffle-perftest)
                (object-list-perftest)
-               (sort-perftest)))
+               (sort-perftest)
+               (frequencies-perftest)))
 
 
 (defn -main

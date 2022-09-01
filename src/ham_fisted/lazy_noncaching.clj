@@ -1,4 +1,5 @@
 (ns ham-fisted.lazy-noncaching
+  (:require [ham-fisted.iterator :as iterator])
   (:import [ham_fisted Transformables$MapIterable Transformables$FilterIterable
             Transformables$CatIterable Transformables$MapList Transformables$IMapable
             Transformables$SingleMapList Transformables StringCollection ArrayLists
@@ -46,7 +47,7 @@
 
 
 (defn object-array
-  "Faster version of object-array for java collections and strings."
+  "Faster version of object-array for eductions, java collections and strings."
   ^objects [item]
   (cond
     (or (nil? item) (number? item))
@@ -55,6 +56,14 @@
     item
     (instance? Collection item)
     (.toArray ^Collection item)
+    ;;Results of eduction aren't collections but do implement IReduceInit
+    (instance? IReduceInit item)
+    (let [l (reduce (fn [l v]
+                      (.add ^List l v)
+                      l)
+                    (ArrayLists$ObjectArrayList.)
+                    item)]
+      (.toArray ^List l))
     (instance? Map item)
     (.toArray (.entrySet ^Map item))
     (instance? String item)
@@ -63,7 +72,9 @@
     (.toArray (ArrayLists/toList item))
     (instance? Iterable item)
     (let [alist (ArrayLists$ObjectArrayList.)]
-      (.addAll alist item)
+      (iterator/doiter
+       v item
+       (.add alist item))
       (.toArray alist))
     :else
     (throw (Exception. (str "Unable to coerce item of type: " (type item)

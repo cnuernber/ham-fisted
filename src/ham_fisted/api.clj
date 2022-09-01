@@ -388,8 +388,8 @@ ham_fisted.PersistentHashMap
    (cond
      (instance? obj-ary-cls data)
      (MutList/create false nil ^objects data)
-     (instance? Collection data)
-     (doto (MutList/create true (meta data) (.toArray ^Collection data)))
+     (or (instance? IReduceInit data) (instance? Collection data))
+     (doto (MutList/create true (meta data) (object-array data)))
      (string? data)
      (doto (MutList.) (.addAll (StringCollection. data)))
      (.isArray (.getClass ^Object data))
@@ -402,7 +402,13 @@ ham_fisted.PersistentHashMap
   "Create a mutable java list that is in-place convertible to a persistent list"
   (^ImmutList [] empty-vec)
   (^ImmutList [data]
-   (persistent! (mut-list data))))
+   (cond
+     (instance? obj-ary-cls data)
+     (ArrayImmutList/create false nil data)
+     (or (instance? IReduceInit data) (instance? Collection data))
+     (ArrayImmutList/create true (meta data) (object-array data))
+     :else
+     (persistent! (mut-list data)))))
 
 
 (defn array-list

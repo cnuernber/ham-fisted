@@ -295,9 +295,7 @@ public class ArrayImmutList
   public final Object reduce(IFn f, int sidx, Object init) {
     final int endidx = startidx + nElems;
     final Object[] d = data;
-    while(sidx < endidx) {
-      if (RT.isReduced(init))
-	return ((IDeref)init).deref();
+    while(sidx < endidx && !RT.isReduced(init)) {
       init = f.invoke(init, d[sidx]);
       sidx++;
     }
