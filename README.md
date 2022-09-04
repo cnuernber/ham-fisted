@@ -15,7 +15,7 @@ The mutable hashmap and vector implementations allow in-place instantaneous conv
 their persistent counterparts.  This allows you to build a dataset using the sometimes much
 faster mutable primitives (.compute and friends for instance in the hashmap case) and then
 return data to the rest of the program in persistent form.  Using this method, for example
-`frequencies` is about 10X faster while still returning a persistent datastructure.
+`frequencies` is quite a bit faster while still returning a persistent datastructure.
 
 
 ## New Primitive Operations

@@ -274,6 +274,34 @@
       :hamf (bench/benchmark-us (doto (api/object-array-list)
                                   (.addAll init-data)))}]))
 
+
+(defn group-by-perftest
+  []
+  (let [n-elems 10000]
+    [{:n-elems n-elems
+      :test :group-by
+      :clj (bench/benchmark-us (clojure.core/group-by #(rem (unchecked-long %1) 7)
+                                                      (api/range n-elems)))
+      :hamf (bench/benchmark-us (api/group-by #(rem (unchecked-long %1) 7)
+                                              (api/range n-elems)))}]))
+
+
+(defn update-values-perftest
+  []
+  (let [n-elems 1000
+        data (lznc/map #(api/vector % %) (range n-elems))
+        clj-map (into {} data)
+        hamf-map (api/immut-map data)]
+    {:n-elems n-elems
+     :test :update-values
+     :clj (bench/benchmark-us (-> (reduce (fn [m [k v]]
+                                            (assoc! m k (unchecked-inc v)))
+                                          (transient {})
+                                          clj-map)
+                                  (persistent!)))
+     :hamf (bench/benchmark-us (api/update-values hamf-map
+                                                  (api/bi-function k v (unchecked-inc v))))}))
+
 (defn machine-name
   []
   (.getHostName (java.net.InetAddress/getLocalHost)))
@@ -321,7 +349,10 @@
                (shuffle-perftest)
                (object-list-perftest)
                (sort-perftest)
-               (frequencies-perftest)))
+               (frequencies-perftest)
+               (group-by-perftest)
+               (update-values-perftest)))
+
 
 (defn process-dataset
   [dataset]

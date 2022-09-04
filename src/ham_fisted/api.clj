@@ -119,7 +119,7 @@ This is currently the default hash provider for the library."}
 
 
 (declare assoc! conj! vec mapv vector object-array range first take drop into-array shuffle
-         object-array-list)
+         object-array-list fast-reduce)
 
 
 (defn- empty-map?
@@ -456,6 +456,14 @@ ham_fisted.PersistentHashMap
   (if (instance? BiFunction cljfn)
     cljfn
     (reify BiFunction (apply [this a b] (cljfn a b)))))
+
+
+(defmacro bi-function
+  "Create an implementation of java.util.function.BiFunction"
+  [arg1 arg2 code]
+  `(reify BiFunction
+     (apply [this ~arg1 ~arg2]
+       ~code)))
 
 
 (defn ->function
@@ -1217,13 +1225,16 @@ ham_fisted.PersistentHashMap
   (let [retval (mut-map)
         compute-fn (reify Function
                      (apply [this k]
-                       (mut-list)))]
-    (iterator/doiter
-     v coll
-     (.add ^List (compute-if-absent! retval (f v) compute-fn) v))
+                       (object-array-list)))
+        coll (->reducible coll)]
+    (fast-reduce (fn [retval v]
+                   (.add ^List (compute-if-absent! retval (f v) compute-fn) v)
+                   retval)
+                 retval
+                 coll)
     (update-values retval (reify BiFunction
                             (apply [this k v]
-                              (persistent! v))))))
+                              (immut-list v))))))
 
 
 (defn group-by-reduce
@@ -1263,10 +1274,11 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
                       (if (reduced? oldv)
                         oldv
                         (reduce-fn oldv newv))))]
-    (iterator/doiter
-     v coll
-     (let [^BitmapTrieCommon$Box b (compute-if-absent! retval (key-fn v) box-fn)]
-       (.inplaceUpdate b update-fn v)))
+    (fast-reduce (fn [retval v]
+                   (let [b (compute-if-absent! retval (key-fn v) box-fn)]
+                     (.inplaceUpdate ^BitmapTrieCommon$Box b update-fn v))
+                   retval)
+                 retval coll)
     (update-values retval (reify BiFunction
                             (apply [this k b]
                               (let [^BitmapTrieCommon$Box b b
@@ -1817,6 +1829,8 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
 
 
 (defn fast-reduce
+  "Version of reduce that is a bit faster for things that aren't sequences and do not
+  implement IReduceInit."
   ([rfn init iter]
    (cond
      (instance? IReduceInit iter)
