@@ -286,21 +286,36 @@
                                               (api/range n-elems)))}]))
 
 
+(defn group-by-reduce-perftest
+  []
+  (let [n-elems 10000]
+    [{:n-elems n-elems
+      :test :group-by-reduce
+      :clj (bench/benchmark-us (->> (clojure.core/group-by #(rem (unchecked-long %1) 7)
+                                                           (api/range n-elems))
+                                    (map (fn [[k v]]
+                                           [k (first v)]))
+                                    (into {})))
+      :hamf (bench/benchmark-us (api/group-by-reduce #(rem (unchecked-long %1) 7)
+                                                     (fn ([l r] l) ([l] l))
+                                                     (api/range n-elems)))}]))
+
+
 (defn update-values-perftest
   []
   (let [n-elems 1000
         data (lznc/map #(api/vector % %) (range n-elems))
         clj-map (into {} data)
         hamf-map (api/immut-map data)]
-    {:n-elems n-elems
-     :test :update-values
-     :clj (bench/benchmark-us (-> (reduce (fn [m [k v]]
-                                            (assoc! m k (unchecked-inc v)))
-                                          (transient {})
-                                          clj-map)
-                                  (persistent!)))
-     :hamf (bench/benchmark-us (api/update-values hamf-map
-                                                  (api/bi-function k v (unchecked-inc v))))}))
+    [{:n-elems n-elems
+      :test :update-values
+      :clj (bench/benchmark-us (-> (reduce (fn [m [k v]]
+                                             (assoc! m k (unchecked-inc v)))
+                                           (transient {})
+                                           clj-map)
+                                   (persistent!)))
+      :hamf (bench/benchmark-us (api/update-values hamf-map
+                                                   (api/bi-function k v (unchecked-inc v))))}]))
 
 (defn machine-name
   []
@@ -351,6 +366,7 @@
                (sort-perftest)
                (frequencies-perftest)
                (group-by-perftest)
+               (group-by-reduce-perftest)
                (update-values-perftest)))
 
 
