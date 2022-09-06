@@ -1,5 +1,8 @@
 # HAM-Fisted
 
+[![Clojars Project](https://clojars.org/cnuernber/ham-fisted/latest-version.svg)](https://clojars.org/cnuernber/ham-fisted)
+* [API docs](https://cnuernber.github.io/ham-fisted/)
+
 What started as a collection of efficient mutable and immutable datastructures based
 on Phil Bagwell's bitmap trie concept became an overall reimplementation of
 clojure's core datastructures and some of its base concepts specifically with
