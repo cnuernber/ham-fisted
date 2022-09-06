@@ -1,9 +1,15 @@
 # HAM-Fisted
 
-What started as a collection of efficient mutable and immutable datastructures based on Phil Bagwell's
-bitmap trie concept became an overall reimplementation of clojure's core datastructures and some of
-its base concepts specifically with performance in mind.  This means, for instance, that the library
-prefers iterators over sequences in many situations.
+What started as a collection of efficient mutable and immutable datastructures based
+on Phil Bagwell's bitmap trie concept became an overall reimplementation of
+clojure's core datastructures and some of its base concepts specifically with
+performance in mind.  This means, for instance, that the library prefers iterators
+over sequences in many situations.  There are also new functional primitives developed
+from my experience processing data and working with Clojure over the last 10 years.
+
+
+My hope is this library becomes a platform to experiment and develop new and/or better 
+functional datastructures and algorithmic primitives.
 
 
 Here are a few concepts to keep in mind -
@@ -84,6 +90,22 @@ the these primitives (and things like frequencies) will perform substantially be
    cache - it appears that Clojure's base implementation is very good or at least
    good enough I can't haven't come up with one better.  Potentially the decision
    to use chunking is the best optimization available here.
+   
+   
+## Contributing
+ 
+The best way to contribute is to fund me through github sponsors linked to
+the right or to engage [TechAscent](https://techascent.com) - we are always 
+looking for new interesting projects and partners.
+
+
+Aside from that as mentioned earlier my hope is this library becomes
+a platform that enables experimentation with various functional primitives and
+overall optimized ways of doing the type of programming that the Clojure community
+enjoys.  Don't hesitate to file issues and PR's - I have a long history of 
+being extremly happy to accept both.
+
+If you want to work on the library you need to enable the `:dev` alias.
 
 
 ## Benchmarks
