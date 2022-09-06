@@ -249,8 +249,19 @@
       :hamf (bench/benchmark-us (api/sort init-data))}]))
 
 
+(defn sort-double-array
+  []
+  (log/info "sort doubles")
+  (let [init-data (api/double-array (api/shuffle (api/range 10000)))]
+    [{:test :sort-doubles
+      :n-elems 10000
+      :clj (bench/benchmark-us (sort init-data))
+      :hamf (bench/benchmark-us (api/sort init-data))}]))
+
+
 (defn frequencies-perftest
   []
+  (log/info "frequencies")
   (let [n-elems 10000
         tdata (mapv #(rem (unchecked-long %) 7) (range n-elems))]
     [{:n-elems n-elems
@@ -277,6 +288,7 @@
 
 (defn group-by-perftest
   []
+  (log/info "group-by")
   (let [n-elems 10000]
     [{:n-elems n-elems
       :test :group-by
@@ -288,6 +300,7 @@
 
 (defn group-by-reduce-perftest
   []
+  (log/info "group-by-reduce")
   (let [n-elems 10000]
     [{:n-elems n-elems
       :test :group-by-reduce
@@ -303,6 +316,7 @@
 
 (defn update-values-perftest
   []
+  (log/info "update-values")
   (let [n-elems 1000
         data (lznc/map #(api/vector % %) (range n-elems))
         clj-map (into {} data)
@@ -314,8 +328,9 @@
                                            (transient {})
                                            clj-map)
                                    (persistent!)))
-      :hamf (bench/benchmark-us (api/update-values hamf-map
-                                                   (api/bi-function k v (unchecked-inc v))))}]))
+      :hamf (bench/benchmark-us (api/update-values
+                                 hamf-map
+                                 (api/bi-function k v (unchecked-inc v))))}]))
 
 (defn machine-name
   []

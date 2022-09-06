@@ -761,20 +761,19 @@ ham_fisted.PersistentHashMap
   (->> (map map-fn src-map) (remove nil?) (into {}))
   ```"
   [map-fn src-map]
-  (let [pair-seq (if (instance? Map src-map)
-                   (.entrySet ^Map src-map)
-                   src-map)
-        retval (HashMap. default-hash-provider)]
-    (iterator/doiter
-     entry pair-seq
-     (let [;;Normalize map entries so this works with java hashmaps.
-           ^Indexed entry (if (instance? Indexed entry)
-                            entry
-                            [(.getKey ^Map$Entry entry)
-                             (.getValue ^Map$Entry entry)])
-           ^Indexed result (map-fn entry)]
-          (when result
-            (.put retval (.nth result 0) (.nth result 1)))))
+  (let [retval (mut-map)]
+    (reduce (fn [m entry]
+              (let [;;Normalize map entries so this works with java hashmaps.
+                    ^Indexed entry (if (instance? Indexed entry)
+                                     entry
+                                     [(.getKey ^Map$Entry entry)
+                                      (.getValue ^Map$Entry entry)])
+                    ^Indexed result (map-fn entry)]
+                (when result
+                  (.put retval (.nth result 0) (.nth result 1)))
+                retval))
+            retval
+            src-map)
     (persistent! retval)))
 
 
@@ -822,6 +821,29 @@ ham_fisted.PersistentHashMap
    (pgroups n-elems body-fn nil)))
 
 
+(defn pmap
+  "pmap using the commonPool.  This is useful for interacting with other primitives, namely
+  [[pgroups]] which are also based on this pool.  This is a change from Clojure's base
+  pmap in that it uses the ForkJoinPool/commonPool for parallelism as opposed to the
+  agent pool - this makes it compose with pgroups and dtype-next's parallelism system."
+  [map-fn & sequences]
+  (if (in-fork-join-task?)
+    (apply map map-fn sequences)
+    (apply claypoole/pmap (ForkJoinPool/commonPool) map-fn sequences)))
+
+
+(defn upmap
+  "Unordered pmap using the commonPool.  This is useful for interacting with other primitives,
+  namely [[pgroups]] which are also based on this pool.
+  Like pmap this uses the commonPool so it composes with this api's pmap, pgroups, and
+  dtype-next's parallelism primitives *but* it does not impose an ordering constraint on the
+  results and thus may be significantly faster in some cases."
+  [map-fn & sequences]
+  (if (in-fork-join-task?)
+    (apply map map-fn sequences)
+    (apply claypoole/upmap (ForkJoinPool/commonPool) map-fn sequences)))
+
+
 (defn ^:no-doc pfrequencies
   "Parallelized frequencies. Can be faster for large random-access containers."
   [tdata]
@@ -839,11 +861,12 @@ ham_fisted.PersistentHashMap
 (defn frequencies
   "Faster implementation of clojure.core/frequencies."
   [coll]
-  (persistent!
-   (reduce (fn [counts x]
-             (compute! counts x BitmapTrieCommon/incBiFn)
-             counts)
-           (mut-map) coll)))
+  (-> (reduce (fn [counts x]
+                (compute! counts x BitmapTrieCommon/incBiFn)
+                counts)
+              (mut-map)
+              coll)
+      (persistent!)))
 
 
 (defn ^:no-doc pfrequencies-current-hashmap
@@ -885,9 +908,7 @@ ham_fisted.PersistentHashMap
   ([f m1 m2] (map-union f m1 m2))
   ([f m1 m2 & args]
    (let [f (->bi-function f)]
-     (reduce #(map-union f %1 %2)
-             (map-union f m1 m2)
-             args))))
+     (union-reduce-maps f (apply lznc/concat (vector (map-union f m1 m2)) args)))))
 
 
 (defn memoize
@@ -1239,17 +1260,17 @@ ham_fisted.PersistentHashMap
 
 (defn group-by-reduce
   "Group by key. Apply the reduce-fn the existing value and on each successive value.
-  reduce-fn is called during finalization with that the sole argument of the existing value.
-  If at any point result is reduced? group-by continues but further reductions one that
-  specific value cease.  In this case reduce-fn isn't called again but the result is simply
+  finalize-fn is called during finalization with that the sole argument of the existing value.
+  If at any point result is reduced? group-by continues but further reductions for that
+  specific value cease.  In this case finalize-fn isn't called but the result is simply
   deref'd during finalization.
 
-  reduce-fn will not be called in the two-argument form if the value in the map doesn't
-  exist or is nil.  If there is anything in the map at that location it will be called
-  in the single argument form regardless if the value is nil? or not.
+  This type of reduction can be both faster and more importantly use
+  less memory than a reduction of the forms:
 
-  This type of reduction can be both signifcantly faster and use significantly less memory
-  than a reduction of the form `(->> group-by map into)` or `(->> group-by mapmap)`.
+  ```clojure
+  (->> group-by map into)` or `(->> group-by mapmap)
+  ```
 
 ```clojure
 ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) + (range 100))
@@ -1258,40 +1279,43 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) max (shuffle (rang
   {0 98, 1 99, 2 93, 3 94, 4 95, 5 96, 6 97}
 
 ham-fisted.api> ;;Reduce to map of first value found
-ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r] l)) (range 100))
+ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] l) (range 100))
 {0 0, 1 1, 2 2, 3 3, 4 4, 5 5, 6 6}
 ham-fisted.api> ;;Reduce to map of last value found
-ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r] r)) (range 100))
+ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (range 100))
 {0 98, 1 99, 2 93, 3 94, 4 95, 5 96, 6 97}
 ```"
-  [key-fn reduce-fn coll]
-  (let [retval (mut-map)
-        box-fn (reify Function
-                 (apply [this k]
-                   (BitmapTrieCommon$Box.)))
-        update-fn (reify BiFunction
-                    (apply [this oldv newv]
-                      (if (reduced? oldv)
-                        oldv
-                        (reduce-fn oldv newv))))]
-    (fast-reduce (fn [retval v]
-                   (let [b (compute-if-absent! retval (key-fn v) box-fn)]
-                     (.inplaceUpdate ^BitmapTrieCommon$Box b update-fn v))
-                   retval)
-                 retval coll)
-    (update-values retval (reify BiFunction
-                            (apply [this k b]
-                              (let [^BitmapTrieCommon$Box b b
-                                    v (.obj b)]
-                                (if (reduced? v)
-                                  (deref v)
-                                  (reduce-fn v))))))))
+  ([key-fn reduce-fn finalize-fn coll]
+   (let [retval (mut-map)
+         box-fn (reify Function
+                  (apply [this k]
+                    (BitmapTrieCommon$Box.)))
+         update-fn (reify BiFunction
+                     (apply [this oldv newv]
+                       (if (reduced? oldv)
+                         oldv
+                         (reduce-fn oldv newv))))
+         finalize-fn (or finalize-fn identity)]
+     (fast-reduce (fn [retval v]
+                    (let [b (compute-if-absent! retval (key-fn v) box-fn)]
+                      (.inplaceUpdate ^BitmapTrieCommon$Box b update-fn v))
+                    retval)
+                  retval coll)
+     (update-values retval (bi-function
+                            k b
+                            (let [^BitmapTrieCommon$Box b b
+                                  v (.obj b)]
+                              (if (reduced? v)
+                                (deref v)
+                                (finalize-fn v)))))))
+  ([key-fn reduce-fn coll]
+   (group-by-reduce key-fn reduce-fn nil coll)))
 
 
 (defn mapv
   "Produce a persistent vector from a collection"
   [map-fn coll]
-  (mut-list (map map-fn coll)))
+  (immut-list (map map-fn coll)))
 
 
 (defn vec
@@ -1320,8 +1344,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn ([l] l) ([l r]
 
 
 (defn splice
-  "Splice v2 into v1 at idx.  Returns a persistent vector.  This is a much faster operation
-  if v1 implements java.util.List subList."
+  "Splice v2 into v1 at idx.  Returns a persistent vector."
   [v1 idx v2]
   (let [retval (mut-list)
         v1 (->collection v1)]

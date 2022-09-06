@@ -20,6 +20,9 @@ return data to the rest of the program in persistent form.  Using this method, f
 
 ## New Primitive Operations
 
+There are many new primitive operations than listed below - please take a moment to scan
+the api docs.  Some standouts are:
+
 #### Map Union, Difference, Intersection
 
 Aside from simply a reimplementation of hashmaps and persistent vectors this library
@@ -36,44 +39,67 @@ instance each thread builds up a separate hashmap and the results are unioned to
 back in the main thread in a map-reduce type design.  This type of design was the
 original target of the union system.
 
+These systems are substantially faster if the objects have a high cost to hash and do
+not cache their hashcode but  this is rare for Clojure systems as persistent vectors, maps
+and keywords cache their hash values.  Strings, however, are an example of something where
+the these primitives (and things like frequencies) will perform substantially better.
 
 
-#### Update-Vals, Map-Reduce
 
-* `update-vals` - is far faster than map->map pathways if you want to update every value in the map.
-* `group-by-reduce` - perform a reduction during the group-by.  This avoids keeping a large map of
-   the complete intermediate values which can be both faster and more memory efficient.
+#### update-values, group-by-reduce, mapmap
+
+* `update-vals` - is far faster than map->map pathways if you want to update every
+  value in the map but leave the keys unchanged.
+* `group-by-reduce` - perform a reduction during the group-by.  This avoids keeping
+   a large map of the complete intermediate values which can be both faster and more
+   memory efficient.
+* `mapmap` - A techascent favorite, equivalent to:
+```clojure
+(->> (map map-fn src-map) (remove nil?) (into {}))
+```
 
 
 
 #### All Arrays Are First Class
 
-* Any array including any primitive array  can be converted to an indexed operator with efficient sort,
- reduce, etc. implementations using the `lazy-noncaching` namespace's `->random-access` operator.  This
- allows you to pass arrays as is to the rest of your clojure program without conversion to a persistent
- vector - something that is both not particularly efficient and explodes the data size.
+* Any array including any primitive array can be converted to an indexed operator
+ with efficient sort, reduce, etc. implementations using the `lazy-noncaching`
+ namespace's `->random-access` operator.  This allows you to pass arrays as is to
+ the rest of your clojure program without conversion to a persistent vector -
+ something that is both not particularly efficient and explodes the data size.
 
 
 ## Other ideas
 
- * lazy-noncaching namespace contains very efficient implementations of map, filter, concat, and
-   repeatedly which perform as good as or better than the eduction variants without chunking or
-   requiring you to convert  your code from naive clojure to transducer form.  The drawback is
-   they are lazy noncaching so for instance `(repeatedly 10 rand)` will produce 10 random values
-   every time it is evaluated.  Furthermore `map` will produce a random-access return value
-   if passed in all random-access inputs thus preserving the random-access property of the input.
+ * `lazy-noncaching` namespace contains very efficient implementations of map,
+   filter, concat, and repeatedly which perform as good as or better than the
+   eduction variants without chunking or requiring you to convert your code from
+   naive clojure to transducer form.  The drawback is they are lazy noncaching so
+   for instance `(repeatedly 10 rand)` will produce 10 random values every time it
+   is evaluated.  Furthermore `map` will produce a random-access return value if
+   passed in all random-access inputs thus preserving the random-access property of
+   the input.
 
- * lazy-caching namespace contains inefficient implementations that do in fact cache - it appears
-   that Clojure's base implementation is very good or at least good enough I can't beat it on
-   first try.
+ * lazy-caching namespace contains inefficient implementations that do in fact
+   cache - it appears that Clojure's base implementation is very good or at least
+   good enough I can't haven't come up with one better.  Potentially the decision
+   to use chunking is the best optimization available here.
 
 
 ## Benchmarks
+
 Lies, damn lies, and benchmarks - you can run the benchmarks with `./scripts/benchmark`.
 Results will be printed to the console and saved to results directory prefixed by the
-jdk version.
+commit, your machine name and the jdk version.
 
-Results will print normalized to either the base time for clojure.core (clj) or for java.util (java).
+Results will print normalized to either the base time for clojure.core (clj) or for
+java.util (java).  One interesting thing here is in general how much better JDK-17
+is for many of these tests than JDK-8.
+
+Here are some example timings taken using my laptop plugged in with an external cooling
+supply (frozen peas) applied to the bottom of the machine.  An interesting side note is
+that I get better timings often when running from the REPL for specific benchmarks than
+from the benchmark - perhaps due to the machine's heat management systems.
 
 
 #### JDK-17

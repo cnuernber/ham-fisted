@@ -28,7 +28,7 @@
    :exec-args {:group-id "com.cnuernber"
                :artifact-id "ham-fisted"
                ;;Change this also in build.clj
-               :version "1.000-alpha-1"
+               :version "1.000-beta-1"
                :name "Ham-Fisted"
                :description "Bitmap Trie exporations"
                :metadata {:doc/format :markdown}
