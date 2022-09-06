@@ -1,6 +1,6 @@
 # HAM-Fisted
 
-[![Clojars Project](https://clojars.org/cnuernber/ham-fisted/latest-version.svg)](https://clojars.org/cnuernber/ham-fisted)
+[![Clojars Project](https://clojars.org/com.cnuernber/ham-fisted/latest-version.svg)](https://clojars.org/com.cnuernber/ham-fisted)
 * [API docs](https://cnuernber.github.io/ham-fisted/)
 
 What started as a collection of efficient mutable and immutable datastructures based
@@ -11,7 +11,7 @@ over sequences in many situations.  There are also new functional primitives dev
 from my experience processing data and working with Clojure over the last 10 years.
 
 
-My hope is this library becomes a platform to experiment and develop new and/or better 
+My hope is this library becomes a platform to experiment and develop new and/or better
 functional datastructures and algorithmic primitives.
 
 
@@ -93,19 +93,19 @@ the these primitives (and things like frequencies) will perform substantially be
    cache - it appears that Clojure's base implementation is very good or at least
    good enough I can't haven't come up with one better.  Potentially the decision
    to use chunking is the best optimization available here.
-   
-   
+
+
 ## Contributing
- 
+
 The best way to contribute is to fund me through github sponsors linked to
-the right or to engage [TechAscent](https://techascent.com) - we are always 
+the right or to engage [TechAscent](https://techascent.com) - we are always
 looking for new interesting projects and partners.
 
 
 Aside from that as mentioned earlier my hope is this library becomes
 a platform that enables experimentation with various functional primitives and
 overall optimized ways of doing the type of programming that the Clojure community
-enjoys.  Don't hesitate to file issues and PR's - I have a long history of 
+enjoys.  Don't hesitate to file issues and PR's - I have a long history of
 being extremly happy to accept both.
 
 If you want to work on the library you need to enable the `:dev` alias.
