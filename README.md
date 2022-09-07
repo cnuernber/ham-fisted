@@ -27,6 +27,11 @@ return data to the rest of the program in persistent form.  Using this method, f
 `frequencies` is quite a bit faster while still returning a persistent datastructure.
 
 
+Along those lines construction of a persistent vector from an object array is very fast
+so it is very efficient to construct a persistent vector from an object-array-list - the
+array list being much faster to build.
+
+
 ## New Primitive Operations
 
 There are many new primitive operations than listed below - please take a moment to scan
@@ -105,8 +110,7 @@ looking for new interesting projects and partners.
 Aside from that as mentioned earlier my hope is this library becomes
 a platform that enables experimentation with various functional primitives and
 overall optimized ways of doing the type of programming that the Clojure community
-enjoys.  Don't hesitate to file issues and PR's - I have a long history of
-being extremly happy to accept both.
+enjoys.  Don't hesitate to file issues and PR's - I am happy to accept both.
 
 If you want to work on the library you need to enable the `:dev` alias.
 
