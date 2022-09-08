@@ -386,6 +386,7 @@ ham_fisted.PersistentHashMap
   (^MutList [] (MutList.))
   (^MutList [data]
    (cond
+     (nil? data) (MutList.)
      (instance? obj-ary-cls data)
      (MutList/create false nil ^objects data)
      (or (instance? IReduceInit data) (instance? Collection data))
