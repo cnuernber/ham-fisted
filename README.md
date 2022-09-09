@@ -203,3 +203,11 @@ from the benchmark - perhaps due to the machine's heat management systems.
 |         :vector-reduce |    10000 | 1.61702302 |  1.0 |            | 0.94336340 |    103.81785879 |
 |       :vector-to-array |       10 | 0.27671906 |  1.0 |            | 0.57043719 |      0.03683125 |
 |       :vector-to-array |    10000 | 0.05027912 |  1.0 |            | 0.05855303 |     66.15862978 |
+
+
+## Other Interesting Projects
+
+* [clj-fast](https://github.com/bsless/clj-fast) - Great and important library more focused on compiler upgrades.
+* [bifurcan](https://github.com/lacuna/bifurcan) - High speed functional datastructures for Java.  Perhaps ham-fisted should
+be based on this or we should measure the differences and take the good parts.
+* [Clojure Goes Fast](http://clojure-goes-fast.com/) - Grandaddy aggregator project with a lot of important information and a set of crucial github projects such as [clj-memory-meter](https://github.com/clojure-goes-fast/clj-memory-meter).
