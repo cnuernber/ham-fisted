@@ -3,9 +3,9 @@
 [![Clojars Project](https://clojars.org/com.cnuernber/ham-fisted/latest-version.svg)](https://clojars.org/com.cnuernber/ham-fisted)
 * [API docs](https://cnuernber.github.io/ham-fisted/)
 
-What started as a collection of efficient mutable and immutable datastructures based
+What started as a collection of efficient mutable and immutable data structures based
 on Phil Bagwell's bitmap trie concept became an overall reimplementation of
-clojure's core datastructures and some of its base concepts specifically with
+Clojure's core datastructures and some of its base concepts specifically with
 performance in mind.  This means, for instance, that the library prefers iterators
 over sequences in many situations.  There are also new functional primitives developed
 from my experience processing data and working with Clojure over the last 10 years.
@@ -56,7 +56,7 @@ original target of the union system.
 These systems are substantially faster if the objects have a high cost to hash and do
 not cache their hashcode but  this is rare for Clojure systems as persistent vectors, maps
 and keywords cache their hash values.  Strings, however, are an example of something where
-the these primitives (and things like frequencies) will perform substantially better.
+these primitives (and things like frequencies) will perform substantially better.
 
 
 
