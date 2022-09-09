@@ -119,7 +119,7 @@ This is currently the default hash provider for the library."}
 
 
 (declare assoc! conj! vec mapv vector object-array range first take drop into-array shuffle
-         object-array-list fast-reduce)
+         object-array-list fast-reduce int-array-list long-array-list double-array-list)
 
 
 (defn- empty-map?
@@ -1604,27 +1604,27 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
   ^ints [data]
   (if (number? data)
     (clojure.core/int-array data)
-    (let [data (->collection data)]
+    (let [data (->reducible data)]
       (if (instance? IMutList data)
         (.toIntArray ^IMutList data)
-        (clojure.core/int-array data)))))
+        (.toIntArray ^IMutList (int-array-list data))))))
 
 
 (defn long-array
   ^longs [data]
   (if (number? data)
     (clojure.core/long-array data)
-    (let [data (->collection data)]
+    (let [data (->reducible data)]
       (if (instance? IMutList data)
         (.toLongArray ^IMutList data)
-        (clojure.core/long-array data)))))
+        (.toLongArray ^IMutList (long-array-list data))))))
 
 
 (defn float-array
   ^floats [data]
   (if (number? data)
     (clojure.core/float-array data)
-    (let [data (->collection data)]
+    (let [data (->reducible data)]
       (if (instance? IMutList data)
         (.toFloatArray ^IMutList data)
         (clojure.core/float-array data)))))
@@ -1634,10 +1634,10 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
   ^doubles [data]
   (if (number? data)
     (clojure.core/double-array data)
-    (let [data (->collection data)]
+    (let [data (->reducible data)]
       (if (instance? IMutList data)
         (.toDoubleArray ^IMutList data)
-        (clojure.core/double-array data)))))
+        (.toDoubleArray ^IMutList (double-array-list data))))))
 
 
 (defn object-array-list
@@ -1645,7 +1645,11 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
   many accelerated operations such as fill and an accelerated addAll when the src data
   is an object array based list."
   (^IMutList [] (ArrayLists$ObjectArrayList.))
-  (^IMutList [^long capacity] (ArrayLists$ObjectArrayList. capacity)))
+  (^IMutList [cap-or-data]
+   (if (number? cap-or-data)
+     (ArrayLists$ObjectArrayList. (int cap-or-data))
+     (doto (ArrayLists$ObjectArrayList.)
+       (.addAllReducible (->reducible cap-or-data))))))
 
 
 (defn int-array-list
@@ -1653,7 +1657,11 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
   many accelerated operations such as fill and an accelerated addAll when the src data
   is an array list."
   (^IMutList [] (ArrayLists$IntArrayList.))
-  (^IMutList [^long capacity] (ArrayLists$IntArrayList. capacity)))
+  (^IMutList [cap-or-data]
+   (if (number? cap-or-data)
+     (ArrayLists$IntArrayList. (int cap-or-data))
+     (doto (ArrayLists$IntArrayList.)
+       (.addAllReducible (->reducible cap-or-data))))))
 
 
 (defn long-array-list
@@ -1661,7 +1669,11 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
   many accelerated operations such as fill and an accelerated addAll when the src data
   is an array list."
   (^IMutList [] (ArrayLists$LongArrayList.))
-  (^IMutList [^long capacity] (ArrayLists$LongArrayList. capacity)))
+  (^IMutList [cap-or-data]
+   (if (number? cap-or-data)
+     (ArrayLists$LongArrayList. (int cap-or-data))
+     (doto (ArrayLists$LongArrayList.)
+       (.addAllReducible (->reducible cap-or-data))))))
 
 
 (defn double-array-list
@@ -1669,7 +1681,11 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
   many accelerated operations such as fill and an accelerated addAll when the src data
   is an array list."
   (^IMutList [] (ArrayLists$DoubleArrayList.))
-  (^IMutList [^long capacity] (ArrayLists$DoubleArrayList. capacity)))
+  (^IMutList [cap-or-data]
+   (if (number? cap-or-data)
+     (ArrayLists$LongArrayList. (int cap-or-data))
+     (doto (ArrayLists$LongArrayList.)
+       (.addAllReducible (->reducible cap-or-data))))))
 
 
 

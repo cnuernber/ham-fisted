@@ -377,14 +377,20 @@ public class ArrayLists {
       nElems = ne+1;
     }
     public boolean addAll(Collection <? extends Object> c) {
-      if (c.isEmpty()) return false;
+      return addAllReducible(c);
+    }
+    /// Extra method because some things that implement IReduceInit are not
+    /// collections.
+    public boolean addAllReducible(Object c) {
+      final int sz = size();
       if (c instanceof RandomAccess) {
-	final int cs = c.size();
-	final int sz = size();
+	final List cl = (List) c;
+	if (cl.isEmpty() ) return false;
+	final int cs = cl.size();
 	ensureCapacity(cs+sz);
 	nElems += cs;
 	//Hit fastpath
-	fillRange(sz, (List)c);
+	fillRange(sz, cl);
       } else if (c instanceof IReduceInit) {
 	((IReduceInit)c).reduce(new IFnDef() {
 	    public Object invoke(Object lhs, Object rhs) {
@@ -392,8 +398,8 @@ public class ArrayLists {
 	      return this;
 	    }
 	  }, this);
-      } else {
-	final Iterator iter = c.iterator();
+      } else if (c instanceof Iterable) {
+	final Iterator iter = ((Iterable)c).iterator();
 	while(iter.hasNext()) {
 	  final int ne = nElems;
 	  final Object[] d = ensureCapacity(ne+16);
@@ -404,8 +410,10 @@ public class ArrayLists {
 	  }
 	  nElems = idx;
 	}
+      } else {
+	throw new RuntimeException("Input is not an iterable nor an instance of IReduceInit");
       }
-      return true;
+      return sz != size();
     }
     public boolean addAll(int sidx, Collection <? extends Object> c) {
       sidx = wrapCheckIndex(sidx, nElems);
@@ -949,19 +957,41 @@ public class ArrayLists {
       nElems = ne+1;
     }
     public boolean addAll(Collection <? extends Object> c) {
-      if (c.isEmpty()) return false;
+      return addAllReducible(c);
+    }
+    public boolean addAllReducible(Object c) {
+      final int sz = size();
       if (c instanceof RandomAccess) {
-	//Hit fastpath
-	final int cs = c.size();
-	final int sz = size();
+	final List cl = (List) c;
+	if (cl.isEmpty() ) return false;
+	final int cs = cl.size();
 	ensureCapacity(cs+sz);
 	nElems += cs;
-	fillRange(sz, (List)c);
+	//Hit fastpath
+	fillRange(sz, cl);
+      } else if (c instanceof IReduceInit) {
+	((IReduceInit)c).reduce(new IFnDef() {
+	    public Object invoke(Object lhs, Object rhs) {
+	      add(rhs);
+	      return this;
+	    }
+	  }, this);
+      } else if (c instanceof Iterable) {
+	final Iterator iter = ((Iterable)c).iterator();
+	while(iter.hasNext()) {
+	  final int ne = nElems;
+	  final int[] d = ensureCapacity(ne+16);
+	  int idx = ne;
+	  final int eidx = idx + 16;
+	  for (; idx < eidx && iter.hasNext(); ++idx) {
+	    d[idx] = RT.intCast(Casts.longCast(iter.next()));
+	  }
+	  nElems = idx;
+	}
       } else {
-	for(Object o: c)
-	  add(o);
+	throw new RuntimeException("Input is not an iterable nor an instance of IReduceInit");
       }
-      return true;
+      return sz != size();
     }
     public boolean addAll(int sidx, Collection <? extends Object> c) {
       sidx = wrapCheckIndex(sidx, nElems);
@@ -1350,20 +1380,41 @@ public class ArrayLists {
       nElems = ne+1;
     }
     public boolean addAll(Collection <? extends Object> c) {
-      if (c.isEmpty()) return false;
+      return addAllReducible(c);
+    }
+    public boolean addAllReducible(Object c) {
+      final int sz = size();
       if (c instanceof RandomAccess) {
-	final int cs = c.size();
-	final int sz = size();
+	final List cl = (List) c;
+	if (cl.isEmpty() ) return false;
+	final int cs = cl.size();
 	ensureCapacity(cs+sz);
 	nElems += cs;
 	//Hit fastpath
-	fillRange(sz, (List)c);
-      } else {
-	for(Object o: c) {
-	  add(o);
+	fillRange(sz, cl);
+      } else if (c instanceof IReduceInit) {
+	((IReduceInit)c).reduce(new IFnDef() {
+	    public Object invoke(Object lhs, Object rhs) {
+	      add(rhs);
+	      return this;
+	    }
+	  }, this);
+      } else if (c instanceof Iterable) {
+	final Iterator iter = ((Iterable)c).iterator();
+	while(iter.hasNext()) {
+	  final int ne = nElems;
+	  final long[] d = ensureCapacity(ne+16);
+	  int idx = ne;
+	  final int eidx = idx + 16;
+	  for (; idx < eidx && iter.hasNext(); ++idx) {
+	    d[idx] = Casts.longCast(iter.next());
+	  }
+	  nElems = idx;
 	}
+      } else {
+	throw new RuntimeException("Input is not an iterable nor an instance of IReduceInit");
       }
-      return true;
+      return sz != size();
     }
     public boolean addAll(int sidx, Collection <? extends Object> c) {
       sidx = wrapCheckIndex(sidx, nElems);
@@ -1857,10 +1908,9 @@ public class ArrayLists {
       return d;
     }
     public boolean addDouble(double obj) {
-      int val = RT.intCast(obj);
       final int ne = nElems;
       final double[] d = ensureCapacity(ne+1);
-      d[ne] = val;
+      d[ne] = obj;
       nElems = ne+1;
       return true;
     }
@@ -1877,19 +1927,41 @@ public class ArrayLists {
       nElems = ne+1;
     }
     public boolean addAll(Collection <? extends Object> c) {
-      if (c.isEmpty()) return false;
+      return addAllReducible(c);
+    }
+    public boolean addAllReducible(Object c) {
+      final int sz = size();
       if (c instanceof RandomAccess) {
-	final int cs = c.size();
-	final int sz = size();
+	final List cl = (List) c;
+	if (cl.isEmpty() ) return false;
+	final int cs = cl.size();
 	ensureCapacity(cs+sz);
 	nElems += cs;
 	//Hit fastpath
-	fillRange(sz, (List)c);
+	fillRange(sz, cl);
+      } else if (c instanceof IReduceInit) {
+	((IReduceInit)c).reduce(new IFnDef() {
+	    public Object invoke(Object lhs, Object rhs) {
+	      add(rhs);
+	      return this;
+	    }
+	  }, this);
+      } else if (c instanceof Iterable) {
+	final Iterator iter = ((Iterable)c).iterator();
+	while(iter.hasNext()) {
+	  final int ne = nElems;
+	  final double[] d = ensureCapacity(ne+16);
+	  int idx = ne;
+	  final int eidx = idx + 16;
+	  for (; idx < eidx && iter.hasNext(); ++idx) {
+	    d[idx] = Casts.doubleCast(iter.next());
+	  }
+	  nElems = idx;
+	}
       } else {
-	for(Object o: c)
-	  add(o);
+	throw new RuntimeException("Input is not an iterable nor an instance of IReduceInit");
       }
-      return true;
+      return sz != size();
     }
     public boolean addAll(int sidx, Collection <? extends Object> c) {
       sidx = wrapCheckIndex(sidx, nElems);

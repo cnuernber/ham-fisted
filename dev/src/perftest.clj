@@ -259,6 +259,16 @@
       :hamf (bench/benchmark-us (api/sort init-data))}]))
 
 
+(defn sort-int-array
+  []
+  (log/info "sort ints")
+  (let [init-data (api/int-array (api/shuffle (api/range 10000)))]
+    [{:test :sort-ints
+      :n-elems 10000
+      :clj (bench/benchmark-us (sort init-data))
+      :hamf (bench/benchmark-us (api/sort init-data))}]))
+
+
 (defn frequencies-perftest
   []
   (log/info "frequencies")
@@ -282,8 +292,22 @@
       :n-elems n-elems
       :java (bench/benchmark-us (doto (ArrayList.)
                                   (.addAll init-data)))
-      :hamf (bench/benchmark-us (doto (api/object-array-list)
-                                  (.addAll init-data)))}]))
+      :hamf (bench/benchmark-us (api/object-array-list init-data))}]))
+
+
+(defn int-list-perftest
+  []
+  (log/info "int list")
+  (let [n-elems 20000
+        init-data (->> (range n-elems)
+                       (lznc/map #(* (long %) 2))
+                       (lznc/map #(+ 1 (long %)))
+                       (lznc/filter #(== 0 (rem (long %) 3))))]
+    [{:test :int-list
+      :n-elems n-elems
+      :java (bench/benchmark-us (doto (ArrayList.)
+                                  (.addAll init-data)))
+      :hamf (bench/benchmark-us (api/int-array-list init-data))}]))
 
 
 (defn group-by-perftest
@@ -332,6 +356,22 @@
                                  hamf-map
                                  (api/bi-function k v (unchecked-inc v))))}]))
 
+
+(defn mapmap-perftest
+  []
+  (log/info "update-values")
+  (let [n-elems 1000
+        data (lznc/map #(api/vector % %) (range n-elems))
+        clj-map (into {} data)
+        hamf-map (api/immut-map data)
+        map-fn (fn [[k v]]
+                 [k (unchecked-inc v)])]
+    [{:n-elems n-elems
+      :test :mapmap
+      :clj (bench/benchmark-us (into {} (comp (map map-fn) (remove nil?)) clj-map))
+      :hamf (bench/benchmark-us (api/mapmap map-fn hamf-map))}]))
+
+
 (defn machine-name
   []
   (.getHostName (java.net.InetAddress/getLocalHost)))
@@ -378,11 +418,15 @@
                (object-array-perftest)
                (shuffle-perftest)
                (object-list-perftest)
+               (int-list-perftest)
                (sort-perftest)
+               (sort-double-array)
+               (sort-int-array)
                (frequencies-perftest)
                (group-by-perftest)
                (group-by-reduce-perftest)
-               (update-values-perftest)))
+               (update-values-perftest)
+               (mapmap-perftest)))
 
 
 (defn process-dataset

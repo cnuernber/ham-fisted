@@ -9,7 +9,8 @@
            [it.unimi.dsi.fastutil.ints IntArrays]
            [java.util RandomAccess Collection Map List Random]
            [clojure.lang RT IPersistentMap IReduceInit IReduce])
-  (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle object-array]))
+  (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle object-array
+                            remove]))
 
 
 (def ^{:tag ArrayImmutList} empty-vec ArrayImmutList/EMPTY)
@@ -158,6 +159,16 @@
     (.filter ^Transformables$IMapable coll pred)
     :else
     (Transformables$FilterIterable. pred nil (Transformables/toIterable coll))))
+
+
+(defn remove
+  "Returns a lazy sequence of the items in coll for which
+  (pred item) returns logical false. pred must be free of side-effects.
+  Returns a transducer when no collection is provided."
+  {:added "1.0"
+   :static true}
+  [pred coll]
+  (filter (complement pred) coll))
 
 
 (defmacro make-readonly-list
