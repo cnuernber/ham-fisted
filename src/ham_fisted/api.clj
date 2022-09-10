@@ -219,7 +219,7 @@ This is currently the default hash provider for the library."}
   ([container data]
    (cond
      (instance? IEditableCollection container)
-     (-> (reduce conj! (transient container) data)
+     (-> (fast-reduce conj! (transient container) data)
          (persistent!))
      (instance? ITransientCollection container)
      (reduce conj! container data)
@@ -241,21 +241,72 @@ This is currently the default hash provider for the library."}
    (into container (eduction xform data))))
 
 
+(defn reduce-put-map
+  "Perform a reduction to put values as if by assoc into a mutable map."
+  ^Map [^Map m data]
+  (fast-reduce (fn [^Map m d]
+                 (cond
+                   (instance? Map$Entry d)
+                   (.put m (.getKey ^Map$Entry d) (.getValue ^Map$Entry d))
+                   (instance? Indexed d)
+                   (.put m (.nth ^Indexed d 0) (.nth ^Indexed d 1))
+                   :else
+                   (throw (Exception. "Unrecognized map input")))
+                 m)
+               m
+               data))
+
+
 (defn mut-map
   "Create a mutable implementation of java.util.Map.  This object efficiently implements
   ITransient map so you can use assoc! and persistent! on it but you can additionally use
   operations such as put!, remove!, compute-at! and compute-if-absent!.  You can create
   a persistent hashmap via the clojure `persistent!` call.
 
+  If data is an object array it is treated as a flat key-value list which is distinctly
+  different than how conj! treats object arrays.  You have been warned.
+
   Options:
 
   * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
   the [[default-hash-provider]]."
   (^HashMap [] (HashMap. (options->provider nil)))
-  (^HashMap [data]
-   (into (HashMap. (options->provider nil)) data))
+  (^HashMap [data] (mut-map nil data))
   (^HashMap [options data]
-   (into (mut-map options) data)))
+   (if (instance? obj-ary-cls data)
+     (HashMap. (options->provider options) true ^objects data)
+     (reduce-put-map (HashMap. (options->provider options)) data))))
+
+
+(defn ^:no-doc map-data->obj-ary
+  ^objects [data]
+  (if (instance? obj-ary-cls data)
+    data
+    (-> (fast-reduce (fn [^List l d]
+                       (cond
+                         (instance? Map$Entry d)
+                         (do (.add l (.getKey ^Map$Entry d))
+                             (.add l (.getValue ^Map$Entry d)))
+                         (instance? Indexed d)
+                         (do (.add l (.nth ^Indexed d 0))
+                             (.add l (.nth ^Indexed d 1))))
+                       l)
+                     (object-array-list)
+                     data)
+          (object-array))))
+
+(defn ^:no-doc immut-map-via-obj-ary
+  [options data]
+  (PersistentHashMap/create (options->provider options) false (map-data->obj-ary data)))
+
+
+(defn countable?
+  "Return true if data has a constant time count.  Only valid for arrays after a call to
+  [[lazy-noncaching/->reducible]]."
+  [data]
+  (or (instance? RandomAccess data)
+      (instance? Set data)
+      (instance? Map data)))
 
 
 (defn immut-map
@@ -264,6 +315,10 @@ This is currently the default hash provider for the library."}
 
   If data is an object array it is treated as a flat key-value list which is distinctly
   different than how conj! treats object arrays.  You have been warned.
+
+  If you know you will have consistently more key/val pairs than 8 you should just
+  use `(persistent! (mut-map data))` as that avoids the transition from an arraymap
+  to a persistent hashmap.
 
   Options:
 
@@ -292,7 +347,19 @@ ham_fisted.PersistentHashMap
   (^PersistentHashMap [options data]
    (if (instance? obj-ary-cls data)
      (PersistentHashMap/create (options->provider options) false ^objects data)
-     (into (PersistentHashMap. (options->provider options)) data))))
+     (let [data (->reducible data)]
+       (if (and (countable? data)
+                (<= (count data) 8))
+         (-> (fast-reduce
+              (fn [m d]
+                (cond
+                  (instance? Map$Entry d)
+                  (assoc! m (.getKey ^Map$Entry d) (.getValue ^Map$Entry d))
+                  (instance? Indexed d)
+                  (assoc! m (.nth ^Indexed d 0) (.nth ^Indexed d 1))))
+              (transient (PersistentArrayMap. (options->provider options)))
+              data))
+         (persistent! (mut-map options data)))))))
 
 
 (defn hash-map
@@ -329,24 +396,14 @@ ham_fisted.PersistentHashMap
   (^java.util.HashMap [data]
    (if (instance? Map data)
      (java.util.HashMap. ^Map data)
-     (let [retval (java.util.HashMap.)]
-       (iterator/doiter
-        item data
-        (cond
-          (instance? Indexed item)
-          (.put retval (.nth ^Indexed item 0) (.nth ^Indexed item 1))
-          (instance? Map$Entry item)
-          (.put retval (.getKey ^Map$Entry item) (.getValue ^Map$Entry item))
-          :else
-          (throw (Exception. "Unrecognized map entry item type:" item))))
-       retval))))
+     (reduce-put-map (java.util.HashMap.) data))))
 
 
 (defn java-concurrent-hashmap
   "Create a java concurrent hashmap which is still the fastest possible way to solve a
   few concurrent problems."
   (^ConcurrentHashMap [] (ConcurrentHashMap.))
-  (^ConcurrentHashMap [data] (into (ConcurrentHashMap.) data)))
+  (^ConcurrentHashMap [data] (reduce-put-map (ConcurrentHashMap.) data)))
 
 
 (defn mut-set
@@ -543,6 +600,22 @@ ham_fisted.PersistentHashMap
     (.keySet ^Map item)
     :else
     (immut-set item)))
+
+
+(defn map-keyset
+  "Return the keyset of the map.  This may not be in the same order as (keys m) or (vals
+  m).  For hamf maps, this has the same ordering as (keys m).  For both hamf and java
+  hashmaps, the returned implementation of java.util.Set both more utility and better
+  performance than (keys m)."
+  ^Set [^Map m] (.keySet m))
+
+
+(defn map-values
+  "Return the values collection of the map.  This may not be in the same order as (keys m)
+  or (vals m).  For hamf hashmaps, this does have the same order as (vals m).  For both
+  hamf hashmaps and java hashmaps, this has better performance for reductions especially
+  using `fast-reduce` than (vals m)."
+  ^Collection [^Map m] (.values m))
 
 
 (defn map-union

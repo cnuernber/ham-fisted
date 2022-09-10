@@ -6,22 +6,21 @@
             [clojure.pprint :as pp]
             [clojure.java.shell :as sh]
             [clojure.string :as str])
-  (:import [java.util HashMap ArrayList Map List]
-           [java.util.function BiFunction])
+  (:import [java.util HashMap ArrayList Map List Map$Entry]
+           [java.util.function BiFunction]
+           [ham_fisted ArrayLists$ReductionConsumer])
   (:gen-class))
 
 
 (defn clj-hashmap ^Map [data] (into {} data))
 (defn hamf-hashmap ^Map [data] (api/immut-map data))
-(defn java-hashmap ^Map [data] (reduce (fn [hm [k v]] (api/assoc! hm k v))
-                                       (HashMap.)
-                                       data))
+(defn java-hashmap ^Map [data] (api/java-hashmap data))
 
 
 (defn map-data
   [^long n-elems]
   (lznc/->random-access
-   (object-array
+   (lznc/object-array
     (lznc/map
      #(api/vector % %)
      (lznc/repeatedly n-elems #(rand-int 100000))))))
@@ -35,7 +34,7 @@
       :java (bench/benchmark-us (java-hashmap data))
       :test :hashmap-construction
       :n-elems n-elems}
-     (let [method #(api/fast-reduce (fn [m [k v]] (get m k) m)
+     (let [method #(api/fast-reduce (fn [m tuple] (get m (nth tuple 1)) m)
                                     %
                                     data)
            clj-d (clj-hashmap data)
@@ -48,9 +47,11 @@
         :n-elems n-elems})
      ;;Fast reduce here avoids paying as much of a tax for reduce via iterator as
      ;;clojure.core/reduce.
-     (let [method #(api/fast-reduce (fn [sum [k v]] (+ sum v))
+     ;;Additionally, destructuring the java hashmap's key-value pair costs and exorbitant
+     ;;amount.
+     (let [method #(api/fast-reduce (fn [^long sum ^long v] (+ sum v))
                                     0
-                                    %)
+                                    (api/map-values %))
            clj-d (clj-hashmap data)
            hm-d (hamf-hashmap data)
            jv-d (java-hashmap data)]
