@@ -348,8 +348,8 @@
         hamf-map (api/immut-map data)]
     [{:n-elems n-elems
       :test :update-values
-      :clj (bench/benchmark-us (-> (reduce (fn [m [k v]]
-                                             (assoc! m k (unchecked-inc v)))
+      :clj (bench/benchmark-us (-> (reduce (fn [m e]
+                                             (assoc! m (key e) (unchecked-inc (val e))))
                                            (transient {})
                                            clj-map)
                                    (persistent!)))
@@ -360,13 +360,14 @@
 
 (defn mapmap-perftest
   []
-  (log/info "update-values")
+  (log/info "mapmap")
   (let [n-elems 1000
         data (lznc/map #(api/vector % %) (range n-elems))
         clj-map (into {} data)
         hamf-map (api/immut-map data)
-        map-fn (fn [[k v]]
-                 [k (unchecked-inc v)])]
+        ;;Destructuring is by far the most expensive part of this operation
+        ;;so we avoid it to get a better measure of the time.
+        map-fn (fn [e] [(key e) (unchecked-inc (val e))])]
     [{:n-elems n-elems
       :test :mapmap
       :clj (bench/benchmark-us (into {} (comp (map map-fn) (remove nil?)) clj-map))

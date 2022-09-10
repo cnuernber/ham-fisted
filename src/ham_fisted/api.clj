@@ -836,20 +836,14 @@ ham_fisted.PersistentHashMap
   (->> (map map-fn src-map) (remove nil?) (into {}))
   ```"
   [map-fn src-map]
-  (let [retval (mut-map)]
-    (reduce (fn [m entry]
-              (let [;;Normalize map entries so this works with java hashmaps.
-                    ^Indexed entry (if (instance? Indexed entry)
-                                     entry
-                                     [(.getKey ^Map$Entry entry)
-                                      (.getValue ^Map$Entry entry)])
-                    ^Indexed result (map-fn entry)]
-                (when result
-                  (.put retval (.nth result 0) (.nth result 1)))
-                retval))
-            retval
-            src-map)
-    (persistent! retval)))
+  (-> (fast-reduce (fn [^Map m entry]
+                     (let [^Indexed result (map-fn entry)]
+                       (when result
+                         (.put m (.nth result 0) (.nth result 1)))
+                       m))
+                   (mut-map)
+                   src-map)
+      (persistent!)))
 
 
 (defn in-fork-join-task?
