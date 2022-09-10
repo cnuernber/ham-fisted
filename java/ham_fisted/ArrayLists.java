@@ -520,185 +520,215 @@ public class ArrayLists {
   }
   public static List<Object> toList(final Object[] data) { return toList(data, 0, data.length, null); }
 
+  public static class ByteArraySubList implements ILongArrayList {
+    public final byte[] data;
+    public final int dlen;
+    public final int sidx;
+    public final IPersistentMap meta;
+    public ByteArraySubList(byte[] d, int s, int len, IPersistentMap _meta) {
+      data = d;
+      sidx = s;
+      dlen = len;
+      meta = _meta;
+    }
+    public String toString() { return Transformables.sequenceToString(this); }
+    public boolean equals(Object other) {
+      return equiv(other);
+    }
+    public int hashCode() { return hasheq(); }
+    public ArraySection getArray() { return new ArraySection(data, sidx, sidx + dlen); }
+    public Class containedType() { return data.getClass().getComponentType(); }
+    public int size() { return dlen; }
+    public Byte get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
+    public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
+    public Byte set(int idx, Object oobj) {
+      return (byte)setLong(idx, Casts.longCast(oobj));
+    }
+    public IntComparator indexComparator() {
+      return new IntComparator() {
+	public int compare(int lidx, int ridx) {
+	  return Byte.compare(data[lidx+sidx], data[ridx+sidx]);
+	}
+      };
+    }
+    public long setLong(int idx, long oobj) {
+      byte obj = RT.byteCast(oobj);
+      idx = checkIndex(idx, dlen) + sidx;
+      final byte retval = data[idx];
+      data[idx] = obj;
+      return retval;
+    }
+    public List<Object> subList(int ssidx, int seidx) {
+      checkIndexRange(sidx, dlen, ssidx, seidx);
+      return toList(data, ssidx + sidx, seidx + sidx, meta());
+    }
+    public IPersistentMap meta() { return meta; }
+    public IObj withMeta(IPersistentMap m) {
+      return new ByteArraySubList(data, sidx, sidx + dlen, m);
+    }
+    public Object[] toArray() {
+      final int sz = size();
+      Object[] retval = new Object[size()];
+      for (int idx = 0; idx < sz; ++idx)
+	retval[idx] = data[idx+sidx];
+      return retval;
+    }
+    public Object reduce(IFn fn) {
+      if(dlen==0) return fn.invoke();
+      final int ne = dlen;
+      final int ss = sidx;
+      final byte[] d = data;
+      Object init = d[ss];
+      for(int idx = 1; idx < ne && (!RT.isReduced(init)); ++idx)
+	init = fn.invoke(init, d[idx+ss]);
+      if(RT.isReduced(init))
+	return ((IDeref)init).deref();
+      return init;
+    }
+    public Object reduce(IFn fn, Object init) {
+      if(dlen ==0) return init;
+      final int ne = dlen;
+      final int ss = sidx;
+      final byte[] d = data;
+      for(int idx = 0; idx < ne && (!RT.isReduced(init)); ++idx)
+	init = fn.invoke(init, d[idx+ss]);
+      if(RT.isReduced(init))
+	return ((IDeref)init).deref();
+      return init;
+    }
+    public long longReduction(LongBinaryOperator op, long init) {
+      final int sz = dlen;
+      final int ss = sidx;
+      for (int idx = 0; idx < sz; ++idx)
+	init = op.applyAsLong(init, data[idx+ss]);
+      return init;
+    }
+    public List immutShuffle(Random r) {
+      final int sz = size();
+      final int[] perm = IntArrays.shuffle(ArrayLists.iarange(0, sz, 1), r);
+      byte[] bdata = new byte[sz];
+      for(int idx = 0; idx < sz; ++idx)
+	bdata[idx] = data[perm[idx]];
+      return toList(bdata);
+    }
+    public List immutSort() {
+      byte[] retval = Arrays.copyOfRange(data, sidx, sidx + dlen);
+      Arrays.sort(retval);
+      return toList(retval, 0, retval.length, meta);
+    }
+  }
+
   public static List<Object> toList(final byte[] data, final int sidx, final int eidx, final IPersistentMap meta) {
     final int dlen = eidx - sidx;
-    return new ILongArrayList() {
-      public String toString() { return Transformables.sequenceToString(this); }
-      public boolean equals(Object other) {
-	return equiv(other);
-      }
-      public int hashCode() { return hasheq(); }
-      public ArraySection getArray() { return new ArraySection(data, sidx, eidx); }
-      public Class containedType() { return data.getClass().getComponentType(); }
-      public int size() { return dlen; }
-      public Byte get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
-      public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
-      public Byte set(int idx, Object oobj) {
-	return (byte)setLong(idx, Casts.longCast(oobj));
-      }
-      public IntComparator indexComparator() {
-	return new IntComparator() {
-	  public int compare(int lidx, int ridx) {
-	    return Byte.compare(data[lidx+sidx], data[ridx+sidx]);
-	  }
-	};
-      }
-      public long setLong(int idx, long oobj) {
-	byte obj = RT.byteCast(oobj);
-	idx = wrapCheckIndex(idx, dlen) + sidx;
-	final byte retval = data[idx];
-	data[idx] = obj;
-	return retval;
-      }
-      public List<Object> subList(int ssidx, int seidx) {
-	checkIndexRange(sidx, dlen, ssidx, seidx);
-	return toList(data, ssidx + sidx, seidx + sidx, meta());
-      }
-      public IPersistentMap meta() { return meta; }
-      public IObj withMeta(IPersistentMap m) {
-	return (IObj)toList(data, sidx, eidx, m);
-      }
-      public Object[] toArray() {
-	final int sz = size();
-	Object[] retval = new Object[size()];
-	for (int idx = 0; idx < sz; ++idx)
-	  retval[idx] = data[idx+sidx];
-	return retval;
-      }
-      public Object reduce(IFn fn) {
-	if(dlen==0) return fn.invoke();
-	final int ne = dlen;
-	final int ss = sidx;
-	final byte[] d = data;
-	Object init = d[ss];
-	for(int idx = 1; idx < ne && (!RT.isReduced(init)); ++idx)
-	  init = fn.invoke(init, d[idx+ss]);
-	if(RT.isReduced(init))
-	  return ((IDeref)init).deref();
-	return init;
-      }
-      public Object reduce(IFn fn, Object init) {
-	if(dlen ==0) return init;
-	final int ne = dlen;
-	final int ss = sidx;
-	final byte[] d = data;
-	for(int idx = 0; idx < ne && (!RT.isReduced(init)); ++idx)
-	  init = fn.invoke(init, d[idx+ss]);
-	if(RT.isReduced(init))
-	  return ((IDeref)init).deref();
-	return init;
-      }
-      public long longReduction(LongBinaryOperator op, long init) {
-	final int sz = dlen;
-	final int ss = sidx;
-	for (int idx = 0; idx < sz; ++idx)
-	  init = op.applyAsLong(init, data[idx+ss]);
-	return init;
-      }
-      public List immutShuffle(Random r) {
-	final int sz = size();
-	final int[] perm = IntArrays.shuffle(ArrayLists.iarange(0, sz, 1), r);
-	byte[] bdata = new byte[sz];
-	for(int idx = 0; idx < sz; ++idx)
-	  bdata[idx] = data[perm[idx]];
-	return toList(bdata);
-      }
-    };
+    return new ByteArraySubList(data, sidx, dlen, meta);
   }
   public static List<Object> toList(final byte[] data) { return toList(data, 0, data.length, null); }
 
+
+  public static class ShortArraySubList implements ILongArrayList {
+    public final short[] data;
+    public final int sidx;
+    public final int dlen;
+    public final IPersistentMap meta;
+
+    public ShortArraySubList(short[] d, int s, int len, IPersistentMap _meta) {
+      data = d;
+      sidx = s;
+      dlen = len;
+      meta = _meta;
+    }
+    public String toString() { return Transformables.sequenceToString(this); }
+    public boolean equals(Object other) {
+      return equiv(other);
+    }
+    public int hashCode() { return hasheq(); }
+    public ArraySection getArray() { return new ArraySection(data, sidx, sidx + dlen); }
+    public Class containedType() { return data.getClass().getComponentType(); }
+    public int size() { return dlen; }
+    public Short get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
+    public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
+    public Short set(int idx, Object oobj) {
+      return (short)setLong(idx, Casts.longCast(oobj));
+    }
+    public long setLong(int idx, long oobj) {
+      short obj = RT.shortCast(Casts.longCast(oobj));
+      idx = wrapCheckIndex(idx, dlen) + sidx;
+      final short retval = data[idx];
+      data[idx] = obj;
+      return retval;
+    }
+    public IntComparator indexComparator() {
+      return new IntComparator() {
+	public int compare(int lidx, int ridx) {
+	  return Short.compare(data[lidx+sidx], data[ridx+sidx]);
+	}
+      };
+    }
+    public List<Object> subList(int ssidx, int seidx) {
+      checkIndexRange(sidx, dlen, ssidx, seidx);
+      return toList(data, ssidx + sidx, seidx + sidx, meta());
+    }
+    public IPersistentMap meta() { return meta; }
+    public IObj withMeta(IPersistentMap m) {
+      return (IObj)toList(data, sidx, sidx + dlen, m);
+    }
+    public Object[] toArray() {
+      final int sz = size();
+      Object[] retval = new Object[size()];
+      for (int idx = 0; idx < sz; ++idx)
+	retval[idx] = data[idx+sidx];
+      return retval;
+    }
+    public List immutSort() {
+      short[] retval = Arrays.copyOfRange(data, sidx, sidx + dlen);
+      Arrays.sort(retval);
+      return toList(retval, 0, retval.length, meta);
+    }
+    public Object reduce(IFn fn) {
+      if(dlen ==0) return fn.invoke();
+      final int ne = dlen;
+      final int ss = sidx;
+      final short[] d = data;
+      Object init = d[ss];
+      for(int idx = 1; idx < ne && (!RT.isReduced(init)); ++idx)
+	init = fn.invoke(init, d[idx+ss]);
+      if(RT.isReduced(init))
+	return ((IDeref)init).deref();
+      return init;
+    }
+    public Object reduce(IFn fn, Object init) {
+      if(dlen ==0) return init;
+      final int ne = dlen;
+      final int ss = sidx;
+      final short[] d = data;
+      for(int idx = 0; idx < ne && (!RT.isReduced(init)); ++idx)
+	init = fn.invoke(init, d[idx+ss]);
+      if(RT.isReduced(init))
+	return ((IDeref)init).deref();
+      return init;
+    }
+    public long longReduction(LongBinaryOperator op, long init) {
+      final int sz = dlen;
+      final int ss = sidx;
+      for (int idx = 0; idx < sz; ++idx)
+	init = op.applyAsLong(init, data[idx+ss]);
+      return init;
+    }
+    public List immutShuffle(Random r) {
+      final int sz = size();
+      final int[] perm = IntArrays.shuffle(ArrayLists.iarange(0, sz, 1), r);
+      final short[] bdata = new short[sz];
+      for(int idx = 0; idx < sz; ++idx)
+	bdata[idx] = data[perm[idx]];
+      return toList(bdata);
+    }
+  }
+
   public static List<Object> toList(final short[] data, final int sidx, final int eidx, final IPersistentMap meta) {
     final int dlen = eidx - sidx;
-    return new ILongArrayList() {
-      public String toString() { return Transformables.sequenceToString(this); }
-      public boolean equals(Object other) {
-	return equiv(other);
-      }
-      public int hashCode() { return hasheq(); }
-      public ArraySection getArray() { return new ArraySection(data, sidx, eidx); }
-      public Class containedType() { return data.getClass().getComponentType(); }
-      public int size() { return dlen; }
-      public Short get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
-      public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
-      public Short set(int idx, Object oobj) {
-	return (short)setLong(idx, Casts.longCast(oobj));
-      }
-      public long setLong(int idx, long oobj) {
-	short obj = RT.shortCast(Casts.longCast(oobj));
-	idx = wrapCheckIndex(idx, dlen) + sidx;
-	final short retval = data[idx];
-	data[idx] = obj;
-	return retval;
-      }
-      public IntComparator indexComparator() {
-	return new IntComparator() {
-	  public int compare(int lidx, int ridx) {
-	    return Short.compare(data[lidx+sidx], data[ridx+sidx]);
-	  }
-	};
-      }
-      public List<Object> subList(int ssidx, int seidx) {
-	checkIndexRange(sidx, dlen, ssidx, seidx);
-	return toList(data, ssidx + sidx, seidx + sidx, meta());
-      }
-      public IPersistentMap meta() { return meta; }
-      public IObj withMeta(IPersistentMap m) {
-	return (IObj)toList(data, sidx, eidx, m);
-      }
-      public Object[] toArray() {
-	final int sz = size();
-	Object[] retval = new Object[size()];
-	for (int idx = 0; idx < sz; ++idx)
-	  retval[idx] = data[idx+sidx];
-	return retval;
-      }
-      public List immutSort() {
-	short[] retval = Arrays.copyOfRange(data, sidx, eidx);
-	Arrays.sort(retval);
-	return toList(retval, 0, retval.length, meta);
-      }
-      public Object reduce(IFn fn) {
-	if(dlen ==0) return fn.invoke();
-	final int ne = dlen;
-	final int ss = sidx;
-	final short[] d = data;
-	Object init = d[ss];
-	for(int idx = 1; idx < ne && (!RT.isReduced(init)); ++idx)
-	  init = fn.invoke(init, d[idx+ss]);
-	if(RT.isReduced(init))
-	  return ((IDeref)init).deref();
-	return init;
-      }
-      public Object reduce(IFn fn, Object init) {
-	if(dlen ==0) return init;
-	final int ne = dlen;
-	final int ss = sidx;
-	final short[] d = data;
-	for(int idx = 0; idx < ne && (!RT.isReduced(init)); ++idx)
-	  init = fn.invoke(init, d[idx+ss]);
-	if(RT.isReduced(init))
-	  return ((IDeref)init).deref();
-	return init;
-      }
-      public long longReduction(LongBinaryOperator op, long init) {
-	final int sz = dlen;
-	final int ss = sidx;
-	for (int idx = 0; idx < sz; ++idx)
-	  init = op.applyAsLong(init, data[idx+ss]);
-	return init;
-      }
-      public List immutShuffle(Random r) {
-	final int sz = size();
-	final int[] perm = IntArrays.shuffle(ArrayLists.iarange(0, sz, 1), r);
-	final short[] bdata = new short[sz];
-	for(int idx = 0; idx < sz; ++idx)
-	  bdata[idx] = data[perm[idx]];
-	return toList(bdata);
-      }
-    };
+    return new ShortArraySubList(data, sidx, dlen, meta);
   }
   public static List<Object> toList(final short[] data) { return toList(data, 0, data.length, null); }
-
 
   public static class IntArraySubList extends ArraySection implements ILongArrayList {
     public final int[] data;
@@ -1520,128 +1550,140 @@ public class ArrayLists {
   }
   public static List<Object> toList(final long[] data) { return toList(data, 0, data.length, null); }
 
-  public static List<Object> toList(final float[] data, final int sidx, final int eidx, IPersistentMap meta) {
-    final int dlen = eidx - sidx;
-    return new IDoubleArrayList() {
-      public String toString() { return Transformables.sequenceToString(this); }
-      public boolean equals(Object other) {
-	return equiv(other);
+  public static class FloatArraySubList implements IDoubleArrayList {
+    public final float[] data;
+    public final int sidx;
+    public final int dlen;
+    public final IPersistentMap meta;
+
+    public FloatArraySubList(float[] d, int s, int len, IPersistentMap _meta) {
+      data = d;
+      sidx = s;
+      dlen = len;
+      meta = _meta;
+    }
+    public String toString() { return Transformables.sequenceToString(this); }
+    public boolean equals(Object other) {
+      return equiv(other);
+    }
+    public int hashCode() { return hasheq(); }
+    public ArraySection getArray() { return new ArraySection(data, sidx, sidx + dlen); }
+    public int size() { return dlen; }
+    public Float get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
+    public double getDouble(int idx) { return data[checkIndex(idx, dlen) + sidx];}
+    public Float set(int idx, Object obj) {
+      return (float)setDouble(idx, Casts.doubleCast(obj));
+    }
+    public double setDouble(int idx, double v) {
+      float obj = (float)v;
+      idx = wrapCheckIndex(idx, dlen) + sidx;
+      final float retval = data[idx];
+      data[idx] = obj;
+      return retval;
+    }
+    public List<Object> subList(int ssidx, int seidx) {
+      checkIndexRange(sidx, dlen, ssidx, seidx);
+      return toList(data, ssidx + sidx, seidx + sidx, meta());
+    }
+    public IPersistentMap meta() { return meta; }
+    public IObj withMeta(IPersistentMap m) {
+      return (IObj)toList(data, sidx, sidx + dlen, m);
+    }
+    public Object[] toArray() {
+      final int sz = size();
+      Object[] retval = new Object[size()];
+      for (int idx = 0; idx < sz; ++idx)
+	retval[idx] = data[idx+sidx];
+      return retval;
+    }
+    public float[] toFloatArray() {
+      return Arrays.copyOfRange(data, sidx, sidx + dlen);
+    }
+    public IntComparator indexComparator() {
+      if (sidx == 0) {
+	return new IntComparator() {
+	  public int compare(int lidx, int ridx) {
+	    return Float.compare(data[lidx], data[ridx]);
+	  }
+	};
+      } else {
+	return new IntComparator() {
+	  public int compare(int lidx, int ridx) {
+	    return Float.compare(data[lidx+sidx], data[ridx+sidx]);
+	  }
+	};
       }
-      public int hashCode() { return hasheq(); }
-      public ArraySection getArray() { return new ArraySection(data, sidx, eidx); }
-      public int size() { return dlen; }
-      public Float get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
-      public double getDouble(int idx) { return data[checkIndex(idx, dlen) + sidx];}
-      public Float set(int idx, Object obj) {
-	return (float)setDouble(idx, Casts.doubleCast(obj));
-      }
-      public double setDouble(int idx, double v) {
-	float obj = (float)v;
-	idx = wrapCheckIndex(idx, dlen) + sidx;
-	final float retval = data[idx];
-	data[idx] = obj;
-	return retval;
-      }
-      public List<Object> subList(int ssidx, int seidx) {
-	checkIndexRange(sidx, dlen, ssidx, seidx);
-	return toList(data, ssidx + sidx, seidx + sidx, meta());
-      }
-      public IPersistentMap meta() { return meta; }
-      public IObj withMeta(IPersistentMap m) {
-	return (IObj)toList(data, sidx, eidx, m);
-      }
-      public Object[] toArray() {
-	final int sz = size();
-	Object[] retval = new Object[size()];
-	for (int idx = 0; idx < sz; ++idx)
-	  retval[idx] = data[idx+sidx];
-	return retval;
-      }
-      public float[] toFloatArray() {
-	return Arrays.copyOfRange(data, sidx, eidx);
-      }
-      public IntComparator indexComparator() {
+    }
+    public IntComparator indexComparator(Comparator c) {
+      if (c == null) return indexComparator();
+      if (c instanceof DoubleComparator) {
+	final DoubleComparator dc = (DoubleComparator)c;
 	if (sidx == 0) {
 	  return new IntComparator() {
 	    public int compare(int lidx, int ridx) {
-	      return Float.compare(data[lidx], data[ridx]);
+	      return dc.compare(data[lidx], data[ridx]);
 	    }
 	  };
 	} else {
 	  return new IntComparator() {
 	    public int compare(int lidx, int ridx) {
-	      return Float.compare(data[lidx+sidx], data[ridx+sidx]);
+	      return dc.compare(data[lidx+sidx], data[ridx+sidx]);
 	    }
 	  };
 	}
+      } else {
+	return IDoubleArrayList.super.indexComparator(c);
       }
-      public IntComparator indexComparator(Comparator c) {
-	if (c == null) return indexComparator();
-	if (c instanceof DoubleComparator) {
-	  final DoubleComparator dc = (DoubleComparator)c;
-	  if (sidx == 0) {
-	    return new IntComparator() {
-	      public int compare(int lidx, int ridx) {
-		return dc.compare(data[lidx], data[ridx]);
-	      }
-	    };
-	  } else {
-	    return new IntComparator() {
-	      public int compare(int lidx, int ridx) {
-		return dc.compare(data[lidx+sidx], data[ridx+sidx]);
-	      }
-	    };
-	  }
-	} else {
-	  return IDoubleArrayList.super.indexComparator(c);
-	}
-      }
-      public List immutSort() {
-	float[] retval = Arrays.copyOfRange(data, sidx, eidx);
-	Arrays.sort(retval);
-	return toList(retval, 0, retval.length, meta);
-      }
-      public Object reduce(IFn fn) {
-	if(dlen ==0) return fn.invoke();
-	final int ne = dlen;
-	final int ss = sidx;
-	final float[] d = data;
-	Object init = d[ss];
-	for(int idx = 1; idx < ne && (!RT.isReduced(init)); ++idx)
-	  init = fn.invoke(init, d[idx+ss]);
-	if(RT.isReduced(init))
-	  return ((IDeref)init).deref();
-	return init;
-      }
-      public Object reduce(IFn fn, Object init) {
-	if(dlen ==0) return init;
-	final int ne = dlen;
-	final int ss = sidx;
-	final float[] d = data;
-	for(int idx = 0; idx < ne && (!RT.isReduced(init)); ++idx)
-	  init = fn.invoke(init, d[idx+ss]);
-	if(RT.isReduced(init))
-	  return ((IDeref)init).deref();
-	return init;
-      }
-      public double doubleReduction(DoubleBinaryOperator op, double init) {
-	final int sz = size();
-	for (int idx = 0; idx < sz; ++idx)
-	  init = op.applyAsDouble(init, data[idx+sidx]);
-	return init;
-      }
-      public List immutShuffle(Random r) {
-	final int sz = size();
-	final int[] perm = IntArrays.shuffle(ArrayLists.iarange(0, sz, 1), r);
-	final float[] bdata = new float[sz];
-	for(int idx = 0; idx < sz; ++idx)
-	  bdata[idx] = data[perm[idx]];
-	return toList(bdata);
-      }
-    };
+    }
+    public List immutSort() {
+      float[] retval = Arrays.copyOfRange(data, sidx, sidx + dlen);
+      Arrays.sort(retval);
+      return toList(retval, 0, retval.length, meta);
+    }
+    public Object reduce(IFn fn) {
+      if(dlen ==0) return fn.invoke();
+      final int ne = dlen;
+      final int ss = sidx;
+      final float[] d = data;
+      Object init = d[ss];
+      for(int idx = 1; idx < ne && (!RT.isReduced(init)); ++idx)
+	init = fn.invoke(init, d[idx+ss]);
+      if(RT.isReduced(init))
+	return ((IDeref)init).deref();
+      return init;
+    }
+    public Object reduce(IFn fn, Object init) {
+      if(dlen ==0) return init;
+      final int ne = dlen;
+      final int ss = sidx;
+      final float[] d = data;
+      for(int idx = 0; idx < ne && (!RT.isReduced(init)); ++idx)
+	init = fn.invoke(init, d[idx+ss]);
+      if(RT.isReduced(init))
+	return ((IDeref)init).deref();
+      return init;
+    }
+    public double doubleReduction(DoubleBinaryOperator op, double init) {
+      final int sz = size();
+      for (int idx = 0; idx < sz; ++idx)
+	init = op.applyAsDouble(init, data[idx+sidx]);
+      return init;
+    }
+    public List immutShuffle(Random r) {
+      final int sz = size();
+      final int[] perm = IntArrays.shuffle(ArrayLists.iarange(0, sz, 1), r);
+      final float[] bdata = new float[sz];
+      for(int idx = 0; idx < sz; ++idx)
+	bdata[idx] = data[perm[idx]];
+      return toList(bdata);
+    }
+  }
+
+  public static List<Object> toList(final float[] data, final int sidx, final int eidx, IPersistentMap meta) {
+    final int dlen = eidx - sidx;
+    return new FloatArraySubList(data, sidx, dlen, meta);
   }
   public static List<Object> toList(final float[] data) { return toList(data, 0, data.length, null); }
-
 
   public static class DoubleArraySubList extends ArraySection implements IDoubleArrayList {
     public final double[] data;
@@ -2071,84 +2113,107 @@ public class ArrayLists {
     return new DoubleArraySubList(data, sidx, eidx, meta);
   }
   public static List<Object> toList(final double[] data) { return toList(data, 0, data.length, null); }
+
+  public static class CharacterArraySubList implements ILongArrayList {
+    public final char[] data;
+    public final int sidx;
+    public final int dlen;
+    public final IPersistentMap meta;
+    public CharacterArraySubList(char[] d, int s, int len, IPersistentMap m) {
+      data = d;
+      sidx = s;
+      dlen = len;
+      meta = m;
+    }
+    public String toString() { return Transformables.sequenceToString(this); }
+    public boolean equals(Object other) {
+      return equiv(other);
+    }
+    public int hashCode() { return hasheq(); }
+    public ArraySection getArray() { return new ArraySection(data, sidx, sidx + dlen); }
+    public int size() { return dlen; }
+    public Character get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
+    public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
+    public Character set(int idx, Character obj) {
+      return (char)setLong(idx, Casts.longCast(obj));
+    }
+    public long setLong(int idx, long obj) {
+      char v = RT.charCast(obj);
+      idx = wrapCheckIndex(idx, dlen) + sidx;
+      final char retval = data[idx];
+      data[idx] = v;
+      return retval;
+    }
+    public List<Object> subList(int ssidx, int seidx) {
+      checkIndexRange(sidx, dlen, ssidx, seidx);
+      return toList(data, ssidx + sidx, seidx + sidx, meta());
+    }
+    public IPersistentMap meta() { return meta; }
+    public IObj withMeta(IPersistentMap m) {
+      return (IObj)toList(data, sidx, sidx + dlen, m);
+    }
+    public Object[] toArray() {
+      final int sz = size();
+      Object[] retval = new Object[size()];
+      for (int idx = 0; idx < sz; ++idx)
+	retval[idx] = data[idx+sidx];
+      return retval;
+    }
+    public List immutSort() {
+      char[] retval = Arrays.copyOfRange(data, sidx, sidx + dlen);
+      Arrays.sort(retval);
+      return toList(retval, 0, retval.length, meta);
+    }
+    public Object reduce(IFn fn) {
+      if(dlen ==0) return fn.invoke();
+      final int ne = dlen;
+      final int ss = sidx;
+      final char[] d = data;
+      Object init = d[ss];
+      for(int idx = 1; idx < ne && (!RT.isReduced(init)); ++idx)
+	init = fn.invoke(init, d[idx+ss]);
+      if(RT.isReduced(init))
+	return ((IDeref)init).deref();
+      return init;
+    }
+    public Object reduce(IFn fn, Object init) {
+      if(dlen ==0) return init;
+      final int ne = dlen;
+      final int ss = sidx;
+      final char[] d = data;
+      for(int idx = 0; idx < ne && (!RT.isReduced(init)); ++idx)
+	init = fn.invoke(init, d[idx+ss]);
+      if(RT.isReduced(init))
+	return ((IDeref)init).deref();
+      return init;
+    }
+  }
+
   public static List<Object> toList(final char[] data, final int sidx, final int eidx, IPersistentMap meta) {
     final int dlen = eidx - sidx;
-    return new ILongArrayList() {
-      public String toString() { return Transformables.sequenceToString(this); }
-      public boolean equals(Object other) {
-	return equiv(other);
-      }
-      public int hashCode() { return hasheq(); }
-      public ArraySection getArray() { return new ArraySection(data, sidx, eidx); }
-      public int size() { return dlen; }
-      public Character get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
-      public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
-      public Character set(int idx, Character obj) {
-	return (char)setLong(idx, Casts.longCast(obj));
-      }
-      public long setLong(int idx, long obj) {
-	char v = RT.charCast(obj);
-	idx = wrapCheckIndex(idx, dlen) + sidx;
-	final char retval = data[idx];
-	data[idx] = v;
-	return retval;
-      }
-      public List<Object> subList(int ssidx, int seidx) {
-	checkIndexRange(sidx, dlen, ssidx, seidx);
-	return toList(data, ssidx + sidx, seidx + sidx, meta());
-      }
-      public IPersistentMap meta() { return meta; }
-      public IObj withMeta(IPersistentMap m) {
-	return (IObj)toList(data, sidx, eidx, m);
-      }
-      public Object[] toArray() {
-	final int sz = size();
-	Object[] retval = new Object[size()];
-	for (int idx = 0; idx < sz; ++idx)
-	  retval[idx] = data[idx+sidx];
-	return retval;
-      }
-      public List immutSort() {
-	char[] retval = Arrays.copyOfRange(data, sidx, eidx);
-	Arrays.sort(retval);
-	return toList(retval, 0, retval.length, meta);
-      }
-      public Object reduce(IFn fn) {
-	if(dlen ==0) return fn.invoke();
-	final int ne = dlen;
-	final int ss = sidx;
-	final char[] d = data;
-	Object init = d[ss];
-	for(int idx = 1; idx < ne && (!RT.isReduced(init)); ++idx)
-	  init = fn.invoke(init, d[idx+ss]);
-	if(RT.isReduced(init))
-	  return ((IDeref)init).deref();
-	return init;
-      }
-      public Object reduce(IFn fn, Object init) {
-	if(dlen ==0) return init;
-	final int ne = dlen;
-	final int ss = sidx;
-	final char[] d = data;
-	for(int idx = 0; idx < ne && (!RT.isReduced(init)); ++idx)
-	  init = fn.invoke(init, d[idx+ss]);
-	if(RT.isReduced(init))
-	  return ((IDeref)init).deref();
-	return init;
-      }
-    };
+    return new CharacterArraySubList(data, sidx, dlen, meta);
   }
   public static List<Object> toList(final char[] data) { return toList(data, 0, data.length, null); }
 
-  public static List<Object> toList(final boolean[] data, final int sidx, final int eidx, IPersistentMap meta) {
-    final int dlen = eidx - sidx;
-    return new ILongArrayList() {
-      public String toString() { return Transformables.sequenceToString(this); }
+
+  public static class BooleanArraySubList implements ILongArrayList {
+    public final boolean[] data;
+    public final int sidx;
+    public final int dlen;
+    public final IPersistentMap meta;
+
+    public BooleanArraySubList(boolean[] d, int s, int len, IPersistentMap m) {
+      data = d;
+      sidx = s;
+      dlen = len;
+      meta = m;
+    }
+    public String toString() { return Transformables.sequenceToString(this); }
       public boolean equals(Object other) {
 	return equiv(other);
       }
       public int hashCode() { return hasheq(); }
-      public ArraySection getArray() { return new ArraySection(data, sidx, eidx); }
+      public ArraySection getArray() { return new ArraySection(data, sidx, sidx + dlen); }
       public int size() { return dlen; }
       public Boolean get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
       public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx] ? 1 : 0; }
@@ -2172,7 +2237,7 @@ public class ArrayLists {
       }
       public IPersistentMap meta() { return meta; }
       public IObj withMeta(IPersistentMap m) {
-	return (IObj)toList(data, sidx, eidx, m);
+	return (IObj)toList(data, sidx, sidx + dlen, m);
       }
       public Object[] toArray() {
 	final int sz = size();
@@ -2181,7 +2246,11 @@ public class ArrayLists {
 	  retval[idx] = data[idx+sidx];
 	return retval;
       }
-    };
+  }
+
+  public static List<Object> toList(final boolean[] data, final int sidx, final int eidx, IPersistentMap meta) {
+    final int dlen = eidx - sidx;
+    return new BooleanArraySubList(data, sidx, dlen, meta);
   }
   public static List<Object> toList(final boolean[] data) { return toList(data, 0, data.length, null); }
 

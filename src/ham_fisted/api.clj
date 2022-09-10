@@ -1508,7 +1508,9 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
   ([comp coll]
    (let [coll (->collection coll)]
      (if (instance? ImmutSort coll)
-       (.immutSort ^ImmutSort coll comp)
+       (if (nil? comp)
+         (.immutSort ^ImmutSort coll)
+         (.immutSort ^ImmutSort coll (->comparator comp)))
        (let [a (sorta comp coll)]
          (ArrayLists/toList a 0 (alength a) ^IPersistentMap (meta coll)))))))
 
