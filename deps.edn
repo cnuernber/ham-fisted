@@ -28,9 +28,9 @@
    :exec-args {:group-id "com.cnuernber"
                :artifact-id "ham-fisted"
                ;;Change this also in build.clj
-               :version "1.000-beta-1"
+               :version "1.000-beta-2"
                :name "Ham-Fisted"
-               :description "Bitmap Trie exporations"
+               :description "High Performance Clojure Primitives"
                :metadata {:doc/format :markdown}
                :html {:transforms [[:head] [:append [:script {:async true
                                                               :src "https://www.googletagmanager.com/gtag/js?id=G-XJYNJF48RM"}]]
