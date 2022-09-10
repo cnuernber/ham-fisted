@@ -300,13 +300,26 @@ This is currently the default hash provider for the library."}
   (PersistentHashMap/create (options->provider options) false (map-data->obj-ary data)))
 
 
-(defn countable?
-  "Return true if data has a constant time count.  Only valid for arrays after a call to
-  [[lazy-noncaching/->reducible]]."
+(defn constant-countable?
+  "Return true if data has a constant time count."
   [data]
-  (or (instance? RandomAccess data)
-      (instance? Set data)
-      (instance? Map data)))
+  (when-not (nil? data)
+    (or (instance? RandomAccess data)
+        (instance? Set data)
+        (instance? Map data)
+        (.isArray (.getClass ^Object data)))))
+
+
+(defn constant-count
+  "Constant time count.  Returns nil if input doesn't have a constant time count."
+  [data]
+  (if (nil? data)
+    0
+    (cond
+      (instance? RandomAccess data) (.size ^List data)
+      (instance? Map data) (.size ^Map data)
+      (instance? Set data) (.size ^Set data)
+      (.isArray (.getClass ^Object data)) (Array/getLength data))))
 
 
 (defn immut-map
@@ -347,19 +360,7 @@ ham_fisted.PersistentHashMap
   (^PersistentHashMap [options data]
    (if (instance? obj-ary-cls data)
      (PersistentHashMap/create (options->provider options) false ^objects data)
-     (let [data (->reducible data)]
-       (if (and (countable? data)
-                (<= (count data) 8))
-         (-> (fast-reduce
-              (fn [m d]
-                (cond
-                  (instance? Map$Entry d)
-                  (assoc! m (.getKey ^Map$Entry d) (.getValue ^Map$Entry d))
-                  (instance? Indexed d)
-                  (assoc! m (.nth ^Indexed d 0) (.nth ^Indexed d 1))))
-              (transient (PersistentArrayMap. (options->provider options)))
-              data))
-         (persistent! (mut-map options data)))))))
+     (persistent! (mut-map options data)))))
 
 
 (defn hash-map
