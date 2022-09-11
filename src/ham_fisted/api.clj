@@ -1119,23 +1119,16 @@ ham_fisted.PersistentHashMap
     (fn [vals] (.apply mf (object-array vals)))))
 
 
-(defn- assoc-inv
-  [m ks ^long ksoff v]
-  (let [ksc (unchecked-subtract (count ks) ksoff)]
-    (case ksc
-      0 (assoc m nil v)
-      1 (assoc m (ks ksoff) v)
-      2 (let [k0 (ks ksoff)
-              k1 (ks (unchecked-add ksoff 1))]
-          (assoc m k0 (assoc (get m k0) k1 v)))
-      3 (let [k0 (ks ksoff)
-              k1 (ks (unchecked-add ksoff 1))
-              k2 (ks (unchecked-add ksoff 2))
-              m1 (get m k0)]
-          (->> (assoc (get m1 k1) k2 v)
-               (assoc m1 k1)
-               (assoc m k0)))
-      (assoc m (ks ksoff) (assoc-inv (get m (ks ksoff)) ks (unchecked-inc ksoff) v)))))
+(defn ^:no-doc assoc-inf
+  "Associates a value in a nested associative structure, where ks is a
+  sequence of keys and v is the new value and returns a new nested structure.
+  If any levels do not exist, hash-maps will be created."
+  {:added "1.0"
+   :static true}
+  [m [k & ks] v]
+  (if ks
+    (assoc m k (assoc-inf (get m k) ks v))
+    (assoc m k v)))
 
 
 (defmacro assoc-in
@@ -1166,23 +1159,7 @@ ham_fisted.PersistentHashMap
                                      ~(ks ridx)
                                      ~retstmt)))
                          v)))))
-    `(assoc-inv ~m (if (vector? ~ks) ~ks (vec ~ks)) 0 ~v)))
-
-
-(defn- get-inv
-  [m ks ^long ksoff def-val]
-  (if (nil? m)
-    def-val
-    (let [ksc (unchecked-subtract (count ks) ksoff)]
-      (case ksc
-        0 (throw (Exception. "Empty key vector provided to get-in"))
-        1 (get m (ks ksoff) def-val)
-        2 (-> (get m (ks ksoff))
-              (get (ks (unchecked-add ksoff 1)) def-val))
-        3 (-> (get m (ks ksoff))
-              (get (ks (unchecked-add ksoff 1)))
-              (get (ks (unchecked-add ksoff 2)) def-val))
-        (get-inv (get m (ks ksoff)) ks (unchecked-inc ksoff) def-val)))))
+    `(assoc-inf ~m ~ks ~v)))
 
 
 (defmacro get-in
@@ -1200,7 +1177,7 @@ ham_fisted.PersistentHashMap
                                 ~default-value)
                           `(get ~curget ~(ks argidx))))
                       m)))
-     `(get-inv ~m (if (vector? ~ks) ~ks (vec ~ks)) 0 ~default-value)))
+     `(clojure.core/get-in ~m ~ks ~default-value)))
   ([m ks]
    `(get-in ~m ~ks nil)))
 
@@ -1263,15 +1240,8 @@ ham_fisted.PersistentHashMap
 
 
 (defn update
-  "'Updates' a value in an associative structure, where k is a
-  key and f is a function that will take the old value
-  and any supplied args and return the new value, and returns a new
-  structure.  If the key does not exist, nil is passed as the old value.
-
-   - Version of update that produces maps from this library."
-
-  {:added "1.7"
-   :static true}
+  "Version of update that produces maps from this library."
+  {:static true}
   ([m k f]
    (assoc m k (f (get m k))))
   ([m k f x]
