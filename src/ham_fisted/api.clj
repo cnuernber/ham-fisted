@@ -1,6 +1,6 @@
 (ns ham-fisted.api
   "Fast mutable and immutable associative data structures based on bitmap trie
-  n  hashmaps. Mutable pathways implement the `java.util.Map` or `Set` interfaces
+  hashmaps. Mutable pathways implement the `java.util.Map` or `Set` interfaces
   including in-place update features such as compute or computeIfPresent.
 
   Mutable maps or sets can be turned into their immutable counterparts via the
@@ -1133,7 +1133,7 @@ ham_fisted.PersistentHashMap
 
 (defmacro assoc-in
   "Assoc-in - more efficient replacement if ks is a known compile time constant
-  or a vector."
+  or a vector.  See the caveats in the README before using this exact function."
   [m ks v]
   (if (vector? ks)
     (if (== 0 (count ks))
@@ -1272,7 +1272,9 @@ ham_fisted.PersistentHashMap
 
 
 (defmacro update-in
-  "An attempt at a slightly more efficient version of update-in."
+  "An attempt at a slightly more efficient version of update-in.
+
+  See the caveats in the readme - measure carefully before using this."
   [m ks f & args]
   (cond
     (nil? m)

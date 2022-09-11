@@ -215,6 +215,24 @@ from the benchmark - perhaps due to the machine's heat management systems.
 |       :vector-to-array |    10000 | 0.057 |  1.0 |           | 0.065 |          57.734 |
 
 
+## CAVEATS!!
+
+This code is minimally tested.  The datastructures especially need serious testing, potentially generative
+testing of edge cases.
+
+Also, microbenchmarks do not always indicate how your system will perform overall.  For instance- when 
+testing `assoc-in`, `update-in` in this project we see better performance.  In at least one real
+world project, however, the inlining that makes the microbenchmark perform better definitely did
+*not* result in the project running faster -- it ran a bit slower even though the profiler of the 
+original code indicated the sequence operations performed during assoc-in and update-in were a source
+of some time.
+
+The JVM is a complicated machine and there are issues with using, for instance, too many classes
+at a particular callsite.  Overally I would recommend profiling and being careful.  My honest opinion
+right now is that `assoc-in` and `update-in` do not improve program performance at least in
+some of the use cases I have tested.
+
+
 ## Other Interesting Projects
 
 * [clj-fast](https://github.com/bsless/clj-fast) - Great and important library more focused on compiler upgrades.
