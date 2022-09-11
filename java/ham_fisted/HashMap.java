@@ -15,6 +15,7 @@ import clojure.lang.IteratorSeq;
 import clojure.lang.ISeq;
 import clojure.lang.ILookup;
 import clojure.lang.IHashEq;
+import clojure.lang.IFn;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -321,7 +322,7 @@ public final class HashMap<K,V>
     return new PersistentHashMap(hb.immutUpdate(bfn));
   }
 
-  public final PersistentHashMap immutUpdateValue(Object key, Function bfn) {
+  public final PersistentHashMap immutUpdateValue(Object key, IFn bfn) {
     return new PersistentHashMap(hb.immutUpdate(key, bfn));
   }
 

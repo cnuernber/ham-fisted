@@ -2,9 +2,10 @@ package ham_fisted;
 
 
 import java.util.function.BiFunction;
-import java.util.function.Function;
+import clojure.lang.IFn;
 
 public interface ImmutValues {
   public ImmutValues immutUpdateValues(BiFunction valueMap);
-  public ImmutValues immutUpdateValue(Object key, Function fn);
+  //Sorry java people, this has to be a clojure IFn for perf reasons.
+  public ImmutValues immutUpdateValue(Object key, IFn fn);
 }

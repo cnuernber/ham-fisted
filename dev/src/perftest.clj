@@ -374,6 +374,45 @@
       :hamf (bench/benchmark-us (api/mapmap map-fn hamf-map))}]))
 
 
+(defn assoc-in-perftest
+  []
+  (log/info "assoc-in")
+  [{:n-elems 5
+    :test :assoc-in-nil
+    :clj (bench/benchmark-us (assoc-in nil [:a :b :c :d :e] 1))
+    :hamf (bench/benchmark-us (api/assoc-in nil [:a :b :c :d :e] 1))}
+   (let [data {:a {:b {:c {:d {}}}}}]
+     {:n-elems 5
+      :test :assoc-in
+      :clj (bench/benchmark-us (assoc-in data [:a :b :c :d :e] 1))
+      :hamf (bench/benchmark-us (api/assoc-in data [:a :b :c :d :e] 1))})])
+
+
+(defn update-in-perftest
+  []
+  (log/info "update-in")
+  (let [updater (fn [v] (unchecked-inc (or v 1)))]
+    [{:n-elems 5
+      :test :update-in-nil
+      :clj (bench/benchmark-us (update-in nil [:a :b :c :d :e] updater))
+      :hamf (bench/benchmark-us (api/update-in nil [:a :b :c :d :e] updater))}
+     (let [data (api/assoc-in nil [:a :b :c :d :e] 2)]
+       {:n-elems 5
+        :test :update-in
+        :clj (bench/benchmark-us (update-in data [:a :b :c :d :e] updater))
+        :hamf (bench/benchmark-us (api/update-in data [:a :b :c :d :e] updater))})]))
+
+
+(defn get-in-perftest
+  []
+  (log/info "get-in")
+  (let [data {:a 1 :b 2 :c 3 :d 4 :e 5}]
+    [{:n-elems 5
+      :test :get-in
+      :clj (bench/benchmark-us (get-in data [:a :b :c :d :e]))
+      :hamf (bench/benchmark-us (api/get-in data [:a :b :c :d :e]))}]))
+
+
 (defn machine-name
   []
   (.getHostName (java.net.InetAddress/getLocalHost)))
@@ -428,7 +467,10 @@
                (group-by-perftest)
                (group-by-reduce-perftest)
                (update-values-perftest)
-               (mapmap-perftest)))
+               (mapmap-perftest)
+               (assoc-in-perftest)
+               (update-in-perftest)
+               (get-in-perftest)))
 
 
 (defn process-dataset

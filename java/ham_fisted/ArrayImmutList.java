@@ -378,14 +378,14 @@ public class ArrayImmutList
     return MutList.create(true, meta(), Arrays.copyOfRange(data, startidx, startidx+nElems));
   }
   @SuppressWarnings("unchecked")
-  public final ArrayImmutList immutUpdateValue(Object key, Function fn) {
+  public final ArrayImmutList immutUpdateValue(Object key, IFn fn) {
     int idx = RT.intCast(key);
     if (idx < 0)
       idx = nElems + idx;
     if(idx >= nElems)
       throw new RuntimeException("Index out of range: " + String.valueOf(key));
     final Object[] newD = Arrays.copyOfRange(data, startidx, startidx+nElems);
-    newD[idx] = fn.apply(newD[idx]);
+    newD[idx] = fn.invoke(newD[idx]);
     return new ArrayImmutList(newD, 0, nElems, m);
   }
   @SuppressWarnings("unchecked")

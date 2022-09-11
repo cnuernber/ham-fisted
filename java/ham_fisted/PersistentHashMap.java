@@ -217,7 +217,7 @@ public final class PersistentHashMap
   public final PersistentHashMap immutUpdateValues(BiFunction bfn) {
     return new PersistentHashMap(hb.immutUpdate(bfn));
   }
-  public final PersistentHashMap immutUpdateValue(Object key, Function fn) {
+  public final PersistentHashMap immutUpdateValue(Object key, IFn fn) {
     return new PersistentHashMap(hb.immutUpdate(key, fn));
   }
   public <K,V> HashMap<K,V> unsafeAsHashMap(K kTypeMarker, V vTypeMarker) {

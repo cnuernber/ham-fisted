@@ -9,6 +9,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import clojure.lang.Util;
 import clojure.lang.IHashEq;
+import clojure.lang.IFn;
 
 /**
  * Interfaces and definitions used for implementing the bitmap trie.
@@ -140,7 +141,7 @@ public class BitmapTrieCommon {
     /** Immutable update all values returning a new node */
     public INode immutUpdate(TrieBase nowner, BiFunction bfn);
     /** Immutable update a single key returning a new node **/
-    public INode immutUpdate(TrieBase nowner, Object key, int hashcode, Function fn);
+    public INode immutUpdate(TrieBase nowner, Object key, int hashcode, IFn fn);
   }
 
   /**

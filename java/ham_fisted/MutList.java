@@ -486,7 +486,7 @@ public class MutList<E>
   public ImmutList immutUpdateValues(BiFunction valueMap) {
     return persistent().immutUpdateValues(valueMap);
   }
-  public ImmutList immutUpdateValue(Object key, Function valueMap) {
+  public ImmutList immutUpdateValue(Object key, IFn valueMap) {
     return persistent().immutUpdateValue(key, valueMap);
   }
 }

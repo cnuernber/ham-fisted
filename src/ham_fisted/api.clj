@@ -32,8 +32,7 @@
   Unlike the standard Java objects, mutation-via-iterator is not supported."
   (:require [ham-fisted.iterator :as iterator]
             [ham-fisted.lazy-noncaching
-             :refer [map concat filter repeatedly
-                     ->collection ->random-access reindex ->reducible]
+             :refer [map concat filter repeatedly]
              :as lznc]
             [ham-fisted.lazy-caching :as lzc]
             [com.climate.claypoole :as claypoole])
@@ -50,7 +49,8 @@
             ReverseList TypedList DoubleMutList LongMutList ArrayLists$ReductionConsumer]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
             IEditableCollection RT IPersistentMap Associative Util IFn ArraySeq
-            Reversible IReduce IReduceInit]
+            Reversible IReduce IReduceInit IFn$DD IFn$DL IFn$DO IFn$LD IFn$LL IFn$LO
+            IFn$OD IFn$OL]
            [java.util Map Map$Entry List RandomAccess Set Collection ArrayList Arrays
             Comparator Random]
            [java.lang.reflect Array]
@@ -76,6 +76,38 @@
 
 
 (set! *warn-on-reflection* true)
+
+(declare assoc! conj! vec mapv vector object-array range first take drop into-array shuffle
+         object-array-list fast-reduce int-array-list long-array-list double-array-list
+         int-array argsort)
+
+
+(defn ->collection
+  "Ensure item is an implementation of java.util.Collection."
+  ^Collection [item]
+  (lznc/->collection item))
+
+
+(defn ->random-access
+  "Ensure item is derived from java.util.List and java.util.RandomAccess and
+  thus supports constant time random addressing."
+  ^List [item]
+  (lznc/->random-access item))
+
+
+(defn ->reducible
+  "Ensure item either implements IReduceInit or java.util.Collection.  For arrays
+  this will return an object that has a much more efficient reduction pathway
+  than the base Clojure reducer."
+  [item]
+  (lznc/->reducible item))
+
+
+(defn reindex
+  "Permut coll by the given indexes.  Result is random-access and the same length as
+  the index collection.  Indexes are expected to be in the range of [0->count(coll))."
+  [coll indexes]
+  (lznc/reindex (->random-access coll) (int-array indexes)))
 
 
 (def ^{:tag BitmapTrieCommon$HashProvider
@@ -113,13 +145,12 @@ This is currently the default hash provider for the library."}
   (get options :hash-provider default-hash-provider))
 
 
-(def ^{:tag PersistentArrayMap} empty-map PersistentArrayMap/EMPTY)
-(def ^{:tag PersistentHashSet} empty-set (PersistentHashSet. (options->provider nil)))
-(def ^{:tag ArrayImmutList} empty-vec ArrayImmutList/EMPTY)
-
-
-(declare assoc! conj! vec mapv vector object-array range first take drop into-array shuffle
-         object-array-list fast-reduce int-array-list long-array-list double-array-list)
+(def ^{:tag PersistentArrayMap
+       :doc "Constant persistent empty map"} empty-map PersistentArrayMap/EMPTY)
+(def ^{:tag PersistentHashSet
+       :doc "Constant persistent empty set"} empty-set (PersistentHashSet. (options->provider nil)))
+(def ^{:tag ArrayImmutList
+       :doc "Constant persistent empty vec"} empty-vec ArrayImmutList/EMPTY)
 
 
 (defn- empty-map?
@@ -471,7 +502,7 @@ ham_fisted.PersistentHashMap
 
 
 (defn array-list
-  "Create an array list from existing data"
+  "Create an implementation of java.util.ArrayList."
   (^ArrayList [data] (doto (ArrayList.) (.addAll (->collection data))))
   (^ArrayList [] (ArrayList.)))
 
@@ -1116,21 +1147,23 @@ ham_fisted.PersistentHashMap
       `(assoc ~m nil ~v)
       (let [nargs (count ks)
             nnargs (dec nargs)]
-        `(let [~@(->> (range nargs)
+        `(let [~@(->> (range (dec nargs))
                       (mapcat (fn [argidx]
-                                [(symbol (str "k" argidx)) (ks argidx)])))
-               ~@(->> (range nargs)
-                      (mapcat (fn [argidx]
-                                [(symbol (str "m" argidx))
-                                 (if (== 0 argidx)
-                                   `~m
-                                   `(get ~(symbol (str "m" (dec argidx)))
-                                         ~(symbol (str "k" (dec argidx)))))])))]
+                                (let [argidx (inc argidx)]
+                                  [(symbol (str "m" argidx))
+                                   (if (== 0 argidx)
+                                     `~m
+                                     `(get ~(if (= 1 argidx)
+                                              m
+                                              (symbol (str "m" (dec argidx))))
+                                           ~(ks (dec argidx))))]))))]
            ~(->> (range nargs)
                  (reduce (fn [retstmt argidx]
                            (let [ridx (- nnargs (long argidx))]
-                             `(assoc ~(symbol (str "m" ridx))
-                                     ~(symbol (str "k" ridx))
+                             `(assoc ~(if (= 0 ridx)
+                                        m
+                                        (symbol (str "m" ridx)))
+                                     ~(ks ridx)
                                      ~retstmt)))
                          v)))))
     `(assoc-inv ~m (if (vector? ~ks) ~ks (vec ~ks)) 0 ~v)))
@@ -1169,7 +1202,7 @@ ham_fisted.PersistentHashMap
                       m)))
      `(get-inv ~m (if (vector? ~ks) ~ks (vec ~ks)) 0 ~default-value)))
   ([m ks]
-   `(get-in m ks nil)))
+   `(get-in ~m ~ks nil)))
 
 
 (defn- single-arg-fn
@@ -1237,7 +1270,7 @@ ham_fisted.PersistentHashMap
      (empty-map? m)
      (PersistentArrayMap. default-hash-provider k (f nil) (meta m))
      (immut-vals? m)
-     (.immutUpdateValue (as-immut-vals m) k (->function f))
+     (.immutUpdateValue (as-immut-vals m) k f)
      :else
      (clojure.core/update m k f)))
   ([m k f a]
@@ -1265,8 +1298,8 @@ ham_fisted.PersistentHashMap
       2 (let [k0 (ks ksoff)
               k1 (ks (unchecked-add ksoff 1))
               m1 (get m k0)]
-          (-> (update m1 k1 f)
-              (assoc m k0)))
+          (->> (update m1 k1 f)
+               (assoc m k0)))
       3 (let [k0 (ks ksoff)
               k1 (ks (unchecked-add ksoff 1))
               k2 (ks (unchecked-add ksoff 2))
@@ -1275,10 +1308,13 @@ ham_fisted.PersistentHashMap
           (->> (update m2 k2 f)
                (assoc m1 k1)
                (assoc m k0)))
-      (update-inv (get m (ks ksoff)) ks (unchecked-inc ksoff) f))))
+      (let [k (ks ksoff)]
+        (assoc m k (update-inv (get m k) ks (unchecked-inc ksoff) f))))))
 
 
 (defn update-in
+  "A slightly more efficient version of update in.  The main advantage is that this method
+  will produce maps from this library."
   ([m ks f]
    (update-inv m (if (vector? ks) ks (vec ks)) 0 f))
   ([m ks f a]
@@ -1485,6 +1521,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
 
 
 (defn into-array
+  "Faster version of clojure.core/into-array."
   ([aseq] (lznc/into-array aseq))
   ([ary-type aseq] (lznc/into-array ary-type aseq))
   ([ary-type mapfn aseq] (lznc/into-array ary-type mapfn aseq)))
@@ -1571,7 +1608,8 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
 
 (defn sort
   "Exact replica of clojure.core/sort but instead of wrapping the final object array in a seq
-  which loses the fact the result is countable and random access."
+  which loses the fact the result is countable and random access.  Faster implementations
+  are provided when the input is an integer, long, or double array."
   ([coll] (sort nil coll))
   ([comp coll]
    (let [coll (->collection coll)]
@@ -1583,13 +1621,37 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
          (ArrayLists/toList a 0 (alength a) ^IPersistentMap (meta coll)))))))
 
 
+(defn type-single-arg-ifn
+  "Categorize the return type of a single argument ifn.  May be :float64, :int64, or :object."
+  [ifn]
+  (cond
+    (or (instance? IFn$DD ifn)
+        (instance? IFn$LD ifn)
+        (instance? IFn$OD ifn))
+    :float64
+    (or (instance? IFn$DL ifn)
+        (instance? IFn$LL ifn)
+        (instance? IFn$OL ifn))
+    :int64
+    :else
+    :object))
+
+
 (defn sort-by
+  "Sort a collection by keyfn.  Typehinting the return value of keyfn will somewhat increase
+  the speed of the sort :-)."
   ([keyfn coll]
    (sort-by keyfn nil coll))
   ([keyfn comp coll]
    (let [coll (->random-access coll)
          ^IMutList data (map keyfn coll)
-         indexes (.sortIndirect data comp)]
+         data (case (type-single-arg-ifn keyfn)
+                :float64
+                (.toDoubleArray data)
+                :int64
+                (.toLongArray data)
+                data)
+         indexes (argsort data)]
      (reindex coll indexes))))
 
 
@@ -1625,6 +1687,8 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
    (ArrayLists/larange start end step)))
 
 (defn darange
+  "Return a double array holding the values of the range.  Useing `->collection` to get
+  an implementation of java.util.List that supports the normal Clojure interfaces."
   (^doubles [end]
    (darange 0 end 1))
   (^doubles [start end]
@@ -1651,6 +1715,10 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
 
 
 (defn argsort
+  "Sort a collection of data returning an array of indexes.  The collection must be
+  random access and the return value is an integer array of indexes which will read the
+  input data in sorted order.  Faster implementations are provided when the collection
+  is an integer, long, or double array.  See also [[reindex]]."
   ([comp coll]
    (let [^List coll (if (instance? RandomAccess coll)
                       coll
@@ -1671,6 +1739,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
 
 
 (defn int-array
+  "Create an integer array from a number of some data"
   ^ints [data]
   (if (number? data)
     (clojure.core/int-array data)
@@ -1681,6 +1750,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
 
 
 (defn long-array
+  "Create a long array from a number of some data"
   ^longs [data]
   (if (number? data)
     (clojure.core/long-array data)
@@ -1691,6 +1761,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
 
 
 (defn float-array
+  "Create a float array from a number of some data"
   ^floats [data]
   (if (number? data)
     (clojure.core/float-array data)
@@ -1701,6 +1772,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
 
 
 (defn double-array
+  "Create a double array from a number of some data"
   ^doubles [data]
   (if (number? data)
     (clojure.core/double-array data)
@@ -1786,7 +1858,9 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
 
 
 (defn sum
-  "Fast simple double summation.  Does not do any summation compensation."
+  "Fast simple double summation.  Does not do any summation compensation but does
+  parallelize the summation for random access containers leading to some additional
+  numeric stability."
   ^double [coll]
   (let [coll (->reducible coll)]
     (if (instance? IMutList coll)
@@ -1800,10 +1874,11 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
                                               op
                                            0.0)))
                  (reduce +))))
-      (double (reduce + 0.0 coll)))))
+      (double (fast-reduce + 0.0 coll)))))
 
 
 (defn mean
+  "Return the mean of the collection.  Returns double/NaN for empty collections."
   ^double [coll]
   (let [coll (->collection coll)]
     (/ (sum coll)
@@ -1811,41 +1886,41 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
 
 
 (defn first
+  "Get the first item of a collection."
   [coll]
   (if (nil? coll)
     nil
-    (let [coll (->collection coll)]
-      (if (instance? List coll)
+    (let [coll (->reducible coll)]
+      (if (instance? RandomAccess coll)
         (when-not (.isEmpty ^List coll)
           (.get ^List coll 0))
-        (let [iter (.iterator coll)]
-          (when (.hasNext iter)
-            (.next iter)))))))
+        (clojure.core/first coll)))))
 
 
 (defn last
+  "Get the last item in the collection.  Constant time for
+  random access lists."
   [coll]
   (if (nil? coll)
     nil
-    (let [coll (->collection coll)]
+    (let [coll (->reducible coll)]
       (cond
         (instance? RandomAccess coll)
-        (when-not (.isEmpty coll)
-          (.get ^List coll (unchecked-dec (.size ^List coll))))
+        (let [^List coll coll
+              sz (.size coll)]
+          (when-not (== 0 sz)
+            (.get coll (unchecked-dec sz))))
         (instance? Reversible coll)
         (RT/first (.rseq ^Reversible coll))
         :else
-        (let [iter (.iterator coll)]
-          (when (.hasNext iter)
-            (loop [item (.next iter)]
-              (if (.hasNext iter)
-                (recur (.next iter))
-                item))))))))
+        (clojure.core/last coll)))))
 
 
 (defn reverse
+  "Reverse a collection or sequence.  Constant time reverse is provided
+  for any random access list."
   [coll]
-  (let [coll (->collection coll)]
+  (let [coll (->reducible coll)]
     (cond
       (instance? IMutList coll)
       (.reverse ^IMutList coll)
@@ -1856,20 +1931,24 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
 
 
 (defn take
+  "Take the first N values from a collection.  If the input is
+  random access, the result will be random access."
   [n coll]
   (when coll
-    (let [coll (->collection coll)]
+    (let [coll (->reducible coll)]
       (if (instance? RandomAccess coll)
-        (.subList ^List coll 0 (min (long n) (.size coll)))
+        (.subList ^List coll 0 (min (long n) (.size ^List coll)))
         (clojure.core/take n coll)))))
 
 
 (defn take-last
+  "Take the last N values of the collection.  If the input is random-access,
+  the result will be random-access."
   [n coll]
   (when coll
-    (let [coll (->collection coll)]
+    (let [coll (->reducible coll)]
       (if (instance? RandomAccess coll)
-        (let [ne (.size coll)
+        (let [ne (.size ^List coll)
               n (long n)]
           (.subList ^List coll (- ne n 1) ne))
         (clojure.core/take-last n coll)))))
@@ -1882,21 +1961,25 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
          queue (-> (MinMaxPriorityQueue/orderedBy comp)
                    (.maximumSize (int n))
                    (.create))
-         values (->collection values)]
-     (iterator/doiter
-      obj values
-      (.add queue obj))
+         values (->reducible values)]
+     (fast-reduce (fn [q obj]
+                    (.add queue obj)
+                    queue)
+                  queue
+                  values)
      (->collection (object-array queue))))
   ([n values]
    (take-min n nil values)))
 
 
 (defn drop
+  "Drop the first N items of the collection.  If item is random access, the return
+  value is random-access."
   [n coll]
   (when coll
-    (let [coll (->collection coll)]
+    (let [coll (->reducible coll)]
       (if (instance? RandomAccess coll)
-        (.subList ^List coll (min (long n) (dec (.size coll))) (.size coll))
+        (subvec coll (min (long n) (dec (.size ^List coll))))
         (clojure.core/drop n coll)))))
 
 
@@ -1913,11 +1996,13 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
 
 
 (defn drop-last
+  "Drop the last N values from a collection.  IF the input is random access,
+  the result will be random access."
   [n coll]
   (when coll
-    (let [coll (->collection coll)]
+    (let [coll (->reducible coll)]
       (if (instance? RandomAccess coll)
-        (let [ne (.size coll)
+        (let [ne (.size ^List coll)
               n (long n)]
           (.subList ^List coll 0 (- ne n)))
         (clojure.core/take-last n coll)))))

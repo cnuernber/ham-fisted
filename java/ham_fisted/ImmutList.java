@@ -31,6 +31,7 @@ import clojure.lang.IMapEntry;
 import clojure.lang.Util;
 import clojure.lang.IEditableCollection;
 import clojure.lang.ITransientVector;
+import clojure.lang.IFn;
 
 
 
@@ -251,12 +252,12 @@ public class ImmutList
   }
 
   @SuppressWarnings("unchecked")
-  public ImmutList immutUpdateValue(Object key, Function valueMap) {
+  public ImmutList immutUpdateValue(Object key, IFn valueMap) {
     if(!Util.isInteger(key))
       throw new RuntimeException("Vector indexes must be integers: " + String.valueOf(key));
     int idx = RT.intCast(key);
     if (idx == nElems)
-      return cons(valueMap.apply(null));
+      return cons(valueMap.invoke(null));
 
 
     indexCheck(idx);
@@ -266,7 +267,7 @@ public class ImmutList
     final int eidx = idx % 32;
     Object[] chunk = mdata[cidx].clone();
     mdata[cidx] = chunk;
-    chunk[eidx] = valueMap.apply(chunk[eidx]);
+    chunk[eidx] = valueMap.invoke(chunk[eidx]);
     return new ImmutList(0, nElems, retval);
   }
 

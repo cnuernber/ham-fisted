@@ -22,6 +22,7 @@ import clojure.lang.MapEntry;
 //Metadata is one of the truly brilliant ideas from Clojure
 import clojure.lang.IObj;
 import clojure.lang.IPersistentMap;
+import clojure.lang.IFn;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.Callable;
@@ -151,15 +152,15 @@ class BitmapTrie implements IObj, TrieBase {
     }
 
     @SuppressWarnings("unchecked")
-    public final LeafNode immutUpdate(TrieBase nowner, Object key, int _hashcode, Function fn) {
+    public final LeafNode immutUpdate(TrieBase nowner, Object key, int _hashcode, IFn fn) {
       LeafNode retval = setOwner(nowner);
       if (nowner.equals(k, key)) {
-	retval.v = fn.apply(retval.v);
+	retval.v = fn.invoke(retval.v);
 	retval.nextNode = nextNode;
 	return retval;
       }
       retval.nextNode = nextNode != null ? nextNode.immutUpdate(nowner, key, _hashcode, fn)
-	: new LeafNode(nowner, key, _hashcode, fn.apply(null));
+	: new LeafNode(nowner, key, _hashcode, fn.invoke(null));
       return retval;
     }
 
@@ -500,7 +501,7 @@ class BitmapTrie implements IObj, TrieBase {
       return copy ? new BitmapNode(nowner, bitmap, shift, mdata) : this;
     }
     @SuppressWarnings("unchecked")
-    public final BitmapNode immutUpdate(TrieBase nowner, Object key, int hashcode, Function fn) {
+    public final BitmapNode immutUpdate(TrieBase nowner, Object key, int hashcode, IFn fn) {
       final int bpos = bitpos(shift, hashcode);
       if ((bitmap & bpos) != 0) {
 	final boolean copy = owner != nowner;
@@ -510,7 +511,7 @@ class BitmapTrie implements IObj, TrieBase {
 	return copy ? new BitmapNode(nowner, bitmap, shift, mdata) : this;
       } else {
 	//There is no known value at that position.
-	return assoc(nowner, key, hashcode, fn.apply(null));
+	return assoc(nowner, key, hashcode, fn.invoke(null));
       }
     }
 
@@ -1217,13 +1218,13 @@ class BitmapTrie implements IObj, TrieBase {
   }
 
   @SuppressWarnings("unchecked")
-  final BitmapTrie immutUpdate(Object key, Function action) {
+  final BitmapTrie immutUpdate(Object key, IFn action) {
     final BitmapTrie retval = shallowClone();
     if (key == null) {
       if (nullEntry != null)
 	retval.nullEntry = nullEntry.immutUpdate(retval, key, 0, action);
       else
-	retval.nullEntry = new LeafNode(retval, null, 0, action.apply(null));
+	retval.nullEntry = new LeafNode(retval, null, 0, action.invoke(null));
     } else {
       retval.root = root.immutUpdate(retval, key, hp.hash(key), action);
     }
