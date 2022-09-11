@@ -1263,74 +1263,71 @@ ham_fisted.PersistentHashMap
 
 
 (defn update
-  "Slightly faster version of clojure.core/update when you have persistent maps from this
-  library."
+  "'Updates' a value in an associative structure, where k is a
+  key and f is a function that will take the old value
+  and any supplied args and return the new value, and returns a new
+  structure.  If the key does not exist, nil is passed as the old value.
+
+   - Version of update that produces maps from this library."
+
+  {:added "1.7"
+   :static true}
   ([m k f]
-   (cond
-     (empty-map? m)
-     (PersistentArrayMap. default-hash-provider k (f nil) (meta m))
-     (immut-vals? m)
-     (.immutUpdateValue (as-immut-vals m) k f)
-     :else
-     (clojure.core/update m k f)))
-  ([m k f a]
-   (update m k (single-arg-fn f a)))
-  ([m k f a b]
-   (update m k (single-arg-fn f a b)))
-  ([m k f a b c]
-   (update m k (single-arg-fn f a b c)))
-  ([m k f a b c d]
-   (update m k (single-arg-fn f a b c d)))
-  ([m k f a b c d e]
-   (update m k (single-arg-fn f a b c d e)))
-  ([m k f a b c d e f]
-   (update m k (single-arg-fn f a b c d e f)))
-  ([m k f a b c d e f & args]
-   (update m k (single-arg-fn f a b c d e f args))))
+   (assoc m k (f (get m k))))
+  ([m k f x]
+   (assoc m k (f (get m k) x)))
+  ([m k f x y]
+   (assoc m k (f (get m k) x y)))
+  ([m k f x y z]
+   (assoc m k (f (get m k) x y z)))
+  ([m k f x y z & more]
+   (assoc m k (apply f (get m k) x y z more))))
 
 
-(defn- update-inv
-  [m ks ^long ksoff f]
-  (let [nks (unchecked-subtract (count ks) ksoff)]
-    (case nks
-      0 (update m nil f)
-      1 (update m (ks ksoff) f)
-      2 (let [k0 (ks ksoff)
-              k1 (ks (unchecked-add ksoff 1))
-              m1 (get m k0)]
-          (->> (update m1 k1 f)
-               (assoc m k0)))
-      3 (let [k0 (ks ksoff)
-              k1 (ks (unchecked-add ksoff 1))
-              k2 (ks (unchecked-add ksoff 2))
-              m1 (get m k0)
-              m2 (get m1 k1)]
-          (->> (update m2 k2 f)
-               (assoc m1 k1)
-               (assoc m k0)))
-      (let [k (ks ksoff)]
-        (assoc m k (update-inv (get m k) ks (unchecked-inc ksoff) f))))))
+(defn ^:no-doc update-inf
+  "'Updates' a value in a nested associative structure, where ks is a
+  sequence of keys and f is a function that will take the old value
+  and any supplied args and return the new value, and returns a new
+  nested structure.  If any levels do not exist, hash-maps will be
+  created."
+  {:added "1.0"
+   :static true}
+  ([m ks f & args]
+     (let [up (fn up [m ks f args]
+                (let [[k & ks] ks]
+                  (if ks
+                    (assoc m k (up (get m k) ks f args))
+                    (assoc m k (apply f (get m k) args)))))]
+       (up m ks f args))))
 
 
-(defn update-in
-  "A slightly more efficient version of update in.  The main advantage is that this method
-  will produce maps from this library."
-  ([m ks f]
-   (update-inv m (if (vector? ks) ks (vec ks)) 0 f))
-  ([m ks f a]
-   (update-in m ks (single-arg-fn f a)))
-  ([m ks f a b]
-   (update-in m ks (single-arg-fn f a b)))
-  ([m ks f a b c]
-   (update-in m ks (single-arg-fn f a b c)))
-  ([m ks f a b c d]
-   (update-in m ks (single-arg-fn f a b c d)))
-  ([m ks f a b c d e]
-   (update-in m ks (single-arg-fn f a b c d e)))
-  ([m ks f a b c d e f]
-   (update-in m ks (single-arg-fn f a b c d e f)))
-  ([m ks f a b c d e f & args]
-   (update-in m ks (single-arg-fn f a b c d e f args))))
+(defmacro update-in
+  "An attempt at a slightly more efficient version of update-in."
+  [m ks f & args]
+  (cond
+    (nil? m)
+    `(assoc-in ~m ~ks (~f nil ~@args))
+    (vector? ks)
+    (let [countk (count ks)]
+      (case countk
+        0 `(update ~m nil ~f ~@args)
+        1 `(update ~m ~(ks 0) ~f ~@args)
+        `(let [~@(->> (range 1 countk)
+                      (mapcat (fn [argidx]
+                                (let [didix (dec argidx)]
+                                  [(symbol (str "m" argidx))
+                                   `(get ~(if (= 0 didix) m (symbol (str "m" didix)))
+                                         ~(ks didix))]))))]
+           ~(reduce (fn [expr argidx]
+                      `(assoc ~(if (= 0 argidx) m (symbol (str "m" argidx)))
+                              ~(ks argidx)
+                              ~expr))
+                    `(update ~(symbol (str "m" (dec countk)))
+                             ~(ks (dec countk))
+                             ~f ~@args)
+                    (range (- countk 2) -1 -1)))))
+    :else
+    `(update-inf ~m ~ks ~f ~@args)))
 
 
 (defn subvec
