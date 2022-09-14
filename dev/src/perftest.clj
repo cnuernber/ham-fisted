@@ -83,10 +83,10 @@
                              (api/object-array-list (* n-elems 2))
                              (map-data n-elems))
                      (api/object-array))]
-    {:n-elems n-elems
-     :test :hashmap-cons-obj-ary
-     :clj (bench/benchmark-us (PersistentHashMap/create map-data))
-     :hamf (bench/benchmark-us (api/immut-map map-data))}))
+    [{:n-elems n-elems
+      :test :hashmap-cons-obj-ary
+      :clj (bench/benchmark-us (PersistentHashMap/create map-data))
+      :hamf (bench/benchmark-us (api/immut-map map-data))}]))
 
 
 (def union-data
@@ -473,7 +473,9 @@
 (defn profile
   []
   (api/concatv (general-hashmap)
-               (hashmap-construction-obj-ary)
+               (hashmap-construction-obj-ary 4)
+               (hashmap-construction-obj-ary 10)
+               (hashmap-construction-obj-ary 1000)
                (general-persistent-vector)
                (union-perftest)
                (sequence-summation)
@@ -491,7 +493,8 @@
                (mapmap-perftest)
                (assoc-in-perftest)
                (update-in-perftest)
-               (get-in-perftest)))
+               (get-in-perftest)
+               ))
 
 
 (defn process-dataset
