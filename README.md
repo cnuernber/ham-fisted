@@ -228,7 +228,7 @@ original code indicated the sequence operations performed during assoc-in and up
 of some time.
 
 The JVM is a complicated machine and there are issues with using, for instance, too many classes
-at a particular callsite.  Overally I would recommend profiling and being careful.  My honest opinion
+at a particular callsite.  Overall I would recommend profiling and being careful.  My honest opinion
 right now is that `assoc-in` and `update-in` do not improve program performance at least in
 some of the use cases I have tested.
 
