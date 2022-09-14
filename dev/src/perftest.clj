@@ -8,7 +8,8 @@
             [clojure.string :as str])
   (:import [java.util HashMap ArrayList Map List Map$Entry]
            [java.util.function BiFunction]
-           [ham_fisted ArrayLists$ReductionConsumer])
+           [ham_fisted ArrayLists$ReductionConsumer]
+           [clojure.lang PersistentHashMap])
   (:gen-class))
 
 
@@ -67,6 +68,25 @@
   (log/info "hashmap perftest")
   (concat (hashmap-perftest (map-data 10000))
           (hashmap-perftest (map-data 10))))
+
+
+;;This test is designed to test deserialization performance of various map sizes.
+;;assuming the best way to serialize map data is a flat object array of
+;;key-value data and the best way to create this is reduce which is profiled above.
+(defn hashmap-construction-obj-ary
+  [^long n-elems]
+  (log/info "hashmap obj array construction")
+  (let [map-data (-> (reduce (fn [l kv]
+                               (.add ^List l (nth kv 0))
+                               (.add ^List l (nth kv 1))
+                               l)
+                             (api/object-array-list (* n-elems 2))
+                             (map-data n-elems))
+                     (api/object-array))]
+    {:n-elems n-elems
+     :test :hashmap-cons-obj-ary
+     :clj (bench/benchmark-us (PersistentHashMap/create map-data))
+     :hamf (bench/benchmark-us (api/immut-map map-data))}))
 
 
 (def union-data
@@ -453,6 +473,7 @@
 (defn profile
   []
   (api/concatv (general-hashmap)
+               (hashmap-construction-obj-ary)
                (general-persistent-vector)
                (union-perftest)
                (sequence-summation)
