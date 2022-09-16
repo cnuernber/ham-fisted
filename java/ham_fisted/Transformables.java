@@ -189,7 +189,7 @@ public class Transformables {
 	    }
 	  }, init);
       } else {
-	return iterReduce(this, init, fn);
+	return iterReduce(this, init, rfn);
       }
     }
     public Object[] toArray() {
@@ -439,7 +439,7 @@ public class Transformables {
 	    }
 	  }, init);
       } else {
-	return iterReduce(this, init, fn);
+	return iterReduce(this, init, rfn);
       }
     }
   }

@@ -50,7 +50,7 @@
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
             IEditableCollection RT IPersistentMap Associative Util IFn ArraySeq
             Reversible IReduce IReduceInit IFn$DD IFn$DL IFn$DO IFn$LD IFn$LL IFn$LO
-            IFn$OD IFn$OL]
+            IFn$OD IFn$OL IObj]
            [java.util Map Map$Entry List RandomAccess Set Collection ArrayList Arrays
             Comparator Random]
            [java.lang.reflect Array]
@@ -70,7 +70,7 @@
                             into assoc-in get-in update assoc update-in hash-map
                             group-by subvec group-by mapv vec vector object-array
                             sort int-array long-array double-array float-array
-                            range map concat filter first last pmap take take-last drop
+                            range map concat filter filterv first last pmap take take-last drop
                             drop-last sort-by repeat repeatedly shuffle into-array
                             empty? reverse]))
 
@@ -1388,17 +1388,31 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
 
 (defn mapv
   "Produce a persistent vector from a collection"
-  [map-fn coll]
-  (immut-list (map map-fn coll)))
+  ([map-fn coll]
+   (immut-list (map map-fn coll)))
+  ([map-fn c1 c2]
+   (immut-list (map map-fn c1 c2)))
+  ([map-fn c1 c2 c3]
+   (immut-list (map map-fn c1 c2 c3)))
+  ([map-fn c1 c2 c3 & args]
+   (immut-list (apply map map-fn c1 c2 c3 args))))
+
+
+(defn filterv
+  [pred coll]
+  (immut-list (filter pred coll)))
 
 
 (defn vec
   "Produce a persistent vector.  Optimized pathways exist for object arrays and
   java List implementations."
-  [data]
-  (if (vector? data)
-    data
-    (immut-list data)))
+  ([data]
+   (if (vector? data)
+     (if (instance? IObj data)
+       (with-meta data nil)
+       data)
+     (immut-list data)))
+  ([] (immut-list)))
 
 
 (defn vector

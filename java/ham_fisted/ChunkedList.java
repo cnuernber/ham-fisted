@@ -206,11 +206,11 @@ class ChunkedList {
   }
 
   static final int indexCheck(int startidx, int nElems, int idx) {
-    if (idx < startidx)
-      throw new RuntimeException("Index underflow: " + String.valueOf(idx));
+    if (idx < 0)
+      throw new IndexOutOfBoundsException("Index underflow: " + String.valueOf(idx));
     if(idx >= nElems)
-      throw new RuntimeException("Index out of range: " + String.valueOf(idx) + " : "
-				 + String.valueOf(nElems));
+      throw new IndexOutOfBoundsException("Index out of range: " + String.valueOf(idx) + " : "
+					  + String.valueOf(nElems));
     return idx + startidx;
   }
 
@@ -616,44 +616,6 @@ class ChunkedList {
     }
     hash = Murmur3.mixCollHash(hash, n);
     return hash;
-  }
-
-  final boolean equiv(HashProvider hp, int startidx, int endidx, Object other) {
-    if (other == this) return true;
-    if (other == null) return false;
-    final int ne = endidx - startidx;
-    if (other instanceof ChunkedListOwner) {
-      ChunkedListSection oc = ((ChunkedListOwner)other).getChunkedList();
-      if ((oc.endidx - oc.startidx) != ne)
-	return false;
-      final Object[][] mdata = data;
-      final Object[][] odata = oc.data;
-      final int osidx = oc.startidx;
-      if (mdata == odata && osidx == startidx)
-	return true;
-      for (int idx = 0; idx < ne; ++idx) {
-	final int midx = idx + startidx;
-	final int oidx = idx + osidx;
-	if(!hp.equals(mdata[midx/32][midx%32], odata[oidx/32][oidx%32]))
-	  return false;
-      }
-      return true;
-    } else {
-      Collection oc;
-      if (other instanceof Collection)
-	oc = (Collection)other;
-      else
-	oc = (Collection)RT.seq(other);
-      if (oc.size() != ne)
-	return false;
-      Iterator miter = iterator(startidx, endidx);
-      Iterator oiter = oc.iterator();
-      while(miter.hasNext()) {
-	if (!hp.equals(miter.next(), oiter.next()))
-	  return false;
-      }
-      return true;
-    }
   }
   final IPersistentMap meta() { return meta; }
   final ChunkedList withMeta(IPersistentMap m) {

@@ -308,10 +308,10 @@ public class MutList<E>
     }
     public final String toString() { return Transformables.sequenceToString(this); }
     public final boolean equals(Object other) {
-      return data.equiv(defaultHashProvider, startidx, startidx+nElems, other);
+      return equiv(other);
     }
     public final boolean equiv(Object other) {
-      return data.equiv(defaultHashProvider, startidx, startidx+nElems, other);
+      return CljHash.listEquiv(this, other);
     }
     public final ISeq seq() { return data.seq(startidx, startidx+nElems); }
     public final ISeq rseq() { return data.rseq(startidx, startidx+nElems); }
@@ -438,12 +438,10 @@ public class MutList<E>
   public final boolean equals(Object other) {
     if (other == this)
       return true;
-    return data.equiv(defaultHashProvider, 0, data.nElems, other);
+    return equiv(other);
   }
   public final boolean equiv(Object other) {
-    if (other == this)
-      return true;
-    return data.equiv(defaultHashProvider, 0, data.nElems, other);
+    return CljHash.listEquiv(this, other);
   }
   public IPersistentMap meta() { return data.meta(); }
   public MutList<E> withMeta(IPersistentMap m) {

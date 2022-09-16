@@ -83,6 +83,28 @@ these primitives (and things like frequencies) will perform substantially better
  something that is both not particularly efficient and explodes the data size.
 
 
+#### Random Access Containers Support Negative Indexes
+
+All random access containers, be it vectors, lists, or array lists support
+nth, ifn interfaces taking -1 to index from the end of the vector.  For performance
+reasons, the implementation of List.get does not -
+
+```clojure
+ham-fisted.persistent-vector-test> ((api/vec (range 10)) -1)
+9
+ham-fisted.persistent-vector-test> (nth (api/vec (range 10)) -1)
+9
+ham-fisted.persistent-vector-test> (.get (api/vec (range 10)) -1)
+Execution error (IndexOutOfBoundsException) at ham_fisted.ChunkedList/indexCheck (ChunkedList.java:210).
+Index underflow: -1
+ham-fisted.persistent-vector-test> ((api/->random-access (api/int-array (range 10))) -1)
+9
+ham-fisted.persistent-vector-test> (nth (api/->random-access (api/int-array (range 10))) -1)
+9
+```
+Similarly `last` is constant time for all any list implementation deriving from
+`java.util.RandomAccess`.
+
 ## Other ideas
 
  * `lazy-noncaching` namespace contains very efficient implementations of map,
@@ -220,10 +242,10 @@ from the benchmark - perhaps due to the machine's heat management systems.
 This code is minimally tested.  The datastructures especially need serious testing, potentially generative
 testing of edge cases.
 
-Also, microbenchmarks do not always indicate how your system will perform overall.  For instance- when 
+Also, microbenchmarks do not always indicate how your system will perform overall.  For instance- when
 testing `assoc-in`, `update-in` in this project we see better performance.  In at least one real
 world project, however, the inlining that makes the microbenchmark perform better definitely did
-*not* result in the project running faster -- it ran a bit slower even though the profiler of the 
+*not* result in the project running faster -- it ran a bit slower even though the profiler of the
 original code indicated the sequence operations performed during assoc-in and update-in were a source
 of some time.
 

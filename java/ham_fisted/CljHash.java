@@ -6,6 +6,7 @@ import static ham_fisted.BitmapTrieCommon.*;
 import java.util.Map;
 import java.util.Set;
 import java.util.List;
+import java.util.Iterator;
 import java.util.RandomAccess;
 import java.util.Collection;
 import clojure.lang.Murmur3;
@@ -15,7 +16,7 @@ import clojure.lang.RT;
 
 
 public class CljHash {
-  
+
   public static int mapHashcode(Map data) {
     return Murmur3.hashUnordered(data.entrySet());
   }
@@ -28,7 +29,7 @@ public class CljHash {
   public static int setHashcode(BitmapTrie data) {
     return Murmur3.hashUnordered(data.keySet((Object)null, false));
   }
-  
+
   public static boolean mapEquiv(BitmapTrie data, Object rhs) {
     BitmapTrie rhsBm = null;
     if (rhs instanceof BitmapTrieOwner) {
@@ -37,7 +38,7 @@ public class CljHash {
       rhsBm = (BitmapTrie)rhs;
     }
     if (rhsBm != null) {
-      
+
       if(data.size() != rhsBm.size()) return false;
 
       LeafNodeIterator iter = rhsBm.iterator(identityIterFn);
@@ -61,7 +62,7 @@ public class CljHash {
     }
     return false;
   }
-  
+
   public static boolean setEquiv(BitmapTrie data, Object rhs) {
     BitmapTrie rhsBm = null;
     if (rhs instanceof BitmapTrieOwner) {
@@ -69,8 +70,8 @@ public class CljHash {
     } else if (rhs instanceof BitmapTrie) {
       rhsBm = (BitmapTrie)rhs;
     }
-    
-    if (rhsBm != null) {      
+
+    if (rhsBm != null) {
       if(data.size() != rhsBm.size()) return false;
 
       LeafNodeIterator iter = rhsBm.iterator(identityIterFn);
@@ -84,7 +85,7 @@ public class CljHash {
     } else if (rhs instanceof Set) {
       Set rhsMap = (Set)rhs;
       if (data.size() != rhsMap.size()) return false;
-      
+
       for(Object obj: rhsMap) {
 	LeafNode llf = data.getNode(obj);
 	if (llf == null)
@@ -117,14 +118,15 @@ public class CljHash {
       }
       return true;
     } else {
-      int idx = 0;
       Collection r = rhs instanceof Collection ? (Collection)rhs : (Collection)RT.seq(rhs);
-      for(Object o:r) {
-	if(!Util.equiv(l.get(idx), o))
+      Iterator iter = r.iterator();
+      final int sz = l.size();
+      int idx;
+      for(idx = 0; idx < sz && iter.hasNext(); ++idx) {
+	if(!Util.equiv(l.get(idx), iter.next()))
 	  return false;
-	++idx;
       }
-      return true;
+      return idx != sz || iter.hasNext() ? false : true;
     }
   }
 }

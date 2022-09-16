@@ -103,20 +103,7 @@ public class ArrayImmutList
 	  return false;
       return true;
     } else {
-      Collection oc;
-      if (other instanceof Collection)
-	oc = (Collection)other;
-      else
-	oc = (Collection)RT.seq(other);
-      if (oc.size() != ne)
-	return false;
-      Iterator miter = iterator();
-      Iterator oiter = oc.iterator();
-      while(miter.hasNext()) {
-	if (!hp.equals(miter.next(), oiter.next()))
-	  return false;
-      }
-      return true;
+      return CljHash.listEquiv(this, other);
     }
   }
   public final boolean equiv(Object other) {
@@ -140,7 +127,7 @@ public class ArrayImmutList
   public boolean retainAll(Collection c) { throw new RuntimeException("Unimplemented"); }
   public boolean removeAll(Collection c) { throw new RuntimeException("Unimplemented"); }
   public boolean addAll(Collection c) { throw new RuntimeException("Unimplemented"); }
-  public Object get(int idx) { return data[wrapIndexCheck(idx)]; }
+  public Object get(int idx) { return data[indexCheck(idx)]; }
   public final int indexOf(Object obj) {
     final int ne = nElems;
     final int sidx = startidx;
@@ -259,7 +246,9 @@ public class ArrayImmutList
     if (idx >= ne) return notFound;
     return data[idx+startidx];
   }
-  public final Object nth(int idx) { return nth(idx, null); }
+  public final Object nth(int idx) {
+    return data[wrapIndexCheck(idx)];
+  }
   public final Object invoke(Object idx) {
     if (Util.isInteger(idx))
       return nth(RT.intCast(idx));
@@ -312,13 +301,13 @@ public class ArrayImmutList
     return reduce(f, startidx+1, get(0));
   }
   public final Object kvreduce(IFn fn, Object init) {
-    final int eidx = startidx + nElems;
-    final int ss = startidx;
+    final int sidx = startidx;
     final Object[] d = data;
-    for(int sidx = 0; sidx < eidx; ++sidx) {
+    final int ne = nElems;
+    for(int idx = 0; idx < ne; ++idx) {
       if(RT.isReduced(init))
 	return ((IDeref)init).deref();
-      init = fn.invoke(init, sidx-ss, d[sidx]);
+      init = fn.invoke(init, idx, d[sidx+idx]);
     }
     if(RT.isReduced(init))
       return ((IDeref)init).deref();

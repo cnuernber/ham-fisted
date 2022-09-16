@@ -75,11 +75,11 @@ public class ImmutList
   public final int hasheq() { return hashCode(); }
   public final boolean equals(Object other) {
     if (other == this ) return true;
-    return data.equiv(defaultHashProvider, startidx, startidx+nElems, other);
+    return equiv(other);
   }
   public final String toString() { return Transformables.sequenceToString(this); }
   public final boolean equiv(Object other) {
-    return data.equiv(defaultHashProvider, startidx, startidx+nElems, other);
+    return CljHash.listEquiv(this, other);
   }
   public final int size() { return nElems; }
   public final int count() { return nElems; }
