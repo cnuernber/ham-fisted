@@ -433,6 +433,18 @@
       :hamf (bench/benchmark-us (api/get-in data [:a :b :c :d :e]))}]))
 
 
+(defn concatv-perftest
+  []
+  (log/info "concatv")
+  (let [data [[] (list 1 2 3) nil nil
+              (clojure.core/vector 1 2 3 4 5) (api/array-list [1 2 3 4])
+              (api/vec (api/range 50))]]
+    [{:n-elems 100
+      :test :concatv
+      :clj (bench/benchmark-us (clojure.core/vec (apply concat data)))
+      :hamf (bench/benchmark-us (apply api/concatv data))}]))
+
+
 (defn machine-name
   []
   (.getHostName (java.net.InetAddress/getLocalHost)))
@@ -494,7 +506,8 @@
                (assoc-in-perftest)
                (update-in-perftest)
                (get-in-perftest)
-               ))
+               (concatv-perftest)))
+
 
 
 (defn process-dataset

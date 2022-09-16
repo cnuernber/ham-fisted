@@ -147,6 +147,21 @@
   (is (= 22 (api/fast-reduce + 10 (api/subvec (api/int-array [0 2 4 6]) 1)))))
 
 
+(deftest concatv-special-cases
+  (is (= (reduce + 0 (api/concatv [] (list 1 2 3) nil nil
+                                  (clojure.core/vector 1 2 3 4 5) (api/array-list [1 2 3 4])
+                                  (api/vec (api/range 50))))
+         (reduce + 0 (concat [] (list 1 2 3) nil nil
+                             (clojure.core/vector 1 2 3 4 5) (api/array-list [1 2 3 4])
+                             (api/vec (api/range 50))))))
+  (is (= (api/concatv [] (list 1 2 3) nil nil
+                      (clojure.core/vector 1 2 3 4 5) (api/array-list [1 2 3 4])
+                      (api/vec (api/range 50)))
+         (concat [] (list 1 2 3) nil nil
+                 (clojure.core/vector 1 2 3 4 5) (api/array-list [1 2 3 4])
+                 (api/vec (api/range 50))))))
+
+
 (comment
   (def m (doto (MutList.) (.addAll (range 36))))
   (def m ImmutList/EMPTY)

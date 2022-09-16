@@ -1387,7 +1387,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
 
 
 (defn mapv
-  "Produce a persistent vector from a collection"
+  "Produce a persistent vector from a collection."
   ([map-fn coll]
    (immut-list (map map-fn coll)))
   ([map-fn c1 c2]
@@ -1399,6 +1399,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
 
 
 (defn filterv
+  "Filter a collection into a vector."
   [pred coll]
   (immut-list (filter pred coll)))
 
@@ -1459,16 +1460,16 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
      (nil? v2) (vec v1)
      :else
      (let [retval (mut-list)]
-       (.addAll retval (->collection v1))
-       (.addAll retval (->collection v2))
+       (.addAllReducible retval (->reducible v1))
+       (.addAllReducible retval (->reducible v2))
        (persistent! retval))))
   ([v1 v2 & args]
    (let [retval (mut-list)]
-     (when-not (nil? v1) (.addAll retval (->collection v1)))
-     (when-not (nil? v2) (.addAll retval (->collection v2)))
+     (when-not (nil? v1) (.addAllReducible retval (->reducible v1)))
+     (when-not (nil? v2) (.addAllReducible retval (->reducible v2)))
      (iterator/doiter
       c args
-      (when-not (nil? c) (.addAll retval (->collection c))))
+      (when-not (nil? c) (.addAllReducible retval (->reducible c))))
      (persistent! retval))))
 
 

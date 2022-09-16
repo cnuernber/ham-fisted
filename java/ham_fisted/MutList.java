@@ -29,6 +29,7 @@ import clojure.lang.IPersistentMap;
 import clojure.lang.ITransientVector;
 import clojure.lang.Util;
 import clojure.lang.Counted;
+import clojure.lang.IReduceInit;
 
 
 public class MutList<E>
@@ -55,9 +56,12 @@ public class MutList<E>
   public final boolean add(E v) { data.add(v); return true; }
   public final void add(int idx, E v) { data.add(v,idx); }
   public final boolean addAll(Collection<? extends E> c) {
-    if (c.isEmpty())
-      return false;
-    final int ne = size();
+    return addAllReducible(c);
+  }
+
+  @SuppressWarnings("unchecked")
+  public final boolean addAllReducible(Object c) {
+    final int ssz = size();
     if (c instanceof ChunkedListOwner) {
       final ChunkedListSection section = ((ChunkedListOwner)c).getChunkedList();
       int idx = data.nElems;
@@ -80,13 +84,27 @@ public class MutList<E>
 	oidx += copyLen;
       }
     }
+    else if (c instanceof IReduceInit) {
+      final ChunkedList d = data;
+      if( c instanceof RandomAccess) {
+	final List cl = (List) c;
+	if (cl.isEmpty()) return false;
+	d.enlarge(ssz + cl.size());
+      }
+      ((IReduceInit)c).reduce(new IFnDef() {
+	  public Object invoke(Object lhs, Object rhs) {
+	    d.add(rhs);
+	    return this;
+	  }
+	}, this);
+    }
     else if (c instanceof RandomAccess) {
-      final int cs = c.size();
-      data.enlarge(cs + ne);
-      int idx = ne;
+      final List l = (List)c;
+      final int cs = l.size();
+      data.enlarge(cs + ssz);
+      int idx = ssz;
       data.nElems = idx +  cs;
       final Object[][] mdata = data.data;
-      final List l = (List)c;
       int cidx = 0;
       while(cidx < cs) {
 	final Object[] chunk = mdata[idx/32];
@@ -98,9 +116,11 @@ public class MutList<E>
 	idx += groupLen;
       }
     } else {
-      for (E e: c) add(e);
+      if(! (c instanceof Collection))
+	throw new RuntimeException("Object must either be instance of IReduceInit or java.util.Collection");
+      for (E e: (Collection<E>)c) add(e);
     }
-    return true;
+    return ssz != size();
   }
 
   public final boolean addAll(int idx, Collection<? extends E> c) {
