@@ -18,6 +18,7 @@ public class ConstList implements IMutList<Object>, TypedList {
     value = _v;
     meta = m;
   }
+  public IMutList cloneList() { return this; }
   public Class containedType() { return value != null ? value.getClass() : Object.class; }
   public static ConstList create(int nElems, Object value, IPersistentMap m) {
     if (value instanceof Long || value instanceof Integer

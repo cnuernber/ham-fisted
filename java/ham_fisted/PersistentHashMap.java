@@ -177,14 +177,12 @@ public final class PersistentHashMap
     return new PersistentHashMap(hb.shallowClone(newMeta));
   }
   public final Object kvreduce(IFn f, Object init) {
-    LeafNodeIterator iter = hb.iterator(hb.identityIterFn);
-    while(iter.hasNext()) {
-      ILeaf elem = iter.nextLeaf();
+    final LeafNodeIterator iter = hb.iterator(hb.identityIterFn);
+    while(iter.hasNext() && !RT.isReduced(init)) {
+      final ILeaf elem = iter.nextLeaf();
       init = f.invoke(init, elem.key(), elem.val());
-      if (RT.isReduced(init))
-	return ((IDeref)init).deref();
     }
-    return init;
+    return RT.isReduced(init) ? ((IDeref)init).deref() : init;
   }
   public final ITransientMap asTransient() {
     if (size() == 0)

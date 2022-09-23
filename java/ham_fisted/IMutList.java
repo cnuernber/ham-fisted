@@ -40,19 +40,21 @@ import clojure.lang.IPersistentVector;
 import clojure.lang.IPersistentMap;
 import clojure.lang.IObj;
 import clojure.lang.ASeq;
+import clojure.lang.IReduceInit;
 
 
 public interface IMutList<E>
   extends List<E>, RandomAccess, Indexed, IFnDef, IReduce, IKVReduce,
 	  IHashEq, Seqable, Reversible, IObj, ImmutSort<E>,
-	  RangeList
+	  RangeList, Cloneable
 
 {
+  default IMutList cloneList() { return (IMutList)ArrayLists.toList(toArray()); }
   default void clear() { throw new RuntimeException("Unimplemented"); }
   default boolean add(E v) { throw new RuntimeException("Unimplemented"); }
   default void add(int idx, E v) { throw new RuntimeException("Unimplemented"); }
-  default boolean addLong(long v) { throw new RuntimeException("Unimplemented"); }
-  default boolean addDouble(double v) { throw new RuntimeException("Unimplemented"); }
+  default void addLong(long v) { throw new RuntimeException("Unimplemented"); }
+  default void addDouble(double v) { throw new RuntimeException("Unimplemented"); }
   default void addRange(int startidx, int endidx, Object v) { throw new RuntimeException("Unimplemented"); }
   default void removeRange(int startidx, int endidx) { throw new RuntimeException("Unimplemented"); }
   @SuppressWarnings("unchecked")
@@ -79,10 +81,25 @@ public interface IMutList<E>
     return true;
   }
   default boolean addAll(Collection<? extends E> c) {
-    if (c.isEmpty())
-      return false;
-    for (E e: c) add(e);
-    return true;
+    return addAllReducible(c);
+  }
+  @SuppressWarnings("unchecked")
+  default boolean addAllReducible(Object obj) {
+    final int sz = size();
+    //If object implements IReduceInit then prefer that over iteration.
+    if(obj instanceof IReduceInit) {
+      ((IReduceInit)obj).reduce(new IFnDef() {
+	  public Object invoke(Object lhs, Object rhs) {
+	    add((E)rhs);
+	    return this;
+	  }
+	}, this);
+    } else {
+      for(Object item : (Collection)obj) {
+	add((E)item);
+      }
+    }
+    return sz != size();
   }
   default boolean addAll(int idx, Collection<? extends E> c) {
     if (c.isEmpty())

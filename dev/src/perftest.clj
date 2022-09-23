@@ -349,15 +349,17 @@
 (defn group-by-reduce-perftest
   []
   (log/info "group-by-reduce")
+  ;;Choose a large-ish prime.  This emphasizes not only an efficient map datastructure but
+  ;;also the much faster finalization step.
   (let [n-elems 10000]
     [{:n-elems n-elems
       :test :group-by-reduce
-      :clj (bench/benchmark-us (->> (clojure.core/group-by #(rem (unchecked-long %1) 7)
+      :clj (bench/benchmark-us (->> (clojure.core/group-by #(rem (unchecked-long %1) 337)
                                                            (api/range n-elems))
                                     (map (fn [[k v]]
                                            [k (first v)]))
                                     (into {})))
-      :hamf (bench/benchmark-us (api/group-by-reduce #(rem (unchecked-long %1) 7)
+      :hamf (bench/benchmark-us (api/group-by-reduce #(rem (unchecked-long %1) 337)
                                                      (fn [l r] l)
                                                      (api/range n-elems)))}]))
 

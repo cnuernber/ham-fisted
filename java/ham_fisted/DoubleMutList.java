@@ -8,8 +8,8 @@ import java.util.function.DoubleConsumer;
 
 
 public interface DoubleMutList extends IMutList<Object> {
-  default boolean add(Object obj) { return addDouble(Casts.doubleCast(obj)); }
-  default boolean addLong(long obj) { return addDouble(Casts.doubleCast(obj)); }
+  default boolean add(Object obj) { addDouble(Casts.doubleCast(obj)); return true; }
+  default void addLong(long obj) { addDouble(Casts.doubleCast(obj)); }
   @SuppressWarnings("unchecked")
   default Object set(int idx, Object obj) { return setDouble(idx, Casts.doubleCast(obj)); }
   default long setLong(int idx, long obj) { return (long)setDouble(idx, (double)obj); }

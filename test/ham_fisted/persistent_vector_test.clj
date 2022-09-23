@@ -159,6 +159,13 @@
                       (api/vec (api/range 50)))
          (concat [] (list 1 2 3) nil nil
                  (clojure.core/vector 1 2 3 4 5) (api/array-list [1 2 3 4])
+                 (api/vec (api/range 50)))))
+  (is (= (api/vec (api/concata [] (list 1 2 3) nil nil
+                               (clojure.core/vector 1 2 3 4 5)
+                               (api/object-array-list [1 2 3 4])
+                               (api/vec (api/range 50))))
+         (concat [] (list 1 2 3) nil nil
+                 (clojure.core/vector 1 2 3 4 5) (api/object-array-list [1 2 3 4])
                  (api/vec (api/range 50))))))
 
 

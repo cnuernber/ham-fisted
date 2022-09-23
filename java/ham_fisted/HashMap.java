@@ -318,6 +318,15 @@ public final class HashMap<K,V>
 						 remappingFunction));
   }
 
+  @SuppressWarnings("unchecked")
+  public void replaceAll(BiFunction<? super K,? super V,? extends V> function) {
+    final LeafNodeIterator iter = hb.iterator(hb.identityIterFn);
+    while(iter.hasNext()) {
+      final ILeaf elem = iter.nextLeaf();
+      elem.val(function.apply((K)elem.key(), (V)elem.val()));
+    }
+  }
+
   public final PersistentHashMap immutUpdateValues(BiFunction bfn) {
     return new PersistentHashMap(hb.immutUpdate(bfn));
   }

@@ -1334,7 +1334,7 @@ ham_fisted.PersistentHashMap
 
 (defn group-by-reduce
   "Group by key. Apply the reduce-fn the existing value and on each successive value.
-  finalize-fn is called during finalization with that the sole argument of the existing value.
+  finalize-fn is called during finalization with the sole argument of the existing value.
   If at any point result is reduced? group-by continues but further reductions for that
   specific value cease.  In this case finalize-fn isn't called but the result is simply
   deref'd during finalization.
@@ -1375,13 +1375,14 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
                       (.inplaceUpdate ^BitmapTrieCommon$Box b update-fn v))
                     retval)
                   retval coll)
-     (update-values retval (bi-function
-                            k b
-                            (let [^BitmapTrieCommon$Box b b
-                                  v (.obj b)]
-                              (if (reduced? v)
-                                (deref v)
-                                (finalize-fn v)))))))
+     (.replaceAll retval (bi-function
+                          k b
+                          (let [^BitmapTrieCommon$Box b b
+                                v (.obj b)]
+                            (if (reduced? v)
+                              (deref v)
+                              (finalize-fn v)))))
+     (persistent! retval)))
   ([key-fn reduce-fn coll]
    (group-by-reduce key-fn reduce-fn nil coll)))
 
@@ -1450,6 +1451,22 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
     true))
 
 
+(defn- concat-reducible
+  ([^IMutList retval v1 v2]
+   (let [retval (mut-list)]
+     (.addAllReducible retval (->reducible v1))
+     (.addAllReducible retval (->reducible v2))
+     retval))
+  ([^IMutList retval v1 v2 args]
+   (when-not (nil? v1) (.addAllReducible retval (->reducible v1)))
+   (when-not (nil? v2) (.addAllReducible retval (->reducible v2)))
+   (fast-reduce (fn [data c]
+                  (when-not (nil? c) (.addAllReducible retval (->reducible c)))
+                  retval)
+                retval
+                args)))
+
+
 (defn concatv
   "non-lazily concat a set of items returning a persistent vector.  "
   ([] empty-vec)
@@ -1459,18 +1476,11 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
      (nil? v1) (vec v2)
      (nil? v2) (vec v1)
      :else
-     (let [retval (mut-list)]
-       (.addAllReducible retval (->reducible v1))
-       (.addAllReducible retval (->reducible v2))
-       (persistent! retval))))
+     (-> (concat-reducible (mut-list) v1 v2)
+         (persistent!))))
   ([v1 v2 & args]
-   (let [retval (mut-list)]
-     (when-not (nil? v1) (.addAllReducible retval (->reducible v1)))
-     (when-not (nil? v2) (.addAllReducible retval (->reducible v2)))
-     (iterator/doiter
-      c args
-      (when-not (nil? c) (.addAllReducible retval (->reducible c))))
-     (persistent! retval))))
+   (-> (concat-reducible (mut-list) v1 v2 args)
+       (persistent!))))
 
 
 (defn concata
@@ -1483,20 +1493,11 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
      (nil? v1) (object-array v2)
      (nil? v2) (object-array v1)
      :else
-     (let [retval (ArrayLists$ObjectArrayList.)]
-       (.addAll retval (->collection v1))
-       (.addAll retval (->collection v2))
-       (-> (.getArray retval)
-           (.array)))))
+     (-> (concat-reducible (ArrayLists$ObjectArrayList.) v1 v2)
+         (object-array))))
   (^objects [v1 v2 & args]
-   (let [retval (ArrayLists$ObjectArrayList.)]
-     (when-not (nil? v1) (.addAll retval (->collection v1)))
-     (when-not (nil? v2) (.addAll retval (->collection v2)))
-     (iterator/doiter
-      c args
-      (when-not (nil? c) (.addAll retval (->collection c))))
-     (-> (.getArray retval)
-         (.array)))))
+   (-> (concat-reducible (ArrayLists$ObjectArrayList.) v1 v2 args)
+       (object-array))))
 
 
 (defn object-array
@@ -1702,7 +1703,10 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
   "Sort a collection of data returning an array of indexes.  The collection must be
   random access and the return value is an integer array of indexes which will read the
   input data in sorted order.  Faster implementations are provided when the collection
-  is an integer, long, or double array.  See also [[reindex]]."
+  is an integer, long, or double array.  See also [[reindex]].
+
+  Note this sort is not nan, null aware.  dtype-next provides a somewhat slower version
+  in the argops namespace which will correctly handle null and nan values."
   ([comp coll]
    (let [^List coll (if (instance? RandomAccess coll)
                       coll

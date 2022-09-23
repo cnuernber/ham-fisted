@@ -29,6 +29,7 @@ public class Ranges {
 				   String.valueOf(_step));
       meta = m;
     }
+    public IMutList cloneList() { return this; }
     public boolean equals(Object other) {
       return equiv(other);
     }
@@ -112,6 +113,7 @@ public class Ranges {
 				   + " end: " + String.valueOf(e) + " step: " +
 				   String.valueOf(_step));
     }
+    public IMutList cloneList() { return this; }
     public boolean equals(Object other) {
       return equiv(other);
     }
