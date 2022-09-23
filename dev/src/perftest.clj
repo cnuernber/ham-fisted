@@ -2,6 +2,7 @@
   (:require [ham-fisted.api :as api]
             [ham-fisted.lazy-noncaching :as lznc]
             [ham-fisted.benchmark :as bench]
+            [tech.v3.datatype :as dtype]
             [clojure.tools.logging :as log]
             [clojure.pprint :as pp]
             [clojure.java.shell :as sh]
@@ -328,7 +329,9 @@
       :n-elems n-elems
       :java (bench/benchmark-us (doto (ArrayList.)
                                   (.addAll init-data)))
-      :hamf (bench/benchmark-us (api/int-array-list init-data))}]))
+      :hamf (bench/benchmark-us (api/int-array-list init-data))
+      :dtype (bench/benchmark-us (doto (dtype/make-list :int32)
+                                   (.addAll init-data)))}]))
 
 
 (defn group-by-perftest
@@ -355,7 +358,7 @@
                                            [k (first v)]))
                                     (into {})))
       :hamf (bench/benchmark-us (api/group-by-reduce #(rem (unchecked-long %1) 7)
-                                                     (fn ([l r] l) ([l] l))
+                                                     (fn [l r] l)
                                                      (api/range n-elems)))}]))
 
 

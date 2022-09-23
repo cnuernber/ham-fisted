@@ -1,5 +1,5 @@
 (ns ham-fisted.hash-map-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is testing are]]
             [clojure.set :as set]
             [ham-fisted.api :as api]
             [criterium.core :as crit])
@@ -436,6 +436,108 @@
     (is (.equals answer panswer))))
 
 
+
+;;Standard tests
+
+(defn- pers-map
+  [map-data]
+  (api/immut-map map-data))
+
+(defn- ary-map
+  [map-data]
+  (api/immut-map (api/object-array (flatten (seq map-data)))))
+
+(defn test-find-fn
+  [map-fn]
+  (are [x y] (= x y)
+    (find (map-fn {}) :a) nil
+
+    (find (map-fn {:a 1}) :a) [:a 1]
+    (find (map-fn {:a 1}) :b) nil
+    (find (map-fn {nil 1}) nil) [nil 1]
+
+    (find (map-fn {:a 1 :b 2}) :a) [:a 1]
+    (find (map-fn {:a 1 :b 2}) :b) [:b 2]
+    (find (map-fn {:a 1 :b 2}) :c) nil
+
+    (find (map-fn {}) nil) nil
+    (find (map-fn {:a 1}) nil) nil
+    (find (map-fn {:a 1 :b 2}) nil) nil ))
+
+
+
+(deftest test-find-ary-map
+  (test-find-fn ary-map))
+
+(deftest test-find-pers-map
+  (test-find-fn pers-map))
+
+(defn test-contains?
+  [map-fn]
+  (are [x y] (= x y)
+    (contains? (map-fn {}) :a) false
+    (contains? (map-fn {}) nil) false
+
+    (contains? (map-fn {:a 1}) :a) true
+    (contains? (map-fn {:a 1}) :b) false
+    (contains? (map-fn {:a 1}) nil) false
+    (contains? (map-fn {nil 1}) nil) true
+
+    (contains? (map-fn {:a 1 :b 2}) :a) true
+    (contains? (map-fn {:a 1 :b 2}) :b) true
+    (contains? (map-fn {:a 1 :b 2}) :c) false
+    (contains? (map-fn {:a 1 :b 2}) nil) false))
+
+
+(deftest test-ary-map-contains? (test-contains? ary-map))
+
+(deftest test-pers-map-contains? (test-contains? pers-map))
+
+
+(defn diff [s1 s2]
+  (seq (reduce disj (set s1) (set s2))))
+
+
+(defn test-keys
+  [map-fn]
+  (are [x y] (= x y)
+
+    (keys (map-fn {})) nil
+    (keys (map-fn {:a 1})) '(:a)
+    (keys (map-fn {nil 1})) '(nil)
+    (diff (keys (map-fn {:a 1 :b 2})) '(:a :b)) nil
+    (keys (api/hash-map)) nil
+    (keys (api/hash-map :a 1)) '(:a)
+    (diff (keys (api/hash-map :a 1 :b 2)) '(:a :b)) nil )
+
+  (let [m (map-fn {:a 1 :b 2})
+        k (keys m)]
+    (is (= {:hi :there} (meta (with-meta k {:hi :there}))))))
+
+
+(deftest test-ary-map-keys (test-keys ary-map))
+(deftest test-pers-map-keys (test-keys pers-map))
+
+
+(defn test-vals
+  [map-fn]
+  (are [x y] (= x y)
+    (vals (map-fn {})) nil
+    (vals (map-fn {:a 1})) '(1)
+    (vals (map-fn {nil 1})) '(1)
+    (diff (vals (map-fn {:a 1 :b 2})) '(1 2)) nil              ; (vals {:a 1 :b 2}) '(1 2)
+
+    (vals (api/hash-map)) nil
+    (vals (api/hash-map :a 1)) '(1)
+    (diff (vals (api/hash-map :a 1 :b 2)) '(1 2)) nil )   ; (vals (hash-map :a 1 :b 2)) '(1 2)
+
+  (let [m (map-fn {:a 1 :b 2})
+        v (vals m)]
+    (is (= {:hi :there} (meta (with-meta v {:hi :there}))))))
+
+
+(deftest test-ary-map-vals (test-vals ary-map))
+(deftest test-pers-map-vals (test-vals pers-map))
 
 
 (comment
