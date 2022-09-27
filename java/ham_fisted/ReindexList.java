@@ -13,6 +13,12 @@ public class ReindexList implements IMutList, TypedList {
   final List data;
   final IPersistentMap meta;
 
+  static int checkIndex(final int idx, final int dlen) {
+    if(idx < 0 || idx >= dlen)
+      throw new RuntimeException("Index out of range: " + String.valueOf(idx));
+    return idx;
+  }
+
   public static ReindexList create(int[] idx, List d, IPersistentMap m) {
     if(d instanceof IMutList)
       return new MutReindexList(idx, (IMutList)d, m);
@@ -28,16 +34,12 @@ public class ReindexList implements IMutList, TypedList {
   public Class containedType() { return data instanceof TypedList ? ((TypedList)data).containedType() : null; }
   public int size() { return indexes.length; }
   public Object get(int idx) {
-    final int sz = size();
-    if (idx < 0)
-      idx += sz;
+    checkIndex(idx, indexes.length);
     return data.get(indexes[idx]);
   }
   @SuppressWarnings("unchecked")
   public Object set(int idx, Object nv) {
-    final int sz = size();
-    if (idx < 0)
-      idx += sz;
+    checkIndex(idx, indexes.length);
     return data.set(indexes[idx], nv);
   }
   public ReindexList subList(int sidx, int eidx) {
@@ -109,28 +111,28 @@ public class ReindexList implements IMutList, TypedList {
       mlist = ml;
     }
     public long getLong(int idx) {
-      final int sz = size();
-      if (idx < 0)
-	idx += sz;
+      checkIndex(idx, indexes.length);
       return mlist.getLong(indexes[idx]);
     }
-    public long setLong(int idx, long nv) {
-      final int sz = size();
-      if (idx < 0)
-	idx += sz;
-      return mlist.setLong(indexes[idx], nv);
+    public void setLong(int idx, long nv) {
+      checkIndex(idx, indexes.length);
+      mlist.setLong(indexes[idx], nv);
     }
     public double getDouble(int idx) {
-      final int sz = size();
-      if (idx < 0)
-	idx += sz;
+      checkIndex(idx, indexes.length);
       return mlist.getDouble(indexes[idx]);
     }
-    public double setDouble(int idx, double nv) {
-      final int sz = size();
-      if (idx < 0)
-	idx += sz;
-      return mlist.setDouble(indexes[idx], nv);
+    public void setDouble(int idx, double nv) {
+      checkIndex(idx, indexes.length);
+      mlist.setDouble(indexes[idx], nv);
+    }
+    public boolean getBoolean(int idx) {
+      checkIndex(idx, indexes.length);
+      return mlist.getBoolean(indexes[idx]);
+    }
+    public void setBoolean(int idx, boolean nv) {
+      checkIndex(idx, indexes.length);
+      mlist.setBoolean(indexes[idx], nv);
     }
   }
 }

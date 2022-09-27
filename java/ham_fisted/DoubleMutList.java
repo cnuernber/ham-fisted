@@ -11,8 +11,9 @@ public interface DoubleMutList extends IMutList<Object> {
   default boolean add(Object obj) { addDouble(Casts.doubleCast(obj)); return true; }
   default void addLong(long obj) { addDouble(Casts.doubleCast(obj)); }
   @SuppressWarnings("unchecked")
-  default Object set(int idx, Object obj) { return setDouble(idx, Casts.doubleCast(obj)); }
-  default long setLong(int idx, long obj) { return (long)setDouble(idx, (double)obj); }
+  default Object set(int idx, Object obj) { double v = getDouble(idx); setDouble(idx, Casts.doubleCast(obj)); return v; }
+  default void setBoolean(int idx, boolean obj) { setDouble(idx, obj ? 1.0 : 0.0); }
+  default void setLong(int idx, long obj) { setDouble(idx, (double)obj); }
   default Object get(int idx) { return getDouble(idx); }
   default long getLong(int idx) { return (long)getDouble(idx); }
   default void fillRange(int startidx, final int endidx, Object v) {

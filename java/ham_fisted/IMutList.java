@@ -11,6 +11,7 @@ import java.util.Collection;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Random;
+import java.util.Collections;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.LongBinaryOperator;
 import java.util.function.Consumer;
@@ -53,25 +54,40 @@ public interface IMutList<E>
   default void clear() { throw new RuntimeException("Unimplemented"); }
   default boolean add(E v) { throw new RuntimeException("Unimplemented"); }
   default void add(int idx, E v) { throw new RuntimeException("Unimplemented"); }
-  default void addLong(long v) { throw new RuntimeException("Unimplemented"); }
-  default void addDouble(double v) { throw new RuntimeException("Unimplemented"); }
-  default void addRange(int startidx, int endidx, Object v) { throw new RuntimeException("Unimplemented"); }
-  default void removeRange(int startidx, int endidx) { throw new RuntimeException("Unimplemented"); }
+  @SuppressWarnings("unchecked")
+  default void addBoolean(boolean v) { add((E)Boolean.valueOf(v)); }
+  @SuppressWarnings("unchecked")
+  default void addLong(long v) { add((E)Long.valueOf(v)); }
+  @SuppressWarnings("unchecked")
+  default void addDouble(double v) { add((E)Double.valueOf(v)); }
+  default void removeRange(int startidx, int endidx) {
+    final int sidx = startidx;
+    for(; startidx < endidx; ++startidx) {
+      remove(sidx);
+    }
+  }
   @SuppressWarnings("unchecked")
   default void fillRange(int startidx, final int endidx, Object v) {
+    final int sz = size();
+    ChunkedList.checkIndexRange(0, sz, startidx, endidx);
     for(; startidx < endidx; ++startidx) {
       set(startidx, (E)v);
     }
   }
   @SuppressWarnings("unchecked")
   default void fillRange(int startidx, List v) {
-    final int eidx = startidx + v.size();
+    final int sz = size();
+    final int osz = v.size();
+    ChunkedList.checkIndexRange(0, sz, startidx, startidx+osz);
+    final int endidx = osz + startidx;
     int idx = 0;
-    for(; startidx < eidx; ++startidx, ++idx)
+    for(; startidx < endidx; ++startidx, ++idx)
       set(startidx, (E)v.get(idx));
   }
   default E remove(int idx) {
-    throw new RuntimeException("Unimplemented");
+    final E retval = get(idx);
+    removeRange(idx, idx+1);
+    return retval;
   }
   default boolean remove(Object o) {
     final int idx = indexOf(o);
@@ -356,9 +372,12 @@ public interface IMutList<E>
   }
   default E set(int idx, E v) { throw new RuntimeException("Unimplemented"); }
   @SuppressWarnings("unchecked")
-  default long setLong(int idx, long v) { return (Long)set(idx, (E)Long.valueOf(v)); }
+  default void setBoolean(int idx, boolean v) { set(idx, (E)Boolean.valueOf(v)); }
   @SuppressWarnings("unchecked")
-  default double setDouble(int idx, double v) { return (Double)set(idx, (E)Double.valueOf(v)); }
+  default void setLong(int idx, long v) { set(idx, (E)Long.valueOf(v)); }
+  @SuppressWarnings("unchecked")
+  default void setDouble(int idx, double v) { set(idx, (E)Double.valueOf(v)); }
+  default boolean getBoolean(int idx) { return Casts.booleanCast(get(idx)); }
   default long getLong(int idx) { return RT.longCast(get(idx)); }
   default double getDouble(int idx) { return RT.doubleCast(get(idx)); }
 
@@ -541,6 +560,17 @@ public interface IMutList<E>
     for(int idx = 0; idx < sz; ++idx)
       init = op.applyAsLong(init, getLong(idx));
     return init;
+  }
+
+  @SuppressWarnings("unchecked")
+  default List immutSort(Comparator c) {
+    final IMutList retval = cloneList();
+    retval.sort(c);
+    return retval;
+  }
+
+  default void shuffle(Random r) {
+    Collections.shuffle(this, r);
   }
   default List reindex(int[] indexes) {
     return ReindexList.create(indexes, this, this.meta());
