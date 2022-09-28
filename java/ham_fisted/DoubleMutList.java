@@ -2,7 +2,9 @@ package ham_fisted;
 
 import java.util.Random;
 import java.util.List;
+import java.util.Comparator;
 import it.unimi.dsi.fastutil.doubles.DoubleArrays;
+import it.unimi.dsi.fastutil.doubles.DoubleComparator;
 import it.unimi.dsi.fastutil.ints.IntComparator;
 import java.util.function.DoubleConsumer;
 
@@ -22,6 +24,21 @@ public interface DoubleMutList extends IMutList<Object> {
       setDouble(startidx, l);
     }
   }
+  default void fillRange(int startidx, List l) {
+    if (l.isEmpty())
+      return;
+    final int sz = size();
+    final int endidx = startidx = l.size();
+    ArrayLists.checkIndexRange(size(), startidx, endidx);
+    if(l instanceof IMutList) {
+      final IMutList im = (IMutList)l;
+      int idx = 0;
+      for(; startidx < endidx; ++startidx, ++idx)
+	setDouble(startidx, im.getDouble(idx));
+    } else {
+      IMutList.super.fillRange(startidx, l);
+    }
+  }
   default void addRange(int startidx, int endidx, Object v) {
     Double l = Double.valueOf(Casts.doubleCast(v));
     for(; startidx < endidx; ++startidx) {
@@ -34,6 +51,28 @@ public interface DoubleMutList extends IMutList<Object> {
 	return Double.compare(getDouble(lidx), getDouble(ridx));
       }
     };
+  }
+  @SuppressWarnings("unchecked")
+  default DoubleComparator asDoubleComparator(Comparator c) {
+    if (c instanceof DoubleComparator)
+      return (DoubleComparator)c;
+    return null;
+  }
+  default void sort(Comparator<? super Object> c) {
+    DoubleComparator lc = asDoubleComparator(c);
+    if (c == null || lc != null) {
+      final double[] data = toDoubleArray();
+      if(c == null)
+	DoubleArrays.parallelQuickSort(data);
+      else
+	DoubleArrays.parallelQuickSort(data, lc);
+      fillRange(0, ArrayLists.toList(data));
+    } else {
+      IMutList.super.sort(c);
+    }
+  }
+  default void shuffle(Random r) {
+    fillRange(0, immutShuffle(r));
   }
   default List immutShuffle(Random r) {
     final double[] bdata = toDoubleArray();

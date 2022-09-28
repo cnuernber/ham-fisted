@@ -306,15 +306,17 @@
   []
   (log/info "object list")
   (let [n-elems 20000
-        init-data (->> (range n-elems)
+        init-data (->> (api/range n-elems)
                        (lznc/map #(* (long %) 2))
                        (lznc/map #(+ 1 (long %)))
                        (lznc/filter #(== 0 (rem (long %) 3))))]
-    [{:test :object-list
+    [{:test :object-list-red-1
       :n-elems n-elems
       :java (bench/benchmark-us (doto (ArrayList.)
                                   (.addAll init-data)))
       :hamf (bench/benchmark-us (api/object-array-list init-data))}]))
+
+
 
 
 (defn int-list-perftest

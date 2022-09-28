@@ -2,7 +2,9 @@ package ham_fisted;
 
 import java.util.Random;
 import java.util.List;
+import java.util.Comparator;
 import it.unimi.dsi.fastutil.longs.LongArrays;
+import it.unimi.dsi.fastutil.longs.LongComparator;
 import it.unimi.dsi.fastutil.ints.IntComparator;
 import java.util.function.LongConsumer;
 
@@ -23,6 +25,21 @@ public interface LongMutList extends IMutList<Object> {
       setLong(startidx, l);
     }
   }
+  default void fillRange(int startidx, List l) {
+    if (l.isEmpty())
+      return;
+    final int sz = size();
+    final int endidx = startidx = l.size();
+    ArrayLists.checkIndexRange(size(), startidx, endidx);
+    if(l instanceof IMutList) {
+      final IMutList im = (IMutList)l;
+      int idx = 0;
+      for(; startidx < endidx; ++startidx, ++idx)
+	setLong(startidx, im.getLong(idx));
+    } else {
+      IMutList.super.fillRange(startidx, l);
+    }
+  }
   default void addRange(int startidx, int endidx, Object v) {
     Long l = Long.valueOf(Casts.longCast(v));
     for(; startidx < endidx; ++startidx) {
@@ -35,6 +52,28 @@ public interface LongMutList extends IMutList<Object> {
 	return Long.compare(getLong(lidx), getLong(ridx));
       }
     };
+  }
+  @SuppressWarnings("unchecked")
+  default LongComparator asLongComparator(Comparator c) {
+    if (c instanceof LongComparator)
+      return (LongComparator)c;
+    return null;
+  }
+  default void sort(Comparator<? super Object> c) {
+    LongComparator lc = asLongComparator(c);
+    if (c == null || lc != null) {
+      final long[] data = toLongArray();
+      if(c == null)
+	LongArrays.parallelQuickSort(data);
+      else
+	LongArrays.parallelQuickSort(data, lc);
+      fillRange(0, ArrayLists.toList(data));
+    } else {
+      IMutList.super.sort(c);
+    }
+  }
+  default void shuffle(Random r) {
+    fillRange(0, immutShuffle(r));
   }
   default List immutShuffle(Random r) {
     final long[] data = toLongArray();

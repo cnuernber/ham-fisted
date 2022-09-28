@@ -40,7 +40,7 @@
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
             BitmapTrieCommon$Box PersistentArrayMap ObjArray ImmutValues
             MutList ImmutList StringCollection ArrayImmutList ArrayLists
-            ImmutSort IMutList ArrayLists$SummationConsumer Ranges$LongRange
+            ImmutSort IMutList Ranges$LongRange
             Ranges$DoubleRange IFnDef Transformables$MapIterable
             Transformables$FilterIterable Transformables$CatIterable
             Transformables$MapList Transformables$IMapable Transformables

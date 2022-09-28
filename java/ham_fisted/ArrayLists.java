@@ -47,15 +47,16 @@ import it.unimi.dsi.fastutil.objects.ObjectArrays;
 
 
 public class ArrayLists {
-  static int checkIndex(final int idx, final int dlen) {
+  public static int checkIndex(final int idx, final int dlen) {
+    if (idx >= 0 && idx < dlen) return idx;
     return ChunkedList.indexCheck(0, dlen, idx);
   }
-  static int wrapCheckIndex(int idx, final int dlen) {
+  public static int wrapCheckIndex(int idx, final int dlen) {
     if(idx < 0)
       idx += dlen;
     return checkIndex(idx, dlen);
   }
-  static void checkIndexRange(int dlen, int ssidx, int seidx) {
+  public static void checkIndexRange(int dlen, int ssidx, int seidx) {
     ChunkedList.checkIndexRange(0, dlen, ssidx, seidx);
   }
   public static class ReductionConsumer implements Consumer {
@@ -197,6 +198,9 @@ public class ArrayLists {
 	}
       }
     }
+    default Object[] ensureCapacity(int newlen) {
+      throw new RuntimeException("unimplemented");
+    }
   }
   public interface ILongArrayList extends LongMutList, ArrayOwner, TypedList,
 					  ArrayPersistentVector
@@ -310,7 +314,7 @@ public class ArrayLists {
     }
   }
 
-  static int newArrayLen(int len) {
+  public static int newArrayLen(int len) {
     return len < 100000 ? len * 2 : (int)(len * 1.5);
   }
 
@@ -344,7 +348,7 @@ public class ArrayLists {
       return retval;
     }
     public int capacity() { return data.length; }
-    Object[] ensureCapacity(int len) {
+    public Object[] ensureCapacity(int len) {
       Object[] d = data;
       if (len >= d.length) {
 	d = data = Arrays.copyOf(d, newArrayLen(len));
@@ -367,9 +371,6 @@ public class ArrayLists {
       System.arraycopy(d, idx, d, idx+1, ne - idx);
       d[idx] = obj;
       nElems = ne+1;
-    }
-    public boolean addAll(Collection <? extends Object> c) {
-      return addAllReducible(c);
     }
     /// Extra method because some things that implement IReduceInit are not
     /// collections.
@@ -405,7 +406,7 @@ public class ArrayLists {
       } else {
 	throw new RuntimeException("Input is not an iterable nor an instance of IReduceInit");
       }
-      return sz != size();      
+      return sz != size();
     }
     public List<Object> subList(int ssidx, int seidx) {
       checkIndexRange(nElems, ssidx, seidx);
@@ -487,6 +488,9 @@ public class ArrayLists {
     public int size() { return dlen; }
     public Byte get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
     public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
+    public void setLong(int idx, long oobj) {
+      data[checkIndex(idx, dlen) + sidx] = RT.byteCast(oobj);
+    }
     public IMutList cloneList() { return (IMutList)toList(Arrays.copyOfRange(data, sidx, sidx+dlen)); }
     public IntComparator indexComparator() {
       return new IntComparator() {
@@ -494,11 +498,6 @@ public class ArrayLists {
 	  return Byte.compare(data[lidx+sidx], data[ridx+sidx]);
 	}
       };
-    }
-    public void setLong(int idx, long oobj) {
-      byte obj = RT.byteCast(oobj);
-      idx = checkIndex(idx, dlen) + sidx;
-      data[idx] = obj;
     }
     public List<Object> subList(int ssidx, int seidx) {
       checkIndexRange(dlen, ssidx, seidx);
@@ -516,22 +515,32 @@ public class ArrayLists {
       return retval;
     }
     @SuppressWarnings("unchecked")
-    public void sort(Comparator c) {
+    public void sort(Comparator<? super Object> c) {
       if (c == null)
 	Arrays.sort(data, sidx, sidx+dlen);
       else {
-	final Object[] odata = toArray();
-	Arrays.sort(odata, c);
-	final byte[] d = data;
-	final int sz = size();
-	final int ss = sidx;
-	for (int idx = 0; idx < sz; ++idx) {
-	  d[idx+ss] = (byte)odata[idx];
-	}
+	ILongArrayList.super.sort(c);
       }
     }
     public void shuffle(Random r) {
       ByteArrays.shuffle(data, sidx, sidx+dlen, r);
+    }
+    public ByteComparator asByteComparator(Comparator c) {
+      if (c instanceof ByteComparator)
+	return (ByteComparator)c;
+      return null;
+    }
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      final byte vv = RT.byteCast(Casts.longCast(v));
+      if(c == null) {
+	return ByteArrays.binarySearch(data, sidx, sidx+dlen, vv);
+      } else {
+	final ByteComparator bc = asByteComparator(c);
+	if (bc != null)
+	  return ByteArrays.binarySearch(data, sidx, sidx+dlen, vv, bc);
+	return ILongArrayList.super.binarySearch(v, c);
+      }
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -575,17 +584,7 @@ public class ArrayLists {
     public int size() { return dlen; }
     public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
     public void setLong(int idx, long oobj) {
-      short obj = RT.shortCast(Casts.longCast(oobj));
-      idx = checkIndex(idx, dlen) + sidx;
-      data[idx] = obj;
-    }
-    public void fillRange(int startidx, int endidx, Object v) {
-      checkIndexRange(dlen, startidx, endidx);
-      Arrays.fill(data, startidx+sidx, endidx+sidx, RT.shortCast(Casts.longCast(v)));
-    }
-    public void fillRange(int startidx, List v) {
-      if (!fillRangeArrayCopy(data, sidx, sidx + dlen, short[].class, startidx, v))
-	ILongArrayList.super.fillRange(startidx, v);
+      data[checkIndex(idx, dlen) + sidx] = RT.shortCast(Casts.longCast(oobj));
     }
     public IntComparator indexComparator() {
       return new IntComparator() {
@@ -624,8 +623,26 @@ public class ArrayLists {
 	}
       }
     }
+
     public void shuffle(Random r) {
       ShortArrays.shuffle(data, sidx, sidx+dlen, r);
+    }
+    public ShortComparator asShortComparator(Comparator c) {
+      if (c instanceof ShortComparator)
+	return (ShortComparator)c;
+      return null;
+    }
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      final short vv = RT.shortCast(Casts.longCast(v));
+      if(c == null) {
+	return ShortArrays.binarySearch(data, sidx, sidx+dlen, vv);
+      } else {
+	final ShortComparator bc = asShortComparator(c);
+	if (bc != null)
+	  return ShortArrays.binarySearch(data, sidx, sidx+dlen, vv, bc);
+	return ILongArrayList.super.binarySearch(v, c);
+      }
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -695,14 +712,6 @@ public class ArrayLists {
     public int[] toIntArray() {
       return Arrays.copyOfRange(data, sidx, eidx);
     }
-    public void fillRange(int startidx, int endidx, Object v) {
-      checkIndexRange(size(), startidx, endidx);
-      Arrays.fill(data, startidx+sidx, endidx+sidx, RT.intCast(Casts.longCast(v)));
-    }
-    public void fillRange(int startidx, List v) {
-      if (!fillRangeArrayCopy(data, sidx, eidx, int[].class, startidx, v))
-	ILongArrayList.super.fillRange(startidx, v);
-    }
     @SuppressWarnings("unchecked")
     public static IntComparator indexComparator(int[] d, int sidx, Comparator c) {
       if (c == null) {
@@ -770,6 +779,23 @@ public class ArrayLists {
     }
     public void shuffle(Random r) {
       IntArrays.shuffle(data, sidx, eidx, r);
+    }
+    public IntComparator asIntComparator(Comparator c) {
+      if (c instanceof IntComparator)
+	return (IntComparator)c;
+      return null;
+    }
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      final int vv = RT.intCast(Casts.longCast(v));
+      if(c == null) {
+	return IntArrays.binarySearch(data, sidx, sidx+size(), vv);
+      } else {
+	final IntComparator bc = asIntComparator(c);
+	if (bc != null)
+	  return IntArrays.binarySearch(data, sidx, sidx+size(), vv, bc);
+	return ILongArrayList.super.binarySearch(v, c);
+      }
     }
     public int[] sortIndirect(Comparator c) {
       final int sz = size();
@@ -955,6 +981,10 @@ public class ArrayLists {
     }
     public int[] sortIndirect(Comparator c) {
       return ((IMutList)subList(0, nElems)).sortIndirect(c);
+    }
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      return ((IMutList)subList(0, nElems)).binarySearch(v, c);
     }
     public IntComparator indexComparator() {
       return IntArraySubList.indexComparator(data, 0, null);
@@ -1142,6 +1172,23 @@ public class ArrayLists {
     }
     public void shuffle(Random r) {
       LongArrays.shuffle(data, sidx, eidx, r);
+    }
+    public LongComparator asLongComparator(Comparator c) {
+      if (c instanceof LongComparator)
+	return (LongComparator)c;
+      return null;
+    }
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      final long vv = RT.longCast(Casts.longCast(v));
+      if(c == null) {
+	return LongArrays.binarySearch(data, sidx, sidx+size(), vv);
+      } else {
+	final LongComparator bc = asLongComparator(c);
+	if (bc != null)
+	  return LongArrays.binarySearch(data, sidx, sidx+size(), vv, bc);
+	return ILongArrayList.super.binarySearch(v, c);
+      }
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1331,6 +1378,10 @@ public class ArrayLists {
     public void shuffle(Random r) {
       ((IMutList)subList(0, nElems)).shuffle(r);
     }
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      return ((IMutList)subList(0, nElems)).binarySearch(v, c);
+    }
     public int[] sortIndirect(Comparator c) {
       return ((IMutList)subList(0, nElems)).sortIndirect(c);
     }
@@ -1459,6 +1510,23 @@ public class ArrayLists {
     }
     public void shuffle(Random r) {
       FloatArrays.shuffle(data, sidx, sidx+dlen, r);
+    }
+    public FloatComparator asFloatComparator(Comparator c) {
+      if (c instanceof FloatComparator)
+	return (FloatComparator)c;
+      return null;
+    }
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      final float vv = RT.floatCast(Casts.doubleCast(v));
+      if(c == null) {
+	return FloatArrays.binarySearch(data, sidx, sidx+dlen, vv);
+      } else {
+	final FloatComparator bc = asFloatComparator(c);
+	if (bc != null)
+	  return FloatArrays.binarySearch(data, sidx, sidx+dlen, vv, bc);
+	return IDoubleArrayList.super.binarySearch(v, c);
+      }
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1592,7 +1660,7 @@ public class ArrayLists {
 	  IDoubleArrayList.super.sort(c);
 	}
       }
-    }    
+    }
     public int[] sortIndirect(Comparator c) {
       final int sz = size();
       int[] retval = iarange(0, sz, 1);
@@ -1606,6 +1674,23 @@ public class ArrayLists {
     }
     public void shuffle(Random r) {
       DoubleArrays.shuffle(data, sidx, eidx, r);
+    }
+    public DoubleComparator asDoubleComparator(Comparator c) {
+      if (c instanceof DoubleComparator)
+	return (DoubleComparator)c;
+      return null;
+    }
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      final double vv = Casts.doubleCast(v);
+      if(c == null) {
+	return DoubleArrays.binarySearch(data, sidx, sidx+size(), vv);
+      } else {
+	final DoubleComparator bc = asDoubleComparator(c);
+	if (bc != null)
+	  return DoubleArrays.binarySearch(data, sidx, sidx+size(), vv, bc);
+	return IDoubleArrayList.super.binarySearch(v, c);
+      }
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1778,6 +1863,10 @@ public class ArrayLists {
     public void shuffle(Random r) {
       ((IMutList)subList(0, nElems)).shuffle(r);
     }
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      return ((IMutList)subList(0, nElems)).binarySearch(v, c);
+    }
     public int[] sortIndirect(Comparator c) {
       return ((IMutList)subList(0, nElems)).sortIndirect(c);
     }
@@ -1863,10 +1952,22 @@ public class ArrayLists {
 	  CharArrays.parallelQuickSort(data, sidx, sidx+dlen, cc);
 	else
 	  ILongArrayList.super.sort(c);
-      }	
+      }
     }
     public void shuffle(Random r) {
-      CharArrays.shuffle(data, sidx, sidx+dlen, r);      
+      CharArrays.shuffle(data, sidx, sidx+dlen, r);
+    }
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      final char vv = RT.charCast(Casts.longCast(v));
+      if(c == null) {
+	return CharArrays.binarySearch(data, sidx, sidx+dlen, vv);
+      } else {
+	final CharComparator bc = asCharComparator(c);
+	if (bc != null)
+	  return CharArrays.binarySearch(data, sidx, sidx+dlen, vv, bc);
+	return ILongArrayList.super.binarySearch(v, c);
+      }
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1907,9 +2008,9 @@ public class ArrayLists {
     public int hashCode() { return hasheq(); }
     public ArraySection getArraySection() { return new ArraySection(data, sidx, sidx + dlen); }
     public int size() { return dlen; }
-    public boolean getBoolean(int idx) { return data[checkIndex(idx, dlen)]; }
+    public boolean getBoolean(int idx) { return data[checkIndex(idx, dlen)+sidx]; }
     public void setBoolean(int idx, boolean obj) {
-      data[checkIndex(idx, dlen)] = obj;
+      data[checkIndex(idx, dlen)+sidx] = obj;
     }
     public List<Object> subList(int ssidx, int seidx) {
       checkIndexRange(size(), ssidx, seidx);

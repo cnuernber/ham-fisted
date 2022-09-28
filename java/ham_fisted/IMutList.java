@@ -563,6 +563,17 @@ public interface IMutList<E>
   }
 
   @SuppressWarnings("unchecked")
+  default void sort(Comparator<? super E> c) {
+    final Object[] data = toArray();
+    if(c == null) {
+      Arrays.sort(data);
+    } else {
+      Arrays.sort(data, (Comparator<? super Object>)c);
+    }
+    fillRange(0, ArrayLists.toList(data));
+  }
+
+  @SuppressWarnings("unchecked")
   default List immutSort(Comparator c) {
     final IMutList retval = cloneList();
     retval.sort(c);
@@ -576,9 +587,17 @@ public interface IMutList<E>
     return ReindexList.create(indexes, this, this.meta());
   }
   default List immutShuffle(Random r) {
-    return reindex(IntArrays.shuffle(ArrayLists.iarange(0, size(), 1), r));
+    final Object[] retval = toArray();
+    ObjectArrays.shuffle(retval, r);
+    return ArrayLists.toList(retval, 0, size(), meta());
   }
   default List reverse() {
     return ReverseList.create(this, meta());
   }
+  default int binarySearch(E v, Comparator<? super E> c) {
+    if(c == null)
+      throw new RuntimeException("Generic binary search requires a comparator");
+    return Collections.binarySearch(this,v,c);
+  }
+  default int binarySearch(E v) { return binarySearch(v, null); }
 }
