@@ -594,10 +594,18 @@ public interface IMutList<E>
   default List reverse() {
     return ReverseList.create(this, meta());
   }
+  @SuppressWarnings("unchecked")
   default int binarySearch(E v, Comparator<? super E> c) {
+    int rv;
     if(c == null)
-      throw new RuntimeException("Generic binary search requires a comparator");
-    return Collections.binarySearch(this,v,c);
+      rv = Collections.binarySearch(this,v,new Comparator<E>() {
+	  public int compare(E lhs, E rhs) {
+	    return ((Comparable)lhs).compareTo(rhs);
+	  }
+	});
+    else
+      rv = Collections.binarySearch(this,v,c);
+    return rv < 0 ? -1 - rv : rv;
   }
   default int binarySearch(E v) { return binarySearch(v, null); }
 }

@@ -254,6 +254,10 @@ public class ArrayLists {
     }
   }
 
+  static int fixSubArrayBinarySearch(final int sidx, final int len, final int res) {
+    return res < 0 ? -1 - (res + sidx) : res - sidx;
+  }
+
   public static class ObjectArraySubList extends ArraySection implements IArrayList {
     public final Object[] data;
     public final int nElems;
@@ -301,6 +305,13 @@ public class ArrayLists {
     }
     public void shuffle(Random r) {
       ObjectArrays.shuffle(data, sidx, eidx, r);
+    }
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      return fixSubArrayBinarySearch(sidx, size(),
+				     c == null ? ObjectArrays.binarySearch(data, sidx, eidx, v)
+				     : ObjectArrays.binarySearch(data, sidx, eidx, v, c));
+
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -531,7 +542,7 @@ public class ArrayLists {
       return null;
     }
     @SuppressWarnings("unchecked")
-    public int binarySearch(Object v, Comparator c) {
+    int doBinarySearch(Object v, Comparator c) {
       final byte vv = RT.byteCast(Casts.longCast(v));
       if(c == null) {
 	return ByteArrays.binarySearch(data, sidx, sidx+dlen, vv);
@@ -541,6 +552,9 @@ public class ArrayLists {
 	  return ByteArrays.binarySearch(data, sidx, sidx+dlen, vv, bc);
 	return ILongArrayList.super.binarySearch(v, c);
       }
+    }
+    public int binarySearch(Object v, Comparator c) {
+      return fixSubArrayBinarySearch(sidx, size(), doBinarySearch(v, c));
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -633,7 +647,7 @@ public class ArrayLists {
       return null;
     }
     @SuppressWarnings("unchecked")
-    public int binarySearch(Object v, Comparator c) {
+    public int doBinarySearch(Object v, Comparator c) {
       final short vv = RT.shortCast(Casts.longCast(v));
       if(c == null) {
 	return ShortArrays.binarySearch(data, sidx, sidx+dlen, vv);
@@ -643,6 +657,9 @@ public class ArrayLists {
 	  return ShortArrays.binarySearch(data, sidx, sidx+dlen, vv, bc);
 	return ILongArrayList.super.binarySearch(v, c);
       }
+    }
+    public int binarySearch(Object v, Comparator c) {
+      return fixSubArrayBinarySearch(sidx, size(), doBinarySearch(v, c));
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -786,7 +803,7 @@ public class ArrayLists {
       return null;
     }
     @SuppressWarnings("unchecked")
-    public int binarySearch(Object v, Comparator c) {
+    public int doBinarySearch(Object v, Comparator c) {
       final int vv = RT.intCast(Casts.longCast(v));
       if(c == null) {
 	return IntArrays.binarySearch(data, sidx, sidx+size(), vv);
@@ -796,6 +813,9 @@ public class ArrayLists {
 	  return IntArrays.binarySearch(data, sidx, sidx+size(), vv, bc);
 	return ILongArrayList.super.binarySearch(v, c);
       }
+    }
+    public int binarySearch(Object v, Comparator c) {
+      return fixSubArrayBinarySearch(sidx, size(), doBinarySearch(v, c));
     }
     public int[] sortIndirect(Comparator c) {
       final int sz = size();
@@ -1179,7 +1199,7 @@ public class ArrayLists {
       return null;
     }
     @SuppressWarnings("unchecked")
-    public int binarySearch(Object v, Comparator c) {
+    int doBinarySearch(Object v, Comparator c) {
       final long vv = RT.longCast(Casts.longCast(v));
       if(c == null) {
 	return LongArrays.binarySearch(data, sidx, sidx+size(), vv);
@@ -1189,6 +1209,9 @@ public class ArrayLists {
 	  return LongArrays.binarySearch(data, sidx, sidx+size(), vv, bc);
 	return ILongArrayList.super.binarySearch(v, c);
       }
+    }
+    public int binarySearch(Object v, Comparator c) {
+      return fixSubArrayBinarySearch(sidx, size(), doBinarySearch(v, c));
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1517,7 +1540,7 @@ public class ArrayLists {
       return null;
     }
     @SuppressWarnings("unchecked")
-    public int binarySearch(Object v, Comparator c) {
+    int doBinarySearch(Object v, Comparator c) {
       final float vv = RT.floatCast(Casts.doubleCast(v));
       if(c == null) {
 	return FloatArrays.binarySearch(data, sidx, sidx+dlen, vv);
@@ -1527,6 +1550,9 @@ public class ArrayLists {
 	  return FloatArrays.binarySearch(data, sidx, sidx+dlen, vv, bc);
 	return IDoubleArrayList.super.binarySearch(v, c);
       }
+    }
+    public int binarySearch(Object v, Comparator c) {
+      return fixSubArrayBinarySearch(sidx, size(), doBinarySearch(v, c));
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1681,7 +1707,7 @@ public class ArrayLists {
       return null;
     }
     @SuppressWarnings("unchecked")
-    public int binarySearch(Object v, Comparator c) {
+    public int doBinarySearch(Object v, Comparator c) {
       final double vv = Casts.doubleCast(v);
       if(c == null) {
 	return DoubleArrays.binarySearch(data, sidx, sidx+size(), vv);
@@ -1691,6 +1717,9 @@ public class ArrayLists {
 	  return DoubleArrays.binarySearch(data, sidx, sidx+size(), vv, bc);
 	return IDoubleArrayList.super.binarySearch(v, c);
       }
+    }
+    public int binarySearch(Object v, Comparator c) {
+      return fixSubArrayBinarySearch(sidx, size(), doBinarySearch(v, c));
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1958,7 +1987,7 @@ public class ArrayLists {
       CharArrays.shuffle(data, sidx, sidx+dlen, r);
     }
     @SuppressWarnings("unchecked")
-    public int binarySearch(Object v, Comparator c) {
+    int doBinarySearch(Object v, Comparator c) {
       final char vv = RT.charCast(Casts.longCast(v));
       if(c == null) {
 	return CharArrays.binarySearch(data, sidx, sidx+dlen, vv);
@@ -1968,6 +1997,9 @@ public class ArrayLists {
 	  return CharArrays.binarySearch(data, sidx, sidx+dlen, vv, bc);
 	return ILongArrayList.super.binarySearch(v, c);
       }
+    }
+    public int binarySearch(Object v, Comparator c) {
+      return fixSubArrayBinarySearch(sidx, size(), doBinarySearch(v, c));
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);

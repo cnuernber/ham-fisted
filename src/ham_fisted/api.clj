@@ -52,7 +52,7 @@
             Reversible IReduce IReduceInit IFn$DD IFn$DL IFn$DO IFn$LD IFn$LL IFn$LO
             IFn$OD IFn$OL IObj]
            [java.util Map Map$Entry List RandomAccess Set Collection ArrayList Arrays
-            Comparator Random]
+            Comparator Random Collections]
            [java.lang.reflect Array]
            [java.util.function Function BiFunction BiConsumer Consumer
             DoubleBinaryOperator LongBinaryOperator LongFunction IntFunction]
@@ -61,7 +61,7 @@
            [it.unimi.dsi.fastutil.ints IntComparator IntArrays]
            [it.unimi.dsi.fastutil.longs LongComparator]
            [it.unimi.dsi.fastutil.floats FloatComparator]
-           [it.unimi.dsi.fastutil.doubles DoubleComparator]
+           [it.unimi.dsi.fastutil.doubles DoubleComparator DoubleArrays]
            [it.unimi.dsi.fastutil.objects ObjectArrays]
            [com.google.common.cache Cache CacheBuilder CacheLoader LoadingCache CacheStats]
            [com.google.common.collect MinMaxPriorityQueue]
@@ -1576,6 +1576,30 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
       (.compare this l r))))
 
 
+(def ^{:doc "A comparator that sorts null, NAN first, natural order"}
+  nan-first
+  (reify
+    Comparator
+    (^int compare [this ^Object l ^Object r]
+     (cond
+       (nil? l) -1
+       (nil? r) 1
+       :else (.compareTo ^Comparable l r)))
+    DoubleComparator
+    (^int compare [this ^double l ^double r]
+     (cond
+       (Double/isNaN l) -1
+       (Double/isNaN r) 1
+       :else
+       (Double/compare l r)))
+    LongComparator
+    (^int compare [this ^long l ^long r]
+     (Long/compare r l))
+    IFnDef
+    (invoke [this l r]
+      (.compare this l r))))
+
+
 (defn sorta
   "Sort returning an object array."
   (^objects [coll] (sorta nil coll))
@@ -1649,6 +1673,44 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
   If not provided a new instance of java.util.Random is created."
   (^List [coll] (lznc/shuffle coll nil))
   (^List [coll opts] (lznc/shuffle coll opts)))
+
+
+(defn binary-search
+  "Binary search.  Coll must be a sorted random access container.
+  comp must be an implementation of java.lang.Comparator.  If you know your containers
+  type, such as a double array, then comp should be a fastuil DoubleComparator.
+
+
+  The most efficient method will be to convert coll to random access using
+  ->random-access, so for a pure double array it is slightly better to call
+  ->random-access outside this function before the function call.
+
+```clojure
+ham-fisted.api> (def data (->random-access (double-array (range 10))))
+#'ham-fisted.api/data
+ham-fisted.api> (binary-search data 0)
+0
+ham-fisted.api> (binary-search data -1)
+-1
+ham-fisted.api> (binary-search data 9)
+9
+ham-fisted.api> (binary-search data 10)
+-11
+```"
+  (^long [coll v] (binary-search coll v compare))
+  (^long [coll v comp]
+   (let [comp (when comp (->comparator comp))
+         coll (->random-access coll)]
+     (if (instance? IMutList coll)
+       (if comp
+         (.binarySearch ^IMutList coll v comp)
+         (.binarySearch ^IMutList coll v))
+       (let [rv (if comp
+                  (Collections/binarySearch coll v comp)
+                  (Collections/binarySearch coll v))]
+         (if (< rv 0)
+           (- -1 rv)
+           rv))))))
 
 
 (defn iarange
@@ -1813,8 +1875,8 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
   (^IMutList [] (ArrayLists$DoubleArrayList.))
   (^IMutList [cap-or-data]
    (if (number? cap-or-data)
-     (ArrayLists$LongArrayList. (int cap-or-data))
-     (doto (ArrayLists$LongArrayList.)
+     (ArrayLists$DoubleArrayList. (int cap-or-data))
+     (doto (ArrayLists$DoubleArrayList.)
        (.addAllReducible (->reducible cap-or-data))))))
 
 

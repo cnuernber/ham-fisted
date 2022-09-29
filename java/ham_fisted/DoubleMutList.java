@@ -28,7 +28,7 @@ public interface DoubleMutList extends IMutList<Object> {
     if (l.isEmpty())
       return;
     final int sz = size();
-    final int endidx = startidx = l.size();
+    final int endidx = startidx + l.size();
     ArrayLists.checkIndexRange(size(), startidx, endidx);
     if(l instanceof IMutList) {
       final IMutList im = (IMutList)l;
