@@ -37,7 +37,7 @@ import clojure.lang.ITransientVector;
 
 
 public class ArrayImmutList
-  implements List, RandomAccess, Indexed, IFnDef, IReduce, IKVReduce,
+  implements IMutList, RandomAccess, Indexed, IFnDef, IReduce, IKVReduce,
 	     IHashEq, Seqable, Reversible, ChunkedListOwner, IPersistentVector,
 	     IObj, IEditableCollection, ImmutValues
 {
@@ -176,7 +176,7 @@ public class ArrayImmutList
     return true;
   }
   public boolean isEmpty() { return nElems == 0; }
-  Object[] fillArray(Object[] retval) {
+  public Object[] fillArray(Object[] retval) {
     System.arraycopy(data, startidx, retval, 0, nElems);
     return retval;
   }

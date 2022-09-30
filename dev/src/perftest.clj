@@ -3,13 +3,15 @@
             [ham-fisted.lazy-noncaching :as lznc]
             [ham-fisted.benchmark :as bench]
             [tech.v3.datatype :as dtype]
+            [tech.v3.datatype.functional :as dfn]
             [clojure.tools.logging :as log]
             [clojure.pprint :as pp]
             [clojure.java.shell :as sh]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [criterium.core :as crit])
   (:import [java.util HashMap ArrayList Map List Map$Entry]
            [java.util.function BiFunction]
-           [ham_fisted ArrayLists$ReductionConsumer]
+           [ham_fisted ArrayLists$ReductionConsumer IMutList]
            [clojure.lang PersistentHashMap])
   (:gen-class))
 
@@ -268,7 +270,8 @@
     [{:test :sort
       :n-elems 10000
       :clj (bench/benchmark-us (sort init-data))
-      :hamf (bench/benchmark-us (api/sort init-data))}]))
+      ;;The default api sort sorts nil first.  This is more correct but an unfair comparison.
+      :hamf (bench/benchmark-us (api/sort nil init-data))}]))
 
 
 (defn sort-double-array
@@ -278,7 +281,8 @@
     [{:test :sort-doubles
       :n-elems 10000
       :clj (bench/benchmark-us (sort init-data))
-      :hamf (bench/benchmark-us (api/sort init-data))}]))
+      ;;Fair comparison means we avoid nan-first behavior
+      :hamf (bench/benchmark-us (api/sort nil init-data))}]))
 
 
 (defn sort-int-array
@@ -288,7 +292,7 @@
     [{:test :sort-ints
       :n-elems 10000
       :clj (bench/benchmark-us (sort init-data))
-      :hamf (bench/benchmark-us (api/sort init-data))}]))
+      :hamf (bench/benchmark-us (api/sort nil init-data))}]))
 
 
 (defn frequencies-perftest
@@ -306,15 +310,17 @@
   []
   (log/info "object list")
   (let [n-elems 20000
-        init-data (->> (range n-elems)
+        init-data (->> (api/range n-elems)
                        (lznc/map #(* (long %) 2))
                        (lznc/map #(+ 1 (long %)))
                        (lznc/filter #(== 0 (rem (long %) 3))))]
-    [{:test :object-list
+    [{:test :object-list-red-1
       :n-elems n-elems
       :java (bench/benchmark-us (doto (ArrayList.)
                                   (.addAll init-data)))
       :hamf (bench/benchmark-us (api/object-array-list init-data))}]))
+
+
 
 
 (defn int-list-perftest
@@ -450,6 +456,30 @@
       :hamf (bench/benchmark-us (apply api/concatv data))}]))
 
 
+(defn stable-sum-perftest
+  []
+  (log/info "stable summation - dtype(clj) vs. hamf")
+  (for [n-elems [100 1000 1000000]]
+    (let [n-elems (long n-elems)
+          data (api/double-array (range n-elems))]
+      {:n-elems n-elems
+       :test :stable-summation
+       :hamf (bench/benchmark-us (api/sum-stable data))
+       :clj (bench/benchmark-us (dfn/sum data))})))
+
+
+(defn unstable-sum-perftest
+  []
+  (log/info "unstable summation - dtype(clj) vs. hamf")
+  (for [n-elems [100 1000 1000000]]
+    (let [n-elems (long n-elems)
+          data (api/double-array (range n-elems))]
+      {:n-elems n-elems
+       :test :unstable-summation
+       :hamf (bench/benchmark-us (api/sum data))
+       :clj (bench/benchmark-us (dfn/sum-fast data))})))
+
+
 (defn machine-name
   []
   (.getHostName (java.net.InetAddress/getLocalHost)))
@@ -489,29 +519,34 @@
 
 (defn profile
   []
-  (api/concatv (general-hashmap)
-               (hashmap-construction-obj-ary 4)
-               (hashmap-construction-obj-ary 10)
-               (hashmap-construction-obj-ary 1000)
-               (general-persistent-vector)
-               (union-perftest)
-               (sequence-summation)
-               (object-array-perftest)
-               (shuffle-perftest)
-               (object-list-perftest)
-               (int-list-perftest)
-               (sort-perftest)
-               (sort-double-array)
-               (sort-int-array)
-               (frequencies-perftest)
-               (group-by-perftest)
-               (group-by-reduce-perftest)
-               (update-values-perftest)
-               (mapmap-perftest)
-               (assoc-in-perftest)
-               (update-in-perftest)
-               (get-in-perftest)
-               (concatv-perftest)))
+  (api/concatv
+   ;; (general-hashmap)
+   ;; (hashmap-construction-obj-ary 4)
+   ;; (hashmap-construction-obj-ary 10)
+   ;; (hashmap-construction-obj-ary 1000)
+   ;; (general-persistent-vector)
+   ;; (union-perftest)
+   ;; (sequence-summation)
+   ;; (object-array-perftest)
+   ;; (shuffle-perftest)
+   ;; (object-list-perftest)
+   ;; (int-list-perftest)
+   ;; (sort-perftest)
+   ;; (sort-double-array)
+   ;; (sort-int-array)
+   ;; (frequencies-perftest)
+   ;; (group-by-perftest)
+   ;; (group-by-reduce-perftest)
+   ;; (update-values-perftest)
+   ;; (mapmap-perftest)
+   ;; (assoc-in-perftest)
+   ;; (update-in-perftest)
+   ;; (get-in-perftest)
+   ;; (concatv-perftest)
+   ;;technically a dtype-next vs. hamf test
+   (stable-sum-perftest)
+   (unstable-sum-perftest)
+   ))
 
 
 
@@ -541,4 +576,5 @@
         fname (str "results/" gs "-" mn "-jdk-" vs ".edn")]
     (print-dataset perf-data)
     (println "Results stored to:" fname)
-    (spit fname (with-out-str (pp/pprint {:machine-name mn :git-sha gs :jdk-version vs :dataset perf-data})))))
+    ;;(spit fname (with-out-str (pp/pprint {:machine-name mn :git-sha gs :jdk-version vs :dataset perf-data})))
+    ))

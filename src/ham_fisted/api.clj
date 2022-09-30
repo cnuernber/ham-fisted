@@ -35,33 +35,38 @@
              :refer [map concat filter repeatedly]
              :as lznc]
             [ham-fisted.lazy-caching :as lzc]
+            [ham-fisted.alists :as alists]
             [com.climate.claypoole :as claypoole])
   (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
             BitmapTrieCommon$Box PersistentArrayMap ObjArray ImmutValues
             MutList ImmutList StringCollection ArrayImmutList ArrayLists
-            ImmutSort IMutList ArrayLists$SummationConsumer Ranges$LongRange
+            ImmutSort IMutList Ranges$LongRange
             Ranges$DoubleRange IFnDef Transformables$MapIterable
             Transformables$FilterIterable Transformables$CatIterable
             Transformables$MapList Transformables$IMapable Transformables
             ReindexList ConstList ArrayLists$ObjectArrayList Transformables$SingleMapList
             ArrayLists$IntArrayList ArrayLists$LongArrayList ArrayLists$DoubleArrayList
-            ReverseList TypedList DoubleMutList LongMutList ArrayLists$ReductionConsumer]
+            ReverseList TypedList DoubleMutList LongMutList ArrayLists$ReductionConsumer
+            Consumers Sum Casts]
+           [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
+            BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
             IEditableCollection RT IPersistentMap Associative Util IFn ArraySeq
             Reversible IReduce IReduceInit IFn$DD IFn$DL IFn$DO IFn$LD IFn$LL IFn$LO
-            IFn$OD IFn$OL IObj]
+            IFn$OD IFn$OL IObj Util]
            [java.util Map Map$Entry List RandomAccess Set Collection ArrayList Arrays
-            Comparator Random]
+            Comparator Random Collections]
            [java.lang.reflect Array]
            [java.util.function Function BiFunction BiConsumer Consumer
-            DoubleBinaryOperator LongBinaryOperator LongFunction IntFunction]
+            DoubleBinaryOperator LongBinaryOperator LongFunction IntFunction
+            DoubleConsumer DoublePredicate DoubleUnaryOperator]
            [java.util.concurrent ForkJoinPool ExecutorService Callable Future
             ConcurrentHashMap ForkJoinTask]
            [it.unimi.dsi.fastutil.ints IntComparator IntArrays]
            [it.unimi.dsi.fastutil.longs LongComparator]
            [it.unimi.dsi.fastutil.floats FloatComparator]
-           [it.unimi.dsi.fastutil.doubles DoubleComparator]
+           [it.unimi.dsi.fastutil.doubles DoubleComparator DoubleArrays]
            [it.unimi.dsi.fastutil.objects ObjectArrays]
            [com.google.common.cache Cache CacheBuilder CacheLoader LoadingCache CacheStats]
            [com.google.common.collect MinMaxPriorityQueue]
@@ -72,14 +77,14 @@
                             sort int-array long-array double-array float-array
                             range map concat filter filterv first last pmap take take-last drop
                             drop-last sort-by repeat repeatedly shuffle into-array
-                            empty? reverse]))
+                            empty? reverse byte-array short-array char-array boolean-array]))
 
 
 (set! *warn-on-reflection* true)
 
 (declare assoc! conj! vec mapv vector object-array range first take drop into-array shuffle
          object-array-list fast-reduce int-array-list long-array-list double-array-list
-         int-array argsort)
+         int-array argsort byte-array short-array char-array boolean-array)
 
 
 (defn ->collection
@@ -1559,12 +1564,14 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
        (.compare this# l# r#))))
 
 
+
+
 (def ^{:doc "A reverse comparator that sorts in descending order" }
   rcomp
   (reify
     Comparator
     (^int compare [this ^Object l ^Object r]
-      (.compareTo ^Comparable r l))
+      (Util/compare r l))
     DoubleComparator
     (^int compare [this ^double l ^double r]
      (Double/compare r l))
@@ -1576,26 +1583,81 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
       (.compare this l r))))
 
 
+(def ^{:doc "A comparator that sorts null, NAN first, natural order"}
+  comp-nan-first
+  (reify
+    Comparator
+    (^int compare [this ^Object l ^Object r]
+     (cond
+       (nil? l) -1
+       (nil? r) 1
+       :else (Util/compare l r)))
+    DoubleComparator
+    (^int compare [this ^double l ^double r]
+     (cond
+       (Double/isNaN l) -1
+       (Double/isNaN r) 1
+       :else
+       (Double/compare l r)))
+    LongComparator
+    (^int compare [this ^long l ^long r]
+     (Long/compare l r))
+    IFnDef
+    (invoke [this l r]
+      (.compare this l r))))
+
+
+(def ^{:doc "A comparator that sorts null, NAN last, natural order"}
+  comp-nan-last
+  (reify
+    Comparator
+    (^int compare [this ^Object l ^Object r]
+     (cond
+       (nil? l) 1
+       (nil? r) -1
+       :else (clojure.lang.Util/compare l r)))
+    DoubleComparator
+    (^int compare [this ^double l ^double r]
+     (cond
+       (Double/isNaN l) 1
+       (Double/isNaN r) -1
+       :else
+       (Double/compare l r)))
+    LongComparator
+    (^int compare [this ^long l ^long r]
+     (Long/compare l r))
+    IFnDef
+    (invoke [this l r]
+      (.compare this l r))))
+
+
 (defn sorta
   "Sort returning an object array."
-  (^objects [coll] (sorta nil coll))
+  (^objects [coll] (sorta comp-nan-last coll))
   (^objects [comp coll]
-   (let [a (object-array coll)]
-     (if (< (alength a) 1000)
-       (if comp
-         (Arrays/sort a (->comparator comp))
-         (Arrays/sort a))
-       (if comp
-         (ObjectArrays/parallelQuickSort a (->comparator comp))
-         (ObjectArrays/parallelQuickSort a)))
-     a)))
+   (let [coll (->reducible coll)]
+     (if (instance? IMutList coll)
+       (-> (.immutSort ^IMutList coll comp)
+           (.toArray))
+       (let [a (object-array coll)]
+         (if (< (alength a) 1000)
+           (if comp
+             (Arrays/sort a (->comparator comp))
+             (Arrays/sort a))
+           (if comp
+             (ObjectArrays/parallelQuickSort a (->comparator comp))
+             (ObjectArrays/parallelQuickSort a)))
+         a)))))
 
 
 (defn sort
   "Exact replica of clojure.core/sort but instead of wrapping the final object array in a seq
   which loses the fact the result is countable and random access.  Faster implementations
-  are provided when the input is an integer, long, or double array."
-  ([coll] (sort nil coll))
+  are provided when the input is an integer, long, or double array.
+
+  The default comparison is nan-last meaning null-last if the input is an undefined
+  container and nan-last if the input is a double or float specific container."
+  ([coll] (sort comp-nan-last coll))
   ([comp coll]
    (let [coll (->collection coll)]
      (if (instance? ImmutSort coll)
@@ -1635,7 +1697,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
                 (.toDoubleArray data)
                 :int64
                 (.toLongArray data)
-                data)
+                (.toArray data))
          indexes (argsort data)]
      (reindex coll indexes))))
 
@@ -1649,6 +1711,67 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
   If not provided a new instance of java.util.Random is created."
   (^List [coll] (lznc/shuffle coll nil))
   (^List [coll opts] (lznc/shuffle coll opts)))
+
+
+(defn binary-search
+  "Binary search.  Coll must be a sorted random access container.
+  comp must be an implementation of java.lang.Comparator.  If you know your container's
+  type, such as a double array, then comp should be a fastutil DoubleComparator.
+
+
+  The most efficient method will be to convert coll to random access using
+  ->random-access, so for a pure double array it is slightly better to call
+  ->random-access outside this function before the function call.
+
+  This search defaults to the slower java.util.Collections search using
+  clojure's built in `compare` - reason being that that allows you to search
+  for a double number in a vector of only longs.  If you want an accelerated search
+  you can explicitly pass in a nil comparator *but* you need to make sure that
+  you are searching for the rough datatype in the data - e.g. long in a byte array
+  or a double in a double for float array.  Searching for doubles in integer arrays
+  with an accelerated search will probably result in confusing results.
+
+```clojure
+ham-fisted.api> (def data (->random-access (double-array (range 10))))
+#'ham-fisted.api/data
+ham-fisted.api> (binary-search data 0)
+0
+ham-fisted.api> (binary-search data -1)
+0
+ham-fisted.api> (binary-search data 1)
+1
+ham-fisted.api> (binary-search data 1.1)
+2
+ham-fisted.api> (binary-search data 10)
+10
+ham-fisted.api> (binary-search data 11)
+10
+ham-fisted.api> ;;be wary of datatype conversions in typed containers
+ham-fisted.api> (def data (->random-access (int-array (range 10))))
+#'ham-fisted.api/data
+ham-fisted.api> (binary-search data 1)
+1
+ham-fisted.api> (binary-search data 1.1)
+  2
+ham-fisted.api> ;;accelerated search - flattens input to container datatype
+ham-fisted.api> (binary-search data 1.1 nil)
+1
+```"
+  (^long [coll v] (binary-search coll v compare))
+  (^long [coll v comp]
+   (let [comp (when comp (->comparator comp))
+         coll (->random-access coll)]
+     (if (instance? IMutList coll)
+       (if comp
+         (.binarySearch ^IMutList coll v comp)
+         (.binarySearch ^IMutList coll v))
+       (let [rv (if comp
+                  (Collections/binarySearch coll v comp)
+                  ;;This corrects for things like searching 50.1 in a list that has longs
+                  (Collections/binarySearch coll v compare))]
+         (if (< rv 0)
+           (- -1 rv)
+           rv))))))
 
 
 (defn iarange
@@ -1723,51 +1846,144 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
           idata))
       (->collection))))
   ([coll]
-   (argsort nil coll)))
+   (argsort comp-nan-last coll)))
+
+
+(defn byte-array-list
+  (^IMutList [] (ByteArrayList. (clojure.core/byte-array 4) 0 nil))
+  (^IMutList [data]
+   (if (number? data)
+     (ByteArrayList. (clojure.core/byte-array data) 0 nil)
+     (let [^IMutList retval (if (instance? RandomAccess data)
+                              (byte-array-list (.size ^List data))
+                              (byte-array-list))]
+       (.addAllReducible retval data)
+       retval))))
+
+
+(defn byte-array
+  (^bytes [] (byte-array 0))
+  (^bytes [data]
+   (if (number? data)
+     (clojure.core/byte-array data)
+     (.toNativeArray (byte-array-list data)))))
+
+
+(defn short-array-list
+  (^IMutList [] (ShortArrayList. (clojure.core/short-array 4) 0 nil))
+  (^IMutList [data]
+   (if (number? data)
+     (ShortArrayList. (clojure.core/short-array data) 0 nil)
+     (let [^IMutList retval (if (instance? RandomAccess data)
+                              (short-array-list (.size ^List data))
+                              (short-array-list))]
+       (.addAllReducible retval data)
+       retval))))
+
+
+(defn short-array
+  (^shorts [] (short-array 0))
+  (^shorts [data]
+   (if (number? data)
+     (clojure.core/short-array data)
+     (.toNativeArray (short-array-list data)))))
+
+
+(defn char-array-list
+  (^IMutList [] (CharArrayList. (clojure.core/char-array 4) 0 nil))
+  (^IMutList [data]
+   (if (number? data)
+     (CharArrayList. (clojure.core/char-array data) 0 nil)
+     (let [^IMutList retval (if (instance? RandomAccess data)
+                              (char-array-list (.size ^List data))
+                              (char-array-list))]
+       (.addAllReducible retval data)
+       retval))))
+
+
+(defn char-array
+  (^chars [] (char-array 0))
+  (^chars [data]
+   (if (number? data)
+     (clojure.core/char-array data)
+     (.toNativeArray (char-array-list data)))))
+
+
+(defn float-array-list
+  (^IMutList [] (FloatArrayList. (clojure.core/float-array 4) 0 nil))
+  (^IMutList [data]
+   (if (number? data)
+     (FloatArrayList. (clojure.core/float-array data) 0 nil)
+     (let [^IMutList retval (if (instance? RandomAccess data)
+                              (float-array-list (.size ^List data))
+                              (float-array-list))]
+       (.addAllReducible retval data)
+       retval))))
+
+
+(defn float-array
+  (^floats [] (float-array 0))
+  (^floats [data]
+   (if (number? data)
+     (clojure.core/float-array data)
+     (.toNativeArray (float-array-list data)))))
+
+
+(defn boolean-array-list
+  (^IMutList [] (BooleanArrayList. (clojure.core/boolean-array 4) 0 nil))
+  (^IMutList [data]
+   (if (number? data)
+     (BooleanArrayList. (clojure.core/boolean-array data) 0 nil)
+     (let [^IMutList retval (if (instance? RandomAccess data)
+                              (boolean-array-list (.size ^List data))
+                              (boolean-array-list))]
+       (.addAllReducible retval data)
+       retval))))
+
+
+(defn boolean-array
+  (^booleans [] (boolean-array 0))
+  (^booleans [data]
+   (if (number? data)
+     (clojure.core/boolean-array data)
+     (.toNativeArray (boolean-array-list data)))))
 
 
 (defn int-array
   "Create an integer array from a number of some data"
-  ^ints [data]
-  (if (number? data)
-    (clojure.core/int-array data)
-    (let [data (->reducible data)]
-      (if (instance? IMutList data)
-        (.toIntArray ^IMutList data)
-        (.toIntArray ^IMutList (int-array-list data))))))
+  (^ints [] (int-array 0))
+  (^ints [data]
+   (if (number? data)
+     (clojure.core/int-array data)
+     (let [data (->reducible data)]
+       (if (instance? IMutList data)
+         (.toIntArray ^IMutList data)
+         (.toIntArray ^IMutList (int-array-list data)))))))
 
 
 (defn long-array
   "Create a long array from a number of some data"
-  ^longs [data]
-  (if (number? data)
-    (clojure.core/long-array data)
-    (let [data (->reducible data)]
-      (if (instance? IMutList data)
-        (.toLongArray ^IMutList data)
-        (.toLongArray ^IMutList (long-array-list data))))))
+  (^longs [] (long-array 0))
+  (^longs [data]
+   (if (number? data)
+     (clojure.core/long-array data)
+     (let [data (->reducible data)]
+       (if (instance? IMutList data)
+         (.toLongArray ^IMutList data)
+         (.toLongArray ^IMutList (long-array-list data)))))))
 
-
-(defn float-array
-  "Create a float array from a number of some data"
-  ^floats [data]
-  (if (number? data)
-    (clojure.core/float-array data)
-    (let [data (->reducible data)]
-      (if (instance? IMutList data)
-        (.toFloatArray ^IMutList data)
-        (clojure.core/float-array data)))))
 
 
 (defn double-array
   "Create a double array from a number of some data"
-  ^doubles [data]
-  (if (number? data)
-    (clojure.core/double-array data)
-    (let [data (->reducible data)]
-      (if (instance? IMutList data)
-        (.toDoubleArray ^IMutList data)
-        (.toDoubleArray ^IMutList (double-array-list data))))))
+  (^doubles [] (double-array 0))
+  (^doubles [data]
+   (if (number? data)
+     (clojure.core/double-array data)
+     (let [data (->reducible data)]
+       (if (instance? IMutList data)
+         (.toDoubleArray ^IMutList data)
+         (.toDoubleArray ^IMutList (double-array-list data)))))))
 
 
 (defn object-array-list
@@ -1813,8 +2029,8 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
   (^IMutList [] (ArrayLists$DoubleArrayList.))
   (^IMutList [cap-or-data]
    (if (number? cap-or-data)
-     (ArrayLists$LongArrayList. (int cap-or-data))
-     (doto (ArrayLists$LongArrayList.)
+     (ArrayLists$DoubleArrayList. (int cap-or-data))
+     (doto (ArrayLists$DoubleArrayList.)
        (.addAllReducible (->reducible cap-or-data))))))
 
 
@@ -1845,7 +2061,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
        (.applyAsLong this# l# r#))))
 
 
-(defn sum
+(defn sum-fast
   "Fast simple double summation.  Does not do any summation compensation but does
   parallelize the summation for random access containers leading to some additional
   numeric stability."
@@ -1854,7 +2070,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
     (if (instance? IMutList coll)
       (let [^IMutList coll coll
             op (double-binary-operator l r (unchecked-add l r))]
-        (if (< (.size coll) 10000)
+        (if (< (.size coll) 100000)
             (.doubleReduction coll op 0.0)
             (->> (pgroups (.size coll)
                           (fn [^long sidx ^long eidx]
@@ -1865,12 +2081,99 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
       (double (fast-reduce + 0.0 coll)))))
 
 
+(defmacro double-predicate
+  "Create an implementation of java.util.Function.DoublePredicate"
+  [varname code]
+  `(reify
+     DoublePredicate
+     (test [this ~varname]
+       ~code)
+     IFnDef
+     (invoke [this# d#]
+       (.test this# (Casts/doubleCast d#)))))
+
+
+(defmacro double-unary-operator
+  "Create an implementation of java.util.function.DoubleUnaryOperator"
+  [varname code]
+  `(reify
+     DoubleUnaryOperator
+     (applyAsDouble [this# ~varname]
+       ~code)
+     IFnDef
+     (invoke [this# v#]
+       (.applyAsDouble this# (Casts/doubleCast v#)))))
+
+
+(defn- options->double-nan-strat
+  [options]
+  (case (get options :nan-strategy :remove)
+    :remove #(Consumers/filter ^DoublePredicate (double-predicate v (Double/isFinite v))
+                               ^DoubleConsumer %)
+    :keep identity
+    :exception #(Consumers/map ^DoubleUnaryOperator
+                               (double-unary-operator
+                                v
+                                (do (when-not (Double/isFinite v)
+                                      (throw (Exception. "Nan detected")))
+                                    v))
+                               ^DoubleConsumer %)))
+
+
+(defn sum-stable-nelems
+  "Stable sum returning map of {:sum :n-elems}.
+  See options for [[sum-stable]]."
+  ([coll] (sum-stable-nelems coll nil))
+  ([coll options]
+   (let [coll (->reducible coll)
+         nan-strat-fn (options->double-nan-strat options)]
+     (if (instance? IMutList coll)
+       (let [^IMutList coll coll]
+         (->> (pgroups
+               (.size coll)
+               (fn [^long sidx ^long eidx]
+                 (let [sum-op (Sum.)]
+                   (.genericForEach ^IMutList (.subList coll sidx eidx)
+                                    (nan-strat-fn sum-op))
+                   (.deref sum-op)))
+               {:pgroup-min 10000})
+              (fast-reduce (fn [total sumv]
+                             {:n-elems (+ (long (total :n-elems)) (long (sumv :n-elems)))
+                              :sum (+ (double (total :sum)) (double (sumv :sum)))})
+                           {:n-elems 0 :sum 0.0})))
+       (let [sum-op (Sum.)
+             ^DoubleConsumer filter-op (nan-strat-fn sum-op)]
+         (reduce (fn [^DoubleConsumer op v]
+                   (when v
+                     (.accept op (Casts/doubleCast v)))
+                   op)
+                 (nan-strat-fn sum-op)
+                 coll)
+         (deref sum-op))))))
+
+
+(defn sum
+  "Very stable high performance summation.  Uses both threading and kahans compensated
+  summation.
+
+  Options:
+
+  * `nan-strategy` - defaults to `:remove`.  Options are `:keep`, `:remove` and
+  `:exception`."
+  (^double [coll] (sum coll nil))
+  (^double [coll options]
+   (:sum (sum-stable-nelems coll options))))
+
+
 (defn mean
-  "Return the mean of the collection.  Returns double/NaN for empty collections."
-  ^double [coll]
-  (let [coll (->collection coll)]
-    (/ (sum coll)
-       (.size coll))))
+  "Return the mean of the collection.  Returns double/NaN for empty collections.
+  See options for [[sum-stable]]."
+  (^double [coll] (mean coll nil))
+  (^double [coll options]
+   (let [coll (->collection coll)
+         vals (sum-stable-nelems coll options)]
+     (/ (double (vals :sum))
+        (long (vals :n-elems))))))
 
 
 (defn first
@@ -1908,14 +2211,16 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
   "Reverse a collection or sequence.  Constant time reverse is provided
   for any random access list."
   [coll]
-  (let [coll (->reducible coll)]
-    (cond
-      (instance? IMutList coll)
-      (.reverse ^IMutList coll)
-      (instance? RandomAccess coll)
-      (ReverseList/create coll (meta coll))
-      :else
-      (clojure.core/reverse coll))))
+  (if (instance? Comparator coll)
+    (.reversed ^Comparator coll)
+    (let [coll (->reducible coll)]
+      (cond
+        (instance? IMutList coll)
+        (.reverse ^IMutList coll)
+        (instance? RandomAccess coll)
+        (ReverseList/create coll (meta coll))
+        :else
+        (clojure.core/reverse coll)))))
 
 
 (defn take
@@ -1991,7 +2296,7 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
     (let [coll (->reducible coll)]
       (if (instance? RandomAccess coll)
         (let [ne (.size ^List coll)
-              n (long n)]
+              n (min (long n) ne)]
           (.subList ^List coll 0 (- ne n)))
         (clojure.core/take-last n coll)))))
 

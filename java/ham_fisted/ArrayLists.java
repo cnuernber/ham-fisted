@@ -29,92 +29,46 @@ import clojure.lang.Util;
 import clojure.lang.MapEntry;
 import clojure.lang.IPersistentStack;
 import it.unimi.dsi.fastutil.bytes.ByteArrays;
+import it.unimi.dsi.fastutil.bytes.ByteComparator;
+import it.unimi.dsi.fastutil.shorts.ShortArrays;
+import it.unimi.dsi.fastutil.shorts.ShortComparator;
+import it.unimi.dsi.fastutil.chars.CharArrays;
+import it.unimi.dsi.fastutil.chars.CharComparator;
 import it.unimi.dsi.fastutil.ints.IntArrays;
 import it.unimi.dsi.fastutil.ints.IntComparator;
 import it.unimi.dsi.fastutil.longs.LongArrays;
 import it.unimi.dsi.fastutil.longs.LongComparator;
+import it.unimi.dsi.fastutil.floats.FloatArrays;
+import it.unimi.dsi.fastutil.floats.FloatComparator;
 import it.unimi.dsi.fastutil.doubles.DoubleArrays;
 import it.unimi.dsi.fastutil.doubles.DoubleComparator;
+
 import it.unimi.dsi.fastutil.objects.ObjectArrays;
 
 
 public class ArrayLists {
-  static int wrapCheckIndex(int idx, final int dlen) {
+  public static int checkIndex(final int idx, final int dlen) {
+    if (idx >= 0 && idx < dlen) return idx;
+    return ChunkedList.indexCheck(0, dlen, idx);
+  }
+  public static int wrapCheckIndex(int idx, final int dlen) {
     if(idx < 0)
       idx += dlen;
-    if(idx < 0 || idx >= dlen)
-      throw new RuntimeException("Index out of range: " + String.valueOf(idx));
-    return idx;
+    return checkIndex(idx, dlen);
   }
-  static int checkIndex(final int idx, final int dlen) {
-    if(idx < 0 || idx >= dlen)
-      throw new RuntimeException("Index out of range: " + String.valueOf(idx));
-    return idx;
+  public static void checkIndexRange(int dlen, int ssidx, int seidx) {
+    ChunkedList.checkIndexRange(0, dlen, ssidx, seidx);
   }
-  static void checkIndexRange(int sidx, int dlen, int ssidx, int seidx) {
-    if (ssidx <0 || ssidx >= dlen)
-      throw new RuntimeException("Index out of range: " + String.valueOf(ssidx));
-    if(seidx < ssidx || seidx > dlen)
-      throw new RuntimeException("Index out of range: " + String.valueOf(seidx));
+  public static DoubleConsumer asDoubleConsumer(Object c) {
+    if (c instanceof DoubleConsumer)
+      return (DoubleConsumer) c;
+    return null;
   }
-  @SuppressWarnings("unchecked")
-  public static void fillRangeDefault(final List l, int startidx, final int endidx, final Object v) {
-    for(; startidx < endidx; ++startidx)
-      l.set(startidx, v);
+  public static LongConsumer asLongConsumer(Object c) {
+    if (c instanceof LongConsumer)
+      return (LongConsumer) c;
+    return null;
   }
-  @SuppressWarnings("unchecked")
-  public static void fillRangeDefault(final List l, int startidx, List v) {
-    final int endidx = startidx + v.size();
-    int idx = 0;
-    for(; startidx < endidx; ++startidx, ++idx)
-      l.set(idx+startidx, v.get(idx));
-  }
-  public static void removeRangeDefault(final List l, final int startidx, final int endidx) {
-    final int ne = endidx - startidx;
-    for(int idx = 0; idx < ne; ++idx)
-      l.remove(startidx);
-  }
-  @SuppressWarnings("unchecked")
-  public static void addRangeDefault(final List l, final int startidx, final int endidx, Object v) {
-    final int ne = endidx - startidx;
-    for(int idx = 0; idx < ne; ++idx)
-      l.add(idx+startidx, v);
-  }
-  public static void fill(Object[] data, int sidx, final int eidx, IntFunction f) {
-    for(; sidx < eidx; ++sidx)
-      data[sidx] = f.apply(sidx);
-  }
-  //Kahan compesated summation
-  public static class SummationConsumer implements DoubleConsumer, Consumer {
-    public double d0 = 0;
-    //High order summation bits
-    public double d1 = 0;
-    public double simpleSum = 0;
-    public long nElems = 0;
-    public SummationConsumer() {}
-    public void sumWithCompensation(double value) {
-      double tmp = value - d1;
-      double sum = d0;
-      double velvel = sum + tmp; // Little wolf of rounding error
-      d1 =  (velvel - sum) - tmp;
-      d0 = velvel;
-    }
-    public void accept(double d) {
-      sumWithCompensation(d);
-      simpleSum += d;
-      nElems++;
-    }
-    public void accept(Object o) { accept(Casts.doubleCast(o)); }
-    public double value() {
-      // Better error bounds to add both terms as the final sum
-      double tmp = d0 + d1;
-      if (Double.isNaN(tmp) && Double.isInfinite(simpleSum))
-	return simpleSum;
-      else
-	return tmp;
-    }
-  }
-
   public static class ReductionConsumer implements Consumer {
     Object init;
     IFn fn;
@@ -145,6 +99,9 @@ public class ArrayLists {
   }
   public interface ArrayOwner {
     ArraySection getArraySection();
+    void fill(int sidx, int eidx, Object v);
+    Object copyOfRange(int sidx, int eidx);
+    Object copyOf(int len);
   }
   public interface ArrayPersistentVector extends IMutList<Object>, IPersistentVector {
     IPersistentVector unsafeImmut();
@@ -163,8 +120,9 @@ public class ArrayLists {
     }
     default IMapEntry entryAt(Object key) {
       if(Util.isInteger(key)) {
-	final int k = RT.intCast(key);
-	return MapEntry.create(k, get(k));
+	int k = RT.intCast(key);
+	if(k >= 0 && k < size())
+	  return MapEntry.create(k, get(k));
       }
       return null;
     }
@@ -205,29 +163,12 @@ public class ArrayLists {
       return ImmutList.EMPTY.withMeta(meta());
     }
   }
-  public interface IArrayList extends IMutList<Object>, ArrayOwner, TypedList,
-				      ArrayPersistentVector {
-    default Class containedType() { return getArraySection().array.getClass().getComponentType(); }
-    default IPersistentVector unsafeImmut() { return ImmutList.create(true, meta(), (Object[])getArraySection().array); }
-  }
-  public interface ILongArrayList extends LongMutList, ArrayOwner, TypedList,
-					  ArrayPersistentVector
-  {
-    default Class containedType() { return getArraySection().array.getClass().getComponentType(); }
-    default IPersistentVector unsafeImmut() { return ImmutList.create(true, meta(), toArray()); }
-  }
-  public interface IDoubleArrayList extends DoubleMutList, ArrayOwner, TypedList,
-					    ArrayPersistentVector
-  {
-    default Class containedType() { return getArraySection().array.getClass().getComponentType(); }
-    default IPersistentVector unsafeImmut() { return ImmutList.create(true, meta(), toArray()); }
-  }
   @SuppressWarnings("unchecked")
   static boolean fillRangeArrayCopy(Object dest, int sidx, int eidx, Class aryCls,
 				    int startidx, List l) {
     final int sz = l.size();
     final int endidx = startidx + sz;
-    checkIndexRange(sidx, eidx, startidx, endidx);
+    checkIndexRange(eidx-sidx, startidx, endidx);
     if(l instanceof ArrayOwner) {
       final ArraySection as = ((ArrayOwner)l).getArraySection();
       if(aryCls.isAssignableFrom(as.array.getClass())) {
@@ -236,6 +177,108 @@ public class ArrayLists {
       }
     }
     return false;
+  }
+  static List immutShuffleDefault(IMutList m, Random r) {
+    final IMutList retval = m.cloneList();
+    retval.shuffle(r);
+    return retval;
+  }
+  @SuppressWarnings("unchecked")
+  static List immutSortDefault(IMutList m, Comparator c) {
+    final IMutList retval = m.cloneList();
+    retval.sort(c);
+    return retval;
+  }
+  public interface IArrayList extends IMutList<Object>, ArrayOwner, TypedList,
+				      ArrayPersistentVector {
+    default Class containedType() { return getArraySection().array.getClass().getComponentType(); }
+    default IPersistentVector unsafeImmut() { return ImmutList.create(true, meta(), (Object[])getArraySection().array); }
+    default List immutShuffle(Random r) { return immutShuffleDefault(this, r); }
+    default List immutSort(Comparator c) { return immutSortDefault(this, c); }
+    default void fillRange(int startidx, int endidx, Object v) {
+      checkIndexRange(size(), startidx, endidx);
+      fill(startidx, endidx, v);
+    }
+    default void fillRange(int startidx, List v) {
+      final ArraySection as = getArraySection();
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
+	final int endidx = v.size() + startidx;
+	int idx = 0;
+	for(; startidx < endidx; ++startidx, ++idx) {
+	  set(startidx, v.get(idx));
+	}
+      }
+    }
+    default Object[] ensureCapacity(int newlen) {
+      throw new RuntimeException("unimplemented");
+    }
+  }
+  public interface ILongArrayList extends LongMutList, ArrayOwner, TypedList,
+					  ArrayPersistentVector
+  {
+    default Class containedType() { return getArraySection().array.getClass().getComponentType(); }
+    default IPersistentVector unsafeImmut() { return ImmutList.create(true, meta(), (Object[])getArraySection().array); }
+    default List immutShuffle(Random r) { return immutShuffleDefault(this, r); }
+    default List immutSort(Comparator c) { return immutSortDefault(this, c); }
+    default void fillRange(int startidx, int endidx, Object v) {
+      checkIndexRange(size(), startidx, endidx);
+      fill(startidx, endidx, v);
+    }
+    default void fillRange(int startidx, List v) {
+      final ArraySection as = getArraySection();
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v))
+	LongMutList.super.fillRange(startidx, v);
+    }
+    default Object toNativeArray() { return copyOf(size()); }
+    default Object ensureCapacity(int newlen) {
+      throw new RuntimeException("unimplemented");
+    }
+  }
+  public interface IDoubleArrayList extends DoubleMutList, ArrayOwner, TypedList,
+					    ArrayPersistentVector
+  {
+    default Class containedType() { return getArraySection().array.getClass().getComponentType(); }
+    default IPersistentVector unsafeImmut() { return ImmutList.create(true, meta(), (Object[])getArraySection().array); }
+    default List immutShuffle(Random r) { return immutShuffleDefault(this, r); }
+    default List immutSort(Comparator c) { return immutSortDefault(this, c); }
+    default void fillRange(int startidx, int endidx, Object v) {
+      checkIndexRange(size(), startidx, endidx);
+      fill(startidx, endidx, v);
+    }
+    default void fillRange(int startidx, List v) {
+      final ArraySection as = getArraySection();
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v))
+	DoubleMutList.super.fillRange(startidx, v);
+    }
+    default Object toNativeArray() { return copyOf(size()); }
+    default Object ensureCapacity(int newlen) {
+      throw new RuntimeException("unimplemented");
+    }
+  }
+  public interface IBooleanArrayList extends BooleanMutList, ArrayOwner, TypedList,
+					    ArrayPersistentVector
+  {
+    default Class containedType() { return getArraySection().array.getClass().getComponentType(); }
+    default IPersistentVector unsafeImmut() { return ImmutList.create(true, meta(), (Object[])getArraySection().array); }
+    default List immutShuffle(Random r) { return immutShuffleDefault(this, r); }
+    default List immutSort(Comparator c) { return immutSortDefault(this, c); }
+    default void fillRange(int startidx, int endidx, Object v) {
+      checkIndexRange(size(), startidx, endidx);
+      fill(startidx, endidx, v);
+    }
+    default void fillRange(int startidx, List v) {
+      final ArraySection as = getArraySection();
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v))
+	BooleanMutList.super.fillRange(startidx, v);
+    }
+    default Object ensureCapacity(int newlen) {
+      throw new RuntimeException("unimplemented");
+    }
+    default Object toNativeArray() { return copyOf(size()); }
+  }
+
+  static int fixSubArrayBinarySearch(final int sidx, final int len, final int res) {
+    return res < 0 ? -1 - (res + sidx) : res - sidx;
   }
 
   public static class ObjectArraySubList extends ArraySection implements IArrayList {
@@ -267,7 +310,7 @@ public class ArrayLists {
       return retval;
     }
     public List<Object> subList(int ssidx, int seidx) {
-      checkIndexRange(sidx, eidx, ssidx, seidx);
+      checkIndexRange(size(), ssidx, seidx);
       return toList(data, ssidx + sidx, seidx + sidx, meta());
     }
     public IPersistentMap meta() { return meta; }
@@ -277,32 +320,36 @@ public class ArrayLists {
     public Object[] toArray() {
       return Arrays.copyOfRange(data, sidx, eidx);
     }
-    public void fillRange(int startidx, int endidx, Object v) {
-      checkIndexRange(sidx, eidx, startidx, endidx);
-      Arrays.fill(data, startidx+sidx, endidx+sidx, v);
-    }
-    public void fillRange(int startidx, List v) {
-      if (!fillRangeArrayCopy(data, sidx, eidx, Object[].class, startidx, v))
-	IArrayList.super.fillRange(startidx, v);
-    }
     public void sort(Comparator<? super Object> c) {
       if(c == null)
 	Arrays.sort(data, sidx, eidx);
       else
 	Arrays.sort(data, sidx, eidx, c);
     }
+    public void shuffle(Random r) {
+      ObjectArrays.shuffle(data, sidx, eidx, r);
+    }
     @SuppressWarnings("unchecked")
-    public List immutSort(Comparator c) {
-      List retval = toList(Arrays.copyOfRange(data, sidx, eidx), 0, (eidx - sidx), meta());
-      retval.sort(c);
-      return retval;
-    }
+    public int binarySearch(Object v, Comparator c) {
+      return fixSubArrayBinarySearch(sidx, size(),
+				     c == null ? ObjectArrays.binarySearch(data, sidx, eidx, v)
+				     : ObjectArrays.binarySearch(data, sidx, eidx, v, c));
 
-    public List immutShuffle(Random r) {
-      Object[] retval = toArray();
-      ObjectArrays.shuffle(retval, r);
-      return toList(retval);
     }
+    public void fill(int ssidx, int seidx, Object v) {
+      checkIndexRange(size(), ssidx, seidx);
+      Arrays.fill(data, sidx + ssidx, sidx + seidx, v);
+    }
+    public Object copyOfRange(int ssidx, int seidx) {
+      return Arrays.copyOfRange(data, sidx+ssidx, sidx+seidx);
+    }
+    public Object copyOf(int len) {
+      return Arrays.copyOfRange(data, sidx, sidx+len);
+    }
+  }
+
+  public static int newArrayLen(int len) {
+    return len < 100000 ? len * 2 : (int)(len * 1.5);
   }
 
   public static class ObjectArrayList implements IArrayList {
@@ -329,16 +376,16 @@ public class ArrayLists {
     public int size() { return nElems; }
     public Object get(int idx) { return data[checkIndex(idx, nElems)]; }
     public Object set(int idx, Object obj) {
-      idx = wrapCheckIndex(idx, nElems);
+      idx = checkIndex(idx, nElems);
       final Object retval = data[idx];
       data[idx] = obj;
       return retval;
     }
     public int capacity() { return data.length; }
-    Object[] ensureCapacity(int len) {
+    public Object[] ensureCapacity(int len) {
       Object[] d = data;
       if (len >= d.length) {
-	d = data = Arrays.copyOf(d, len < 100000 ? len * 2 : (int)(len * 1.5));
+	d = data = Arrays.copyOf(d, newArrayLen(len));
       }
       return d;
     }
@@ -350,7 +397,7 @@ public class ArrayLists {
       return true;
     }
     public void add(int idx, Object obj) {
-      idx = wrapCheckIndex(idx, nElems);
+      idx = checkIndex(idx, nElems);
       if (idx == nElems) { add(obj); return; }
 
       final int ne = nElems;
@@ -358,9 +405,6 @@ public class ArrayLists {
       System.arraycopy(d, idx, d, idx+1, ne - idx);
       d[idx] = obj;
       nElems = ne+1;
-    }
-    public boolean addAll(Collection <? extends Object> c) {
-      return addAllReducible(c);
     }
     /// Extra method because some things that implement IReduceInit are not
     /// collections.
@@ -398,46 +442,8 @@ public class ArrayLists {
       }
       return sz != size();
     }
-    public boolean addAll(int sidx, Collection <? extends Object> c) {
-      sidx = wrapCheckIndex(sidx, nElems);
-      if (c.isEmpty()) return false;
-      final int cs = c.size();
-      final int sz = size();
-      final int eidx = sidx + cs;
-      ensureCapacity(cs+sz);
-      nElems += cs;
-      System.arraycopy(data, sidx, data, eidx, sz - sidx);
-      if (c instanceof List) {
-	//Hit fastpath
-	fillRange(sidx, (List)c);
-      } else {
-	int idx = sidx;
-	for(Object o: c) {
-	  set(idx, o);
-	  ++idx;
-	}
-      }
-      return true;
-    }
-    public Object remove(int idx) {
-      idx = wrapCheckIndex(idx, nElems);
-      final int ne = nElems;
-      final int nne = ne - 1;
-      final Object[] d = data;
-      final Object retval = d[idx];
-      if (idx == nne) {
-	d[idx] = null;
-      } else {
-	final int copyLen = ne - idx - 1;
-	System.arraycopy(d, idx+1, d, idx, copyLen);
-	//Release references to later elements.
-	d[nne] = null;
-      }
-      --nElems;
-      return retval;
-    }
     public List<Object> subList(int ssidx, int seidx) {
-      checkIndexRange(0, nElems, ssidx, seidx);
+      checkIndexRange(nElems, ssidx, seidx);
       return toList(data, ssidx, seidx, meta());
     }
     public IPersistentMap meta() { return meta; }
@@ -448,20 +454,8 @@ public class ArrayLists {
     public Object[] toArray() {
       return Arrays.copyOf(data, nElems);
     }
-    public void fillRange(int startidx, List v) {
-      ((RangeList)subList(0, nElems)).fillRange(startidx, v);
-    }
-    public void addRange(final int startidx, final int endidx, final Object v) {
-      final int ne = nElems;
-      checkIndexRange(0, ne, startidx, endidx);
-      final int rangeLen = endidx - startidx;
-      final int newLen = ne + rangeLen;
-      ensureCapacity(newLen);
-      System.arraycopy(data, startidx, data, endidx, nElems - startidx);
-      Arrays.fill(data, startidx, endidx, v);
-    }
     public void removeRange(int startidx, int endidx) {
-      checkIndexRange(0, nElems, startidx, endidx);
+      checkIndexRange(nElems, startidx, endidx);
       System.arraycopy(data, startidx, data, endidx, nElems - endidx);
       Arrays.fill(data, endidx, nElems, null);
       nElems -= endidx - startidx;
@@ -471,11 +465,18 @@ public class ArrayLists {
     public void sort(Comparator<? super Object> c) {
       subList(0, nElems).sort(c);
     }
-    public List immutSort(Comparator c) {
-      return ((ImmutSort)subList(0, nElems)).immutSort(c);
+    public void shuffle(Random r) {
+      ((IMutList)subList(0, nElems)).shuffle(r);
     }
-    public List immutShuffle(Random r) {
-      return ((IMutList)subList(0, nElems)).immutShuffle(r);
+    public void fill(int ssidx, int seidx, Object v) {
+      checkIndexRange(nElems, ssidx, seidx);
+      Arrays.fill(data, ssidx, seidx, v);
+    }
+    public Object copyOfRange(int ssidx, int seidx) {
+      return Arrays.copyOfRange(data, ssidx, seidx);
+    }
+    public Object copyOf(int len) {
+      return Arrays.copyOf(data, len);
     }
     public static ObjectArrayList wrap(final Object[] data, int nElems, IPersistentMap m) {
       if (data.length < nElems)
@@ -521,10 +522,10 @@ public class ArrayLists {
     public int size() { return dlen; }
     public Byte get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
     public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
-    public IMutList cloneList() { return (IMutList)toList(Arrays.copyOfRange(data, sidx, sidx+dlen)); }
-    public Byte set(int idx, Object oobj) {
-      return (byte)setLong(idx, Casts.longCast(oobj));
+    public void setLong(int idx, long oobj) {
+      data[checkIndex(idx, dlen) + sidx] = RT.byteCast(oobj);
     }
+    public IMutList cloneList() { return (IMutList)toList(Arrays.copyOfRange(data, sidx, sidx+dlen)); }
     public IntComparator indexComparator() {
       return new IntComparator() {
 	public int compare(int lidx, int ridx) {
@@ -532,23 +533,8 @@ public class ArrayLists {
 	}
       };
     }
-    public void fillRange(int startidx, int endidx, Object v) {
-      checkIndexRange(sidx, sidx + dlen, startidx, endidx);
-      Arrays.fill(data, startidx+sidx, endidx+sidx, RT.byteCast(Casts.longCast(v)));
-    }
-    public void fillRange(int startidx, List v) {
-      if (!fillRangeArrayCopy(data, sidx, sidx + dlen, byte[].class, startidx, v))
-	ILongArrayList.super.fillRange(startidx, v);
-    }
-    public long setLong(int idx, long oobj) {
-      byte obj = RT.byteCast(oobj);
-      idx = checkIndex(idx, dlen) + sidx;
-      final byte retval = data[idx];
-      data[idx] = obj;
-      return retval;
-    }
     public List<Object> subList(int ssidx, int seidx) {
-      checkIndexRange(sidx, dlen, ssidx, seidx);
+      checkIndexRange(dlen, ssidx, seidx);
       return toList(data, ssidx + sidx, seidx + sidx, meta());
     }
     public IPersistentMap meta() { return meta; }
@@ -562,18 +548,48 @@ public class ArrayLists {
 	retval[idx] = data[idx+sidx];
       return retval;
     }
-    public List immutShuffle(Random r) {
-      final int sz = size();
-      final int[] perm = IntArrays.shuffle(ArrayLists.iarange(0, sz, 1), r);
-      byte[] bdata = new byte[sz];
-      for(int idx = 0; idx < sz; ++idx)
-	bdata[idx] = data[perm[idx]];
-      return toList(bdata);
+    @SuppressWarnings("unchecked")
+    public void sort(Comparator<? super Object> c) {
+      if (c == null)
+	Arrays.sort(data, sidx, sidx+dlen);
+      else {
+	ILongArrayList.super.sort(c);
+      }
     }
-    public List immutSort() {
-      byte[] retval = Arrays.copyOfRange(data, sidx, sidx + dlen);
-      Arrays.sort(retval);
-      return toList(retval, 0, retval.length, meta);
+    public void shuffle(Random r) {
+      ByteArrays.shuffle(data, sidx, sidx+dlen, r);
+    }
+    public static ByteComparator asByteComparator(Comparator c) {
+      if (c instanceof ByteComparator)
+	return (ByteComparator)c;
+      else if (c instanceof LongComparator) {
+	final LongComparator lc = (LongComparator)c;
+	return new ByteComparator() {
+	  public int compare(byte l, byte r) { return lc.compare(l,r); }
+	};
+      }
+      return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      final byte vv = RT.byteCast(Casts.longCast(v));
+      final ByteComparator bc = asByteComparator(c);
+      if(c == null || bc != null)
+	return fixSubArrayBinarySearch(sidx, size(),
+				       bc == null ? ByteArrays.binarySearch(data, sidx, sidx+size(), vv) : ByteArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
+      return ILongArrayList.super.binarySearch(v, c);
+    }
+
+    public void fill(int ssidx, int seidx, Object v) {
+      checkIndexRange(size(), ssidx, seidx);
+      Arrays.fill(data, sidx + ssidx, sidx + seidx, RT.byteCast(Casts.longCast(v)));
+    }
+    public Object copyOfRange(int ssidx, int seidx) {
+      return Arrays.copyOfRange(data, sidx+ssidx, sidx+seidx);
+    }
+    public Object copyOf(int len) {
+      return Arrays.copyOfRange(data, sidx, sidx+len);
     }
   }
 
@@ -605,25 +621,9 @@ public class ArrayLists {
     public ArraySection getArraySection() { return new ArraySection(data, sidx, sidx + dlen); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return dlen; }
-    public Short get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
     public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
-    public Short set(int idx, Object oobj) {
-      return (short)setLong(idx, Casts.longCast(oobj));
-    }
-    public long setLong(int idx, long oobj) {
-      short obj = RT.shortCast(Casts.longCast(oobj));
-      idx = wrapCheckIndex(idx, dlen) + sidx;
-      final short retval = data[idx];
-      data[idx] = obj;
-      return retval;
-    }
-    public void fillRange(int startidx, int endidx, Object v) {
-      checkIndexRange(sidx, sidx + dlen, startidx, endidx);
-      Arrays.fill(data, startidx+sidx, endidx+sidx, RT.shortCast(Casts.longCast(v)));
-    }
-    public void fillRange(int startidx, List v) {
-      if (!fillRangeArrayCopy(data, sidx, sidx + dlen, short[].class, startidx, v))
-	ILongArrayList.super.fillRange(startidx, v);
+    public void setLong(int idx, long oobj) {
+      data[checkIndex(idx, dlen) + sidx] = RT.shortCast(Casts.longCast(oobj));
     }
     public IntComparator indexComparator() {
       return new IntComparator() {
@@ -633,7 +633,7 @@ public class ArrayLists {
       };
     }
     public List<Object> subList(int ssidx, int seidx) {
-      checkIndexRange(sidx, dlen, ssidx, seidx);
+      checkIndexRange(dlen, ssidx, seidx);
       return toList(data, ssidx + sidx, seidx + sidx, meta());
     }
     public IPersistentMap meta() { return meta; }
@@ -647,18 +647,55 @@ public class ArrayLists {
 	retval[idx] = data[idx+sidx];
       return retval;
     }
-    public List immutSort() {
-      short[] retval = Arrays.copyOfRange(data, sidx, sidx + dlen);
-      Arrays.sort(retval);
-      return toList(retval, 0, retval.length, meta);
+    @SuppressWarnings("unchecked")
+    public void sort(Comparator c) {
+      if (c == null)
+	Arrays.sort(data, sidx, sidx+dlen);
+      else {
+	final Object[] odata = toArray();
+	Arrays.sort(odata, c);
+	final short[] d = data;
+	final int sz = size();
+	final int ss = sidx;
+	for (int idx = 0; idx < sz; ++idx) {
+	  d[idx+ss] = (short)odata[idx];
+	}
+      }
     }
-    public List immutShuffle(Random r) {
-      final int sz = size();
-      final int[] perm = IntArrays.shuffle(ArrayLists.iarange(0, sz, 1), r);
-      final short[] bdata = new short[sz];
-      for(int idx = 0; idx < sz; ++idx)
-	bdata[idx] = data[perm[idx]];
-      return toList(bdata);
+
+    public void shuffle(Random r) {
+      ShortArrays.shuffle(data, sidx, sidx+dlen, r);
+    }
+    public static ShortComparator asShortComparator(Comparator c) {
+      if (c instanceof ShortComparator)
+	return (ShortComparator)c;
+      else if (c instanceof LongComparator) {
+	final LongComparator lc = (LongComparator)c;
+	return new ShortComparator() {
+	  public int compare(short l, short r) { return lc.compare(l,r); }
+	};
+      }
+      return null;
+    }
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      final short vv = RT.shortCast(Casts.longCast(v));
+      final ShortComparator bc = asShortComparator(c);
+      if(c == null || bc != null)
+	return fixSubArrayBinarySearch(sidx, size(),
+				       bc == null ? ShortArrays.binarySearch(data, sidx, sidx+size(), vv) : ShortArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
+      return ILongArrayList.super.binarySearch(v, c);
+    }
+    public void fill(int ssidx, int seidx, Object v) {
+      checkIndexRange(size(), ssidx, seidx);
+      Arrays.fill(data, sidx + ssidx, sidx + seidx, RT.shortCast(Casts.longCast(v)));
+    }
+    public Object copyOfRange(int ssidx, int seidx) {
+      checkIndex(ssidx, size());
+      return Arrays.copyOfRange(data, sidx+ssidx, sidx+seidx);
+    }
+    public Object copyOf(int len) {
+      return Arrays.copyOfRange(data, sidx, sidx+len);
     }
   }
 
@@ -687,24 +724,18 @@ public class ArrayLists {
     public ArraySection getArraySection() { return this; }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
-    public Object get(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
     public long getLong(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
-    static int setLong(final int[] d, final int sidx, final int nElems,
-		       int idx, final long obj) {
+    static void setLong(final int[] d, final int sidx, final int nElems,
+			int idx, final long obj) {
       int v = RT.intCast(obj);
-      idx = wrapCheckIndex(idx, nElems) + sidx;
-      final int retval = d[idx];
+      idx = checkIndex(idx, nElems) + sidx;
       d[idx] = v;
-      return retval;
     }
-    public Object set(int idx, Object obj) {
-      return setLong(data, sidx, nElems, idx, Casts.longCast(obj));
-    }
-    public long setLong(int idx, long obj) {
-      return setLong(data, sidx, nElems, idx, obj);
+    public void setLong(int idx, long obj) {
+      setLong(data, sidx, nElems, idx, obj);
     }
     public List<Object> subList(int ssidx, int seidx) {
-      checkIndexRange(sidx, eidx, ssidx, seidx);
+      checkIndexRange(size(), ssidx, seidx);
       return toList(data, ssidx + sidx, seidx + sidx, meta());
     }
     public IPersistentMap meta() { return meta; }
@@ -722,14 +753,6 @@ public class ArrayLists {
     }
     public int[] toIntArray() {
       return Arrays.copyOfRange(data, sidx, eidx);
-    }
-    public void fillRange(int startidx, int endidx, Object v) {
-      checkIndexRange(sidx, eidx, startidx, endidx);
-      Arrays.fill(data, startidx+sidx, endidx+sidx, RT.intCast(Casts.longCast(v)));
-    }
-    public void fillRange(int startidx, List v) {
-      if (!fillRangeArrayCopy(data, sidx, eidx, int[].class, startidx, v))
-	ILongArrayList.super.fillRange(startidx, v);
     }
     @SuppressWarnings("unchecked")
     public static IntComparator indexComparator(int[] d, int sidx, Comparator c) {
@@ -796,6 +819,30 @@ public class ArrayLists {
 	IntArrays.parallelQuickSort(data, sidx, eidx, toIntComparator(c));
       }
     }
+    public void shuffle(Random r) {
+      IntArrays.shuffle(data, sidx, eidx, r);
+    }
+    public static IntComparator asIntComparator(Comparator c) {
+      if (c instanceof IntComparator)
+	return (IntComparator)c;
+      else if (c instanceof LongComparator) {
+	final LongComparator lc = (LongComparator)c;
+	return new IntComparator() {
+	  public int compare(int l, int r) { return lc.compare(l,r); }
+	};
+      }
+      return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      final int vv = RT.intCast(Casts.longCast(v));
+      final IntComparator bc = asIntComparator(c);
+      if(c == null || bc != null)
+	return fixSubArrayBinarySearch(sidx, size(),
+				       bc == null ? IntArrays.binarySearch(data, sidx, sidx+size(), vv) : IntArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
+	return ILongArrayList.super.binarySearch(v, c);
+    }
     public int[] sortIndirect(Comparator c) {
       final int sz = size();
       int[] retval = iarange(0, sz, 1);
@@ -807,16 +854,16 @@ public class ArrayLists {
 	IntArrays.parallelQuickSort(retval, indexComparator(c));
       return retval;
     }
-    @SuppressWarnings("unchecked")
-    public List immutSort(Comparator c) {
-      List retval = toList(Arrays.copyOfRange(data, sidx, eidx), 0, (eidx - sidx), meta());
-      retval.sort(c);
-      return retval;
+    public void fill(int ssidx, int seidx, Object v) {
+      checkIndexRange(size(), ssidx, seidx);
+      Arrays.fill(data, sidx + ssidx, sidx + seidx, RT.intCast(Casts.longCast(v)));
     }
-    public List immutShuffle(Random r) {
-      int[] retval = toIntArray();
-      IntArrays.shuffle(retval, r);
-      return toList(retval);
+    public Object copyOfRange(int ssidx, int seidx) {
+      checkIndex(ssidx, size());
+      return Arrays.copyOfRange(data, sidx+ssidx, sidx+seidx);
+    }
+    public Object copyOf(int len) {
+      return Arrays.copyOfRange(data, sidx, sidx+len);
     }
   }
 
@@ -843,16 +890,12 @@ public class ArrayLists {
     public ArraySection getArraySection() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
-    public Object get(int idx) { return data[checkIndex(idx, nElems)]; }
     public long getLong(int idx) { return data[checkIndex(idx, nElems)]; }
-    public Object set(int idx, Object obj) {
-      return IntArraySubList.setLong(data, 0, nElems, idx, Casts.longCast(obj));
-    }
-    public long setLong(int idx, long obj) {
-      return IntArraySubList.setLong(data, 0, nElems, idx, obj);
+    public void setLong(int idx, long obj) {
+      IntArraySubList.setLong(data, 0, nElems, idx, obj);
     }
     public int capacity() { return data.length; }
-    int[] ensureCapacity(int len) {
+    public int[] ensureCapacity(int len) {
       int[] d = data;
       if (len >= d.length) {
 	d = data = Arrays.copyOf(d, len < 100000 ? len * 2 : (int)(len * 1.5));
@@ -936,21 +979,8 @@ public class ArrayLists {
       }
       return true;
     }
-    public Object remove(int idx) {
-      idx = wrapCheckIndex(idx, nElems);
-      final int ne = nElems;
-      final int nne = ne - 1;
-      final int[] d = data;
-      final int retval = d[idx];
-      if (idx != nne) {
-	final int copyLen = ne - idx - 1;
-	System.arraycopy(d, idx+1, d, idx, copyLen);
-      }
-      --nElems;
-      return retval;
-    }
     public List<Object> subList(int ssidx, int seidx) {
-      checkIndexRange(0, nElems, ssidx, seidx);
+      checkIndexRange(nElems, ssidx, seidx);
       return toList(data, ssidx, seidx, meta());
     }
     public IPersistentMap meta() { return meta; }
@@ -972,14 +1002,15 @@ public class ArrayLists {
     }
     public void addRange(final int startidx, final int endidx, final Object v) {
       final int ne = nElems;
-      checkIndexRange(0, ne, startidx, endidx);
+      checkIndexRange(ne, startidx, endidx);
       final int rangeLen = endidx - startidx;
       final int newLen = ne + rangeLen;
       ensureCapacity(newLen);
       System.arraycopy(data, startidx, data, endidx, nElems - startidx);
+      fillRange(startidx, endidx, v);
     }
     public void removeRange(int startidx, int endidx) {
-      checkIndexRange(0, nElems, startidx, endidx);
+      checkIndexRange(nElems, startidx, endidx);
       System.arraycopy(data, startidx, data, endidx, nElems - endidx);
       nElems -= endidx - startidx;
     }
@@ -991,17 +1022,32 @@ public class ArrayLists {
     public void sort(Comparator<? super Object> c) {
       subList(0, nElems).sort(c);
     }
+    public void shuffle(Random r) {
+      ((IMutList)subList(0, nElems)).shuffle(r);
+    }
     public int[] sortIndirect(Comparator c) {
       return ((IMutList)subList(0, nElems)).sortIndirect(c);
     }
-    public List immutSort(Comparator c) {
-      return ((ImmutSort)subList(0, nElems)).immutSort(c);
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      return ((IMutList)subList(0, nElems)).binarySearch(v, c);
     }
     public IntComparator indexComparator() {
       return IntArraySubList.indexComparator(data, 0, null);
     }
     public IntComparator indexComparator(Comparator c) {
       return IntArraySubList.indexComparator(data, 0, c);
+    }
+    public void fill(int ssidx, int seidx, Object v) {
+      checkIndexRange(size(), ssidx, seidx);
+      Arrays.fill(data, ssidx, seidx, RT.intCast(Casts.longCast(v)));
+    }
+    public Object copyOfRange(int ssidx, int seidx) {
+      checkIndex(ssidx, size());
+      return Arrays.copyOfRange(data, ssidx, seidx);
+    }
+    public Object copyOf(int len) {
+      return Arrays.copyOf(data, len);
     }
     public static IntArrayList wrap(final int[] data, int nElems, IPersistentMap m) {
       if (data.length < nElems)
@@ -1064,23 +1110,17 @@ public class ArrayLists {
     public IMutList cloneList() { return (IMutList)toList(Arrays.copyOfRange(data, sidx, eidx)); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
-    public Object get(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
     public long getLong(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
-    static long setLong(final long[] d, final int sidx, final int nElems,
+    static void setLong(final long[] d, final int sidx, final int nElems,
 			int idx, final long v) {
-      idx = wrapCheckIndex(idx, nElems) + sidx;
-      final long retval = d[idx];
+      idx = checkIndex(idx, nElems) + sidx;
       d[idx] = v;
-      return retval;
     }
-    public Object set(int idx, Object obj) {
-      return setLong(data, sidx, nElems, idx, Casts.longCast(obj));
-    }
-    public long setLong(int idx, long obj) {
-      return setLong(data, sidx, nElems, idx, obj);
+    public void setLong(int idx, long obj) {
+      setLong(data, sidx, nElems, idx, obj);
     }
     public List<Object> subList(int ssidx, int seidx) {
-      checkIndexRange(sidx, eidx, ssidx, seidx);
+      checkIndexRange(size(), ssidx, seidx);
       return toList(data, ssidx + sidx, seidx + sidx, meta());
     }
     public IPersistentMap meta() { return meta; }
@@ -1098,14 +1138,6 @@ public class ArrayLists {
     }
     public long[] toLongArray() {
       return Arrays.copyOfRange(data, sidx, eidx);
-    }
-    public void fillRange(int startidx, int endidx, Object v) {
-      checkIndexRange(sidx, eidx, startidx, endidx);
-      Arrays.fill(data, startidx+sidx, endidx+sidx, Casts.longCast(v));
-    }
-    public void fillRange(int startidx, List v) {
-      if (!fillRangeArrayCopy(data, sidx, eidx, long[].class, startidx, v))
-	ILongArrayList.super.fillRange(startidx, v);
     }
     @SuppressWarnings("unchecked")
     public static IntComparator indexComparator(long[] d, int sidx, Comparator c) {
@@ -1173,12 +1205,6 @@ public class ArrayLists {
 	LongArrays.parallelQuickSort(data, sidx, eidx, toLongComparator(c));
       }
     }
-    @SuppressWarnings("unchecked")
-    public List immutSort(Comparator c) {
-      List retval = toList(Arrays.copyOfRange(data, sidx, eidx), 0, (eidx - sidx), meta());
-      retval.sort(c);
-      return retval;
-    }
     public int[] sortIndirect(Comparator c) {
       final int sz = size();
       int[] retval = iarange(0, sz, 1);
@@ -1190,10 +1216,32 @@ public class ArrayLists {
 	IntArrays.parallelQuickSort(retval, indexComparator(c));
       return retval;
     }
-    public List immutShuffle(Random r) {
-      long[] data = toLongArray();
-      LongArrays.shuffle(data, r);
-      return toList(data);
+    public void shuffle(Random r) {
+      LongArrays.shuffle(data, sidx, eidx, r);
+    }
+    public static LongComparator asLongComparator(Comparator c) {
+      if (c instanceof LongComparator)
+	return (LongComparator)c;
+      return null;
+    }
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      final long vv = RT.longCast(Casts.longCast(v));
+      final LongComparator bc = asLongComparator(c);
+      if(c == null || bc != null)
+	return fixSubArrayBinarySearch(sidx, size(),
+				       bc == null ? LongArrays.binarySearch(data, sidx, sidx+size(), vv) : LongArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
+      return ILongArrayList.super.binarySearch(v, c);
+    }
+    public void fill(int ssidx, int seidx, Object v) {
+      checkIndexRange(size(), ssidx, seidx);
+      Arrays.fill(data, sidx + ssidx, sidx + seidx, Casts.longCast(v));
+    }
+    public Object copyOfRange(int ssidx, int seidx) {
+      return Arrays.copyOfRange(data, sidx+ssidx, sidx+seidx);
+    }
+    public Object copyOf(int len) {
+      return Arrays.copyOfRange(data, sidx, sidx+len);
     }
   }
 
@@ -1220,16 +1268,12 @@ public class ArrayLists {
     public ArraySection getArraySection() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
-    public Object get(int idx) { return data[checkIndex(idx, nElems)]; }
     public long getLong(int idx) { return data[checkIndex(idx, nElems)]; }
-    public Object set(int idx, Object obj) {
-      return LongArraySubList.setLong(data, 0, nElems, idx, Casts.longCast(obj));
-    }
-    public long setLong(int idx, long obj) {
-      return LongArraySubList.setLong(data, 0, nElems, idx, obj);
+    public void setLong(int idx, long obj) {
+      LongArraySubList.setLong(data, 0, nElems, idx, obj);
     }
     public int capacity() { return data.length; }
-    long[] ensureCapacity(int len) {
+    public long[] ensureCapacity(int len) {
       long[] d = data;
       if (len >= d.length) {
 	d = data = Arrays.copyOf(d, len < 100000 ? len * 2 : (int)(len * 1.5));
@@ -1327,7 +1371,7 @@ public class ArrayLists {
       return retval;
     }
     public List<Object> subList(int ssidx, int seidx) {
-      checkIndexRange(0, nElems, ssidx, seidx);
+      checkIndexRange(nElems, ssidx, seidx);
       return toList(data, ssidx, seidx, meta());
     }
     public IPersistentMap meta() { return meta; }
@@ -1349,14 +1393,14 @@ public class ArrayLists {
     }
     public void addRange(final int startidx, final int endidx, final Object v) {
       final int ne = nElems;
-      checkIndexRange(0, ne, startidx, endidx);
+      checkIndexRange(ne, startidx, endidx);
       final int rangeLen = endidx - startidx;
       final int newLen = ne + rangeLen;
       ensureCapacity(newLen);
       System.arraycopy(data, startidx, data, endidx, nElems - startidx);
     }
     public void removeRange(int startidx, int endidx) {
-      checkIndexRange(0, nElems, startidx, endidx);
+      checkIndexRange(nElems, startidx, endidx);
       System.arraycopy(data, startidx, data, endidx, nElems - endidx);
       nElems -= endidx - startidx;
     }
@@ -1374,11 +1418,26 @@ public class ArrayLists {
     public void sort(Comparator<? super Object> c) {
       subList(0, nElems).sort(c);
     }
-    public List immutSort(Comparator c) {
-      return ((ImmutSort)subList(0, nElems)).immutSort(c);
+    public void shuffle(Random r) {
+      ((IMutList)subList(0, nElems)).shuffle(r);
+    }
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      return ((IMutList)subList(0, nElems)).binarySearch(v, c);
     }
     public int[] sortIndirect(Comparator c) {
       return ((IMutList)subList(0, nElems)).sortIndirect(c);
+    }
+    public void fill(int ssidx, int seidx, Object v) {
+      checkIndexRange(size(), ssidx, seidx);
+      Arrays.fill(data, ssidx, seidx, Casts.longCast(v));
+    }
+    public Object copyOfRange(int ssidx, int seidx) {
+      checkIndex(ssidx, nElems);
+      return Arrays.copyOfRange(data, ssidx, seidx);
+    }
+    public Object copyOf(int len) {
+      return Arrays.copyOf(data, len);
     }
     public static LongArrayList wrap(final long[] data, int nElems, IPersistentMap m) {
       if (data.length < nElems)
@@ -1418,27 +1477,14 @@ public class ArrayLists {
     public int size() { return dlen; }
     public Float get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
     public double getDouble(int idx) { return data[checkIndex(idx, dlen) + sidx];}
-    public Float set(int idx, Object obj) {
-      return (float)setDouble(idx, Casts.doubleCast(obj));
-    }
-    public double setDouble(int idx, double v) {
+    public void setDouble(int idx, double v) {
       float obj = (float)v;
-      idx = wrapCheckIndex(idx, dlen) + sidx;
-      final float retval = data[idx];
+      idx = checkIndex(idx, dlen) + sidx;
       data[idx] = obj;
-      return retval;
     }
     public List<Object> subList(int ssidx, int seidx) {
-      checkIndexRange(sidx, dlen, ssidx, seidx);
+      checkIndexRange(size(), ssidx, seidx);
       return toList(data, ssidx + sidx, seidx + sidx, meta());
-    }
-    public void fillRange(int startidx, int endidx, Object v) {
-      checkIndexRange(sidx, sidx + dlen, startidx, endidx);
-      Arrays.fill(data, startidx+sidx, endidx+sidx, (float)Casts.doubleCast(v));
-    }
-    public void fillRange(int startidx, List v) {
-      if (!fillRangeArrayCopy(data, sidx, sidx + dlen, float[].class, startidx, v))
-	IDoubleArrayList.super.fillRange(startidx, v);
     }
     public IPersistentMap meta() { return meta; }
     public IObj withMeta(IPersistentMap m) {
@@ -1490,47 +1536,51 @@ public class ArrayLists {
 	return IDoubleArrayList.super.indexComparator(c);
       }
     }
-    public List immutSort() {
-      float[] retval = Arrays.copyOfRange(data, sidx, sidx + dlen);
-      Arrays.sort(retval);
-      return toList(retval, 0, retval.length, meta);
+    public static FloatComparator asFloatComparator(Comparator c) {
+      if (c instanceof FloatComparator)
+	return (FloatComparator)c;
+      else if (c instanceof DoubleComparator) {
+	final DoubleComparator lc = (DoubleComparator)c;
+	return new FloatComparator() {
+	  public int compare(float l, float r) { return lc.compare(l,r); }
+	};
+      }
+      return null;
     }
-    public Object reduce(IFn fn) {
-      if(dlen ==0) return fn.invoke();
-      final int ne = dlen;
-      final int ss = sidx;
-      final float[] d = data;
-      Object init = d[ss];
-      for(int idx = 1; idx < ne && (!RT.isReduced(init)); ++idx)
-	init = fn.invoke(init, d[idx+ss]);
-      if(RT.isReduced(init))
-	return ((IDeref)init).deref();
-      return init;
+    @SuppressWarnings("unchecked")
+    public void sort(Comparator c) {
+      if(c == null) {
+	FloatArrays.parallelQuickSort(data, sidx, sidx+dlen);
+      } else {
+	FloatComparator fc = asFloatComparator(c);
+	if (fc != null)
+	  FloatArrays.parallelQuickSort(data, sidx, sidx+dlen, fc);
+	else
+	  IDoubleArrayList.super.sort(c);
+      }
     }
-    public Object reduce(IFn fn, Object init) {
-      if(dlen ==0) return init;
-      final int ne = dlen;
-      final int ss = sidx;
-      final float[] d = data;
-      for(int idx = 0; idx < ne && (!RT.isReduced(init)); ++idx)
-	init = fn.invoke(init, d[idx+ss]);
-      if(RT.isReduced(init))
-	return ((IDeref)init).deref();
-      return init;
+    public void shuffle(Random r) {
+      FloatArrays.shuffle(data, sidx, sidx+dlen, r);
     }
-    public double doubleReduction(DoubleBinaryOperator op, double init) {
-      final int sz = size();
-      for (int idx = 0; idx < sz; ++idx)
-	init = op.applyAsDouble(init, data[idx+sidx]);
-      return init;
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      final float vv = RT.floatCast(Casts.doubleCast(v));
+      final FloatComparator bc = asFloatComparator(c);
+      if(c == null || bc != null)
+	return fixSubArrayBinarySearch(sidx, size(),
+				       bc == null ? FloatArrays.binarySearch(data, sidx, sidx+size(), vv) : FloatArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
+      return IDoubleArrayList.super.binarySearch(v, c);
     }
-    public List immutShuffle(Random r) {
-      final int sz = size();
-      final int[] perm = IntArrays.shuffle(ArrayLists.iarange(0, sz, 1), r);
-      final float[] bdata = new float[sz];
-      for(int idx = 0; idx < sz; ++idx)
-	bdata[idx] = data[perm[idx]];
-      return toList(bdata);
+    public void fill(int ssidx, int seidx, Object v) {
+      checkIndexRange(size(), ssidx, seidx);
+      Arrays.fill(data, ssidx, seidx, (float)Casts.doubleCast(v));
+    }
+    public Object copyOfRange(int ssidx, int seidx) {
+      checkIndex(ssidx, dlen);
+      return Arrays.copyOfRange(data, sidx+ssidx, sidx+seidx);
+    }
+    public Object copyOf(int len) {
+      return Arrays.copyOfRange(data, sidx, sidx+len);
     }
   }
 
@@ -1559,23 +1609,17 @@ public class ArrayLists {
     public ArraySection getArraySection() { return this; }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
-    public Object get(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
     public double getDouble(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
-    static double setDouble(final double[] d, final int sidx, final int nElems,
+    static void setDouble(final double[] d, final int sidx, final int nElems,
 			int idx, final double v) {
-      idx = wrapCheckIndex(idx, nElems) + sidx;
-      final double retval = d[idx];
+      idx = checkIndex(idx, nElems) + sidx;
       d[idx] = v;
-      return retval;
     }
-    public Object set(int idx, Object obj) {
-      return setDouble(data, sidx, nElems, idx, Casts.doubleCast(obj));
-    }
-    public double setDouble(int idx, double obj) {
-      return setDouble(data, sidx, nElems, idx, obj);
+    public void setDouble(int idx, double obj) {
+      setDouble(data, sidx, nElems, idx, obj);
     }
     public List<Object> subList(int ssidx, int seidx) {
-      checkIndexRange(sidx, eidx, ssidx, seidx);
+      checkIndexRange(size(), ssidx, seidx);
       return toList(data, ssidx + sidx, seidx + sidx, meta());
     }
     public IPersistentMap meta() { return meta; }
@@ -1593,34 +1637,6 @@ public class ArrayLists {
     }
     public double[] toDoubleArray() {
       return Arrays.copyOfRange(data, sidx, eidx);
-    }
-    public void fillRange(int startidx, int endidx, Object v) {
-      checkIndexRange(sidx, eidx, startidx, endidx);
-      Arrays.fill(data, startidx+sidx, endidx+sidx, Casts.doubleCast(v));
-    }
-    public void fillRange(int startidx, List v) {
-      if (!fillRangeArrayCopy(data, sidx, eidx, double[].class, startidx, v))
-	IDoubleArrayList.super.fillRange(startidx, v);
-    }
-    @SuppressWarnings("unchecked")
-    public static void forEach(final double[] d, final int sidx, final int sz, Consumer c) {
-      if(c instanceof DoubleConsumer) {
-	final DoubleConsumer dc = (DoubleConsumer)c;
-	if(sidx == 0) {
-	  for(int idx = 0; idx < sz; ++idx)
-	    dc.accept(d[idx]);
-	} else {
-	  for(int idx = 0; idx < sz; ++idx)
-	    dc.accept(d[idx+sidx]);
-	}
-      }
-      else {
-	for(int idx = 0; idx < sz; ++idx)
-	  c.accept(d[idx+sidx]);
-      }
-    }
-    public void forEach(Consumer c) {
-      forEach(data, sidx, nElems, c);
     }
     @SuppressWarnings("unchecked")
     public static IntComparator indexComparator(final double[] d, final int sidx,
@@ -1684,20 +1700,9 @@ public class ArrayLists {
 	if (dc != null) {
 	  DoubleArrays.parallelQuickSort(data, sidx, eidx, toDoubleComparator(c));
 	} else {
-	  //Avoid boxing on each comparison
-	  Object[] sd = toArray();
-	  Arrays.sort(sd, c);
-	  final int sz = size();
-	  for(int idx = 0; idx < sz; ++idx)
-	    setDouble(idx, (Double)sd[idx]);
+	  IDoubleArrayList.super.sort(c);
 	}
       }
-    }
-    @SuppressWarnings("unchecked")
-    public List immutSort(Comparator c) {
-      List retval = toList(Arrays.copyOfRange(data, sidx, eidx), 0, (eidx - sidx), meta());
-      retval.sort(c);
-      return retval;
     }
     public int[] sortIndirect(Comparator c) {
       final int sz = size();
@@ -1709,6 +1714,41 @@ public class ArrayLists {
       else
 	IntArrays.parallelQuickSort(retval, indexComparator(c));
       return retval;
+    }
+    public void shuffle(Random r) {
+      DoubleArrays.shuffle(data, sidx, eidx, r);
+    }
+    public static DoubleComparator asDoubleComparator(Comparator c) {
+      if (c instanceof DoubleComparator)
+	return (DoubleComparator)c;
+      return null;
+    }
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      final double vv = RT.doubleCast(Casts.doubleCast(v));
+      final DoubleComparator bc = asDoubleComparator(c);
+      if(c == null || bc != null)
+	return fixSubArrayBinarySearch(sidx, size(),
+				       bc == null ? DoubleArrays.binarySearch(data, sidx, sidx+size(), vv) : DoubleArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
+      return IDoubleArrayList.super.binarySearch(v, c);
+    }
+
+    public void fill(int ssidx, int seidx, Object v) {
+      checkIndexRange(size(), ssidx, seidx);
+      Arrays.fill(data, sidx + ssidx, sidx + seidx, Casts.doubleCast(v));
+    }
+    public Object copyOfRange(int ssidx, int seidx) {
+      checkIndex(ssidx, nElems);
+      return Arrays.copyOfRange(data, sidx + ssidx, sidx + seidx);
+    }
+    public Object copyOf(int len) {
+      return Arrays.copyOfRange(data, sidx, sidx + len);
+    }
+    public void doubleForEach(DoubleConsumer c) {
+      final double[] d = data;
+      final int ee = eidx;
+      for(int ss = sidx; ss < ee; ++ss)
+	c.accept(d[ss]);
     }
   }
 
@@ -1735,16 +1775,12 @@ public class ArrayLists {
     public ArraySection getArraySection() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
-    public Object get(int idx) { return data[checkIndex(idx, nElems)]; }
     public double getDouble(int idx) { return data[checkIndex(idx, nElems)]; }
-    public Object set(int idx, Object obj) {
-      return DoubleArraySubList.setDouble(data, 0, nElems, idx, Casts.longCast(obj));
-    }
-    public double setDouble(int idx, double obj) {
-      return DoubleArraySubList.setDouble(data, 0, nElems, idx, obj);
+    public void setDouble(int idx, double obj) {
+      DoubleArraySubList.setDouble(data, 0, nElems, idx, obj);
     }
     public int capacity() { return data.length; }
-    double[] ensureCapacity(int len) {
+    public double[] ensureCapacity(int len) {
       double[] d = data;
       if (len >= d.length) {
 	d = data = Arrays.copyOf(d, len < 100000 ? len * 2 : (int)(len * 1.5));
@@ -1841,7 +1877,7 @@ public class ArrayLists {
       return retval;
     }
     public List<Object> subList(int ssidx, int seidx) {
-      checkIndexRange(0, nElems, ssidx, seidx);
+      checkIndexRange(size(), ssidx, seidx);
       return toList(data, ssidx, seidx, meta());
     }
     public IPersistentMap meta() { return meta; }
@@ -1855,30 +1891,13 @@ public class ArrayLists {
     public double[] toDoubleArray() {
       return Arrays.copyOf(data, nElems);
     }
-    public void fillRange(int startidx, int endidx, Object v) {
-      ((RangeList)subList(0, nElems)).fillRange(startidx, endidx, v);
-    }
-    public void fillRange(int startidx, List v) {
-      ((RangeList)subList(0, nElems)).fillRange(startidx, v);
-    }
-    public void addRange(final int startidx, final int endidx, final Object v) {
-      final int ne = nElems;
-      checkIndexRange(0, ne, startidx, endidx);
-      final int rangeLen = endidx - startidx;
-      final int newLen = ne + rangeLen;
-      ensureCapacity(newLen);
-      System.arraycopy(data, startidx, data, endidx, nElems - startidx);
-    }
     public void removeRange(int startidx, int endidx) {
-      checkIndexRange(0, nElems, startidx, endidx);
+      checkIndexRange(size(), startidx, endidx);
       System.arraycopy(data, startidx, data, endidx, nElems - endidx);
       nElems -= endidx - startidx;
     }
     public Object reduce(IFn fn) { return ((IReduce)subList(0, nElems)).reduce(fn); }
     public Object reduce(IFn fn, Object init) { return ((IReduceInit)subList(0, nElems)).reduce(fn,init); }
-    public void forEach(Consumer c) {
-      DoubleArraySubList.forEach(data, 0, nElems, c);
-    }
     public IntComparator indexComparator() {
       return DoubleArraySubList.indexComparator(data, 0, null);
     }
@@ -1888,14 +1907,26 @@ public class ArrayLists {
     public void sort(Comparator<? super Object> c) {
       subList(0, nElems).sort(c);
     }
-    public List immutSort(Comparator c) {
-      return ((ImmutSort)subList(0, nElems)).immutSort(c);
+    public void shuffle(Random r) {
+      ((IMutList)subList(0, nElems)).shuffle(r);
+    }
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      return ((IMutList)subList(0, nElems)).binarySearch(v, c);
     }
     public int[] sortIndirect(Comparator c) {
       return ((IMutList)subList(0, nElems)).sortIndirect(c);
     }
-    public List immutShuffle(Random r) {
-      return ((IMutList)subList(0, nElems)).immutShuffle(r);
+    public void fill(int ssidx, int seidx, Object v) {
+      checkIndexRange(size(), ssidx, seidx);
+      Arrays.fill(data, ssidx, seidx, Casts.doubleCast(v));
+    }
+    public Object copyOfRange(int ssidx, int seidx) {
+      checkIndex(ssidx, nElems);
+      return Arrays.copyOfRange(data, ssidx, seidx);
+    }
+    public Object copyOf(int len) {
+      return Arrays.copyOf(data, len);
     }
     public static DoubleArrayList wrap(final double[] data, int nElems, IPersistentMap m) {
       if (data.length < nElems)
@@ -1930,20 +1961,16 @@ public class ArrayLists {
     public int hashCode() { return hasheq(); }
     public ArraySection getArraySection() { return new ArraySection(data, sidx, sidx + dlen); }
     public int size() { return dlen; }
+    public Character set(int idx, Object obj) { final Character c = get(idx); setLong(idx, Casts.longCast(obj)); return c; }
     public Character get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
     public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
-    public Character set(int idx, Character obj) {
-      return (char)setLong(idx, Casts.longCast(obj));
-    }
-    public long setLong(int idx, long obj) {
+    public void setLong(int idx, long obj) {
       char v = RT.charCast(obj);
-      idx = wrapCheckIndex(idx, dlen) + sidx;
-      final char retval = data[idx];
+      idx = checkIndex(idx, dlen) + sidx;
       data[idx] = v;
-      return retval;
     }
     public List<Object> subList(int ssidx, int seidx) {
-      checkIndexRange(sidx, dlen, ssidx, seidx);
+      checkIndexRange(size(), ssidx, seidx);
       return toList(data, ssidx + sidx, seidx + sidx, meta());
     }
     public IPersistentMap meta() { return meta; }
@@ -1957,10 +1984,51 @@ public class ArrayLists {
 	retval[idx] = data[idx+sidx];
       return retval;
     }
-    public List immutSort() {
-      char[] retval = Arrays.copyOfRange(data, sidx, sidx + dlen);
-      Arrays.sort(retval);
-      return toList(retval, 0, retval.length, meta);
+    public static CharComparator asCharComparator(Comparator c) {
+      if (c instanceof CharComparator)
+	return (CharComparator)c;
+      else if (c instanceof LongComparator) {
+	final LongComparator lc = (LongComparator)c;
+	return new CharComparator() {
+	  public int compare(char l, char r) { return lc.compare(l,r); }
+	};
+      }
+      return null;
+    }
+    @SuppressWarnings("unchecked")
+    public void sort(Comparator c) {
+      if(c==null)
+	CharArrays.parallelQuickSort(data, sidx, sidx+dlen);
+      else {
+	CharComparator cc = asCharComparator(c);
+	if( cc != null)
+	  CharArrays.parallelQuickSort(data, sidx, sidx+dlen, cc);
+	else
+	  ILongArrayList.super.sort(c);
+      }
+    }
+    public void shuffle(Random r) {
+      CharArrays.shuffle(data, sidx, sidx+dlen, r);
+    }
+    @SuppressWarnings("unchecked")
+    public int binarySearch(Object v, Comparator c) {
+      final char vv = RT.charCast(Casts.longCast(v));
+      final CharComparator bc = asCharComparator(c);
+      if(c == null || bc != null)
+	return fixSubArrayBinarySearch(sidx, size(),
+				       bc == null ? CharArrays.binarySearch(data, sidx, sidx+size(), vv) : CharArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
+      return ILongArrayList.super.binarySearch(v, c);
+    }
+    public void fill(int ssidx, int seidx, Object v) {
+      checkIndexRange(size(), ssidx, seidx);
+      Arrays.fill(data, ssidx+sidx, seidx+sidx, RT.charCast(Casts.longCast(v)));
+    }
+    public Object copyOfRange(int ssidx, int seidx) {
+      checkIndex(ssidx, size());
+      return Arrays.copyOfRange(data, ssidx+sidx, seidx+sidx);
+    }
+    public Object copyOf(int len) {
+      return Arrays.copyOfRange(data, sidx, sidx+len);
     }
   }
 
@@ -1971,7 +2039,7 @@ public class ArrayLists {
   public static List<Object> toList(final char[] data) { return toList(data, 0, data.length, null); }
 
 
-  public static class BooleanArraySubList implements ILongArrayList {
+  public static class BooleanArraySubList implements IBooleanArrayList {
     public final boolean[] data;
     public final int sidx;
     public final int dlen;
@@ -1984,43 +2052,42 @@ public class ArrayLists {
       meta = m;
     }
     public String toString() { return Transformables.sequenceToString(this); }
-      public boolean equals(Object other) {
-	return equiv(other);
-      }
-      public int hashCode() { return hasheq(); }
-      public ArraySection getArraySection() { return new ArraySection(data, sidx, sidx + dlen); }
-      public int size() { return dlen; }
-      public Boolean get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
-      public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx] ? 1 : 0; }
-      public Boolean set(int idx, Object obj) {
-	boolean bval = Casts.booleanCast(obj);
-	idx = wrapCheckIndex(idx, dlen) + sidx;
-	final Boolean retval = data[idx];
-	data[idx] = bval;
-	return retval;
-      }
-      public long setLong(int idx, long obj) {
-	boolean bval = Casts.booleanCast(obj);
-	idx = wrapCheckIndex(idx, dlen) + sidx;
-	final boolean retval = data[idx];
-	data[idx] = bval;
-	return Casts.longCast(retval);
-      }
-      public List<Object> subList(int ssidx, int seidx) {
-	checkIndexRange(sidx, dlen, ssidx, seidx);
-	return toList(data, ssidx + sidx, seidx + sidx, meta());
-      }
-      public IPersistentMap meta() { return meta; }
-      public IObj withMeta(IPersistentMap m) {
-	return (IObj)toList(data, sidx, sidx + dlen, m);
-      }
-      public Object[] toArray() {
-	final int sz = size();
-	Object[] retval = new Object[size()];
-	for (int idx = 0; idx < sz; ++idx)
-	  retval[idx] = data[idx+sidx];
-	return retval;
-      }
+    public boolean equals(Object other) {
+      return equiv(other);
+    }
+    public int hashCode() { return hasheq(); }
+    public ArraySection getArraySection() { return new ArraySection(data, sidx, sidx + dlen); }
+    public int size() { return dlen; }
+    public boolean getBoolean(int idx) { return data[checkIndex(idx, dlen)+sidx]; }
+    public void setBoolean(int idx, boolean obj) {
+      data[checkIndex(idx, dlen)+sidx] = obj;
+    }
+    public List<Object> subList(int ssidx, int seidx) {
+      checkIndexRange(size(), ssidx, seidx);
+      return toList(data, ssidx + sidx, seidx + sidx, meta());
+    }
+    public IPersistentMap meta() { return meta; }
+    public IObj withMeta(IPersistentMap m) {
+      return (IObj)toList(data, sidx, sidx + dlen, m);
+    }
+    public Object[] toArray() {
+      final int sz = size();
+      Object[] retval = new Object[size()];
+      for (int idx = 0; idx < sz; ++idx)
+	retval[idx] = data[idx+sidx];
+      return retval;
+    }
+    public void fill(int ssidx, int seidx, Object v) {
+      checkIndexRange(size(), ssidx, seidx);
+      Arrays.fill(data, sidx+ssidx, sidx+seidx, Casts.booleanCast(v));
+    }
+    public Object copyOfRange(int ssidx, int seidx) {
+      checkIndexRange(size(), ssidx, seidx);
+      return Arrays.copyOfRange(data, sidx+ssidx, sidx+seidx);
+    }
+    public Object copyOf(int len) {
+      return Arrays.copyOfRange(data, sidx, sidx+len);
+    }
   }
 
   public static List<Object> toList(final boolean[] data, final int sidx, final int eidx, IPersistentMap meta) {
