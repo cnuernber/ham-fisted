@@ -1849,6 +1849,18 @@ ham-fisted.api> (binary-search data 1.1 nil)
    (argsort comp-nan-last coll)))
 
 
+(defn- do-make-array
+  [clj-ary-fn ary-list-fn data]
+  (if (number? data)
+     (clj-ary-fn data)
+     (let [data (->reducible data)]
+       (if (instance? RandomAccess data)
+         (let [retval (clj-ary-fn (.size ^List data))]
+           (.fillRange ^IMutList (->random-access retval) 0 ^List data)
+           retval)
+         (.toNativeArray ^IMutList (ary-list-fn data))))))
+
+
 (defn byte-array-list
   (^IMutList [] (ByteArrayList. (clojure.core/byte-array 4) 0 nil))
   (^IMutList [data]
@@ -1863,10 +1875,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
 
 (defn byte-array
   (^bytes [] (byte-array 0))
-  (^bytes [data]
-   (if (number? data)
-     (clojure.core/byte-array data)
-     (.toNativeArray (byte-array-list data)))))
+  (^bytes [data] (do-make-array clojure.core/byte-array byte-array-list data)))
 
 
 (defn short-array-list
@@ -1883,10 +1892,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
 
 (defn short-array
   (^shorts [] (short-array 0))
-  (^shorts [data]
-   (if (number? data)
-     (clojure.core/short-array data)
-     (.toNativeArray (short-array-list data)))))
+  (^shorts [data] (do-make-array clojure.core/short-array short-array-list data)))
 
 
 (defn char-array-list
@@ -1903,10 +1909,8 @@ ham-fisted.api> (binary-search data 1.1 nil)
 
 (defn char-array
   (^chars [] (char-array 0))
-  (^chars [data]
-   (if (number? data)
-     (clojure.core/char-array data)
-     (.toNativeArray (char-array-list data)))))
+  (^chars [data] (do-make-array clojure.core/char-array char-array-list data)))
+
 
 
 (defn float-array-list
@@ -1923,10 +1927,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
 
 (defn float-array
   (^floats [] (float-array 0))
-  (^floats [data]
-   (if (number? data)
-     (clojure.core/float-array data)
-     (.toNativeArray (float-array-list data)))))
+  (^floats [data] (do-make-array clojure.core/float-array float-array-list data)))
 
 
 (defn boolean-array-list
@@ -1943,59 +1944,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
 
 (defn boolean-array
   (^booleans [] (boolean-array 0))
-  (^booleans [data]
-   (if (number? data)
-     (clojure.core/boolean-array data)
-     (.toNativeArray (boolean-array-list data)))))
-
-
-(defn int-array
-  "Create an integer array from a number of some data"
-  (^ints [] (int-array 0))
-  (^ints [data]
-   (if (number? data)
-     (clojure.core/int-array data)
-     (let [data (->reducible data)]
-       (if (instance? IMutList data)
-         (.toIntArray ^IMutList data)
-         (.toIntArray ^IMutList (int-array-list data)))))))
-
-
-(defn long-array
-  "Create a long array from a number of some data"
-  (^longs [] (long-array 0))
-  (^longs [data]
-   (if (number? data)
-     (clojure.core/long-array data)
-     (let [data (->reducible data)]
-       (if (instance? IMutList data)
-         (.toLongArray ^IMutList data)
-         (.toLongArray ^IMutList (long-array-list data)))))))
-
-
-
-(defn double-array
-  "Create a double array from a number of some data"
-  (^doubles [] (double-array 0))
-  (^doubles [data]
-   (if (number? data)
-     (clojure.core/double-array data)
-     (let [data (->reducible data)]
-       (if (instance? IMutList data)
-         (.toDoubleArray ^IMutList data)
-         (.toDoubleArray ^IMutList (double-array-list data)))))))
-
-
-(defn object-array-list
-  "An array list that is as fast as java.util.ArrayList for add,get, etc but includes
-  many accelerated operations such as fill and an accelerated addAll when the src data
-  is an object array based list."
-  (^IMutList [] (ArrayLists$ObjectArrayList.))
-  (^IMutList [cap-or-data]
-   (if (number? cap-or-data)
-     (ArrayLists$ObjectArrayList. (int cap-or-data))
-     (doto (ArrayLists$ObjectArrayList.)
-       (.addAllReducible (->reducible cap-or-data))))))
+  (^booleans [data] (do-make-array clojure.core/boolean-array boolean-array-list data)))
 
 
 (defn int-array-list
@@ -2010,6 +1959,11 @@ ham-fisted.api> (binary-search data 1.1 nil)
        (.addAllReducible (->reducible cap-or-data))))))
 
 
+(defn int-array
+  (^ints [] (int-array 0))
+  (^ints [data] (do-make-array clojure.core/int-array int-array-list data)))
+
+
 (defn long-array-list
   "An array list that is as fast as java.util.ArrayList for add,get, etc but includes
   many accelerated operations such as fill and an accelerated addAll when the src data
@@ -2022,6 +1976,11 @@ ham-fisted.api> (binary-search data 1.1 nil)
        (.addAllReducible (->reducible cap-or-data))))))
 
 
+(defn long-array
+  (^longs [] (long-array 0))
+  (^longs [data] (do-make-array clojure.core/long-array long-array-list data)))
+
+
 (defn double-array-list
   "An array list that is as fast as java.util.ArrayList for add,get, etc but includes
   many accelerated operations such as fill and an accelerated addAll when the src data
@@ -2031,6 +1990,23 @@ ham-fisted.api> (binary-search data 1.1 nil)
    (if (number? cap-or-data)
      (ArrayLists$DoubleArrayList. (int cap-or-data))
      (doto (ArrayLists$DoubleArrayList.)
+       (.addAllReducible (->reducible cap-or-data))))))
+
+
+(defn double-array
+  (^doubles [] (double-array 0))
+  (^doubles [data] (do-make-array clojure.core/double-array double-array-list data)))
+
+
+(defn object-array-list
+  "An array list that is as fast as java.util.ArrayList for add,get, etc but includes
+  many accelerated operations such as fill and an accelerated addAll when the src data
+  is an object array based list."
+  (^IMutList [] (ArrayLists$ObjectArrayList.))
+  (^IMutList [cap-or-data]
+   (if (number? cap-or-data)
+     (ArrayLists$ObjectArrayList. (int cap-or-data))
+     (doto (ArrayLists$ObjectArrayList.)
        (.addAllReducible (->reducible cap-or-data))))))
 
 
