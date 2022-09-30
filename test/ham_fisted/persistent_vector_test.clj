@@ -14,15 +14,21 @@
   {:api-vec {:convert-fn identity :vec-fn api/vec}
    :immut-vec {:convert-fn identity :vec-fn (comp persistent! api/mut-list)}
    :byte-vec {:convert-fn identity :vec-fn (comp api/->random-access api/byte-array)}
+   :byte-vec-list {:convert-fn identity :vec-fn (comp api/->random-access api/byte-array-list)}
    :short-vec {:convert-fn identity :vec-fn (comp api/->random-access api/short-array)}
+   :short-vec-list {:convert-fn identity :vec-fn (comp api/->random-access api/short-array-list)}
    :char-vec {:convert-fn char :vec-fn
               (fn ([] (api/->random-access (api/char-array)))
                 ([data] (api/->random-access (api/char-array (api/mapv char data)))))}
+   :char-vec-list {:convert-fn char :vec-fn
+                   (fn ([] (api/->random-access (api/char-array-list)))
+                     ([data] (api/->random-access (api/char-array-list (api/mapv char data)))))}
    :int-vec {:convert-fn identity :vec-fn (comp api/->random-access api/int-array)}
    :int-list-vec {:convert-fn identity :vec-fn api/int-array-list}
    :long-vec {:convert-fn identity :vec-fn (comp api/->random-access api/long-array)}
    :long-list-vec {:convert-fn identity :vec-fn api/long-array-list}
    :float-vec {:convert-fn float :vec-fn (comp api/->random-access api/float-array)}
+   :float-list-vec {:convert-fn float :vec-fn (comp api/->random-access api/float-array-list)}
    :double-vec {:convert-fn double :vec-fn (comp api/->random-access api/double-array)}
    :double-list-vec {:convert-fn double :vec-fn api/double-array-list}
    })
@@ -227,17 +233,22 @@
         ;;accelerated sort results
         (is (= vdata (api/sort compare init-data)))
         (is (= 50 (api/binary-search vdata (convert-fn 50))) k)
-        (when-not (= k :char-vec)
+        (when-not (#{:char-vec :char-vec-list} k)
           (is (= 51 (api/binary-search vdata 50.1 compare)) k))
-        (when-not (= k :char-vec)
+        (when-not (#{:char-vec :char-vec-list} k)
           (is (= 0 (api/binary-search vdata -1)) k))
         (is (= 100 (api/binary-search vdata (convert-fn 120))) k)
         (is (= 0 (api/binary-search subv (convert-fn 50))) k)
-        (when-not (= k :char-vec)
+        (when-not (#{:char-vec :char-vec-list} k)
           (is (= 1 (api/binary-search subv 50.1 compare)) k))
-        (when-not (= k :char-vec)
+        (when-not (#{:char-vec :char-vec-list} k)
           (is (= 0 (api/binary-search subv -1)) k))
         (is (= 50 (api/binary-search subv (convert-fn 120))) k)))))
+
+
+(deftest boolean-arrays
+  (is (== 2.0 (api/sum (api/boolean-array [true false true false]))))
+  (is (= [true false true false] (api/->random-access (api/boolean-array [1 0 1 0])))))
 
 
 (comment

@@ -35,6 +35,9 @@ public class Casts {
   public static long longCast(long obj) {
     return obj;
   }
+  public static long longCast(char obj) {
+    return obj;
+  }
   public static long longCast(double obj) {
     return (long)obj;
   }
@@ -42,6 +45,10 @@ public class Casts {
     return obj ? 1 : 0;
   }
   public static double doubleCast(Object obj) {
+    if (obj == null)
+      return Double.NaN;
+    if (obj instanceof Boolean)
+      return ((Boolean)obj) ? 1.0 : 0.0;
     return RT.doubleCast(obj);
   }
   public static double doubleCast(long obj) {

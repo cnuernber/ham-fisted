@@ -229,6 +229,10 @@ public class ArrayLists {
       if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v))
 	LongMutList.super.fillRange(startidx, v);
     }
+    default Object toNativeArray() { return copyOf(size()); }
+    default Object ensureCapacity(int newlen) {
+      throw new RuntimeException("unimplemented");
+    }
   }
   public interface IDoubleArrayList extends DoubleMutList, ArrayOwner, TypedList,
 					    ArrayPersistentVector
@@ -245,6 +249,10 @@ public class ArrayLists {
       final ArraySection as = getArraySection();
       if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v))
 	DoubleMutList.super.fillRange(startidx, v);
+    }
+    default Object toNativeArray() { return copyOf(size()); }
+    default Object ensureCapacity(int newlen) {
+      throw new RuntimeException("unimplemented");
     }
   }
   public interface IBooleanArrayList extends BooleanMutList, ArrayOwner, TypedList,
@@ -263,6 +271,10 @@ public class ArrayLists {
       if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v))
 	BooleanMutList.super.fillRange(startidx, v);
     }
+    default Object ensureCapacity(int newlen) {
+      throw new RuntimeException("unimplemented");
+    }
+    default Object toNativeArray() { return copyOf(size()); }
   }
 
   static int fixSubArrayBinarySearch(final int sidx, final int len, final int res) {
@@ -883,7 +895,7 @@ public class ArrayLists {
       IntArraySubList.setLong(data, 0, nElems, idx, obj);
     }
     public int capacity() { return data.length; }
-    int[] ensureCapacity(int len) {
+    public int[] ensureCapacity(int len) {
       int[] d = data;
       if (len >= d.length) {
 	d = data = Arrays.copyOf(d, len < 100000 ? len * 2 : (int)(len * 1.5));
@@ -1261,7 +1273,7 @@ public class ArrayLists {
       LongArraySubList.setLong(data, 0, nElems, idx, obj);
     }
     public int capacity() { return data.length; }
-    long[] ensureCapacity(int len) {
+    public long[] ensureCapacity(int len) {
       long[] d = data;
       if (len >= d.length) {
 	d = data = Arrays.copyOf(d, len < 100000 ? len * 2 : (int)(len * 1.5));
@@ -1768,7 +1780,7 @@ public class ArrayLists {
       DoubleArraySubList.setDouble(data, 0, nElems, idx, obj);
     }
     public int capacity() { return data.length; }
-    double[] ensureCapacity(int len) {
+    public double[] ensureCapacity(int len) {
       double[] d = data;
       if (len >= d.length) {
 	d = data = Arrays.copyOf(d, len < 100000 ? len * 2 : (int)(len * 1.5));
@@ -1999,19 +2011,13 @@ public class ArrayLists {
       CharArrays.shuffle(data, sidx, sidx+dlen, r);
     }
     @SuppressWarnings("unchecked")
-    int doBinarySearch(Object v, Comparator c) {
-      final char vv = RT.charCast(Casts.longCast(v));
-      if(c == null) {
-	return CharArrays.binarySearch(data, sidx, sidx+dlen, vv);
-      } else {
-	final CharComparator bc = asCharComparator(c);
-	if (bc != null)
-	  return CharArrays.binarySearch(data, sidx, sidx+dlen, vv, bc);
-	return ILongArrayList.super.binarySearch(v, c);
-      }
-    }
     public int binarySearch(Object v, Comparator c) {
-      return fixSubArrayBinarySearch(sidx, size(), doBinarySearch(v, c));
+      final char vv = RT.charCast(Casts.longCast(v));
+      final CharComparator bc = asCharComparator(c);
+      if(c == null || bc != null)
+	return fixSubArrayBinarySearch(sidx, size(),
+				       bc == null ? CharArrays.binarySearch(data, sidx, sidx+size(), vv) : CharArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
+      return ILongArrayList.super.binarySearch(v, c);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);

@@ -268,6 +268,9 @@ public interface IMutList<E>
     fillArray(retval);
     return retval;
   }
+  default Object toNativeArray() {
+    return toArray();
+  }
   default int[] toIntArray() {
     final int sz = size();
     final int[] retval = new int[sz];
