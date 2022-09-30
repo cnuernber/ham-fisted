@@ -52,14 +52,8 @@ public interface DoubleMutList extends IMutList<Object> {
       }
     };
   }
-  @SuppressWarnings("unchecked")
-  default DoubleComparator asDoubleComparator(Comparator c) {
-    if (c instanceof DoubleComparator)
-      return (DoubleComparator)c;
-    return null;
-  }
   default void sort(Comparator<? super Object> c) {
-    DoubleComparator lc = asDoubleComparator(c);
+    DoubleComparator lc = ArrayLists.DoubleArraySubList.asDoubleComparator(c);
     if (c == null || lc != null) {
       final double[] data = toDoubleArray();
       if(c == null)

@@ -59,6 +59,16 @@ public class ArrayLists {
   public static void checkIndexRange(int dlen, int ssidx, int seidx) {
     ChunkedList.checkIndexRange(0, dlen, ssidx, seidx);
   }
+  public static DoubleConsumer asDoubleConsumer(Object c) {
+    if (c instanceof DoubleConsumer)
+      return (DoubleConsumer) c;
+    return null;
+  }
+  public static LongConsumer asLongConsumer(Object c) {
+    if (c instanceof LongConsumer)
+      return (LongConsumer) c;
+    return null;
+  }
   public static class ReductionConsumer implements Consumer {
     Object init;
     IFn fn;
@@ -110,8 +120,9 @@ public class ArrayLists {
     }
     default IMapEntry entryAt(Object key) {
       if(Util.isInteger(key)) {
-	final int k = RT.intCast(key);
-	return MapEntry.create(k, get(k));
+	int k = RT.intCast(key);
+	if(k >= 0 && k < size())
+	  return MapEntry.create(k, get(k));
       }
       return null;
     }
@@ -536,26 +547,28 @@ public class ArrayLists {
     public void shuffle(Random r) {
       ByteArrays.shuffle(data, sidx, sidx+dlen, r);
     }
-    public ByteComparator asByteComparator(Comparator c) {
+    public static ByteComparator asByteComparator(Comparator c) {
       if (c instanceof ByteComparator)
 	return (ByteComparator)c;
+      else if (c instanceof LongComparator) {
+	final LongComparator lc = (LongComparator)c;
+	return new ByteComparator() {
+	  public int compare(byte l, byte r) { return lc.compare(l,r); }
+	};
+      }
       return null;
     }
+
     @SuppressWarnings("unchecked")
-    int doBinarySearch(Object v, Comparator c) {
-      final byte vv = RT.byteCast(Casts.longCast(v));
-      if(c == null) {
-	return ByteArrays.binarySearch(data, sidx, sidx+dlen, vv);
-      } else {
-	final ByteComparator bc = asByteComparator(c);
-	if (bc != null)
-	  return ByteArrays.binarySearch(data, sidx, sidx+dlen, vv, bc);
-	return ILongArrayList.super.binarySearch(v, c);
-      }
-    }
     public int binarySearch(Object v, Comparator c) {
-      return fixSubArrayBinarySearch(sidx, size(), doBinarySearch(v, c));
+      final byte vv = RT.byteCast(Casts.longCast(v));
+      final ByteComparator bc = asByteComparator(c);
+      if(c == null || bc != null)
+	return fixSubArrayBinarySearch(sidx, size(),
+				       bc == null ? ByteArrays.binarySearch(data, sidx, sidx+size(), vv) : ByteArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
+      return ILongArrayList.super.binarySearch(v, c);
     }
+
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, sidx + ssidx, sidx + seidx, RT.byteCast(Casts.longCast(v)));
@@ -641,25 +654,25 @@ public class ArrayLists {
     public void shuffle(Random r) {
       ShortArrays.shuffle(data, sidx, sidx+dlen, r);
     }
-    public ShortComparator asShortComparator(Comparator c) {
+    public static ShortComparator asShortComparator(Comparator c) {
       if (c instanceof ShortComparator)
 	return (ShortComparator)c;
+      else if (c instanceof LongComparator) {
+	final LongComparator lc = (LongComparator)c;
+	return new ShortComparator() {
+	  public int compare(short l, short r) { return lc.compare(l,r); }
+	};
+      }
       return null;
     }
     @SuppressWarnings("unchecked")
-    public int doBinarySearch(Object v, Comparator c) {
-      final short vv = RT.shortCast(Casts.longCast(v));
-      if(c == null) {
-	return ShortArrays.binarySearch(data, sidx, sidx+dlen, vv);
-      } else {
-	final ShortComparator bc = asShortComparator(c);
-	if (bc != null)
-	  return ShortArrays.binarySearch(data, sidx, sidx+dlen, vv, bc);
-	return ILongArrayList.super.binarySearch(v, c);
-      }
-    }
     public int binarySearch(Object v, Comparator c) {
-      return fixSubArrayBinarySearch(sidx, size(), doBinarySearch(v, c));
+      final short vv = RT.shortCast(Casts.longCast(v));
+      final ShortComparator bc = asShortComparator(c);
+      if(c == null || bc != null)
+	return fixSubArrayBinarySearch(sidx, size(),
+				       bc == null ? ShortArrays.binarySearch(data, sidx, sidx+size(), vv) : ShortArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
+      return ILongArrayList.super.binarySearch(v, c);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -797,25 +810,26 @@ public class ArrayLists {
     public void shuffle(Random r) {
       IntArrays.shuffle(data, sidx, eidx, r);
     }
-    public IntComparator asIntComparator(Comparator c) {
+    public static IntComparator asIntComparator(Comparator c) {
       if (c instanceof IntComparator)
 	return (IntComparator)c;
+      else if (c instanceof LongComparator) {
+	final LongComparator lc = (LongComparator)c;
+	return new IntComparator() {
+	  public int compare(int l, int r) { return lc.compare(l,r); }
+	};
+      }
       return null;
     }
+
     @SuppressWarnings("unchecked")
-    public int doBinarySearch(Object v, Comparator c) {
-      final int vv = RT.intCast(Casts.longCast(v));
-      if(c == null) {
-	return IntArrays.binarySearch(data, sidx, sidx+size(), vv);
-      } else {
-	final IntComparator bc = asIntComparator(c);
-	if (bc != null)
-	  return IntArrays.binarySearch(data, sidx, sidx+size(), vv, bc);
-	return ILongArrayList.super.binarySearch(v, c);
-      }
-    }
     public int binarySearch(Object v, Comparator c) {
-      return fixSubArrayBinarySearch(sidx, size(), doBinarySearch(v, c));
+      final int vv = RT.intCast(Casts.longCast(v));
+      final IntComparator bc = asIntComparator(c);
+      if(c == null || bc != null)
+	return fixSubArrayBinarySearch(sidx, size(),
+				       bc == null ? IntArrays.binarySearch(data, sidx, sidx+size(), vv) : IntArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
+	return ILongArrayList.super.binarySearch(v, c);
     }
     public int[] sortIndirect(Comparator c) {
       final int sz = size();
@@ -1193,25 +1207,19 @@ public class ArrayLists {
     public void shuffle(Random r) {
       LongArrays.shuffle(data, sidx, eidx, r);
     }
-    public LongComparator asLongComparator(Comparator c) {
+    public static LongComparator asLongComparator(Comparator c) {
       if (c instanceof LongComparator)
 	return (LongComparator)c;
       return null;
     }
     @SuppressWarnings("unchecked")
-    int doBinarySearch(Object v, Comparator c) {
-      final long vv = RT.longCast(Casts.longCast(v));
-      if(c == null) {
-	return LongArrays.binarySearch(data, sidx, sidx+size(), vv);
-      } else {
-	final LongComparator bc = asLongComparator(c);
-	if (bc != null)
-	  return LongArrays.binarySearch(data, sidx, sidx+size(), vv, bc);
-	return ILongArrayList.super.binarySearch(v, c);
-      }
-    }
     public int binarySearch(Object v, Comparator c) {
-      return fixSubArrayBinarySearch(sidx, size(), doBinarySearch(v, c));
+      final long vv = RT.longCast(Casts.longCast(v));
+      final LongComparator bc = asLongComparator(c);
+      if(c == null || bc != null)
+	return fixSubArrayBinarySearch(sidx, size(),
+				       bc == null ? LongArrays.binarySearch(data, sidx, sidx+size(), vv) : LongArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
+      return ILongArrayList.super.binarySearch(v, c);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1516,43 +1524,40 @@ public class ArrayLists {
 	return IDoubleArrayList.super.indexComparator(c);
       }
     }
-    @SuppressWarnings("unchecked")
-    public static FloatComparator toFloatComparator(Comparator c) {
-      return new FloatComparator() {
-	public int compare(float l, float r) {
-	  return c.compare(l,r);
-	}
-      };
+    public static FloatComparator asFloatComparator(Comparator c) {
+      if (c instanceof FloatComparator)
+	return (FloatComparator)c;
+      else if (c instanceof DoubleComparator) {
+	final DoubleComparator lc = (DoubleComparator)c;
+	return new FloatComparator() {
+	  public int compare(float l, float r) { return lc.compare(l,r); }
+	};
+      }
+      return null;
     }
+    @SuppressWarnings("unchecked")
     public void sort(Comparator c) {
       if(c == null) {
 	FloatArrays.parallelQuickSort(data, sidx, sidx+dlen);
       } else {
-	FloatArrays.parallelQuickSort(data, sidx, sidx+dlen, toFloatComparator(c));
+	FloatComparator fc = asFloatComparator(c);
+	if (fc != null)
+	  FloatArrays.parallelQuickSort(data, sidx, sidx+dlen, fc);
+	else
+	  IDoubleArrayList.super.sort(c);
       }
     }
     public void shuffle(Random r) {
       FloatArrays.shuffle(data, sidx, sidx+dlen, r);
     }
-    public FloatComparator asFloatComparator(Comparator c) {
-      if (c instanceof FloatComparator)
-	return (FloatComparator)c;
-      return null;
-    }
     @SuppressWarnings("unchecked")
-    int doBinarySearch(Object v, Comparator c) {
-      final float vv = RT.floatCast(Casts.doubleCast(v));
-      if(c == null) {
-	return FloatArrays.binarySearch(data, sidx, sidx+dlen, vv);
-      } else {
-	final FloatComparator bc = asFloatComparator(c);
-	if (bc != null)
-	  return FloatArrays.binarySearch(data, sidx, sidx+dlen, vv, bc);
-	return IDoubleArrayList.super.binarySearch(v, c);
-      }
-    }
     public int binarySearch(Object v, Comparator c) {
-      return fixSubArrayBinarySearch(sidx, size(), doBinarySearch(v, c));
+      final float vv = RT.floatCast(Casts.doubleCast(v));
+      final FloatComparator bc = asFloatComparator(c);
+      if(c == null || bc != null)
+	return fixSubArrayBinarySearch(sidx, size(),
+				       bc == null ? FloatArrays.binarySearch(data, sidx, sidx+size(), vv) : FloatArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
+      return IDoubleArrayList.super.binarySearch(v, c);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1701,26 +1706,21 @@ public class ArrayLists {
     public void shuffle(Random r) {
       DoubleArrays.shuffle(data, sidx, eidx, r);
     }
-    public DoubleComparator asDoubleComparator(Comparator c) {
+    public static DoubleComparator asDoubleComparator(Comparator c) {
       if (c instanceof DoubleComparator)
 	return (DoubleComparator)c;
       return null;
     }
     @SuppressWarnings("unchecked")
-    public int doBinarySearch(Object v, Comparator c) {
-      final double vv = Casts.doubleCast(v);
-      if(c == null) {
-	return DoubleArrays.binarySearch(data, sidx, sidx+size(), vv);
-      } else {
-	final DoubleComparator bc = asDoubleComparator(c);
-	if (bc != null)
-	  return DoubleArrays.binarySearch(data, sidx, sidx+size(), vv, bc);
-	return IDoubleArrayList.super.binarySearch(v, c);
-      }
-    }
     public int binarySearch(Object v, Comparator c) {
-      return fixSubArrayBinarySearch(sidx, size(), doBinarySearch(v, c));
+      final double vv = RT.doubleCast(Casts.doubleCast(v));
+      final DoubleComparator bc = asDoubleComparator(c);
+      if(c == null || bc != null)
+	return fixSubArrayBinarySearch(sidx, size(),
+				       bc == null ? DoubleArrays.binarySearch(data, sidx, sidx+size(), vv) : DoubleArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
+      return IDoubleArrayList.super.binarySearch(v, c);
     }
+
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, sidx + ssidx, sidx + seidx, Casts.doubleCast(v));
@@ -1731,6 +1731,12 @@ public class ArrayLists {
     }
     public Object copyOf(int len) {
       return Arrays.copyOfRange(data, sidx, sidx + len);
+    }
+    public void doubleForEach(DoubleConsumer c) {
+      final double[] d = data;
+      final int ee = eidx;
+      for(int ss = sidx; ss < ee; ++ss)
+	c.accept(d[ss]);
     }
   }
 
@@ -1966,9 +1972,15 @@ public class ArrayLists {
 	retval[idx] = data[idx+sidx];
       return retval;
     }
-    public CharComparator asCharComparator(Comparator c) {
+    public static CharComparator asCharComparator(Comparator c) {
       if (c instanceof CharComparator)
 	return (CharComparator)c;
+      else if (c instanceof LongComparator) {
+	final LongComparator lc = (LongComparator)c;
+	return new CharComparator() {
+	  public int compare(char l, char r) { return lc.compare(l,r); }
+	};
+      }
       return null;
     }
     @SuppressWarnings("unchecked")

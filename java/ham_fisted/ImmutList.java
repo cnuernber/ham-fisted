@@ -36,9 +36,8 @@ import clojure.lang.IFn;
 
 
 public class ImmutList
-  implements List, RandomAccess, Indexed, IFnDef, IReduce, IKVReduce,
-	     IHashEq, Seqable, Reversible, ChunkedListOwner, IPersistentVector,
-	     IObj, IEditableCollection, ImmutValues
+  implements IMutList, IHashEq, ChunkedListOwner, IPersistentVector,
+	     IEditableCollection, ImmutValues
 {
   public final int startidx;
   public final int nElems;
@@ -194,12 +193,8 @@ public class ImmutList
   public final ImmutList assoc(Object idx, Object obj) {
     return assocN(RT.intCast(idx), obj);
   }
-  public final IMapEntry entryAt(Object key) {
-    if(Util.isInteger(key)) {
-      final int k = RT.intCast(key);
-      return MapEntry.create(k, data.getValue(k + startidx));
-    }
-    return null;
+  public IMapEntry entryAt(Object key) {
+    return IMutList.super.entryAt(key);
   }
   public final boolean containsKey(Object key) {
     if (Util.isInteger(key)) {

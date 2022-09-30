@@ -53,14 +53,9 @@ public interface LongMutList extends IMutList<Object> {
       }
     };
   }
-  @SuppressWarnings("unchecked")
-  default LongComparator asLongComparator(Comparator c) {
-    if (c instanceof LongComparator)
-      return (LongComparator)c;
-    return null;
-  }
+
   default void sort(Comparator<? super Object> c) {
-    LongComparator lc = asLongComparator(c);
+    LongComparator lc = ArrayLists.LongArraySubList.asLongComparator(c);
     if (c == null || lc != null) {
       final long[] data = toLongArray();
       if(c == null)

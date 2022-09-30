@@ -15,6 +15,8 @@ import java.util.Collections;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.LongBinaryOperator;
 import java.util.function.Consumer;
+import java.util.function.DoubleConsumer;
+import java.util.function.LongConsumer;
 import it.unimi.dsi.fastutil.objects.ObjectArrays;
 import it.unimi.dsi.fastutil.ints.IntArrays;
 import it.unimi.dsi.fastutil.ints.IntComparator;
@@ -362,7 +364,7 @@ public interface IMutList<E>
     final int sz = size();
     if (idx < 0)
       idx = idx + sz;
-    return idx < sz && idx > -1 ? get(idx) : null;
+    return get(idx);
   }
   default Object nth(int idx, Object notFound) {
     final int sz = size();
@@ -379,7 +381,10 @@ public interface IMutList<E>
   default void setDouble(int idx, double v) { set(idx, (E)Double.valueOf(v)); }
   default boolean getBoolean(int idx) { return Casts.booleanCast(get(idx)); }
   default long getLong(int idx) { return RT.longCast(get(idx)); }
-  default double getDouble(int idx) { return RT.doubleCast(get(idx)); }
+  default double getDouble(int idx) {
+    final Object obj = get(idx);
+    return obj != null ? Casts.doubleCast(obj) : Double.NaN;
+  }
 
   default Object invoke(Object idx) {
     return nth(RT.intCast(idx));
@@ -459,9 +464,33 @@ public interface IMutList<E>
   }
   @SuppressWarnings("unchecked")
   default public void forEach(Consumer c) {
+    genericForEach(c);
+  }
+  default public void doubleForEach(DoubleConsumer c) {
     final int sz = size();
     for (int idx = 0; idx < sz; ++idx)
-      c.accept(get(idx));
+      c.accept(getDouble(idx));
+  }
+  default public void longForEach(LongConsumer c) {
+    final int sz = size();
+    for (int idx = 0; idx < sz; ++idx)
+      c.accept(getLong(idx));
+  }
+  @SuppressWarnings("unchecked")
+  default public void genericForEach(Object c) {
+    final int sz = size();
+    DoubleConsumer dc;
+    LongConsumer lc;
+    if((dc = ArrayLists.asDoubleConsumer(c)) != null) {
+      doubleForEach(dc);
+    } else if ((lc = ArrayLists.asLongConsumer(c)) != null) {
+      longForEach(lc);
+    }
+    else {
+      final Consumer cc = (Consumer) c;
+      for (int idx = 0; idx < sz; ++idx)
+	cc.accept(get(idx));
+    }
   }
   default int hasheq() {
     return CljHash.listHasheq(this);
@@ -600,7 +629,7 @@ public interface IMutList<E>
     if(c == null)
       rv = Collections.binarySearch(this,v,new Comparator<E>() {
 	  public int compare(E lhs, E rhs) {
-	    return ((Comparable)lhs).compareTo(rhs);
+	    return Util.compare(lhs, rhs);
 	  }
 	});
     else

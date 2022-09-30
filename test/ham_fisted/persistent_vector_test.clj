@@ -10,57 +10,96 @@
   (is (= (clojure.core/vec nil) (api/vec nil))))
 
 
-(deftest test-reversed-vec
+(def vec-fns
+  {:api-vec {:convert-fn identity :vec-fn api/vec}
+   :immut-vec {:convert-fn identity :vec-fn (comp persistent! api/mut-list)}
+   :byte-vec {:convert-fn identity :vec-fn (comp api/->random-access api/byte-array)}
+   :short-vec {:convert-fn identity :vec-fn (comp api/->random-access api/short-array)}
+   :char-vec {:convert-fn char :vec-fn
+              (fn ([] (api/->random-access (api/char-array)))
+                ([data] (api/->random-access (api/char-array (api/mapv char data)))))}
+   :int-vec {:convert-fn identity :vec-fn (comp api/->random-access api/int-array)}
+   :int-list-vec {:convert-fn identity :vec-fn api/int-array-list}
+   :long-vec {:convert-fn identity :vec-fn (comp api/->random-access api/long-array)}
+   :long-list-vec {:convert-fn identity :vec-fn api/long-array-list}
+   :float-vec {:convert-fn float :vec-fn (comp api/->random-access api/float-array)}
+   :double-vec {:convert-fn double :vec-fn (comp api/->random-access api/double-array)}
+   :double-list-vec {:convert-fn double :vec-fn api/double-array-list}
+   })
+
+
+(defn test-reversed-vec-fn
+  [{:keys [convert-fn vec-fn]}]
   (let [r (range 6)
-        v (api/vec r)
+        v (vec-fn r)
         reversed (.rseq v)]
     (testing "RSeq methods"
-      (is (= [5 4 3 2 1 0] reversed))
-      (is (= 5 (.first reversed)))
-      (is (= [4 3 2 1 0] (.next reversed)))
-      (is (= [3 2 1 0] (.. reversed next next)))
+      (is (= (api/mapv convert-fn [5 4 3 2 1 0]) reversed))
+      (is (= (convert-fn 5) (.first reversed)))
+      (is (= (api/mapv convert-fn [4 3 2 1 0]) (.next reversed)))
+      (is (= (api/mapv convert-fn [3 2 1 0]) (.. reversed next next)))
       (is (= 6 (.count reversed))))
     (testing "clojure calling through"
-      (is (= 5 (first reversed)))
-      (is (= 5 (nth reversed 0))))
+      (is (= (convert-fn 5) (first reversed)))
+      (is (= (convert-fn 5) (nth reversed 0))))
     (testing "empty reverses to nil"
       (is (nil? (.. v empty rseq))))))
 
 
+(deftest test-reversed-vec
+  (doseq [[k v] vec-fns]
+    (test-reversed-vec-fn v)))
+
+
+(defn all-add
+  ([convert-fn a b]
+   (convert-fn (+ (long a) (long b))))
+  ([convert-fn a b c]
+   (convert-fn (+ (long a) (long b) (long c)))))
+
+
 (deftest test-subvector-reduce
-  (is (== 60 (let [prim-vec (api/vec (range 1000))]
-               (reduce + (subvec prim-vec 10 15)))))
-  (is (== 60 (let [prim-vec (api/vec (range 1000))]
-               (reduce + (api/subvec prim-vec 10 15))))))
+  (doseq [[k v] vec-fns]
+    (let [{:keys [convert-fn vec-fn]} v]
+      (is (= (convert-fn 60)
+             (let [prim-vec (vec-fn (range 1000))]
+               (convert-fn (reduce (partial all-add convert-fn)
+                                   (subvec prim-vec 10 15))))))
+      (is (= (convert-fn 60)
+             (let [prim-vec (api/vec (range 1000))]
+               (reduce (partial all-add convert-fn)
+                       (api/subvec prim-vec 10 15))))))))
 
 
 (deftest test-vec-associative
-  (let [empty-v (api/vec)
-        v       (api/vec (range 1 6))]
-    (testing "Associative.containsKey"
-      (are [x] (.containsKey v x)
-           0 1 2 3 4)
-      (are [x] (not (.containsKey v x))
-           -1 -100 nil [] "" #"" #{} 5 100)
-      (are [x] (not (.containsKey empty-v x))
-           0 1))
-    (testing "contains?"
-      (are [x] (contains? v x)
-           0 2 4)
-      (are [x] (not (contains? v x))
-           -1 -100 nil "" 5 100)
-      (are [x] (not (contains? empty-v x))
-           0 1))
-    (testing "Associative.entryAt"
-      (are [idx val] (= (clojure.lang.MapEntry. idx val)
-                        (.entryAt v idx))
-           0 1
-           2 3
-           4 5)
-      (are [idx] (nil? (.entryAt v idx))
-           -5 -1 5 10 nil "")
-      (are [idx] (nil? (.entryAt empty-v idx))
-        0 1))))
+  (doseq [[k v] vec-fns]
+    (let [{:keys [convert-fn vec-fn]} v]
+      (let [empty-v (vec-fn)
+            v       (vec-fn (range 1 6))]
+        (testing "Associative.containsKey"
+          (are [x] (.containsKey v x)
+            0 1 2 3 4)
+          (are [x] (not (.containsKey v x))
+            -1 -100 nil [] "" #"" #{} 5 100)
+          (are [x] (not (.containsKey empty-v x))
+            0 1))
+        (testing "contains?"
+          (are [x] (contains? v x)
+            0 2 4)
+          (are [x] (not (contains? v x))
+            -1 -100 nil "" 5 100)
+          (are [x] (not (contains? empty-v x))
+            0 1))
+        (testing "Associative.entryAt"
+          (are [idx val] (= (clojure.lang.MapEntry. idx (convert-fn val))
+                            (.entryAt v idx))
+            0 1
+            2 3
+            4 5)
+          (are [idx] (nil? (.entryAt v idx))
+            -5 -1 5 10 nil "")
+          (are [idx] (nil? (.entryAt empty-v idx))
+            0 1))))))
 
 
 (defn =vec
@@ -83,20 +122,22 @@
     (api/vector 2 4) (api/vector 1 2 3 4 5)))
 
 (deftest test-subvec
-  (let [v1 (api/vec (api/range 100))
-        v2 (api/subvec v1 50 57)]
-    ;;nth, IFn interfaces allow negative (from the end) indexing
-    (is (thrown? IndexOutOfBoundsException (.get v2 -1)))
-    (is (thrown? IndexOutOfBoundsException (v2 7)))
-    (is (= (v1 50) (v2 0)))
-    (is (= (v1 56) (v2 6))))
-  (let [v1 (api/vec (api/range 10))
-        v2 (api/subvec v1 2 7)]
-    ;;nth, IFn interfaces allow negative (from the end) indexing
-    (is (thrown? IndexOutOfBoundsException (.get v2 -1)))
-    (is (thrown? IndexOutOfBoundsException (v2 7)))
-    (is (= (v1 2) (v2 0)))
-    (is (= (v1 6) (v2 4)))))
+  (doseq [[k v] vec-fns]
+    (let [{:keys [convert-fn vec-fn]} v]
+      (let [v1 (vec-fn (api/range 100))
+            v2 (api/subvec v1 50 57)]
+        ;;nth, IFn interfaces allow negative (from the end) indexing
+        (is (thrown? IndexOutOfBoundsException (.get v2 -1)))
+        (is (thrown? IndexOutOfBoundsException (v2 7)) k)
+        (is (= (v1 50) (v2 0)))
+        (is (= (v1 56) (v2 6))))
+      (let [v1 (vec-fn (api/range 10))
+            v2 (api/subvec v1 2 7)]
+        ;;nth, IFn interfaces allow negative (from the end) indexing
+        (is (thrown? IndexOutOfBoundsException (.get v2 -1)))
+        (is (thrown? IndexOutOfBoundsException (v2 7)) k)
+        (is (= (v1 2) (v2 0)))
+        (is (= (v1 6) (v2 4)))))))
 
 
 (deftest test-vec
@@ -126,8 +167,12 @@
 (deftest test-reduce-kv-vectors
   (is (= 25 (reduce-kv + 10 (api/vector 2 4 6))))
   (is (= 25 (reduce-kv + 10 (api/subvec (api/vector 0 2 4 6) 1))))
-  (is (= 9811 (reduce-kv + 10 (api/vec (api/range 1 100)))))
-  (is (= 9811 (reduce-kv + 10 (api/subvec (api/vec (api/range 100)) 1)))))
+  (doseq [[k v] vec-fns]
+    (let [{:keys [convert-fn vec-fn]} v]
+      (is (= 9811 (long (reduce-kv (partial all-add convert-fn)
+                                   10 (vec-fn (api/range 1 100))))))
+      (is (= 9811 (long (reduce-kv (partial all-add convert-fn)
+                                   10 (api/subvec (vec-fn (api/range 100)) 1))))))))
 
 
 (deftest test-reduce-kv-array
@@ -167,6 +212,32 @@
          (concat [] (list 1 2 3) nil nil
                  (clojure.core/vector 1 2 3 4 5) (api/object-array-list [1 2 3 4])
                  (api/vec (api/range 50))))))
+
+
+(deftest binary-search
+  (let [data (api/shuffle (api/range 100))]
+    (doseq [[k {:keys [convert-fn vec-fn]}] vec-fns]
+      (let [init-data (vec-fn data)
+            ;;make sure sort always works
+            newvdata (api/sort init-data)
+            ;;transform back
+            vdata (vec-fn newvdata)
+            subv (api/subvec vdata 50)]
+        ;;Ensure that non-accelerated sort results are identical to
+        ;;accelerated sort results
+        (is (= vdata (api/sort compare init-data)))
+        (is (= 50 (api/binary-search vdata (convert-fn 50))) k)
+        (when-not (= k :char-vec)
+          (is (= 51 (api/binary-search vdata 50.1 compare)) k))
+        (when-not (= k :char-vec)
+          (is (= 0 (api/binary-search vdata -1)) k))
+        (is (= 100 (api/binary-search vdata (convert-fn 120))) k)
+        (is (= 0 (api/binary-search subv (convert-fn 50))) k)
+        (when-not (= k :char-vec)
+          (is (= 1 (api/binary-search subv 50.1 compare)) k))
+        (when-not (= k :char-vec)
+          (is (= 0 (api/binary-search subv -1)) k))
+        (is (= 50 (api/binary-search subv (convert-fn 120))) k)))))
 
 
 (comment
