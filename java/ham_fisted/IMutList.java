@@ -47,15 +47,14 @@ import clojure.lang.IReduceInit;
 
 
 public interface IMutList<E>
-  extends List<E>, RandomAccess, Indexed, IFnDef, IReduce, IKVReduce,
-	  IHashEq, Seqable, Reversible, IObj, ImmutSort<E>,
-	  RangeList, Cloneable
+  extends List<E>, RandomAccess, Indexed, IFnDef, ITypedReduce, IKVReduce, IReduce,
+	  IHashEq, Seqable, Reversible, IObj, ImmutSort<E>, RangeList, Cloneable
 
 {
   default IMutList cloneList() { return (IMutList)ArrayLists.toList(toArray()); }
-  default void clear() { throw new RuntimeException("Unimplemented"); }
-  default boolean add(E v) { throw new RuntimeException("Unimplemented"); }
-  default void add(int idx, E v) { throw new RuntimeException("Unimplemented"); }
+  default void clear() { throw new UnsupportedOperationException("Unimplemented"); }
+  default boolean add(E v) { throw new UnsupportedOperationException("Unimplemented"); }
+  default void add(int idx, E v) { throw new UnsupportedOperationException("Unimplemented"); }
   @SuppressWarnings("unchecked")
   default void addBoolean(boolean v) { add((E)Boolean.valueOf(v)); }
   @SuppressWarnings("unchecked")
@@ -375,7 +374,7 @@ public interface IMutList<E>
       idx = idx + sz;
     return idx < sz && idx > -1 ? get(idx) : notFound;
   }
-  default E set(int idx, E v) { throw new RuntimeException("Unimplemented"); }
+  default E set(int idx, E v) { throw new UnsupportedOperationException("Unimplemented"); }
   @SuppressWarnings("unchecked")
   default void setBoolean(int idx, boolean v) { set(idx, (E)Boolean.valueOf(v)); }
   @SuppressWarnings("unchecked")
@@ -387,6 +386,12 @@ public interface IMutList<E>
   default double getDouble(int idx) {
     final Object obj = get(idx);
     return obj != null ? Casts.doubleCast(obj) : Double.NaN;
+  }
+  default void accPlusLong(int idx, long val) {
+    setLong( idx, getLong(idx) + val );
+  }
+  default void accPlusDouble(int idx, double val) {
+    setDouble( idx, getDouble(idx) + val );
   }
 
   default Object invoke(Object idx) {
@@ -467,7 +472,9 @@ public interface IMutList<E>
   }
   @SuppressWarnings("unchecked")
   default public void forEach(Consumer c) {
-    genericForEach(c);
+    final int sz = size();
+    for (int idx = 0; idx < sz; ++idx)
+      c.accept(get(idx));
   }
   default public void doubleForEach(DoubleConsumer c) {
     final int sz = size();
@@ -478,22 +485,6 @@ public interface IMutList<E>
     final int sz = size();
     for (int idx = 0; idx < sz; ++idx)
       c.accept(getLong(idx));
-  }
-  @SuppressWarnings("unchecked")
-  default public void genericForEach(Object c) {
-    final int sz = size();
-    DoubleConsumer dc;
-    LongConsumer lc;
-    if((dc = ArrayLists.asDoubleConsumer(c)) != null) {
-      doubleForEach(dc);
-    } else if ((lc = ArrayLists.asLongConsumer(c)) != null) {
-      longForEach(lc);
-    }
-    else {
-      final Consumer cc = (Consumer) c;
-      for (int idx = 0; idx < sz; ++idx)
-	cc.accept(get(idx));
-    }
   }
   default int hasheq() {
     return CljHash.listHasheq(this);
@@ -580,7 +571,7 @@ public interface IMutList<E>
   default ISeq seq() { if(isEmpty()) return null; return new IndexSeq(this, 0, meta()); }
   default ISeq rseq() { if(isEmpty()) return null; return new RIndexSeq(this, 0, meta()); }
   default IPersistentMap meta() { return null; }
-  default IObj withMeta(IPersistentMap meta ) { throw new RuntimeException("Unimplemented"); }
+  default IObj withMeta(IPersistentMap meta ) { throw new UnsupportedOperationException("Unimplemented"); }
   default double doubleReduction(DoubleBinaryOperator op, double init) {
     final int sz = size();
     for(int idx = 0; idx < sz; ++idx)

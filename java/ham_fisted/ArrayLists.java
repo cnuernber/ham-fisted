@@ -1943,12 +1943,12 @@ public class ArrayLists {
   }
   public static List<Object> toList(final double[] data) { return toList(data, 0, data.length, null); }
 
-  public static class CharacterArraySubList implements ILongArrayList {
+  public static class CharArraySubList implements ILongArrayList {
     public final char[] data;
     public final int sidx;
     public final int dlen;
     public final IPersistentMap meta;
-    public CharacterArraySubList(char[] d, int s, int len, IPersistentMap m) {
+    public CharArraySubList(char[] d, int s, int len, IPersistentMap m) {
       data = d;
       sidx = s;
       dlen = len;
@@ -2034,7 +2034,7 @@ public class ArrayLists {
 
   public static List<Object> toList(final char[] data, final int sidx, final int eidx, IPersistentMap meta) {
     final int dlen = eidx - sidx;
-    return new CharacterArraySubList(data, sidx, dlen, meta);
+    return new CharArraySubList(data, sidx, dlen, meta);
   }
   public static List<Object> toList(final char[] data) { return toList(data, 0, data.length, null); }
 
