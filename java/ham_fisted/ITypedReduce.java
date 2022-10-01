@@ -10,7 +10,9 @@ import java.util.function.IntConsumer;
 import clojure.lang.IReduceInit;
 import clojure.lang.IFn;
 
-
+/**
+ *  Typed reductions - a typed extension of clojure.lang.IReduceInit and java.util.Iterable.forEach.
+ */
 public interface ITypedReduce<E> extends IReduceInit {
   default double doubleReduction(DoubleBinaryOperator op, double init) {
     return Casts.doubleCast(reduce(new IFnDef() {

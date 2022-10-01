@@ -47,7 +47,7 @@ import clojure.lang.IReduceInit;
 
 
 public interface IMutList<E>
-  extends List<E>, RandomAccess, Indexed, IFnDef, ITypedReduce, IKVReduce, IReduce,
+  extends List<E>, RandomAccess, Indexed, IFnDef, ITypedReduce<E>, IKVReduce, IReduce,
 	  IHashEq, Seqable, Reversible, IObj, ImmutSort<E>, RangeList, Cloneable
 
 {
