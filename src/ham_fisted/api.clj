@@ -54,15 +54,16 @@
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
             IEditableCollection RT IPersistentMap Associative Util IFn ArraySeq
             Reversible IReduce IReduceInit IFn$DD IFn$DL IFn$DO IFn$LD IFn$LL IFn$LO
-            IFn$OD IFn$OL IObj Util]
+            IFn$OD IFn$OL IObj Util IReduceInit Seqable]
            [java.util Map Map$Entry List RandomAccess Set Collection ArrayList Arrays
-            Comparator Random Collections]
+            Comparator Random Collections Iterator]
            [java.lang.reflect Array]
            [java.util.function Function BiFunction BiConsumer Consumer
             DoubleBinaryOperator LongBinaryOperator LongFunction IntFunction
-            DoubleConsumer DoublePredicate DoubleUnaryOperator]
+            DoubleConsumer DoublePredicate DoubleUnaryOperator
+            LongConsumer]
            [java.util.concurrent ForkJoinPool ExecutorService Callable Future
-            ConcurrentHashMap ForkJoinTask]
+            ConcurrentHashMap ForkJoinTask ArrayBlockingQueue]
            [it.unimi.dsi.fastutil.ints IntComparator IntArrays]
            [it.unimi.dsi.fastutil.longs LongComparator]
            [it.unimi.dsi.fastutil.floats FloatComparator]
@@ -84,7 +85,7 @@
 
 (declare assoc! conj! vec mapv vector object-array range first take drop into-array shuffle
          object-array-list fast-reduce int-array-list long-array-list double-array-list
-         int-array argsort byte-array short-array char-array boolean-array)
+         int-array argsort byte-array short-array char-array boolean-array repeat)
 
 
 (defn ->collection
@@ -930,11 +931,46 @@ ham_fisted.PersistentHashMap
   "pmap using the commonPool.  This is useful for interacting with other primitives, namely
   [[pgroups]] which are also based on this pool.  This is a change from Clojure's base
   pmap in that it uses the ForkJoinPool/commonPool for parallelism as opposed to the
-  agent pool - this makes it compose with pgroups and dtype-next's parallelism system."
-  [map-fn & sequences]
+  agent pool - this makes it compose with pgroups and dtype-next's parallelism system.
+
+  Is guaranteed to *not* trigger the need for `shutdown-agents`."
+  ^java.lang.AutoCloseable [map-fn & sequences]
   (if (in-fork-join-task?)
     (apply map map-fn sequences)
-    (apply claypoole/pmap (ForkJoinPool/commonPool) map-fn sequences)))
+    (let [pool (ForkJoinPool/commonPool)
+          map-fn (bound-fn* map-fn)
+          ;;In this case we want a caching sequence - so we call 'seq' on a lazy noncaching
+          ;;map
+          submit-fn (case (count sequences)
+                      1 (fn [arg] (.submit pool ^Callable (fn [] (map-fn arg))))
+                      2 (fn [a1 a2] (.submit pool ^Callable (fn [] (map-fn a1 a2))))
+                      3 (fn [a1 a2 a3] (.submit pool ^Callable (fn [] (map-fn a1 a2 a3))))
+                      (fn [& args]
+                        (.submit pool ^Callable (fn [] (apply map-fn args)))))
+
+          future-seq (->> (apply map submit-fn sequences)
+                          (seq))
+          n-cpu (+ (ForkJoinPool/getCommonPoolParallelism) 2)
+          read-ahead (->> (concat (drop n-cpu future-seq) (repeat n-cpu nil)))
+          ;;lazy noncaching map - the future does the caching.
+          result-seq (map (fn [cur read-ahead]
+                            ;;Account for cancellation
+                            (when cur (.get ^Future cur)))
+                          future-seq read-ahead)
+          size-delay (delay (count result-seq))]
+      ;;You can use the result in with-open.  And it is a seq.
+      (reify
+        Seqable
+        (seq [this] (seq result-seq))
+        Collection
+        (isEmpty [this] (= false (.hasNext (.iterator this))))
+        (iterator [this] (.iterator ^Iterable result-seq))
+        (size [this] (deref size-delay))
+        IReduce
+        (reduce [this rfn] (fast-reduce rfn result-seq))
+        IReduceInit
+        (reduce [this rfn init] (fast-reduce rfn init result-seq)))
+      )))
 
 
 (defn upmap
@@ -942,11 +978,53 @@ ham_fisted.PersistentHashMap
   namely [[pgroups]] which are also based on this pool.
   Like pmap this uses the commonPool so it composes with this api's pmap, pgroups, and
   dtype-next's parallelism primitives *but* it does not impose an ordering constraint on the
-  results and thus may be significantly faster in some cases."
+  results and thus may be significantly faster in some cases.
+
+  This is likely to require shutdown-agents due to Claypool's use of clojure.core/future."
   [map-fn & sequences]
   (if (in-fork-join-task?)
     (apply map map-fn sequences)
-    (apply claypoole/upmap (ForkJoinPool/commonPool) map-fn sequences)))
+    (let [pool (ForkJoinPool/commonPool)
+          n-cpu (ForkJoinPool/getCommonPoolParallelism)
+          map-fn (bound-fn* map-fn)
+          res-queue (ArrayBlockingQueue. n-cpu)
+          cancel* (volatile! nil)
+          future-seq (-> (apply map (fn [& args]
+                                      (when-not @cancel*
+                                        (.submit pool
+                                                 ^Callable (fn []
+                                                             (.put res-queue
+                                                                   (apply map-fn args))))))
+                                sequences)
+                         ;;Lazy caching but non-chunking
+                         (seq))
+          read-ahead (concat (drop n-cpu future-seq) (repeat n-cpu nil))
+          next-sub (.iterator ^Iterable read-ahead)
+          next-fn (fn []
+                    (locking next-sub
+                      (when (and (not @cancel*) (.hasNext next-sub))
+                        (.next next-sub)
+                        (BitmapTrieCommon$Box. (.take res-queue)))))
+          fn-val* (volatile! (next-fn))
+          ^Collection fn-seq (iterator-seq
+                              (reify Iterator
+                                (hasNext [this] (boolean @fn-val*))
+                                (next [this]
+                                  (let [retval
+                                        (when-let [^BitmapTrieCommon$Box data @fn-val*]
+                                          (.-obj data))]
+                                    (vreset! fn-val* (next-fn))
+                                    retval))))
+          count* (delay (count fn-seq))]
+      (reify
+        java.lang.AutoCloseable
+        (close [this] (vreset! cancel* true))
+        Seqable
+        (seq [this] fn-seq)
+        Collection
+        (isEmpty [this] (.isEmpty fn-seq))
+        (size [this] @count*)
+        (iterator [this] (.iterator fn-seq))))))
 
 
 (defn ^:no-doc pfrequencies
@@ -2079,6 +2157,24 @@ ham-fisted.api> (binary-search data 1.1 nil)
      IFnDef
      (invoke [this# v#]
        (.applyAsDouble this# (Casts/doubleCast v#)))))
+
+
+(defmacro double-consumer
+  "Create an instance of a java.util.function.DoubleConsumer"
+  [varname & code]
+  `(reify
+     DoubleConsumer
+     (accept [this ~varname]
+       ~@code)))
+
+
+(defmacro long-consumer
+  "Create an instance of a java.util.function.LongConsumer"
+  [varname & code]
+  `(reify
+     LongConsumer
+     (accept [this ~varname]
+       ~@code)))
 
 
 (defn- options->double-nan-strat

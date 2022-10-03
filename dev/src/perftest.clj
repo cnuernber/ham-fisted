@@ -464,7 +464,7 @@
           data (api/double-array (range n-elems))]
       {:n-elems n-elems
        :test :stable-summation
-       :hamf (bench/benchmark-us (api/sum-stable data))
+       :hamf (bench/benchmark-us (api/sum data))
        :clj (bench/benchmark-us (dfn/sum data))})))
 
 
@@ -476,8 +476,19 @@
           data (api/double-array (range n-elems))]
       {:n-elems n-elems
        :test :unstable-summation
-       :hamf (bench/benchmark-us (api/sum data))
+       :hamf (bench/benchmark-us (api/sum-fast data))
        :clj (bench/benchmark-us (dfn/sum-fast data))})))
+
+
+(defn pmap-perftest
+  []
+  (log/info "pmap perftest")
+  (for [n-elems [100 1000]]
+    (let [n-elems (long n-elems)]
+      {:n-elems n-elems
+       :test :pmap
+       :clj (bench/benchmark-us (count (clojure.core/pmap inc (api/range n-elems))))
+       :hamf (bench/benchmark-us (count (api/pmap inc (api/range n-elems))))})))
 
 
 (defn machine-name
@@ -569,7 +580,9 @@
 
 (defn -main
   [& args]
-  (let [perf-data (process-dataset (profile))
+  ;;shutdown test
+  (println "summation" (api/sum (api/pmap inc (api/range 1000))))
+  #_(let [perf-data (process-dataset (profile))
         vs (System/getProperty "java.version")
         mn (machine-name)
         gs (git-sha)
@@ -577,4 +590,5 @@
     (print-dataset perf-data)
     (println "Results stored to:" fname)
     ;;(spit fname (with-out-str (pp/pprint {:machine-name mn :git-sha gs :jdk-version vs :dataset perf-data})))
-    ))
+    )
+  (println "exiting"))

@@ -3,6 +3,8 @@ package ham_fisted;
 
 import java.util.Random;
 import java.util.List;
+import java.util.function.LongConsumer;
+import java.util.function.LongBinaryOperator;
 import clojure.lang.RT;
 import clojure.lang.IPersistentMap;
 import clojure.lang.IFn;
@@ -88,6 +90,21 @@ public class Ranges {
       for(int idx = 0; idx < sz && !RT.isReduced(init); ++idx, st += se)
 	init = fn.invoke(init, st);
       return RT.isReduced(init) ? ((IDeref)init).deref() : init;
+    }
+    public long longReduction(LongBinaryOperator op, long init) {
+      final int sz = size();
+      final long se = step;
+      long st = start;
+      for(int idx = 0; idx < sz; ++idx, st += se)
+	init = op.applyAsLong(init, st);
+      return init;
+    }
+    public void longForEach(LongConsumer lc) {
+      final int sz = size();
+      final long se = step;
+      long st = start;
+      for(int idx = 0; idx < sz; ++idx, st += se)
+	lc.accept(st);
     }
     public IPersistentMap meta() { return meta; }
     public LongRange withMeta(IPersistentMap m) {
