@@ -30,6 +30,7 @@ import clojure.lang.IReduce;
 import clojure.lang.IKVReduce;
 import clojure.lang.IHashEq;
 import clojure.lang.Seqable;
+import clojure.lang.Sequential;
 import clojure.lang.Reversible;
 import clojure.lang.RT;
 import clojure.lang.Util;
@@ -48,7 +49,8 @@ import clojure.lang.IReduceInit;
 
 public interface IMutList<E>
   extends List<E>, RandomAccess, Indexed, IFnDef, ITypedReduce<E>, IKVReduce, IReduce,
-	  IHashEq, Seqable, Reversible, IObj, ImmutSort<E>, RangeList, Cloneable
+	  IHashEq, Seqable, Reversible, IObj, ImmutSort<E>, RangeList, Cloneable,
+	  Sequential
 
 {
   default IMutList cloneList() { return (IMutList)ArrayLists.toList(toArray()); }
