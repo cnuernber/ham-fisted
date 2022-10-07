@@ -889,6 +889,40 @@ ham_fisted.PersistentHashMap
   (ForkJoinTask/inForkJoinPool))
 
 
+(defrecord ^:private GroupData [^long gsize ^long ngroups ^long leftover])
+
+
+(defn- n-elems->groups
+  ^GroupData [^long parallelism ^long n-elems ^long max-batch-size]
+  (let [gsize (max 1 (min max-batch-size (quot n-elems parallelism)))
+        ngroups (quot n-elems gsize)
+        leftover (rem n-elems gsize)
+        left-blocks (quot leftover ngroups)
+        gsize (+ gsize left-blocks)
+        leftover (rem leftover ngroups)]
+    (GroupData. gsize ngroups leftover)))
+
+(defn- pgroup-submission
+  [^long n-elems ^long parallelism body-fn options]
+  (let [pool (ForkJoinPool/commonPool)
+        n-elems (long n-elems)
+        ^GroupData gdata (n-elems->groups parallelism n-elems
+                                          (get options :batch-size 64000))
+        ;;_ (println parallelism gdata)
+        gsize (.gsize gdata)
+        ngroups (.ngroups gdata)
+        leftover (.leftover gdata)]
+    (->> (range ngroups)
+         (mapv (fn [^long gidx]
+                 (let [start-idx (long (+ (* gidx gsize)
+                                          (min gidx leftover)))
+                       end-idx (min n-elems
+                                    (long (+ (+ start-idx gsize)
+                                             (long (if (< gidx leftover)
+                                                     1 0)))))]
+                   (.submit pool ^Callable #(body-fn start-idx end-idx))))))))
+
+
 (defn pgroups
   "Run y groups across n-elems.   Y is common pool parallelism.
 
@@ -907,22 +941,8 @@ ham_fisted.PersistentHashMap
      (if (or (in-fork-join-task?)
              (< n-elems (max parallelism (long (get options :pgroup-min 0)))))
        [(body-fn 0 n-elems)]
-       (let [pool (ForkJoinPool/commonPool)
-             n-elems (long n-elems)
-             max-batch-size (long (get options :batch-size 64000))
-             gsize (min max-batch-size (quot n-elems parallelism))
-             ngroups (quot (+ n-elems (dec gsize)) gsize)
-             leftover (rem n-elems gsize)]
-         (->> (range ngroups)
-              (mapv (fn [^long gidx]
-                      (let [start-idx (long (+ (* gidx gsize)
-                                               (min gidx leftover)))
-                            end-idx (min n-elems
-                                         (long (+ (+ start-idx gsize)
-                                                  (long (if (< gidx leftover)
-                                                          1 0)))))]
-                        (.submit pool ^Callable #(body-fn start-idx end-idx)))))
-              (map #(.get ^Future %)))))))
+       (->> (pgroup-submission n-elems parallelism body-fn options)
+            (map #(.get ^Future %))))))
   ([n-elems body-fn]
    (pgroups n-elems body-fn nil)))
 
@@ -978,6 +998,9 @@ ham_fisted.PersistentHashMap
            retval))))))
 
 
+(defrecord ^:private ErrorRecord [e])
+
+
 (defn upgroups
   "Run y groups across n-elems.   Y is common pool parallelism.
 
@@ -996,28 +1019,22 @@ ham_fisted.PersistentHashMap
      (if (or (in-fork-join-task?)
              (< n-elems (max parallelism (long (get options :pgroup-min 0)))))
        [(body-fn 0 n-elems)]
-       (let [pool (ForkJoinPool/commonPool)
-             n-elems (long n-elems)
-             max-batch-size (long (get options :batch-size 64000))
-             gsize (min max-batch-size (quot n-elems parallelism))
-             ngroups (quot (+ n-elems (dec gsize)) gsize)
-             leftover (rem n-elems gsize)
-             res-queue (ArrayBlockingQueue. parallelism)
-             _ (->> (range ngroups)
-                    (mapv (fn [^long gidx]
-                            (let [start-idx (long (+ (* gidx gsize)
-                                                   (min gidx leftover)))
-                                  end-idx (min n-elems
-                                               (long (+ (+ start-idx gsize)
-                                                        (long (if (< gidx leftover)
-                                                                1 0)))))]
-                              (.submit pool ^Callable #(.put res-queue
-                                                             (body-fn start-idx end-idx)))))))
-             ;;Use range as a simple counting mechanism
-             iter (.iterator ^Collection (range ngroups))]
+       (let [res-queue (ArrayBlockingQueue. (+ parallelism 2))
+             iter (.iterator ^Iterable (pgroup-submission
+                                        n-elems parallelism
+                                        (fn [^long sidx ^long eidx]
+                                          (.put res-queue
+                                                (try
+                                                  (body-fn sidx eidx)
+                                                  (catch Exception e
+                                                    (ErrorRecord. e)))))
+                                        options))]
          (boxed-next-fn->seq #(when (.hasNext iter)
                                 (.next iter)
-                                (BitmapTrieCommon$Box. (.take res-queue))))))))
+                                (let [v (.take res-queue)]
+                                  (if (instance? ErrorRecord v)
+                                    (throw (.-e ^ErrorRecord v))
+                                    (BitmapTrieCommon$Box. v)))))))))
   ([n-elems body-fn]
    (upgroups n-elems body-fn nil)))
 
@@ -1034,20 +1051,26 @@ ham_fisted.PersistentHashMap
     (let [pool (ForkJoinPool/commonPool)
           n-cpu (ForkJoinPool/getCommonPoolParallelism)
           map-fn (bound-fn* map-fn)
-          res-queue (ArrayBlockingQueue. n-cpu)
-          future-seq (-> (apply map (fn [& args]
-                                      (.submit pool
-                                               ^Callable (fn []
-                                                           (.put res-queue
-                                                                 (apply map-fn args)))))
-                                sequences)
-                         ;;Lazy caching but non-chunking
-                         (seq))
+          res-queue (ArrayBlockingQueue. (+ n-cpu 2))
+          future-seq (->> (apply map (fn [& args]
+                                       (.submit pool
+                                                ^Callable (fn []
+                                                            (.put res-queue
+                                                                  (try
+                                                                    (apply map-fn args)
+                                                                    (catch Throwable e
+                                                                      (ErrorRecord. e)))))))
+                                 sequences)
+                          ;;Lazy caching but non-chunking
+                          (seq))
           read-ahead (concat (drop n-cpu future-seq) (repeat n-cpu nil))
           next-sub (.iterator ^Iterable read-ahead)]
       (boxed-next-fn->seq #(when (.hasNext next-sub)
                              (.next next-sub)
-                             (BitmapTrieCommon$Box. (.take res-queue)))))))
+                             (let [v (.take res-queue)]
+                               (if (instance? ErrorRecord v)
+                                 (throw (.-e ^ErrorRecord v))
+                                 (BitmapTrieCommon$Box. v))))))))
 
 
 (defn ^:no-doc pfrequencies
@@ -2146,14 +2169,15 @@ ham-fisted.api> (binary-search data 1.1 nil)
   (let [coll (->reducible coll)]
     (if (instance? IMutList coll)
       (let [^IMutList coll coll
-            op (double-binary-operator l r (unchecked-add l r))]
+            op             (double-binary-operator l r (unchecked-add l r))]
         (if (< (.size coll) 100000)
             (.doubleReduction coll op 0.0)
-            (->> (pgroups (.size coll)
-                          (fn [^long sidx ^long eidx]
-                            (.doubleReduction ^IMutList (.subList coll sidx eidx)
-                                              op
-                                           0.0)))
+            (->> (upgroups (.size coll)
+                           (fn [^long sidx ^long eidx]
+                             (try
+                               (.doubleReduction ^IMutList (.subList coll sidx eidx)
+                                                 op
+                                                 0.0))))
                  (reduce + 0.0))))
       (double (fast-reduce + 0.0 coll)))))
 

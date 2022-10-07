@@ -3,6 +3,8 @@ package ham_fisted;
 import java.util.Random;
 import java.util.List;
 import java.util.Comparator;
+import java.util.function.DoubleConsumer;
+import java.util.function.LongConsumer;
 import it.unimi.dsi.fastutil.longs.LongArrays;
 import it.unimi.dsi.fastutil.longs.LongComparator;
 import it.unimi.dsi.fastutil.ints.IntComparator;
@@ -75,5 +77,12 @@ public interface LongMutList extends IMutList<Object> {
     final long[] data = toLongArray();
     LongArrays.shuffle(data, r);
     return ArrayLists.toList(data);
+  }
+  default void doubleForEach(DoubleConsumer dc) {
+    longForEach(new LongConsumer() {
+	public void accept(long c) {
+	  dc.accept((double)c);
+	}
+      });
   }
 }
