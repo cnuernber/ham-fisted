@@ -86,17 +86,6 @@ public class ArrayLists {
       return init;
     }
   }
-
-  public static class ArraySection {
-    public final Object array;
-    public final int sidx;
-    public final int eidx;
-    public ArraySection(Object ary, int _sidx, int _eidx) {
-      array = ary;
-      sidx = _sidx;
-      eidx = _eidx;
-    }
-  }
   public interface ArrayOwner {
     ArraySection getArraySection();
     void fill(int sidx, int eidx, Object v);
@@ -299,7 +288,7 @@ public class ArrayLists {
       return equiv(other);
     }
     public int hashCode() { return hasheq(); }
-    public ArraySection getArraySection() { return this; }
+    public ArraySection getArraySection() { return new ArraySection(this); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
     public Object get(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
@@ -721,7 +710,7 @@ public class ArrayLists {
     }
     public int hashCode() { return hasheq(); }
     public IMutList cloneList() { return (IMutList)toList(Arrays.copyOfRange(data, sidx, eidx)); }
-    public ArraySection getArraySection() { return this; }
+    public ArraySection getArraySection() { return new ArraySection(this); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
     public long getLong(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
@@ -1106,7 +1095,7 @@ public class ArrayLists {
       return equiv(other);
     }
     public int hashCode() { return hasheq(); }
-    public ArraySection getArraySection() { return this; }
+    public ArraySection getArraySection() { return new ArraySection(this); }
     public IMutList cloneList() { return (IMutList)toList(Arrays.copyOfRange(data, sidx, eidx)); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
@@ -1606,7 +1595,7 @@ public class ArrayLists {
     }
     public int hashCode() { return hasheq(); }
     public IMutList cloneList() { return (IMutList)toList(Arrays.copyOfRange(data, sidx, eidx)); }
-    public ArraySection getArraySection() { return this; }
+    public ArraySection getArraySection() { return new ArraySection(this); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
     public double getDouble(int idx) { return data[checkIndex(idx, nElems) + sidx]; }

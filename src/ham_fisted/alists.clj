@@ -2,16 +2,24 @@
   "Generic primitive array backed array-lists.  The pure clojure implementations are a bit
   slower than the java ones but *far* less code so these are used for the
   less-frequently-used primive datatypes - byte, short, char, and float."
-  (:require [ham-fisted.iterator :as iterator])
+  (:require [ham-fisted.iterator :as iterator]
+            [ham-fisted.print :as pp])
   (:import [ham_fisted ArrayLists ArrayLists$ILongArrayList ArrayLists$IDoubleArrayList
             ArrayLists$IBooleanArrayList Transformables ArrayHelpers Casts IMutList
-            ArrayLists$ArraySection]
+            ArraySection
+            ArrayLists$ObjectArrayList ArrayLists$ObjectArraySubList
+            ArrayLists$ByteArraySubList ArrayLists$ShortArraySubList ArrayLists$CharArraySubList
+            ArrayLists$IntArraySubList ArrayLists$IntArrayList
+            ArrayLists$LongArraySubList ArrayLists$LongArrayList
+            ArrayLists$FloatArraySubList ArrayLists$BooleanArraySubList
+            ArrayLists$DoubleArraySubList ArrayLists$DoubleArrayList]
            [clojure.lang IPersistentMap IReduceInit]
            [java.util Arrays RandomAccess List]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* true)
 
+(pp/implement-tostring-print ArraySection)
 
 (defmacro make-prim-array-list
   [lname ary-tag iface getname setname addname set-cast-fn get-cast-fn obj-cast-fn]
@@ -87,7 +95,7 @@
      (copyOf [this# len#]
        (Arrays/copyOf ~'data len#))
      (getArraySection [this#]
-       (ArrayLists$ArraySection. ~'data 0 ~'n-elems))))
+       (ArraySection. ~'data 0 ~'n-elems))))
 
 
 (make-prim-array-list ByteArrayList bytes ArrayLists$ILongArrayList getLong setLong addLong
@@ -103,3 +111,9 @@
 (make-prim-array-list BooleanArrayList booleans ArrayLists$IBooleanArrayList getBoolean
                       setBoolean addBoolean Casts/booleanCast Casts/booleanCast
                       Casts/booleanCast)
+
+
+(pp/implement-tostring-print ShortArrayList)
+(pp/implement-tostring-print CharArrayList)
+(pp/implement-tostring-print FloatArrayList)
+(pp/implement-tostring-print BooleanArrayList)
