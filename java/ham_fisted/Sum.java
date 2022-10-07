@@ -3,10 +3,13 @@ package ham_fisted;
 
 import clojure.lang.IDeref;
 import clojure.lang.Keyword;
+import clojure.lang.IReduceInit;
 import java.util.function.DoubleConsumer;
+import java.util.Collection;
 
 
-public final class Sum implements DoubleConsumer, IDeref
+
+public final class Sum implements DoubleConsumer, Reducible, IDeref
 {
   public static final Keyword sumKwd = Keyword.intern(null, "sum");
   public static final Keyword nElemsKwd = Keyword.intern(null, "n-elems");
@@ -57,6 +60,17 @@ public final class Sum implements DoubleConsumer, IDeref
     sumWithCompensation(data);
     simpleSum += data;
     nElems++;
+  }
+
+  public Sum reduce(Collection<Reducible> rest) {
+    final Sum retval = new Sum(d0, d1, simpleSum, nElems);
+    for(Reducible rhs: rest) {
+      Sum sr = (Sum)rhs;
+      final long ne = retval.nElems;
+      retval.accept(sr.computeFinalSum());
+      retval.nElems = ne + sr.nElems;
+    }
+    return retval;
   }
 
   public Object deref() {

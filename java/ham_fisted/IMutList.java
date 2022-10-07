@@ -82,10 +82,18 @@ public interface IMutList<E>
     final int sz = size();
     final int osz = v.size();
     ChunkedList.checkIndexRange(0, sz, startidx, startidx+osz);
-    final int endidx = osz + startidx;
-    int idx = 0;
-    for(; startidx < endidx; ++startidx, ++idx)
-      set(startidx, (E)v.get(idx));
+    if(v instanceof ITypedReduce) {
+      ((ITypedReduce)v).genericIndexedForEach(startidx, new IndexedConsumer() {
+	  public void accept(long idx, Object v) {
+	    set((int)idx, (E)v);
+	  }
+	});
+    } else {
+      final int endidx = osz + startidx;
+      int idx = 0;
+      for(; startidx < endidx; ++startidx, ++idx)
+	set(startidx, (E)v.get(idx));
+    }
   }
   default E remove(int idx) {
     final E retval = get(idx);

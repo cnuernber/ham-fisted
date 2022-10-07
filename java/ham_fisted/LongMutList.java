@@ -31,11 +31,12 @@ public interface LongMutList extends IMutList<Object> {
     final int sz = size();
     final int endidx = startidx + l.size();
     ArrayLists.checkIndexRange(size(), startidx, endidx);
-    if(l instanceof IMutList) {
-      final IMutList im = (IMutList)l;
-      int idx = 0;
-      for(; startidx < endidx; ++startidx, ++idx)
-	setLong(startidx, im.getLong(idx));
+    if(l instanceof ITypedReduce) {
+      ((ITypedReduce)l).genericIndexedForEach(startidx, new IndexedLongConsumer() {
+	  public void accept(long idx, long v) {
+	    setLong((int)idx, v);
+	  }
+	});
     } else {
       IMutList.super.fillRange(startidx, l);
     }

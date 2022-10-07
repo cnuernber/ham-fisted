@@ -30,11 +30,12 @@ public interface DoubleMutList extends IMutList<Object> {
     final int sz = size();
     final int endidx = startidx + l.size();
     ArrayLists.checkIndexRange(size(), startidx, endidx);
-    if(l instanceof IMutList) {
-      final IMutList im = (IMutList)l;
-      int idx = 0;
-      for(; startidx < endidx; ++startidx, ++idx)
-	setDouble(startidx, im.getDouble(idx));
+    if(l instanceof ITypedReduce) {
+      ((ITypedReduce)l).genericIndexedForEach(startidx, new IndexedDoubleConsumer() {
+	  public void accept(long idx, double v) {
+	    setDouble((int)idx, v);
+	  }
+	});
     } else {
       IMutList.super.fillRange(startidx, l);
     }

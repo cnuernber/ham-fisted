@@ -48,13 +48,13 @@
             ReindexList ConstList ArrayLists$ObjectArrayList Transformables$SingleMapList
             ArrayLists$IntArrayList ArrayLists$LongArrayList ArrayLists$DoubleArrayList
             ReverseList TypedList DoubleMutList LongMutList ArrayLists$ReductionConsumer
-            Consumers Sum Casts]
+            Consumers Sum Casts Reducible]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
             IEditableCollection RT IPersistentMap Associative Util IFn ArraySeq
             Reversible IReduce IReduceInit IFn$DD IFn$DL IFn$DO IFn$LD IFn$LL IFn$LO
-            IFn$OD IFn$OL IObj Util IReduceInit Seqable]
+            IFn$OD IFn$OL IObj Util IReduceInit Seqable IteratorSeq]
            [java.util Map Map$Entry List RandomAccess Set Collection ArrayList Arrays
             Comparator Random Collections Iterator]
            [java.lang.reflect Array]
@@ -911,7 +911,7 @@ ham_fisted.PersistentHashMap
              n-elems (long n-elems)
              max-batch-size (long (get options :batch-size 64000))
              gsize (min max-batch-size (quot n-elems parallelism))
-             ngroups (quot n-elems gsize)
+             ngroups (quot (+ n-elems (dec gsize)) gsize)
              leftover (rem n-elems gsize)]
          (->> (range ngroups)
               (mapv (fn [^long gidx]
@@ -951,26 +951,75 @@ ham_fisted.PersistentHashMap
           future-seq (->> (apply map submit-fn sequences)
                           (seq))
           n-cpu (+ (ForkJoinPool/getCommonPoolParallelism) 2)
-          read-ahead (->> (concat (drop n-cpu future-seq) (repeat n-cpu nil)))
-          ;;lazy noncaching map - the future does the caching.
-          result-seq (map (fn [cur read-ahead]
-                            ;;Account for cancellation
-                            (when cur (.get ^Future cur)))
-                          future-seq read-ahead)
-          size-delay (delay (count result-seq))]
-      ;;You can use the result in with-open.  And it is a seq.
-      (reify
-        Seqable
-        (seq [this] (seq result-seq))
-        Collection
-        (isEmpty [this] (= false (.hasNext (.iterator this))))
-        (iterator [this] (.iterator ^Iterable result-seq))
-        (size [this] (deref size-delay))
-        IReduce
-        (reduce [this rfn] (fast-reduce rfn result-seq))
-        IReduceInit
-        (reduce [this rfn init] (fast-reduce rfn init result-seq)))
-      )))
+          read-ahead (->> (concat (drop n-cpu future-seq) (repeat n-cpu nil)))]
+      ;;lazy noncaching map - the future itself does the caching for us.
+      (map (fn [cur read-ahead]
+             (.get ^Future cur))
+           future-seq read-ahead))))
+
+
+(defn- boxed-next-fn->seq
+  [next-fn]
+  (let [fn-val* (volatile! ::unread)]
+    (IteratorSeq/create
+     (reify Iterator
+       (hasNext [this]
+         (let [nv @fn-val*]
+           (if (identical? ::unread nv)
+             (do
+               (vreset! fn-val* (next-fn))
+               (.hasNext this))
+             (boolean @fn-val*))))
+       (next [this]
+         (let [retval
+               (when-let [^BitmapTrieCommon$Box data @fn-val*]
+                 (.-obj data))]
+           (vreset! fn-val* (next-fn))
+           retval))))))
+
+
+(defn upgroups
+  "Run y groups across n-elems.   Y is common pool parallelism.
+
+  body-fn gets passed two longs, startidx and endidx.
+
+  Returns a sequence of the results of body-fn applied to each group of indexes.
+
+  Options:
+
+  * `:pgroup-min` - when provided n-elems must be more than this value for the computation
+    to be parallelized.
+  * `:batch-size` - max batch size.  Defaults to 64000."
+  ([n-elems body-fn options]
+   (let [n-elems (long n-elems)
+         parallelism (ForkJoinPool/getCommonPoolParallelism)]
+     (if (or (in-fork-join-task?)
+             (< n-elems (max parallelism (long (get options :pgroup-min 0)))))
+       [(body-fn 0 n-elems)]
+       (let [pool (ForkJoinPool/commonPool)
+             n-elems (long n-elems)
+             max-batch-size (long (get options :batch-size 64000))
+             gsize (min max-batch-size (quot n-elems parallelism))
+             ngroups (quot (+ n-elems (dec gsize)) gsize)
+             leftover (rem n-elems gsize)
+             res-queue (ArrayBlockingQueue. parallelism)
+             _ (->> (range ngroups)
+                    (mapv (fn [^long gidx]
+                            (let [start-idx (long (+ (* gidx gsize)
+                                                   (min gidx leftover)))
+                                  end-idx (min n-elems
+                                               (long (+ (+ start-idx gsize)
+                                                        (long (if (< gidx leftover)
+                                                                1 0)))))]
+                              (.submit pool ^Callable #(.put res-queue
+                                                             (body-fn start-idx end-idx)))))))
+             ;;Use range as a simple counting mechanism
+             iter (.iterator ^Collection (range ngroups))]
+         (boxed-next-fn->seq #(when (.hasNext iter)
+                                (.next iter)
+                                (BitmapTrieCommon$Box. (.take res-queue))))))))
+  ([n-elems body-fn]
+   (upgroups n-elems body-fn nil)))
 
 
 (defn upmap
@@ -978,9 +1027,7 @@ ham_fisted.PersistentHashMap
   namely [[pgroups]] which are also based on this pool.
   Like pmap this uses the commonPool so it composes with this api's pmap, pgroups, and
   dtype-next's parallelism primitives *but* it does not impose an ordering constraint on the
-  results and thus may be significantly faster in some cases.
-
-  This is likely to require shutdown-agents due to Claypool's use of clojure.core/future."
+  results and thus may be significantly faster in some cases."
   [map-fn & sequences]
   (if (in-fork-join-task?)
     (apply map map-fn sequences)
@@ -988,43 +1035,19 @@ ham_fisted.PersistentHashMap
           n-cpu (ForkJoinPool/getCommonPoolParallelism)
           map-fn (bound-fn* map-fn)
           res-queue (ArrayBlockingQueue. n-cpu)
-          cancel* (volatile! nil)
           future-seq (-> (apply map (fn [& args]
-                                      (when-not @cancel*
-                                        (.submit pool
-                                                 ^Callable (fn []
-                                                             (.put res-queue
-                                                                   (apply map-fn args))))))
+                                      (.submit pool
+                                               ^Callable (fn []
+                                                           (.put res-queue
+                                                                 (apply map-fn args)))))
                                 sequences)
                          ;;Lazy caching but non-chunking
                          (seq))
           read-ahead (concat (drop n-cpu future-seq) (repeat n-cpu nil))
-          next-sub (.iterator ^Iterable read-ahead)
-          next-fn (fn []
-                    (locking next-sub
-                      (when (and (not @cancel*) (.hasNext next-sub))
-                        (.next next-sub)
-                        (BitmapTrieCommon$Box. (.take res-queue)))))
-          fn-val* (volatile! (next-fn))
-          ^Collection fn-seq (iterator-seq
-                              (reify Iterator
-                                (hasNext [this] (boolean @fn-val*))
-                                (next [this]
-                                  (let [retval
-                                        (when-let [^BitmapTrieCommon$Box data @fn-val*]
-                                          (.-obj data))]
-                                    (vreset! fn-val* (next-fn))
-                                    retval))))
-          count* (delay (count fn-seq))]
-      (reify
-        java.lang.AutoCloseable
-        (close [this] (vreset! cancel* true))
-        Seqable
-        (seq [this] fn-seq)
-        Collection
-        (isEmpty [this] (.isEmpty fn-seq))
-        (size [this] @count*)
-        (iterator [this] (.iterator fn-seq))))))
+          next-sub (.iterator ^Iterable read-ahead)]
+      (boxed-next-fn->seq #(when (.hasNext next-sub)
+                             (.next next-sub)
+                             (BitmapTrieCommon$Box. (.take res-queue)))))))
 
 
 (defn ^:no-doc pfrequencies
@@ -2131,7 +2154,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
                             (.doubleReduction ^IMutList (.subList coll sidx eidx)
                                               op
                                            0.0)))
-                 (reduce +))))
+                 (reduce + 0.0))))
       (double (fast-reduce + 0.0 coll)))))
 
 
@@ -2192,29 +2215,33 @@ ham-fisted.api> (binary-search data 1.1 nil)
                                ^DoubleConsumer %)))
 
 
+(defn ^:no-doc reduce-reducibles
+  [reducibles]
+  (let [^Reducible r (first reducibles)]
+    (when-not (instance? Reducible r)
+      (throw (Exception. (str "Sequence does not contain reducibles: " (type (first r))))))
+    (.reduce r (rest reducibles))))
+
+
 (defn sum-stable-nelems
-  "Stable sum returning map of {:sum :n-elems}.
-  See options for [[sum-stable]]."
+  "Stable sum returning map of {:sum :n-elems}. See options for [[sum]]."
   ([coll] (sum-stable-nelems coll nil))
   ([coll options]
    (let [coll (->reducible coll)
          nan-strat-fn (options->double-nan-strat options)]
      (if (instance? IMutList coll)
        (let [^IMutList coll coll]
-         (->> (pgroups
+         (->> (upgroups
                (.size coll)
                (fn [^long sidx ^long eidx]
                  (let [sum-op (Sum.)]
                    (.genericForEach ^IMutList (.subList coll sidx eidx)
                                     (nan-strat-fn sum-op))
-                   (.deref sum-op)))
+                   sum-op))
                {:pgroup-min 10000})
-              (fast-reduce (fn [total sumv]
-                             {:n-elems (+ (long (total :n-elems)) (long (sumv :n-elems)))
-                              :sum (+ (double (total :sum)) (double (sumv :sum)))})
-                           {:n-elems 0 :sum 0.0})))
-       (let [sum-op (Sum.)
-             ^DoubleConsumer filter-op (nan-strat-fn sum-op)]
+              (reduce-reducibles)
+              (deref)))
+       (let [sum-op (Sum.)]
          (reduce (fn [^DoubleConsumer op v]
                    (when v
                      (.accept op (Casts/doubleCast v)))

@@ -82,4 +82,20 @@ public interface ITypedReduce<E> extends IReduceInit {
       forEach((Consumer<E>) c);
     }
   }
+  @SuppressWarnings("unchecked")
+  default void genericIndexedForEach(final long initIdx, Object c) {
+    IndexedDoubleConsumer dc;
+    IndexedLongConsumer lc;
+    IndexedConsumer ic;
+    if((dc = Consumers.asIndexedDoubleConsumer(c)) != null) {
+      doubleForEach(Consumers.toDoubleConsumer(initIdx, dc));
+    } else if ((lc = Consumers.asIndexedLongConsumer(c)) != null) {
+      longForEach(Consumers.toLongConsumer(initIdx, lc));
+    }
+    else {
+      if( (ic = Consumers.asIndexedConsumer(c)) == null)
+	throw new RuntimeException("Consumer must be an instance of ham_fisted IndexedConsumer, IndexedDoubleConsumer, or IndexedLongConsumer.");
+      forEach(Consumers.toConsumer(initIdx, ic));
+    }
+  }
 }

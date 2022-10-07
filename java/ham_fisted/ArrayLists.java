@@ -3,6 +3,7 @@ package ham_fisted;
 
 import java.util.List;
 import java.util.Arrays;
+import java.lang.reflect.Array;
 import java.util.Comparator;
 import java.util.Collections;
 import java.util.Collection;
@@ -325,6 +326,13 @@ public class ArrayLists {
 				     : ObjectArrays.binarySearch(data, sidx, eidx, v, c));
 
     }
+    @SuppressWarnings("unchecked")
+    public void forEach(Consumer c) {
+      final int es = eidx;
+      final Object[] d = data;
+      for(int ss = sidx; ss < es; ++ss)
+	c.accept(d[ss]);    
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, sidx + ssidx, sidx + seidx, v);
@@ -457,6 +465,13 @@ public class ArrayLists {
     public void shuffle(Random r) {
       ((IMutList)subList(0, nElems)).shuffle(r);
     }
+    @SuppressWarnings("unchecked")
+    public void forEach(Consumer c) {
+      final int es = nElems;
+      final Object[] d = data;
+      for(int ss = 0; ss < es; ++ss)
+	c.accept(d[ss]);
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(nElems, ssidx, seidx);
       Arrays.fill(data, ssidx, seidx, v);
@@ -484,11 +499,11 @@ public class ArrayLists {
     return res.toArray();
   }
 
-  public static List<Object> toList(final Object[] data, final int sidx, final int eidx, final IPersistentMap meta) {
+  public static IMutList<Object> toList(final Object[] data, final int sidx, final int eidx, final IPersistentMap meta) {
     final int dlen = eidx - sidx;
     return new ObjectArraySubList(data, sidx, eidx, meta);
   }
-  public static List<Object> toList(final Object[] data) { return toList(data, 0, data.length, null); }
+  public static IMutList<Object> toList(final Object[] data) { return toList(data, 0, data.length, null); }
 
   public static class ByteArraySubList implements ILongArrayList {
     public final byte[] data;
@@ -569,6 +584,13 @@ public class ArrayLists {
 				       bc == null ? ByteArrays.binarySearch(data, sidx, sidx+size(), vv) : ByteArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
       return ILongArrayList.super.binarySearch(v, c);
     }
+    
+    public void longForEach(LongConsumer c) {
+      final int es = sidx + dlen;
+      final byte[] d = data;
+      for(int ss = sidx; ss < es; ++ss)
+	c.accept(d[ss]);
+    }
 
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -582,11 +604,11 @@ public class ArrayLists {
     }
   }
 
-  public static List<Object> toList(final byte[] data, final int sidx, final int eidx, final IPersistentMap meta) {
+  public static IMutList<Object> toList(final byte[] data, final int sidx, final int eidx, final IPersistentMap meta) {
     final int dlen = eidx - sidx;
     return new ByteArraySubList(data, sidx, dlen, meta);
   }
-  public static List<Object> toList(final byte[] data) { return toList(data, 0, data.length, null); }
+  public static IMutList<Object> toList(final byte[] data) { return toList(data, 0, data.length, null); }
 
 
   public static class ShortArraySubList implements ILongArrayList {
@@ -675,6 +697,12 @@ public class ArrayLists {
 				       bc == null ? ShortArrays.binarySearch(data, sidx, sidx+size(), vv) : ShortArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
       return ILongArrayList.super.binarySearch(v, c);
     }
+    public void longForEach(LongConsumer c) {
+      final int es = sidx + dlen;
+      final short[] d = data;
+      for(int ss = sidx; ss < es; ++ss)
+	c.accept(d[ss]);
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, sidx + ssidx, sidx + seidx, RT.shortCast(Casts.longCast(v)));
@@ -688,11 +716,11 @@ public class ArrayLists {
     }
   }
 
-  public static List<Object> toList(final short[] data, final int sidx, final int eidx, final IPersistentMap meta) {
+  public static IMutList<Object> toList(final short[] data, final int sidx, final int eidx, final IPersistentMap meta) {
     final int dlen = eidx - sidx;
     return new ShortArraySubList(data, sidx, dlen, meta);
   }
-  public static List<Object> toList(final short[] data) { return toList(data, 0, data.length, null); }
+  public static IMutList<Object> toList(final short[] data) { return toList(data, 0, data.length, null); }
 
   public static class IntArraySubList extends ArraySection implements ILongArrayList {
     public final int[] data;
@@ -842,6 +870,12 @@ public class ArrayLists {
       else
 	IntArrays.parallelQuickSort(retval, indexComparator(c));
       return retval;
+    }
+    public void longForEach(LongConsumer c) {
+      final int es = eidx;
+      final int[] d = data;
+      for(int ss = sidx; ss < es; ++ss)
+	c.accept(d[ss]);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1027,6 +1061,12 @@ public class ArrayLists {
     public IntComparator indexComparator(Comparator c) {
       return IntArraySubList.indexComparator(data, 0, c);
     }
+    public void longForEach(LongConsumer c) {
+      final int es = nElems;
+      final int[] d = data;
+      for(int ss = 0; ss < es; ++ss)
+	c.accept(d[ss]);
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, ssidx, seidx, RT.intCast(Casts.longCast(v)));
@@ -1073,11 +1113,11 @@ public class ArrayLists {
     }
   }
 
-  public static List<Object> toList(final int[] data, final int sidx, final int eidx, IPersistentMap meta) {
+  public static IMutList<Object> toList(final int[] data, final int sidx, final int eidx, IPersistentMap meta) {
     final int dlen = eidx - sidx;
     return new IntArraySubList(data, sidx, eidx, meta);
   }
-  public static List<Object> toList(final int[] data) { return toList(data, 0, data.length, null); }
+  public static IMutList<Object> toList(final int[] data) { return toList(data, 0, data.length, null); }
 
 
   public static class LongArraySubList extends ArraySection implements ILongArrayList {
@@ -1221,6 +1261,12 @@ public class ArrayLists {
 	return fixSubArrayBinarySearch(sidx, size(),
 				       bc == null ? LongArrays.binarySearch(data, sidx, sidx+size(), vv) : LongArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
       return ILongArrayList.super.binarySearch(v, c);
+    }
+    public void longForEach(LongConsumer c) {
+      final int es = eidx;
+      final long[] d = data;
+      for(int ss = sidx; ss < es; ++ss)
+	c.accept(d[ss]);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1417,6 +1463,12 @@ public class ArrayLists {
     public int[] sortIndirect(Comparator c) {
       return ((IMutList)subList(0, nElems)).sortIndirect(c);
     }
+    public void longForEach(LongConsumer c) {
+      final int es = nElems;
+      final long[] d = data;
+      for(int ss = 0; ss < es; ++ss)
+	c.accept(d[ss]);
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, ssidx, seidx, Casts.longCast(v));
@@ -1439,10 +1491,10 @@ public class ArrayLists {
   }
 
 
-  public static List<Object> toList(final long[] data, final int sidx, final int eidx, IPersistentMap meta) {
+  public static IMutList<Object> toList(final long[] data, final int sidx, final int eidx, IPersistentMap meta) {
     return new LongArraySubList(data, sidx, eidx, meta);
   }
-  public static List<Object> toList(final long[] data) { return toList(data, 0, data.length, null); }
+  public static IMutList<Object> toList(final long[] data) { return toList(data, 0, data.length, null); }
 
   public static class FloatArraySubList implements IDoubleArrayList {
     public final float[] data;
@@ -1560,6 +1612,12 @@ public class ArrayLists {
 				       bc == null ? FloatArrays.binarySearch(data, sidx, sidx+size(), vv) : FloatArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
       return IDoubleArrayList.super.binarySearch(v, c);
     }
+    public void doubleForEach(DoubleConsumer c) {
+      final int es = sidx + dlen;
+      final float[] d = data;
+      for(int ss = sidx; ss < es; ++ss)
+	c.accept(d[ss]);
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, ssidx, seidx, (float)Casts.doubleCast(v));
@@ -1573,11 +1631,11 @@ public class ArrayLists {
     }
   }
 
-  public static List<Object> toList(final float[] data, final int sidx, final int eidx, IPersistentMap meta) {
+  public static IMutList<Object> toList(final float[] data, final int sidx, final int eidx, IPersistentMap meta) {
     final int dlen = eidx - sidx;
     return new FloatArraySubList(data, sidx, dlen, meta);
   }
-  public static List<Object> toList(final float[] data) { return toList(data, 0, data.length, null); }
+  public static IMutList<Object> toList(final float[] data) { return toList(data, 0, data.length, null); }
 
   public static class DoubleArraySubList extends ArraySection implements IDoubleArrayList {
     public final double[] data;
@@ -1721,7 +1779,12 @@ public class ArrayLists {
 				       bc == null ? DoubleArrays.binarySearch(data, sidx, sidx+size(), vv) : DoubleArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
       return IDoubleArrayList.super.binarySearch(v, c);
     }
-
+    public void doubleForEach(DoubleConsumer c) {
+      final int es = eidx;
+      final double[] d = data;
+      for(int ss = sidx; ss < es; ++ss)
+	c.accept(d[ss]);
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, sidx + ssidx, sidx + seidx, Casts.doubleCast(v));
@@ -1732,12 +1795,6 @@ public class ArrayLists {
     }
     public Object copyOf(int len) {
       return Arrays.copyOfRange(data, sidx, sidx + len);
-    }
-    public void doubleForEach(DoubleConsumer c) {
-      final double[] d = data;
-      final int ee = eidx;
-      for(int ss = sidx; ss < ee; ++ss)
-	c.accept(d[ss]);
     }
   }
 
@@ -1906,6 +1963,12 @@ public class ArrayLists {
     public int[] sortIndirect(Comparator c) {
       return ((IMutList)subList(0, nElems)).sortIndirect(c);
     }
+    public void doubleForEach(DoubleConsumer c) {
+      final int es = nElems;
+      final double[] d = data;
+      for(int ss = 0; ss < es; ++ss)
+	c.accept(d[ss]);
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, ssidx, seidx, Casts.doubleCast(v));
@@ -1927,10 +1990,10 @@ public class ArrayLists {
     }
   }
 
-  public static List<Object> toList(final double[] data, final int sidx, final int eidx, IPersistentMap meta) {
+  public static IMutList<Object> toList(final double[] data, final int sidx, final int eidx, IPersistentMap meta) {
     return new DoubleArraySubList(data, sidx, eidx, meta);
   }
-  public static List<Object> toList(final double[] data) { return toList(data, 0, data.length, null); }
+  public static IMutList<Object> toList(final double[] data) { return toList(data, 0, data.length, null); }
 
   public static class CharArraySubList implements ILongArrayList {
     public final char[] data;
@@ -2021,11 +2084,11 @@ public class ArrayLists {
     }
   }
 
-  public static List<Object> toList(final char[] data, final int sidx, final int eidx, IPersistentMap meta) {
+  public static IMutList<Object> toList(final char[] data, final int sidx, final int eidx, IPersistentMap meta) {
     final int dlen = eidx - sidx;
     return new CharArraySubList(data, sidx, dlen, meta);
   }
-  public static List<Object> toList(final char[] data) { return toList(data, 0, data.length, null); }
+  public static IMutList<Object> toList(final char[] data) { return toList(data, 0, data.length, null); }
 
 
   public static class BooleanArraySubList implements IBooleanArrayList {
@@ -2079,37 +2142,54 @@ public class ArrayLists {
     }
   }
 
-  public static List<Object> toList(final boolean[] data, final int sidx, final int eidx, IPersistentMap meta) {
+  public static IMutList<Object> toList(final boolean[] data, final int sidx, final int eidx, IPersistentMap meta) {
     final int dlen = eidx - sidx;
     return new BooleanArraySubList(data, sidx, dlen, meta);
   }
-  public static List<Object> toList(final boolean[] data) { return toList(data, 0, data.length, null); }
+  public static IMutList<Object> toList(final boolean[] data) { return toList(data, 0, data.length, null); }
 
-  public static List toList(Object obj) {
+
+  public static IMutList<Object> toList(Object obj, int sidx, int eidx, IPersistentMap meta) {
     if (obj == null) return null;
     Class cls = obj.getClass();
     if(!cls.isArray())
       throw new RuntimeException("Object is not an array: " + String.valueOf(obj));
     if(obj instanceof Object[])
-      return toList((Object[])obj);
+      return toList((Object[])obj, sidx, eidx, meta);
     else if (cls == byte[].class)
-      return toList((byte[])obj);
+      return toList((byte[])obj, sidx, eidx, meta);
     else if (cls == short[].class)
-      return toList((short[])obj);
+      return toList((short[])obj, sidx, eidx, meta);
     else if (cls == int[].class)
-      return toList((int[])obj);
+      return toList((int[])obj, sidx, eidx, meta);
     else if (cls == long[].class)
-      return toList((long[])obj);
+      return toList((long[])obj, sidx, eidx, meta);
     else if (cls == float[].class)
-      return toList((float[])obj);
+      return toList((float[])obj, sidx, eidx, meta);
     else if (cls == double[].class)
-      return toList((double[])obj);
+      return toList((double[])obj, sidx, eidx, meta);
     else if (cls == char[].class)
-      return toList((char[])obj);
+      return toList((char[])obj, sidx, eidx, meta);
     else if (cls == boolean[].class)
-      return toList((boolean[])obj);
+      return toList((boolean[])obj, sidx, eidx, meta);
     else
       throw new RuntimeException("Invalid array type.");
+  }
+
+  public static IMutList<Object> toList(Object obj) {
+    if (obj == null) return null;
+    Class cls = obj.getClass();
+    if(!cls.isArray())
+      throw new RuntimeException("Object is not an array: " + String.valueOf(obj));
+    return toList(obj, 0, Array.getLength(obj), null);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static IMutList<Object> toList(ArraySection data) {
+    if(data == null) return null;
+    if(data instanceof IMutList)
+      return (IMutList)data;
+    return toList(data.array, data.sidx, data.eidx, null);
   }
 
   public static int[] iarange(int start, int end, int step) {
