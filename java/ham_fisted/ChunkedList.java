@@ -22,7 +22,7 @@ import clojure.lang.Murmur3;
 
 
 
-class ChunkedList {
+public final class ChunkedList {
   Object[][] data;
   //Global capacity ignoring offset
   int capacity;
