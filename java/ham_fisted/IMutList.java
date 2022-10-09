@@ -243,7 +243,7 @@ public interface IMutList<E>
   }
   default ListIterator<E> listIterator(int idx) {
     if (idx < 0 || idx >= size())
-      throw new NoSuchElementException();
+      throw new NoSuchElementException("Index(" + String.valueOf(idx) + ") out of range 0-" + size());
     return new ListIter<E>(this, idx);
   }
   default ListIterator<E> listIterator() {

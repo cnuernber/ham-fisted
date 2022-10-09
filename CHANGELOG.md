@@ -1,3 +1,9 @@
+# 1.000-beta-18
+ * expose sublistcheck.
+
+# 1.000-beta-17
+ * Stricter correctness checking for sublist types, everything implements Associative.
+
 # 1.000-beta-16
  * Correctness fixes for pmap, upmap, pgroups, upgroups.
 

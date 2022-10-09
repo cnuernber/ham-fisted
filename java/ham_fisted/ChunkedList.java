@@ -205,7 +205,7 @@ class ChunkedList {
     return data[idx / 32][idx % 32];
   }
 
-  static final void sublistCheck(int sidx, int eidx, int nElems) {
+  public static final void sublistCheck(int sidx, int eidx, int nElems) {
     if(sidx < 0 || sidx > nElems)
       throw new IndexOutOfBoundsException("Start index out of range: start-index("
 					  + String.valueOf(sidx) +"), n-elems("
