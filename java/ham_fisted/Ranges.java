@@ -74,13 +74,7 @@ public class Ranges {
       return retval;
     }
     public LongMutList subList(int sidx, int eidx) {
-      final int sz = size();
-      if (sidx == 0 && eidx == sz)
-	return this;
-      if(sidx < 0 || sidx >= sz)
-	throw new RuntimeException("Start index out of range");
-      if(eidx < sidx || eidx > sz)
-	throw new RuntimeException("End index out of range");
+      ChunkedList.sublistCheck(sidx, eidx, size());
       return new LongRange(start + sidx*step, start + eidx*step, step, meta);
     }
     public Object reduce(final IFn fn, Object init) {
@@ -169,13 +163,7 @@ public class Ranges {
       return ArrayLists.darange(start, end, step);
     }
     public DoubleMutList subList(int sidx, int eidx) {
-      final int sz = size();
-      if (sidx == 0 && eidx == sz)
-	return this;
-      if(sidx < 0 || sidx >= sz)
-	throw new RuntimeException("Start index out of range");
-      if(eidx < sidx || eidx > sz)
-	throw new RuntimeException("End index out of range");
+      ChunkedList.sublistCheck(sidx, eidx, size());
       return new DoubleRange(start + sidx*step, start + eidx*step, step, meta);
     }
     public IPersistentMap meta() { return meta; }

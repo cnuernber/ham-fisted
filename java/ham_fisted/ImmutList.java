@@ -142,9 +142,7 @@ public class ImmutList
     return listIterator(0);
   }
   public final List subList(int sidx, int eidx) {
-    if (sidx == 0 && eidx == (startidx+nElems))
-      return this;
-    checkIndexRange(startidx, nElems, sidx, eidx);
+    ChunkedList.sublistCheck(sidx, eidx, nElems);
     return new ImmutList(sidx+startidx, eidx+startidx, data);
   }
   public final Object[] toArray() {

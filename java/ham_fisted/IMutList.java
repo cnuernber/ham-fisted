@@ -45,12 +45,13 @@ import clojure.lang.IPersistentMap;
 import clojure.lang.IObj;
 import clojure.lang.ASeq;
 import clojure.lang.IReduceInit;
+import clojure.lang.Associative;
 
 
 public interface IMutList<E>
   extends List<E>, RandomAccess, Indexed, IFnDef, ITypedReduce<E>, IKVReduce, IReduce,
 	  IHashEq, Seqable, Reversible, IObj, ImmutSort<E>, RangeList, Cloneable,
-	  Sequential
+	  Sequential, Associative
 
 {
   default IMutList cloneList() { return (IMutList)ArrayLists.toList(toArray()); }
@@ -641,4 +642,14 @@ public interface IMutList<E>
     return rv < 0 ? -1 - rv : rv;
   }
   default int binarySearch(E v) { return binarySearch(v, null); }
+  default IPersistentVector immut() { return ArrayImmutList.create(true, toArray(), 0, size(), meta()); }
+  default Associative assoc(Object idx, Object o) {
+    return immut().assoc(idx, o);
+  }
+  default IPersistentVector cons(Object o) {
+    return immut().cons(o);
+  }
+  default IPersistentVector empty() {
+    return ArrayImmutList.EMPTY;
+  }
 }

@@ -53,6 +53,9 @@ public class MutList<E>
     return new ChunkedListSection(data.data, 0, data.nElems);
   }
   public final MutList<E> clone() { return new MutList<E>(this); }
+  public final MutList<E> cloneList() {
+    return clone();
+  }
   public final boolean add(E v) { data.add(v); return true; }
   public final void add(int idx, E v) { data.add(v,idx); }
   public final boolean addAll(Collection<? extends E> c) {
@@ -180,7 +183,7 @@ public class MutList<E>
   @SuppressWarnings("unchecked")
   public final Iterator<E> iterator() { return (Iterator<E>)data.iterator(); }
 
-  static class SubMutList<E> implements IMutList<E>, ChunkedListOwner, Cloneable
+  public static class SubMutList<E> implements IMutList<E>, ChunkedListOwner, Cloneable
   {
     final int startidx;
     final int nElems;
@@ -200,29 +203,8 @@ public class MutList<E>
       return new MutList<E>(data.clone(startidx, startidx+nElems));
     }
 
-    public final boolean add(E e) {
-      throw new RuntimeException("Unimplemented");
-    }
-    public final void add(int idx, E e) {
-      throw new RuntimeException("Unimplemented");
-    }
-    public final boolean addAll(Collection<? extends E> e) {
-      throw new RuntimeException("Unimplemented");
-    }
-    public final boolean addAll(int idx, Collection<? extends E> e) {
-      throw new RuntimeException("Unimplemented");
-    }
-    public final E remove(int idx) {
-      throw new RuntimeException("Unimplemented");
-    }
-    public final boolean remove(Object o) {
-      throw new RuntimeException("Unimplemented");
-    }
-    public final boolean removeAll(Collection<?> c) {
-      throw new RuntimeException("Unimplemented");
-    }
-    public final boolean retainAll(Collection<?> c) {
-      throw new RuntimeException("Unimplemented");
+    public final MutList<E> cloneList() {
+      return clone();
     }
 
     final int indexCheck(int idx) {
@@ -233,9 +215,6 @@ public class MutList<E>
       return ChunkedList.wrapIndexCheck(startidx, nElems, idx);
     }
 
-    public final void clear() {
-      throw new RuntimeException("Unimplemented");
-    }
     public final int size() { return nElems; }
     public final boolean isEmpty() { return nElems == 0; }
     @SuppressWarnings("unchecked")
@@ -244,7 +223,7 @@ public class MutList<E>
     }
     @SuppressWarnings("unchecked")
     public final E get(int idx) {
-      return (E)data.getValue(wrapIndexCheck(idx));
+      return (E)data.getValue(indexCheck(idx));
     }
     public final int indexOf(Object obj) {
       return data.indexOf(startidx, startidx+nElems, obj);
@@ -268,11 +247,9 @@ public class MutList<E>
     public final ListIterator<E> listIterator() {
       return listIterator(0);
     }
-    public final List<E> subList(int sidx, int eidx) {
-      sidx = indexCheck(sidx);
-      if (eidx < sidx || eidx > nElems)
-	throw new RuntimeException("End index out of range: " + String.valueOf(eidx));
-      return new SubMutList<E>(sidx, eidx + startidx, data);
+    public final List<E> subList(int ssidx, int seidx) {
+      ChunkedList.sublistCheck(ssidx, seidx, nElems);
+      return new SubMutList<E>(ssidx + startidx, seidx + startidx, data);
     }
     public final Object[] toArray() {
       return data.toArray(startidx, startidx + nElems);
@@ -326,7 +303,9 @@ public class MutList<E>
     public final int hasheq() {
       return hashCode();
     }
-    public final String toString() { return Transformables.sequenceToString(this); }
+    public final String toString() {
+      return Transformables.sequenceToString(this);
+    }
     public final boolean equals(Object other) {
       return equiv(other);
     }
@@ -342,6 +321,7 @@ public class MutList<E>
   }
 
   public final List<E> subList(int startidx, int endidx) {
+    ChunkedList.sublistCheck(startidx, endidx, size());
     return new SubMutList<E>(startidx, endidx, data);
   }
 
@@ -462,6 +442,9 @@ public class MutList<E>
   }
   public final boolean equiv(Object other) {
     return CljHash.listEquiv(this, other);
+  }
+  public final String toString() {
+    return Transformables.sequenceToString(this);
   }
   public IPersistentMap meta() { return data.meta(); }
   public MutList<E> withMeta(IPersistentMap m) {

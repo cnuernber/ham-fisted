@@ -12,7 +12,37 @@
 
 (def vec-fns
   {:api-vec {:convert-fn identity :vec-fn api/vec}
+   :api-vec-sublist {:convert-fn identity
+                     :vec-fn (fn
+                               ([]
+                                (api/subvec (api/vec [1 2 4]) 3))
+                               ([data]
+                                  (api/subvec (api/vec (lznc/concat [1 2 4] data)) 3)))}
    :immut-vec {:convert-fn identity :vec-fn (comp persistent! api/mut-list)}
+   :immut-vec-sublist {:convert-fn identity
+                       :vec-fn (fn
+                                 ([]
+                                  (api/subvec (persistent!
+                                               (api/mut-list (range 100)))
+                                              100))
+                                 ([data]
+                                  (api/subvec (persistent!
+                                               (api/mut-list
+                                                (lznc/concat (range 100) data)))
+                                              100)))}
+   :api-mut-list  {:convert-fn identity :vec-fn api/mut-list}
+   :api-mut-sublist  {:convert-fn identity
+                      :vec-fn (fn
+                                ([]
+                                 (api/subvec
+                                  (api/mut-list
+                                   (range 100))
+                                  100))
+                                ([data]
+                                 (api/subvec
+                                  (api/mut-list
+                                   (lznc/concat (range 100) data))
+                                  100)))}
    :byte-vec {:convert-fn identity :vec-fn (comp api/->random-access api/byte-array)}
    :byte-vec-list {:convert-fn identity :vec-fn (comp api/->random-access api/byte-array-list)}
    :short-vec {:convert-fn identity :vec-fn (comp api/->random-access api/short-array)}
@@ -70,7 +100,7 @@
       (is (= (convert-fn 60)
              (let [prim-vec (vec-fn (range 1000))]
                (convert-fn (reduce (partial all-add convert-fn)
-                                   (subvec prim-vec 10 15))))))
+                                   (api/subvec prim-vec 10 15))))))
       (is (= (convert-fn 60)
              (let [prim-vec (api/vec (range 1000))]
                (reduce (partial all-add convert-fn)

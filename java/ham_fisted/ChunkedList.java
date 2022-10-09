@@ -205,6 +205,21 @@ class ChunkedList {
     return data[idx / 32][idx % 32];
   }
 
+  static final void sublistCheck(int sidx, int eidx, int nElems) {
+    if(sidx < 0 || sidx > nElems)
+      throw new IndexOutOfBoundsException("Start index out of range: start-index("
+					  + String.valueOf(sidx) +"), n-elems("
+					  + String.valueOf(nElems) + ")");
+    if(eidx < 0 || eidx > nElems)
+      throw new IndexOutOfBoundsException("End index out of range: end-index("
+					  + String.valueOf(eidx) +"), n-elems("
+					  + String.valueOf(nElems) + ")");
+    if(eidx < sidx)
+      throw new IndexOutOfBoundsException("End index underflow: end-index("
+					  + String.valueOf(eidx) +") < start-index("
+					  + String.valueOf(sidx) + ")");
+  }
+
   static final int indexCheck(int startidx, int nElems, int idx) {
     if (idx < 0)
       throw new IndexOutOfBoundsException("Index underflow: " + String.valueOf(idx));

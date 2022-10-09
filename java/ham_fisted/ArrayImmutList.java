@@ -112,6 +112,9 @@ public class ArrayImmutList
   public final boolean equals(Object other) {
     return equiv(other);
   }
+  public final String toString() {
+    return Transformables.sequenceToString(this);
+  }
   public final IPersistentMap meta() { return m; }
   public final ArrayImmutList withMeta(IPersistentMap m) {
     return new ArrayImmutList(data, startidx, startidx+nElems, m);
@@ -195,7 +198,7 @@ public class ArrayImmutList
     return listIterator(0);
   }
   public ArrayImmutList subList(int sidx, int endidx) {
-    ChunkedList.checkIndexRange(startidx, nElems, sidx, endidx);
+    ChunkedList.sublistCheck(sidx, endidx, nElems);
     return new ArrayImmutList(data, sidx+startidx, endidx + startidx, m);
   }
   static class Iter implements Iterator {
