@@ -70,23 +70,6 @@ public class ArrayLists {
       return (LongConsumer) c;
     return null;
   }
-  public static class ReductionConsumer implements Consumer {
-    Object init;
-    IFn fn;
-    public ReductionConsumer(IFn _fn, Object _init) {
-      fn = _fn;
-      init = _init;
-    }
-    public void accept(Object obj) {
-      if(!RT.isReduced(init))
-	init = fn.invoke(init, obj);
-    }
-    public Object value() {
-      if (RT.isReduced(init))
-	return ((IDeref)init).deref();
-      return init;
-    }
-  }
   public interface ArrayOwner {
     ArraySection getArraySection();
     void fill(int sidx, int eidx, Object v);
@@ -331,7 +314,7 @@ public class ArrayLists {
       final int es = eidx;
       final Object[] d = data;
       for(int ss = sidx; ss < es; ++ss)
-	c.accept(d[ss]);    
+	c.accept(d[ss]);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -347,6 +330,10 @@ public class ArrayLists {
 
   public static int newArrayLen(int len) {
     return len < 100000 ? len * 2 : (int)(len * 1.5);
+  }
+
+  public static long newArrayLen(long len) {
+    return len < 100000 ? len * 2 : (long)(len * 1.5);
   }
 
   public static class ObjectArrayList implements IArrayList {
@@ -584,12 +571,13 @@ public class ArrayLists {
 				       bc == null ? ByteArrays.binarySearch(data, sidx, sidx+size(), vv) : ByteArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
       return ILongArrayList.super.binarySearch(v, c);
     }
-    
-    public void longForEach(LongConsumer c) {
+
+    public Object longReduction(IFn.OLO rfn, Object init) {
       final int es = sidx + dlen;
       final byte[] d = data;
-      for(int ss = sidx; ss < es; ++ss)
-	c.accept(d[ss]);
+      for(int ss = sidx; ss < es && !RT.isReduced(init); ++ss)
+	init = rfn.invokePrim(init, d[ss]);
+      return init;
     }
 
     public void fill(int ssidx, int seidx, Object v) {
@@ -697,11 +685,12 @@ public class ArrayLists {
 				       bc == null ? ShortArrays.binarySearch(data, sidx, sidx+size(), vv) : ShortArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
       return ILongArrayList.super.binarySearch(v, c);
     }
-    public void longForEach(LongConsumer c) {
+    public Object longReduction(IFn.OLO rfn, Object init) {
       final int es = sidx + dlen;
       final short[] d = data;
-      for(int ss = sidx; ss < es; ++ss)
-	c.accept(d[ss]);
+      for(int ss = sidx; ss < es && !RT.isReduced(init); ++ss)
+	init = rfn.invokePrim(init, d[ss]);
+      return init;
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -871,11 +860,12 @@ public class ArrayLists {
 	IntArrays.parallelQuickSort(retval, indexComparator(c));
       return retval;
     }
-    public void longForEach(LongConsumer c) {
+    public Object longReduction(IFn.OLO rfn, Object init) {
       final int es = eidx;
       final int[] d = data;
-      for(int ss = sidx; ss < es; ++ss)
-	c.accept(d[ss]);
+      for(int ss = sidx; ss < es && !RT.isReduced(init); ++ss)
+	init = rfn.invokePrim(init, d[ss]);
+      return init;
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1039,7 +1029,7 @@ public class ArrayLists {
     }
     public Object reduce(IFn fn) { return ((IReduce)subList(0, nElems)).reduce(fn); }
     public Object reduce(IFn fn, Object init) { return ((IReduceInit)subList(0, nElems)).reduce(fn,init); }
-    public long longReduction(LongBinaryOperator op, long init) {
+    public Object longReduction(IFn.OLO op, long init) {
       return ((IMutList)subList(0, nElems)).longReduction(op, init);
     }
     public void sort(Comparator<? super Object> c) {
@@ -1061,11 +1051,12 @@ public class ArrayLists {
     public IntComparator indexComparator(Comparator c) {
       return IntArraySubList.indexComparator(data, 0, c);
     }
-    public void longForEach(LongConsumer c) {
+    public Object longReduction(IFn.OLO rfn, Object init) {
       final int es = nElems;
       final int[] d = data;
-      for(int ss = 0; ss < es; ++ss)
-	c.accept(d[ss]);
+      for(int ss = 0; ss < es && !RT.isReduced(init); ++ss)
+	init = rfn.invokePrim(init, d[ss]);
+      return init;
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1441,7 +1432,7 @@ public class ArrayLists {
     }
     public Object reduce(IFn fn) { return ((IReduce)subList(0, nElems)).reduce(fn); }
     public Object reduce(IFn fn, Object init) { return ((IReduceInit)subList(0, nElems)).reduce(fn,init); }
-    public long longReduction(LongBinaryOperator op, long init) {
+    public Object longReduction(IFn.OLO op, Object init) {
       return ((IMutList)subList(0, nElems)).longReduction(op, init);
     }
     public IntComparator indexComparator() {
@@ -1462,12 +1453,6 @@ public class ArrayLists {
     }
     public int[] sortIndirect(Comparator c) {
       return ((IMutList)subList(0, nElems)).sortIndirect(c);
-    }
-    public void longForEach(LongConsumer c) {
-      final int es = nElems;
-      final long[] d = data;
-      for(int ss = 0; ss < es; ++ss)
-	c.accept(d[ss]);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1612,11 +1597,12 @@ public class ArrayLists {
 				       bc == null ? FloatArrays.binarySearch(data, sidx, sidx+size(), vv) : FloatArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
       return IDoubleArrayList.super.binarySearch(v, c);
     }
-    public void doubleForEach(DoubleConsumer c) {
+    public Object doubleReduction(IFn.ODO rfn, Object init) {
       final int es = sidx + dlen;
       final float[] d = data;
-      for(int ss = sidx; ss < es; ++ss)
-	c.accept(d[ss]);
+      for(int ss = sidx; ss < es && !RT.isReduced(init); ++ss)
+	init = rfn.invokePrim(init, d[ss]);
+      return init;
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1779,11 +1765,12 @@ public class ArrayLists {
 				       bc == null ? DoubleArrays.binarySearch(data, sidx, sidx+size(), vv) : DoubleArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
       return IDoubleArrayList.super.binarySearch(v, c);
     }
-    public void doubleForEach(DoubleConsumer c) {
+    public Object doubleReduction(IFn.ODO rfn, Object init) {
       final int es = eidx;
       final double[] d = data;
-      for(int ss = sidx; ss < es; ++ss)
-	c.accept(d[ss]);
+      for(int ss = sidx; ss < es && !RT.isReduced(rfn); ++ss)
+	init = rfn.invokePrim(init, d[ss]);
+      return init;
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);

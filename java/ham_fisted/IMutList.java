@@ -457,8 +457,6 @@ public interface IMutList<E>
     for(int idx = 1; idx < sz && (!RT.isReduced(init)); ++idx) {
       init = f.invoke(init, get(idx));
     }
-    if (RT.isReduced(init))
-      return ((IDeref)init).deref();
     return init;
   }
 
@@ -467,8 +465,6 @@ public interface IMutList<E>
     for(int idx = 0; idx < sz && (!RT.isReduced(init)); ++idx) {
       init = f.invoke(init, get(idx));
     }
-    if (RT.isReduced(init))
-      return ((IDeref)init).deref();
     return init;
   }
 
@@ -477,8 +473,6 @@ public interface IMutList<E>
     for(int idx = 0; idx < sz && (!RT.isReduced(init)); ++idx) {
       init = f.invoke(init, idx, get(idx));
     }
-    if (RT.isReduced(init))
-      return ((IDeref)init).deref();
     return init;
   }
   @SuppressWarnings("unchecked")
@@ -583,16 +577,16 @@ public interface IMutList<E>
   default ISeq rseq() { if(isEmpty()) return null; return new RIndexSeq(this, 0, meta()); }
   default IPersistentMap meta() { return null; }
   default IObj withMeta(IPersistentMap meta ) { throw new UnsupportedOperationException("Unimplemented"); }
-  default double doubleReduction(DoubleBinaryOperator op, double init) {
+  default Object doubleReduction(IFn.ODO op, Object init) {
     final int sz = size();
-    for(int idx = 0; idx < sz; ++idx)
-      init = op.applyAsDouble(init, getDouble(idx));
+    for(int idx = 0; idx < sz && !RT.isReduced(init); ++idx)
+      init = op.invokePrim(init, getDouble(idx));
     return init;
   }
-  default long longReduction(LongBinaryOperator op, long init) {
+  default Object longReduction(IFn.OLO op, Object init) {
     final int sz = size();
-    for(int idx = 0; idx < sz; ++idx)
-      init = op.applyAsLong(init, getLong(idx));
+    for(int idx = 0; idx < sz && !RT.isReduced(init); ++idx)
+      init = op.invokePrim(init, getLong(idx));
     return init;
   }
 

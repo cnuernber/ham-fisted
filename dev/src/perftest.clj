@@ -468,6 +468,18 @@
        :clj (bench/benchmark-us (dfn/sum data))})))
 
 
+(defn stable-sum-reduction-perftest
+  []
+  (log/info "stable summation - dtype(clj) vs. hamf")
+  (for [n-elems [100 1000 1000000]]
+    (let [n-elems (long n-elems)
+          data (api/double-array (range n-elems))]
+      {:n-elems n-elems
+       :test :stable-summation
+       :double-reduction (bench/benchmark-us (api/sum-double-reduction-stable-nelems data))
+       :double-consumer (bench/benchmark-us (api/sum-stable-nelems data))})))
+
+
 (defn unstable-sum-perftest
   []
   (log/info "unstable summation - dtype(clj) vs. hamf")

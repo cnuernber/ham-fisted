@@ -14,20 +14,72 @@ import clojure.lang.IFn;
  *  Typed reductions - a typed extension of clojure.lang.IReduceInit and java.util.Iterable.forEach.
  */
 public interface ITypedReduce<E> extends IReduceInit {
-  default double doubleReduction(DoubleBinaryOperator op, double init) {
-    return Casts.doubleCast(reduce(new IFnDef() {
+  default Object doubleReduction(IFn.ODO op, Object init) {
+    return reduce(new IFnDef() {
 	public Object invoke(Object lhs, Object rhs) {
-	  return op.applyAsDouble(Casts.doubleCast(lhs), Casts.doubleCast(rhs));
+	  return op.invokePrim(lhs, Casts.doubleCast(rhs));
 	}
-      }, init));
+      }, init);
   }
-  default long longReduction(LongBinaryOperator op, long init) {
-    return Casts.longCast(reduce(new IFnDef() {
+  default Object longReduction(IFn.OLO op, Object init) {
+    return reduce(new IFnDef() {
 	public Object invoke(Object lhs, Object rhs) {
-	  return op.applyAsLong(Casts.longCast(lhs), Casts.longCast(rhs));
+	  return op.invokePrim(lhs, Casts.longCast(rhs));
 	}
-      }, init));
+      }, init);
   }
+  public static class LongIncrementor {
+    long val;
+    public LongIncrementor(long initIdx) { val = initIdx; }
+    public final long inc() { return val++; }
+  }
+  default Object indexedDoubleReduction(IFn.OLDO op, long initIdx, Object init) {
+    final LongIncrementor inc = new LongIncrementor(initIdx);
+    return reduce(new IFnDef() {
+	public Object invoke(Object lhs, Object rhs) {
+	  return op.invokePrim(lhs, inc.inc(), Casts.doubleCast(rhs));
+	}
+      }, init);
+  }
+  default Object indexedLongReduction(IFn.OLLO op, long initIdx, Object init) {
+    final LongIncrementor inc = new LongIncrementor(initIdx);
+    return reduce(new IFnDef() {
+	public Object invoke(Object lhs, Object rhs) {
+	  return op.invokePrim(lhs, inc.inc(), Casts.longCast(rhs));
+	}
+      }, init);
+  }
+  default Object indexedReduction(IFn.OLOO op, long initIdx, Object init) {
+    final LongIncrementor inc = new LongIncrementor(initIdx);
+    return reduce(new IFnDef() {
+	public Object invoke(Object lhs, Object rhs) {
+	  return op.invokePrim(lhs, inc.inc(), rhs);
+	}
+      }, init);
+  }
+  default Object genericReduction(Object rfn, Object init) {
+    if(rfn instanceof IFn.ODO)
+      return doubleReduction((IFn.ODO)rfn, init);
+    else if (rfn instanceof IFn.OLO)
+      return longReduction((IFn.OLO)rfn, init);
+    else {
+      if(!(rfn instanceof IFn))
+	throw new RuntimeException("reducer must be an instance of clojure.lang.IFn, java.util.function.DoubleBinaryOperator or java.util.function.LongBinaryOperator.");
+      return reduce((IFn)rfn, init);
+    }
+  }
+  default Object genericIndexedReduction(Object rfn, long initIdx, Object init) {
+    if(rfn instanceof IFn.OLDO)
+      return indexedDoubleReduction((IFn.OLDO)rfn, initIdx, init);
+    else if (rfn instanceof IFn.OLLO)
+      return indexedLongReduction((IFn.OLLO)rfn, initIdx, init);
+    else {
+      if(!(rfn instanceof IFn.OLOO))
+	throw new RuntimeException("reducer must be a typehinted instance of clojure.lang.IFn.");
+      return indexedReduction((IFn.OLOO)rfn, initIdx, init);
+    }
+  }
+
   //Typed this way in order to match java.util.List's forEach
   @SuppressWarnings("unchecked")
   default void forEach(Consumer<E> c) {
@@ -40,32 +92,23 @@ public interface ITypedReduce<E> extends IReduceInit {
 	}
       }, c);
   }
-  default Object genericReduction(Object rfn, Object init) {
-    if(rfn instanceof DoubleBinaryOperator)
-      return doubleReduction((DoubleBinaryOperator)rfn, Casts.doubleCast(init));
-    else if (rfn instanceof LongBinaryOperator)
-      return longReduction((LongBinaryOperator)rfn, Casts.longCast(init));
-    else {
-      if(!(rfn instanceof IFn))
-	throw new RuntimeException("reducer must be an instance of clojure.lang.IFn, java.util.function.DoubleBinaryOperator or java.util.function.LongBinaryOperator.");
-      return reduce((IFn)rfn, init);
-    }
+  @SuppressWarnings("unchecked")
+  default void doubleForEach(final DoubleConsumer c) {
+    doubleReduction(new IFn.ODO() {
+	public Object invokePrim(Object lhs, double v) {
+	  c.accept(v);
+	  return c;
+	}
+      }, c);
   }
   @SuppressWarnings("unchecked")
-  default void doubleForEach(DoubleConsumer c) {
-    forEach(new Consumer() {
-	public void accept(Object obj) {
-	  c.accept(Casts.doubleCast(obj));
+  default void longForEach(final LongConsumer c) {
+    longReduction(new IFn.OLO() {
+	public Object invokePrim(Object obj, long l) {
+	  c.accept(l);
+	  return c;
 	}
-      });
-  }
-  @SuppressWarnings("unchecked")
-  default void longForEach(LongConsumer c) {
-    forEach(new Consumer() {
-	public void accept(Object obj) {
-	  c.accept(Casts.longCast(obj));
-	}
-      });
+      }, c);
   }
   @SuppressWarnings("unchecked")
   default void genericForEach(Object c) {

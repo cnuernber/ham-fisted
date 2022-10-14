@@ -83,14 +83,14 @@ public class Ranges {
       final long se = step;
       for(int idx = 0; idx < sz && !RT.isReduced(init); ++idx, st += se)
 	init = fn.invoke(init, st);
-      return RT.isReduced(init) ? ((IDeref)init).deref() : init;
+      return init;
     }
-    public long longReduction(LongBinaryOperator op, long init) {
+    public Object longReduction(IFn.OLO op, Object init) {
       final int sz = size();
       final long se = step;
       long st = start;
-      for(int idx = 0; idx < sz; ++idx, st += se)
-	init = op.applyAsLong(init, st);
+      for(int idx = 0; idx < sz && !RT.isReduced(init); ++idx, st += se)
+	init = op.invokePrim(init, st);
       return init;
     }
     public void longForEach(LongConsumer lc) {

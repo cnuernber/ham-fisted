@@ -291,8 +291,6 @@ public class ArrayImmutList
       init = f.invoke(init, d[sidx]);
       sidx++;
     }
-    if (RT.isReduced(init))
-      return ((IDeref)init).deref();
     return init;
   }
   public final Object reduce(IFn f, Object init) {
@@ -307,13 +305,9 @@ public class ArrayImmutList
     final int sidx = startidx;
     final Object[] d = data;
     final int ne = nElems;
-    for(int idx = 0; idx < ne; ++idx) {
-      if(RT.isReduced(init))
-	return ((IDeref)init).deref();
+    for(int idx = 0; idx < ne && !RT.isReduced(init); ++idx) {
       init = fn.invoke(init, idx, d[sidx+idx]);
     }
-    if(RT.isReduced(init))
-      return ((IDeref)init).deref();
     return init;
   }
   public final ISeq seq() { return IteratorSeq.create(iterator()); }

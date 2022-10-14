@@ -48,7 +48,8 @@
             ReindexList ConstList ArrayLists$ObjectArrayList Transformables$SingleMapList
             ArrayLists$IntArrayList ArrayLists$LongArrayList ArrayLists$DoubleArrayList
             ReverseList TypedList DoubleMutList LongMutList ArrayLists$ReductionConsumer
-            Consumers Sum Casts Reducible]
+            Consumers Sum Sum$SimpleSum Casts Reducible IndexedDoubleConsumer
+            IndexedLongConsumer IndexedConsumer ITypedReduce]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
@@ -60,8 +61,8 @@
            [java.lang.reflect Array]
            [java.util.function Function BiFunction BiConsumer Consumer
             DoubleBinaryOperator LongBinaryOperator LongFunction IntFunction
-            DoubleConsumer DoublePredicate DoubleUnaryOperator
-            LongConsumer]
+            DoubleConsumer DoublePredicate DoubleUnaryOperator LongPredicate
+            LongUnaryOperator LongConsumer Predicate UnaryOperator]
            [java.util.concurrent ForkJoinPool ExecutorService Callable Future
             ConcurrentHashMap ForkJoinTask ArrayBlockingQueue]
            [it.unimi.dsi.fastutil.ints IntComparator IntArrays]
@@ -2161,25 +2162,64 @@ ham-fisted.api> (binary-search data 1.1 nil)
        (.applyAsLong this# l# r#))))
 
 
+(defn ^:no-doc reduce-reducibles
+  [reducibles]
+  (let [^Reducible r (first reducibles)]
+    (when-not (instance? Reducible r)
+      (throw (Exception. (str "Sequence does not contain reducibles: " (type (first r))))))
+    (.reduce r (rest reducibles))))
+
+
+(defn double-consumer-accumulator
+  "Converts from a double consumer to a double reduction accumulator that returns the
+  consumer:
+
+```clojure
+ham-fisted.api> (fast-reduce double-consumer-accumulator
+                             (Sum$SimpleSum.)
+                             (range 1000))
+#<SimpleSum@2fbcf20: 499500.0>
+ham-fisted.api> @*1
+499500.0
+```"
+  ^DoubleConsumer [^DoubleConsumer dc ^double v]
+  (.accept dc v)
+  dc)
+
+
+(defn long-consumer-accumulator
+  "Converts from a long consumer to a long reduction accumulator that returns the
+  consumer:
+
+```clojure
+ham-fisted.api> (fast-reduce double-consumer-accumulator
+                             (Sum$SimpleSum.)
+                             (range 1000))
+#<SimpleSum@2fbcf20: 499500.0>
+ham-fisted.api> @*1
+499500.0
+```"
+  ^LongConsumer [^LongConsumer dc ^long v]
+  (.accept dc v)
+  dc)
+
+
+
 (defn sum-fast
   "Fast simple double summation.  Does not do any summation compensation but does
-  parallelize the summation for random access containers leading to some additional
+  parallelize the summation for huge random access containers leading to some additional
   numeric stability."
   ^double [coll]
   (let [coll (->reducible coll)]
-    (if (instance? IMutList coll)
-      (let [^IMutList coll coll
-            op             (double-binary-operator l r (unchecked-add l r))]
-        (if (< (.size coll) 100000)
-            (.doubleReduction coll op 0.0)
-            (->> (upgroups (.size coll)
-                           (fn [^long sidx ^long eidx]
-                             (try
-                               (.doubleReduction ^IMutList (.subList coll sidx eidx)
-                                                 op
-                                                 0.0))))
-                 (reduce + 0.0))))
-      (double (fast-reduce + 0.0 coll)))))
+    (if (instance? RandomAccess coll)
+      (let [^List coll coll]
+        (->> (upgroups (.size coll)
+                       (fn [^long sidx ^long eidx]
+                         @(fast-reduce double-consumer-accumulator (Sum$SimpleSum.)
+                                       (.subList coll sidx eidx)))
+                       (:pgroup-min 100000))
+             (fast-reduce + 0.0)))
+      @(fast-reduce double-consumer-accumulator (Sum$SimpleSum.) coll))))
 
 
 (defmacro double-predicate
@@ -2206,12 +2246,60 @@ ham-fisted.api> (binary-search data 1.1 nil)
        (.applyAsDouble this# (Casts/doubleCast v#)))))
 
 
+(defmacro long-predicate
+  "Create an implementation of java.util.Function.LongPredicate"
+  [varname code]
+  `(reify
+     LongPredicate
+     (test [this ~varname]
+       ~code)
+     IFnDef
+     (invoke [this# d#]
+       (.test this# (Casts/longCast d#)))))
+
+
+(defmacro long-unary-operator
+  "Create an implementation of java.util.function.LongUnaryOperator"
+  [varname code]
+  `(reify
+     LongUnaryOperator
+     (applyAsLong [this# ~varname]
+       ~code)
+     IFnDef
+     (invoke [this# v#]
+       (.applyAsLong this# (Casts/longCast v#)))))
+
+(defmacro predicate
+  "Create an implementation of java.util.Function.Predicate"
+  [varname code]
+  `(reify
+     Predicate
+     (test [this ~varname]
+       ~code)
+     IFnDef
+     (invoke [this# d#]
+       (.test this# (Casts/longCast d#)))))
+
+
+(defmacro unary-operator
+  "Create an implementation of java.util.function.UnaryOperator"
+  [varname code]
+  `(reify
+     UnaryOperator
+     (applyAsLong [this# ~varname]
+       ~code)
+     IFnDef
+     (invoke [this# v#]
+       (.applyAsLong this# (Casts/longCast v#)))))
+
+
+
 (defmacro double-consumer
   "Create an instance of a java.util.function.DoubleConsumer"
   [varname & code]
   `(reify
      DoubleConsumer
-     (accept [this ~varname]
+     (accept [this# ~varname]
        ~@code)))
 
 
@@ -2220,31 +2308,216 @@ ham-fisted.api> (binary-search data 1.1 nil)
   [varname & code]
   `(reify
      LongConsumer
-     (accept [this ~varname]
+     (accept [this# ~varname]
        ~@code)))
+
+
+(defmacro consumer
+  "Create an instance of a java.util.function.Consumer"
+  [varname & code]
+  `(reify Consumer
+     (accept [this# ~varname]
+       ~@code)))
+
+
+(defmacro indexed-double-consumer
+  "Create an instance of a ham_fisted.IndexedDoubleConsumer"
+  [idxname varname & code]
+  `(reify
+     IndexedDoubleConsumer
+     (accept [this# ~idxname ~varname]
+       ~@code)))
+
+
+(defmacro indexed-long-consumer
+  "Create an instance of a ham_fisted.IndexedLongConsumer"
+  [idxname varname & code]
+  `(reify
+     IndexedLongConsumer
+     (accept [this# ~idxname ~varname]
+       ~@code)))
+
+
+(defmacro indexed-consumer
+  "Create an instance of a ham_fisted.IndexedConsumer"
+  [idxname varname & code]
+  `(reify Consumer
+     (accept [this# ~idxname ~varname]
+       ~@code)))
+
+
+(defn consumer-filter
+  "Filter a consumer returning a new consumer.  Consumer type is assumed to match
+  predicate type - long, double, or generic.  Returns new consumer."
+  [pred consumer]
+  (cond
+    (instance? DoublePredicate pred)
+    (Consumers/filter ^DoublePredicate pred ^DoubleConsumer consumer)
+    (instance? LongPredicate pred)
+    (Consumers/filter ^LongPredicate pred ^LongConsumer consumer)
+    :else
+    (if (instance? Predicate pred)
+      (Consumers/filter ^Predicate pred ^Consumer consumer)
+      (throw (Exception. "pred is not an instance of a java.util.function predicate")))))
+
+
+(defn consumer-map
+  "Map a consumer using an typed unary operator.  Consumer type is assumed to match
+  unary-op type.  Returns new consumer."
+  [unary-op consumer]
+  (cond
+    (instance? DoubleUnaryOperator unary-op)
+    (Consumers/map ^DoubleUnaryOperator unary-op ^DoubleConsumer consumer)
+    (instance? LongUnaryOperator unary-op)
+    (Consumers/map ^LongUnaryOperator unary-op ^LongConsumer consumer)
+    :else
+    (if (instance? UnaryOperator unary-op)
+      (Consumers/map ^UnaryOperator unary-op ^Consumer consumer)
+      (throw (Exception. "pred is not an instance of a java.util.function unary operator")))))
+
+
+(defn iter-reduce
+  "Faster reduce for things like arraylists or hashmap entrysets that implement Iterable
+  but not IReduceInit."
+  ([rfn init iter] (Transformables/iterReduce iter init rfn))
+  ([rfn iter] (Transformables/iterReduce iter rfn)))
+
+
+(defn fast-reduce
+  "Version of reduce that is a bit faster for things that aren't sequences and do not
+  implement IReduceInit.  If input collection implements ITypedReduce and input
+  rfn is one of IFn.ODO, IFn.OLO, then a primtiive type-specific reduction is used.
+  Note that the accumulator must be of type Object while the next element is of type
+  primitive type long or double.  This is to allow complex accumulators that may have
+  a type specific add method but themselves are objects:
+
+```clojure
+  ham-fisted.api> (fast-reduce double-consumer-accumulator
+                             (Sum$SimpleSum.)
+                             (range 1000))
+#<SimpleSum@69033843: 499500.0>
+ham-fisted.api> @*1
+499500.0
+```"
+  ([rfn init iter]
+   (cond
+     (instance? ITypedReduce iter)
+     (.genericReduction ^ITypedReduce iter rfn init)
+     (instance? IReduceInit iter)
+     (.reduce ^IReduceInit iter rfn init)
+     (instance? Map iter)
+     (iter-reduce rfn init (.entrySet ^Map iter))
+     :else
+     (iter-reduce rfn init (->collection iter))))
+  ([rfn iter]
+   (cond
+     (instance? IReduce iter)
+     (.reduce ^IReduce iter rfn)
+     (instance? Map iter)
+     (iter-reduce rfn (.entrySet ^Map iter))
+     :else
+     (iter-reduce rfn (->collection iter)))))
+
+
+(defn- force-indexed-consumer
+  ^IndexedConsumer [consumer]
+  (cond
+    (instance? IndexedDoubleConsumer consumer)
+    (let [^IndexedDoubleConsumer consumer consumer]
+      (reify IndexedConsumer
+        (accept [this idx val]
+          (.accept consumer idx (Casts/doubleCast val)))))
+    (instance? IndexedLongConsumer consumer)
+    (let [^IndexedLongConsumer consumer consumer]
+      (reify IndexedConsumer
+        (accept [this idx val]
+          (.accept consumer idx (Casts/longCast val)))))
+    :else
+    (if-not (instance? IndexedConsumer consumer)
+      (throw (Exception. "Consumer is not an instance of any indexed consumer"))
+      consumer)))
+
+
+(defn- force-consumer
+  ^Consumer [consumer]
+  (cond
+    (instance? DoubleConsumer consumer)
+    (let [^DoubleConsumer consumer consumer]
+      (reify Consumer
+        (accept [this val]
+          (.accept consumer (Casts/doubleCast val)))))
+    (instance? LongConsumer consumer)
+    (let [^LongConsumer consumer consumer]
+      (reify Consumer
+        (accept [this val]
+          (.accept consumer (Casts/longCast val)))))
+    :else
+    (if-not (instance? Consumer consumer)
+      (throw (Exception. "Consumer is not an instance of any consumer"))
+      consumer)))
+
+
+(defn indexed-consume!
+  "Consume a collection returning the consumer.
+  Consumer must be an implementation of one of the ham-fisted indexed consumers.
+  The consumer is returned."
+  ([consumer init-idx coll]
+   (let [init-idx (long init-idx)]
+     (if (instance? ITypedReduce coll)
+       (.genericIndexedForEach ^ITypedReduce coll init-idx consumer)
+       (let [consumer (force-indexed-consumer consumer)]
+         (fast-reduce (fn [^long idx val]
+                        (.accept consumer idx val)
+                        (unchecked-inc idx))
+                      init-idx
+                      coll))))
+   consumer)
+  ([consumer coll]
+   (indexed-consume! consumer 0 coll)))
+
+
+(defn consume!
+  "Consume a collection returning the consumer.
+  Consumer must be an implementation of one of the ham-fisted indexed consumers or an
+  implementation of a java.util.function consumer.  Overloads for long or double are
+  respected.  In the cast of an indexed consumer the initial index is assumed to be 0."
+  [consumer coll]
+  (cond
+    (or
+     (instance? IndexedDoubleConsumer consumer)
+     (instance? IndexedLongConsumer consumer)
+     (instance? IndexedConsumer consumer))
+    (indexed-consume! consumer coll)
+    (or (instance? DoubleConsumer consumer)
+        (instance? LongConsumer consumer)
+        (instance? Consumer consumer))
+    (if (instance? ITypedReduce coll)
+      (.genericForEach ^ITypedReduce coll consumer)
+      (let [consumer (force-consumer consumer)]
+        (fast-reduce (fn [c val]
+                       (.accept consumer val)
+                       c)
+                     consumer
+                     coll))))
+  consumer)
+
+
 
 
 (defn- options->double-nan-strat
   [options]
   (case (get options :nan-strategy :remove)
-    :remove #(Consumers/filter ^DoublePredicate (double-predicate v (Double/isFinite v))
-                               ^DoubleConsumer %)
+    :remove #(consumer-filter (double-predicate
+                               v
+                               (Double/isFinite v))
+                              %)
     :keep identity
-    :exception #(Consumers/map ^DoubleUnaryOperator
-                               (double-unary-operator
-                                v
-                                (do (when-not (Double/isFinite v)
-                                      (throw (Exception. "Nan detected")))
-                                    v))
-                               ^DoubleConsumer %)))
-
-
-(defn ^:no-doc reduce-reducibles
-  [reducibles]
-  (let [^Reducible r (first reducibles)]
-    (when-not (instance? Reducible r)
-      (throw (Exception. (str "Sequence does not contain reducibles: " (type (first r))))))
-    (.reduce r (rest reducibles))))
+    :exception #(consumer-map (double-unary-operator
+                               v
+                               (do (when-not (Double/isFinite v)
+                                     (throw (Exception. "Nan detected")))
+                                   v))
+                              %)))
 
 
 (defn sum-stable-nelems
@@ -2258,21 +2531,42 @@ ham-fisted.api> (binary-search data 1.1 nil)
          (->> (upgroups
                (.size coll)
                (fn [^long sidx ^long eidx]
-                 (let [sum-op (Sum.)]
-                   (.genericForEach ^IMutList (.subList coll sidx eidx)
-                                    (nan-strat-fn sum-op))
-                   sum-op))
+                 (let [retval (Sum.)]
+                   (consume! (nan-strat-fn retval) (.subList coll sidx eidx))
+                   retval))
                {:pgroup-min 10000})
               (reduce-reducibles)
               (deref)))
-       (let [sum-op (Sum.)]
-         (reduce (fn [^DoubleConsumer op v]
-                   (when v
-                     (.accept op (Casts/doubleCast v)))
-                   op)
-                 (nan-strat-fn sum-op)
-                 coll)
-         (deref sum-op))))))
+       (let [retval (Sum.)]
+         (consume! (nan-strat-fn retval) coll)
+         @retval)))))
+
+
+(defn ^:no-doc sum-double-reduction-stable-nelems
+  "Stable sum returning map of {:sum :n-elems}. See options for [[sum]]."
+  ([coll] (sum-stable-nelems coll nil))
+  ([coll options]
+   (let [coll (->reducible coll)
+         nan-strat-fn (options->double-nan-strat options)]
+     (if (instance? IMutList coll)
+       (let [^IMutList coll coll]
+         (->> (upgroups
+               (.size coll)
+               (fn [^long sidx ^long eidx]
+                 (let [retval (Sum.)
+                       ^DoubleConsumer consumer (nan-strat-fn retval)]
+                   (.genericReduction ^IMutList (.subList coll sidx eidx)
+                                      (fn [c ^double v]
+                                        (.accept consumer v)
+                                        c)
+                                      consumer)
+                   retval))
+               {:pgroup-min 10000})
+              (reduce-reducibles)
+              (deref)))
+       (let [retval (Sum.)]
+         (consume! (nan-strat-fn retval) coll)
+         @retval)))))
 
 
 (defn sum
@@ -2430,34 +2724,6 @@ ham-fisted.api> (binary-search data 1.1 nil)
   index."
   ([v] (clojure.core/repeat v))
   (^List [n v] (ConstList/create n v nil)))
-
-
-(defn iter-reduce
-  "Faster reduce for things like arraylists or hashmap entrysets that implement Iterable
-  but not IReduceInit."
-  ([rfn init iter] (Transformables/iterReduce iter init rfn))
-  ([rfn iter] (Transformables/iterReduce iter rfn)))
-
-
-(defn fast-reduce
-  "Version of reduce that is a bit faster for things that aren't sequences and do not
-  implement IReduceInit."
-  ([rfn init iter]
-   (cond
-     (instance? IReduceInit iter)
-     (.reduce ^IReduceInit iter rfn init)
-     (instance? Map iter)
-     (iter-reduce rfn init (.entrySet ^Map iter))
-     :else
-     (iter-reduce rfn init (->collection iter))))
-  ([rfn iter]
-   (cond
-     (instance? IReduce iter)
-     (.reduce ^IReduce iter rfn)
-     (instance? Map iter)
-     (iter-reduce rfn (.entrySet ^Map iter))
-     :else
-     (iter-reduce rfn (->collection iter)))))
 
 
 (comment

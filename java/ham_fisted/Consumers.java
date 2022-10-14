@@ -12,7 +12,9 @@ import java.util.function.LongPredicate;
 import clojure.lang.IDeref;
 
 public class Consumers {
-  public interface IDerefDoubleConsumer extends IDeref, DoubleConsumer {}
+  public interface IDerefDoubleConsumer extends IDeref, DoubleConsumer
+  {
+  }
   public interface IDerefLongConsumer extends IDeref, LongConsumer {}
   public interface IDerefConsumer extends IDeref, Consumer {}
   public interface IDerefIndexedDoubleConsumer extends IDeref, IndexedDoubleConsumer {}
@@ -82,7 +84,7 @@ public class Consumers {
   public static Consumer toConsumer(long initIdx, IndexedConsumer c) {
     return new IndexedConsumerConverter(initIdx, c);
   }
-  
+
   public static DoubleConsumer map(final DoubleUnaryOperator fn, final DoubleConsumer c) {
     return new IDerefDoubleConsumer() {
       public void accept(double v) {

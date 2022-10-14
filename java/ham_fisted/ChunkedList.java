@@ -593,8 +593,6 @@ public final class ChunkedList {
 	ret = f.invoke(ret, cdata[idx]);
       sidx += clen;
     }
-    if (RT.isReduced(ret))
-      return ((IDeref)ret).deref();
     return ret;
   }
 
@@ -606,10 +604,8 @@ public final class ChunkedList {
 
   Object kvreduce(int startidx, int endidx, IFn f, Object init) {
     final Object[][] mdata = data;
-    for (int i=startidx; i<endidx; i++) {
+    for (int i=startidx; i<endidx && !RT.isReduced(init); i++) {
       init = f.invoke(init, i - startidx, mdata[i/32][i%32]);
-      if (RT.isReduced(init))
-	return ((IDeref)init).deref();
     }
     return init;
   }

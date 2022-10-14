@@ -78,4 +78,23 @@ public final class Sum implements DoubleConsumer, Reducible, IDeref
 				  sumKwd, computeFinalSum(),
 				  nElemsKwd, nElems, null);
   }
+
+  public static class SimpleSum implements DoubleConsumer, IDeref, Reducible
+  {
+    double simpleSum;
+    public SimpleSum() { simpleSum = 0.0; }
+    public void accept(double val) { simpleSum += val; }
+    public SimpleSum reduce(Collection<Reducible> rest) {
+      final SimpleSum retval = new SimpleSum();
+      retval.simpleSum = simpleSum;
+      for(Reducible rhs : rest) {
+	final SimpleSum other = (SimpleSum)rhs;
+	retval.simpleSum += other.simpleSum;
+      }
+      return retval;
+    }
+    public Object deref() {
+      return simpleSum;
+    }
+  };
 }

@@ -182,7 +182,7 @@ public final class PersistentHashMap
       final ILeaf elem = iter.nextLeaf();
       init = f.invoke(init, elem.key(), elem.val());
     }
-    return RT.isReduced(init) ? ((IDeref)init).deref() : init;
+    return init;
   }
   public final ITransientMap asTransient() {
     if (size() == 0)
