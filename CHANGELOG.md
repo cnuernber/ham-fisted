@@ -1,3 +1,7 @@
+# 1.000-beta-20
+ * Moved to double reduction as opposed to double foreach.  Perftested heavily and found that reduce
+   is just as fast and more general.
+ 
 # 1.000-beta-18
  * expose sublistcheck.
 
