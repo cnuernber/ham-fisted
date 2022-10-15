@@ -1,7 +1,13 @@
+# 2.000-beta-22
+ * Numeric values are range checked on input to addLong.
+
+# 2.000-beta-21
+ * Removed ensureCapacity from IMutList.
+
 # 1.000-beta-20
  * Moved to double reduction as opposed to double foreach.  Perftested heavily and found that reduce
    is just as fast and more general.
- 
+
 # 1.000-beta-18
  * expose sublistcheck.
 

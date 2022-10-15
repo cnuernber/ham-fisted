@@ -13,7 +13,7 @@
             ArrayLists$LongArraySubList ArrayLists$LongArrayList
             ArrayLists$FloatArraySubList ArrayLists$BooleanArraySubList
             ArrayLists$DoubleArraySubList ArrayLists$DoubleArrayList]
-           [clojure.lang IPersistentMap IReduceInit]
+           [clojure.lang IPersistentMap IReduceInit RT]
            [java.util Arrays RandomAccess List]))
 
 (set! *warn-on-reflection* true)
@@ -99,12 +99,11 @@
 
 
 (make-prim-array-list ByteArrayList bytes ArrayLists$ILongArrayList getLong setLong addLong
-                      byte unchecked-long Casts/longCast)
-
+                      RT/byteCast unchecked-long Casts/longCast)
 (make-prim-array-list ShortArrayList shorts ArrayLists$ILongArrayList getLong setLong addLong
-                      short unchecked-long Casts/longCast)
+                      RT/shortCast unchecked-long Casts/longCast)
 (make-prim-array-list CharArrayList chars ArrayLists$ILongArrayList getLong setLong addLong
-                      char Casts/longCast Casts/longCast)
+                      RT/charCast Casts/longCast Casts/longCast)
 (make-prim-array-list FloatArrayList floats ArrayLists$IDoubleArrayList getDouble setDouble
                       addDouble float unchecked-double Casts/doubleCast)
 

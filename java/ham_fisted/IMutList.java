@@ -111,9 +111,6 @@ public interface IMutList<E>
   default boolean addAll(Collection<? extends E> c) {
     return addAllReducible(c);
   }
-  default Object ensureCapacity(int newlen) {
-    throw new RuntimeException("unimplemented");
-  }
   @SuppressWarnings("unchecked")
   default boolean addAllReducible(Object obj) {
     final int sz = size();

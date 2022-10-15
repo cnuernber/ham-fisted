@@ -28,7 +28,7 @@
    :exec-args {:group-id "com.cnuernber"
                :artifact-id "ham-fisted"
                ;;Change this also in bquild.clj
-               :version "1.000-beta-20"
+               :version "1.000-beta-22-SNAPSHOT"
                :name "Ham-Fisted"
                :description "High Performance Clojure Primitives"
                :metadata {:doc/format :markdown}
