@@ -47,7 +47,7 @@
             Transformables$MapList Transformables$IMapable Transformables
             ReindexList ConstList ArrayLists$ObjectArrayList Transformables$SingleMapList
             ArrayLists$IntArrayList ArrayLists$LongArrayList ArrayLists$DoubleArrayList
-            ReverseList TypedList DoubleMutList LongMutList ArrayLists$ReductionConsumer
+            ReverseList TypedList DoubleMutList LongMutList
             Consumers Sum Sum$SimpleSum Casts Reducible IndexedDoubleConsumer
             IndexedLongConsumer IndexedConsumer ITypedReduce]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
@@ -2532,40 +2532,17 @@ ham-fisted.api> @*1
                (.size coll)
                (fn [^long sidx ^long eidx]
                  (let [retval (Sum.)]
-                   (consume! (nan-strat-fn retval) (.subList coll sidx eidx))
+                   (fast-reduce double-consumer-accumulator
+                                (nan-strat-fn retval)
+                                (.subList coll sidx eidx))
                    retval))
                {:pgroup-min 10000})
               (reduce-reducibles)
               (deref)))
        (let [retval (Sum.)]
-         (consume! (nan-strat-fn retval) coll)
-         @retval)))))
-
-
-(defn ^:no-doc sum-double-reduction-stable-nelems
-  "Stable sum returning map of {:sum :n-elems}. See options for [[sum]]."
-  ([coll] (sum-stable-nelems coll nil))
-  ([coll options]
-   (let [coll (->reducible coll)
-         nan-strat-fn (options->double-nan-strat options)]
-     (if (instance? IMutList coll)
-       (let [^IMutList coll coll]
-         (->> (upgroups
-               (.size coll)
-               (fn [^long sidx ^long eidx]
-                 (let [retval (Sum.)
-                       ^DoubleConsumer consumer (nan-strat-fn retval)]
-                   (.genericReduction ^IMutList (.subList coll sidx eidx)
-                                      (fn [c ^double v]
-                                        (.accept consumer v)
-                                        c)
-                                      consumer)
-                   retval))
-               {:pgroup-min 10000})
-              (reduce-reducibles)
-              (deref)))
-       (let [retval (Sum.)]
-         (consume! (nan-strat-fn retval) coll)
+         (fast-reduce double-consumer-accumulator
+                      (nan-strat-fn retval)
+                      coll)
          @retval)))))
 
 

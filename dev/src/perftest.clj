@@ -11,7 +11,7 @@
             [criterium.core :as crit])
   (:import [java.util HashMap ArrayList Map List Map$Entry]
            [java.util.function BiFunction]
-           [ham_fisted ArrayLists$ReductionConsumer IMutList]
+           [ham_fisted IMutList]
            [clojure.lang PersistentHashMap])
   (:gen-class))
 
@@ -218,25 +218,33 @@
 (defn sequence-summation
   []
   (log/info "sequence perftest")
-  [{:n-elems 20000
-    :test :sequence-summation
-    :clj (bench/benchmark-us (->> (clojure.core/range 20000)
-                                  (clojure.core/map #(* (long %) 2))
-                                  (clojure.core/map #(+ 1 (long %)))
-                                  (clojure.core/filter #(== 0 (rem (long %) 3)))
-                                  (api/sum)))
-    :eduction (bench/benchmark-us (->> (api/range 20000)
-                                       (eduction
-                                        (comp
-                                         (clojure.core/map #(* (long %) 2))
-                                         (clojure.core/map #(+ 1 (long %)))
-                                         (clojure.core/filter #(== 0 (rem (long %) 3)))))
-                                       (api/sum)))
-    :hamf (bench/benchmark-us (->> (api/range 20000)
-                                   (lznc/map #(* (long %) 2))
-                                   (lznc/map #(+ 1 (long %)))
-                                   (lznc/filter #(== 0 (rem (long %) 3)))
-                                   (api/sum)))}])
+  ;;This is definitely 'cheating' in some dimensions but if we know the end result
+  ;;is a double summation then if we typehint our entire pathway with doubles that will
+  ;;allow the entire pathway to avoid boxing.  The predicate's return value must be
+  ;;an object.
+  (let [mfn1 (fn ^double [^double v] (* v 2))
+        mfn2 (fn ^double [^double v] (+ v 1))
+        pred (fn [^double v] (== 0 (rem (long v) 3)))]
+    (for [n-elems [100 1000 100000]]
+      [{:n-elems n-elems
+        :test :sequence-summation
+        :clj (bench/benchmark-us (->> (clojure.core/range n-elems)
+                                      (clojure.core/map mfn1)
+                                      (clojure.core/map mfn2)
+                                      (clojure.core/filter pred)
+                                      (api/sum)))
+        :eduction (bench/benchmark-us (->> (api/range n-elems)
+                                           (eduction
+                                            (comp
+                                             (clojure.core/map mfn1)
+                                             (clojure.core/map mfn2)
+                                             (clojure.core/filter pred)))
+                                           (api/sum)))
+        :hamf (bench/benchmark-us (->> (api/range n-elems)
+                                       (lznc/map mfn1)
+                                       (lznc/map mfn2)
+                                       (lznc/filter pred)
+                                       (api/sum)))}])))
 
 
 (defn object-array-perftest
@@ -327,10 +335,10 @@
   []
   (log/info "int list")
   (let [n-elems 20000
-        init-data (->> (range n-elems)
-                       (lznc/map #(* (long %) 2))
-                       (lznc/map #(+ 1 (long %)))
-                       (lznc/filter #(== 0 (rem (long %) 3))))]
+        init-data (->> (api/range n-elems)
+                       (lznc/map (fn ^long [^long v] (* v 2)))
+                       (lznc/map (fn ^long [^long v] (+ v 1)))
+                       (lznc/filter (fn [^long v] (== 0 (rem v 3)))))]
     [{:test :int-list
       :n-elems n-elems
       :java (bench/benchmark-us (doto (ArrayList.)

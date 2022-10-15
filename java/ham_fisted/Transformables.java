@@ -49,6 +49,118 @@ public class Transformables {
   public static boolean truthy(final Object obj) {
     return !(obj == null || (Objects.equals(obj, RT.F)));
   }
+  public static IFn toReductionFn(Object rfn) {
+    if(rfn instanceof IFn) rfn;
+    if(rfn instanceof IFn.OLO) {
+      final IFn.OLO rrfn = (IFn.OLO)rfn;
+      return new IFnDef() {
+	public Object invoke(Object lhs, Object rhs) {
+	  return rrfn.invoke(lhs, Casts.longCast(rhs));
+	}
+      }
+    }
+    if(rfn instanceof IFn.ODO) {
+      final IFn.ODO rrfn = (IFn.ODO)rfn;
+      return new IFnDef() {
+	public Object invoke(Object lhs, Object rhs) {
+	  return rrfn.invoke(lhs, Casts.doubleCast(rhs));
+	}
+      }
+    }
+    else
+      throw new RuntimeException("Unrecognised function type: " + String.valueOf(obj.getClass()));
+  }
+
+  public static IFn.OLO toLongReductionFn(Object rfn) {
+    if(rfn instanceof IFn.OLO) {
+      return (IFn.OLO)rfn;
+    }
+    if(rfn instanceof IFn.ODO) {
+      final IFn.ODO rrfn = (IFn.ODO)rfn;
+      return new IFn.OLO() {
+	public Object invokePrim(Object lhs, long rhs) {
+	  return rrfn.invoke(lhs, (double)rhs);
+	}
+      };
+    }
+    if(rfn instanceof IFn) {
+      IFn rrfn = (IFn)rfn;
+      return new IFn.OLO() {
+	public Object invokePrim(Object lhs, long rhs) {
+	  return rrfn.invoke(lhs, rhs);
+	}
+      };
+    }
+    else
+      throw new RuntimeException("Unrecognised function type: " + String.valueOf(obj.getClass()));
+  }
+
+  public static IFn.ODO toDoubleReductionFn(Object rfn) {
+    if(rfn instanceof IFn.ODO) {
+      return (IFn.ODO)rfn;
+    }
+    if(rfn instanceof IFn.OLO) {
+      final IFn.OLO rrfn = (IFn.OLO)rfn;
+      return new IFn.OLO() {
+	public Object invokePrim(Object lhs, double rhs) {
+	  return rrfn.invoke(lhs, (long)rhs);
+	}
+      };
+    }
+    if(rfn instanceof IFn) {
+      IFn rrfn = (IFn)rfn;
+      return new IFn.ODO() {
+	public Object invokePrim(Object lhs, double rhs) {
+	  return rrfn.invoke(lhs, rhs);
+	}
+      };
+    }
+    else
+      throw new RuntimeException("Unrecognised function type: " + String.valueOf(obj.getClass()));
+  }
+
+  public static Object longReduction(Object rfn, Object init, Object coll) {
+    if (coll instanceof ITypedReduce)
+      return ((ITypedReduce)coll).longReduction(toLongReductionFn(rfn), init);
+
+    final IFn rrfn = toReductionFn(rfn);
+    if (coll instanceof IReduceInit) {
+      return ((IReduceInit)coll).reduce(rrfn, init);
+    } else {
+      if(!(coll instanceof Iterable))
+	throw new RuntimeException("Collection is neither reducible nor iterable: " + String.valueOf(rfn.getClass));
+      return iterReduce(coll, init, rrfn);
+    }
+  }
+
+  public static Object doubleReduction(Object rfn, Object init, Object coll) {
+    if (coll instanceof ITypedReduce)
+      return ((ITypedReduce)coll).doubleReduction(toDoubleReductionFn(rfn), init);
+
+    final IFn rrfn = toReductionFn(rfn);
+    if (coll instanceof IReduceInit) {
+      return ((IReduceInit)coll).reduce(rrfn, init);
+    } else {
+      if(!(coll instanceof Iterable))
+	throw new RuntimeException("Collection is neither reducible nor iterable: " + String.valueOf(rfn.getClass));
+      return iterReduce(coll, init, rrfn);
+    }
+  }
+
+  public static Object genericReduction(Object rfn, Object init, Object coll) {
+    if (coll instanceof ITypedReduce)
+      return ((ITypedReduce)coll).genericReduction(rfn, init);
+
+    final IFn rrfn = toReductionFn(rfn);
+    if (coll instanceof IReduceInit) {
+      return ((IReduceInit)coll).reduce(rrfn, init);
+    } else {
+      if(!(coll instanceof Iterable))
+	throw new RuntimeException("Collection is neither reducible nor iterable: " + String.valueOf(rfn.getClass));
+      return iterReduce(coll, init, rrfn);
+    }
+  }
+
   public static Iterable toIterable(Object obj) {
     if( obj == null) return null;
     if( obj instanceof Iterable) return (Iterable)obj;

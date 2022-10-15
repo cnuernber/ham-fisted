@@ -922,7 +922,6 @@ public class ArrayLists {
       d[ne] = val;
       nElems = ne+1;
     }
-    public boolean add(Object obj) { addLong(Casts.longCast(obj)); return true; }
     public void add(int idx, Object obj) {
       idx = wrapCheckIndex(idx, nElems);
       if (idx == nElems) { add(obj); return; }
