@@ -254,13 +254,16 @@ public class ArrayLists {
     return res < 0 ? -1 - (res + sidx) : res - sidx;
   }
 
-  public static class ObjectArraySubList extends ArraySection implements IArrayList {
+  public static class ObjectArraySubList implements IArrayList {
     public final Object[] data;
+    public final int sidx;
+    public final int eidx;
     public final int nElems;
     public final IPersistentMap meta;
-    public ObjectArraySubList(Object[] d, int sidx, int eidx, IPersistentMap m) {
-      super(d, sidx, eidx);
+    public ObjectArraySubList(Object[] d, int _sidx, int _eidx, IPersistentMap m) {
       data = d;
+      sidx = _sidx;
+      eidx = _eidx;
       nElems = eidx - sidx;
       meta = m;
     }
@@ -272,7 +275,7 @@ public class ArrayLists {
       return equiv(other);
     }
     public int hashCode() { return hasheq(); }
-    public ArraySection getArraySection() { return new ArraySection(this); }
+    public ArraySection getArraySection() { return new ArraySection(data, sidx, eidx); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
     public Object get(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
@@ -692,13 +695,16 @@ public class ArrayLists {
   }
   public static IMutList<Object> toList(final short[] data) { return toList(data, 0, data.length, null); }
 
-  public static class IntArraySubList extends ArraySection implements ILongArrayList {
+  public static class IntArraySubList implements ILongArrayList {
     public final int[] data;
+    public final int sidx;
+    public final int eidx;
     public final int nElems;
     public final IPersistentMap meta;
-    public IntArraySubList(int[] d, int sidx, int eidx, IPersistentMap m) {
-      super(d, sidx, eidx);
+    public IntArraySubList(int[] d, int _sidx, int _eidx, IPersistentMap m) {
       data = d;
+      sidx = _sidx;
+      eidx = _eidx;
       nElems = eidx - sidx;
       meta = m;
     }
@@ -708,7 +714,7 @@ public class ArrayLists {
     }
     public int hashCode() { return hasheq(); }
     public IMutList cloneList() { return (IMutList)toList(Arrays.copyOfRange(data, sidx, eidx)); }
-    public ArraySection getArraySection() { return new ArraySection(this); }
+    public ArraySection getArraySection() { return new ArraySection(data, sidx, eidx); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
     public long getLong(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
@@ -1069,13 +1075,16 @@ public class ArrayLists {
   public static IMutList<Object> toList(final int[] data) { return toList(data, 0, data.length, null); }
 
 
-  public static class LongArraySubList extends ArraySection implements ILongArrayList {
+  public static class LongArraySubList implements ILongArrayList {
     public final long[] data;
+    public final int sidx;
+    public final int eidx;
     public final int nElems;
     public final IPersistentMap meta;
-    public LongArraySubList(long[] d, int sidx, int eidx, IPersistentMap m) {
-      super(d, sidx, eidx);
+    public LongArraySubList(long[] d, int _sidx, int _eidx, IPersistentMap m) {
       data = d;
+      sidx = _sidx;
+      eidx = _eidx;
       nElems = eidx - sidx;
       meta = m;
     }
@@ -1084,7 +1093,7 @@ public class ArrayLists {
       return equiv(other);
     }
     public int hashCode() { return hasheq(); }
-    public ArraySection getArraySection() { return new ArraySection(this); }
+    public ArraySection getArraySection() { return new ArraySection(data, sidx, eidx); }
     public IMutList cloneList() { return (IMutList)toList(Arrays.copyOfRange(data, sidx, eidx)); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
@@ -1559,13 +1568,16 @@ public class ArrayLists {
   }
   public static IMutList<Object> toList(final float[] data) { return toList(data, 0, data.length, null); }
 
-  public static class DoubleArraySubList extends ArraySection implements IDoubleArrayList {
+  public static class DoubleArraySubList implements IDoubleArrayList {
     public final double[] data;
+    public final int sidx;
+    public final int eidx;
     public final int nElems;
     public final IPersistentMap meta;
-    public DoubleArraySubList(double[] d, int sidx, int eidx, IPersistentMap m) {
-      super(d, sidx, eidx);
+    public DoubleArraySubList(double[] d, int _sidx, int _eidx, IPersistentMap m) {
       data = d;
+      sidx = _sidx;
+      eidx = _eidx;
       nElems = eidx - sidx;
       meta = m;
     }
@@ -1575,7 +1587,7 @@ public class ArrayLists {
     }
     public int hashCode() { return hasheq(); }
     public IMutList cloneList() { return (IMutList)toList(Arrays.copyOfRange(data, sidx, eidx)); }
-    public ArraySection getArraySection() { return new ArraySection(this); }
+    public ArraySection getArraySection() { return new ArraySection(data, sidx, eidx); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
     public double getDouble(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
@@ -2015,6 +2027,7 @@ public class ArrayLists {
     public void setBoolean(int idx, boolean obj) {
       data[checkIndex(idx, dlen)+sidx] = obj;
     }
+    public IMutList cloneList() { return (IMutList)toList(Arrays.copyOfRange(data, sidx, sidx+dlen)); }
     public List<Object> subList(int ssidx, int seidx) {
       ChunkedList.sublistCheck(ssidx, seidx, size());
       return toList(data, ssidx + sidx, seidx + sidx, meta());

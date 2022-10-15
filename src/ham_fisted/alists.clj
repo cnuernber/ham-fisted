@@ -21,8 +21,26 @@
 
 (pp/implement-tostring-print ArraySection)
 
+
+(defn- add-long-reduce
+  [list c]
+  (Transformables/longReduce (fn [^IMutList lhs ^long v]
+                               (.addLong lhs v)
+                               lhs)
+                             list
+                             c))
+
+(defn- add-double-reduce
+  [list c]
+  (Transformables/doubleReduce (fn [^IMutList lhs ^double v]
+                                 (.addDouble lhs v)
+                                 lhs)
+                               list
+                               c))
+
 (defmacro make-prim-array-list
-  [lname ary-tag iface getname setname addname set-cast-fn get-cast-fn obj-cast-fn]
+  [lname ary-tag iface getname setname addname set-cast-fn get-cast-fn obj-cast-fn
+   add-all-reduce]
   `(deftype ~lname [~(with-meta 'data {:unsynchronized-mutable true
                                        :tag ary-tag})
                     ~(with-meta 'n-elems {:unsynchronized-mutable true
@@ -73,11 +91,7 @@
                (.ensureCapacity this# newlen#)
                (set! ~'n-elems newlen#)
                (.fillRange this# curlen# ~'c)))
-           (Transformables/longReduce (fn [lhs# ^long rhs#]
-                                        (.addLong ^IMutList lhs# rhs#)
-                                        lhs#)
-                                      this#
-                                      c#))
+           (~add-all-reduce this# c#))
          (not (== sz# ~'n-elems))))
      (removeRange [this# sidx# eidx#]
        (ArrayLists/checkIndexRange ~'n-elems sidx# eidx#)
@@ -99,19 +113,19 @@
 
 
 (make-prim-array-list ByteArrayList bytes ArrayLists$ILongArrayList getLong setLong addLong
-                      RT/byteCast unchecked-long Casts/longCast)
+                      RT/byteCast unchecked-long Casts/longCast add-long-reduce)
 (make-prim-array-list ShortArrayList shorts ArrayLists$ILongArrayList getLong setLong addLong
-                      RT/shortCast unchecked-long Casts/longCast)
+                      RT/shortCast unchecked-long Casts/longCast add-long-reduce)
 (make-prim-array-list CharArrayList chars ArrayLists$ILongArrayList getLong setLong addLong
-                      RT/charCast Casts/longCast Casts/longCast)
+                      RT/charCast Casts/longCast Casts/longCast add-long-reduce)
 (make-prim-array-list FloatArrayList floats ArrayLists$IDoubleArrayList getDouble setDouble
-                      addDouble float unchecked-double Casts/doubleCast)
-
+                      addDouble float unchecked-double Casts/doubleCast add-double-reduce)
 (make-prim-array-list BooleanArrayList booleans ArrayLists$IBooleanArrayList getBoolean
                       setBoolean addBoolean Casts/booleanCast Casts/booleanCast
-                      Casts/booleanCast)
+                      Casts/booleanCast add-long-reduce)
 
 
+(pp/implement-tostring-print ByteArrayList)
 (pp/implement-tostring-print ShortArrayList)
 (pp/implement-tostring-print CharArrayList)
 (pp/implement-tostring-print FloatArrayList)

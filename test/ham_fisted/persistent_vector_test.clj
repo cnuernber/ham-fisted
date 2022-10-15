@@ -43,8 +43,8 @@
                                   (api/mut-list
                                    (lznc/concat (range 100) data))
                                   100)))}
-   :byte-vec {:convert-fn identity :vec-fn (comp api/->random-access api/byte-array)}
-   :byte-vec-list {:convert-fn identity :vec-fn (comp api/->random-access api/byte-array-list)}
+   :byte-vec {:convert-fn unchecked-byte :vec-fn (comp api/->random-access api/byte-array)}
+   :byte-vec-list {:convert-fn unchecked-byte :vec-fn (comp api/->random-access api/byte-array-list)}
    :short-vec {:convert-fn identity :vec-fn (comp api/->random-access api/short-array)}
    :short-vec-list {:convert-fn identity :vec-fn (comp api/->random-access api/short-array-list)}
    :char-vec {:convert-fn char :vec-fn
@@ -98,7 +98,7 @@
   (doseq [[k v] vec-fns]
     (let [{:keys [convert-fn vec-fn]} v]
       (is (= (convert-fn 60)
-             (let [prim-vec (vec-fn (range 1000))]
+             (let [prim-vec (vec-fn (lznc/map convert-fn (api/range 1000)))]
                (convert-fn (reduce (partial all-add convert-fn)
                                    (api/subvec prim-vec 10 15))))))
       (is (= (convert-fn 60)
@@ -204,11 +204,14 @@
   (is (= 25 (reduce-kv + 10 (api/vector 2 4 6))))
   (is (= 25 (reduce-kv + 10 (api/subvec (api/vector 0 2 4 6) 1))))
   (doseq [[k v] vec-fns]
-    (let [{:keys [convert-fn vec-fn]} v]
-      (is (= 9811 (long (reduce-kv (partial all-add convert-fn)
-                                   10 (vec-fn (api/range 1 100))))))
-      (is (= 9811 (long (reduce-kv (partial all-add convert-fn)
-                                   10 (api/subvec (vec-fn (api/range 100)) 1))))))))
+    (when-not (#{:byte-vec :byte-vec-list} k)
+      (let [{:keys [convert-fn vec-fn]} v]
+        (is (= 9811 (long (reduce-kv (partial all-add convert-fn)
+                                     10 (vec-fn (api/range 1 100)))))
+            k)
+        (is (= 9811 (long (reduce-kv (partial all-add convert-fn)
+                                     10 (api/subvec (vec-fn (api/range 100)) 1))))
+            k)))))
 
 
 (deftest test-reduce-kv-array
@@ -279,6 +282,12 @@
 (deftest boolean-arrays
   (is (== 2.0 (api/sum (api/boolean-array [true false true false]))))
   (is (= [true false true false] (api/->random-access (api/boolean-array [1 0 1 0])))))
+
+
+(deftest float-regression
+  (is (= 2 (count (api/float-array (lznc/filter (fn [^double v]
+                                                  (not (Double/isNaN v)))
+                                                [1 ##NaN 2]))))))
 
 
 (comment
