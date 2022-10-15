@@ -65,8 +65,7 @@
            (set! ~'n-elems newlen#))))
      (addAllReducible [this# c#]
        (let [sz# (.size this#)]
-         (cond
-           (instance? RandomAccess c#)
+         (if (instance? RandomAccess c#)
            (do
              (let [~(with-meta 'c {:tag 'List}) c#
                    curlen# ~'n-elems
@@ -74,10 +73,11 @@
                (.ensureCapacity this# newlen#)
                (set! ~'n-elems newlen#)
                (.fillRange this# curlen# ~'c)))
-           (instance? IReduceInit c#)
-           (reduce #(do (.add this# %2) %1) this# c#)
-           :else
-           (iterator/doiter obj# c# (.add this# obj#)))
+           (Transformables/longReduce (fn [lhs# ^long rhs#]
+                                        (.addLong ^IMutList lhs# rhs#)
+                                        lhs#)
+                                      this#
+                                      c#))
          (not (== sz# ~'n-elems))))
      (removeRange [this# sidx# eidx#]
        (ArrayLists/checkIndexRange ~'n-elems sidx# eidx#)

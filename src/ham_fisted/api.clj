@@ -2383,6 +2383,13 @@ ham-fisted.api> @*1
   ([rfn iter] (Transformables/iterReduce iter rfn)))
 
 
+(defn- unpack-reduced
+  [item]
+  (if (reduced? item)
+    (deref item)
+    item))
+
+
 (defn fast-reduce
   "Version of reduce that is a bit faster for things that aren't sequences and do not
   implement IReduceInit.  If input collection implements ITypedReduce and input
@@ -2400,23 +2407,27 @@ ham-fisted.api> @*1
 499500.0
 ```"
   ([rfn init iter]
-   (cond
-     (instance? ITypedReduce iter)
-     (.genericReduction ^ITypedReduce iter rfn init)
-     (instance? IReduceInit iter)
-     (.reduce ^IReduceInit iter rfn init)
-     (instance? Map iter)
-     (iter-reduce rfn init (.entrySet ^Map iter))
-     :else
-     (iter-reduce rfn init (->collection iter))))
+   (->
+    (cond
+      (instance? ITypedReduce iter)
+      (.genericReduction ^ITypedReduce iter rfn init)
+      (instance? IReduceInit iter)
+      (.reduce ^IReduceInit iter rfn init)
+      (instance? Map iter)
+      (iter-reduce rfn init (.entrySet ^Map iter))
+      :else
+      (iter-reduce rfn init (->collection iter)))
+    (unpack-reduced)))
   ([rfn iter]
-   (cond
-     (instance? IReduce iter)
-     (.reduce ^IReduce iter rfn)
-     (instance? Map iter)
-     (iter-reduce rfn (.entrySet ^Map iter))
-     :else
-     (iter-reduce rfn (->collection iter)))))
+   (->
+    (cond
+      (instance? IReduce iter)
+      (.reduce ^IReduce iter rfn)
+      (instance? Map iter)
+      (iter-reduce rfn (.entrySet ^Map iter))
+      :else
+      (iter-reduce rfn (->collection iter)))
+    (unpack-reduced))))
 
 
 (defn- force-indexed-consumer

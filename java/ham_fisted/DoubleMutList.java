@@ -7,6 +7,7 @@ import it.unimi.dsi.fastutil.doubles.DoubleArrays;
 import it.unimi.dsi.fastutil.doubles.DoubleComparator;
 import it.unimi.dsi.fastutil.ints.IntComparator;
 import java.util.function.DoubleConsumer;
+import clojure.lang.IFn;
 
 
 public interface DoubleMutList extends IMutList<Object> {
@@ -18,6 +19,16 @@ public interface DoubleMutList extends IMutList<Object> {
   default void setLong(int idx, long obj) { setDouble(idx, (double)obj); }
   default Object get(int idx) { return getDouble(idx); }
   default long getLong(int idx) { return (long)getDouble(idx); }
+  default boolean addAllReducible(Object obj) {
+    final int sz = size();
+    Transformables.doubleReduce(new IFn.ODO() {
+	public Object invokePrim(Object lhs, double rhs) {
+	  ((IMutList)lhs).addDouble(rhs);
+	  return lhs;
+	}
+      }, this, obj);
+    return sz != size();
+  }
   default void fillRange(int startidx, final int endidx, Object v) {
     double l = Casts.doubleCast(v);
     for(; startidx < endidx; ++startidx) {

@@ -402,27 +402,8 @@ public class ArrayLists {
 	nElems += cs;
 	//Hit fastpath
 	fillRange(sz, cl);
-      } else if (c instanceof IReduceInit) {
-	((IReduceInit)c).reduce(new IFnDef() {
-	    public Object invoke(Object lhs, Object rhs) {
-	      add(rhs);
-	      return this;
-	    }
-	  }, this);
-      } else if (c instanceof Iterable) {
-	final Iterator iter = ((Iterable)c).iterator();
-	while(iter.hasNext()) {
-	  final int ne = nElems;
-	  final Object[] d = ensureCapacity(ne+16);
-	  int idx = ne;
-	  final int eidx = idx + 16;
-	  for (; idx < eidx && iter.hasNext(); ++idx) {
-	    d[idx] = iter.next();
-	  }
-	  nElems = idx;
-	}
-      } else {
-	throw new RuntimeException("Input is not an iterable nor an instance of IReduceInit");
+      } else  {
+	IArrayList.super.addAllReducible(c);
       }
       return sz != size();
     }
@@ -933,9 +914,6 @@ public class ArrayLists {
       d[idx] = val;
       nElems = ne+1;
     }
-    public boolean addAll(Collection <? extends Object> c) {
-      return addAllReducible(c);
-    }
     public boolean addAllReducible(Object c) {
       final int sz = size();
       if (c instanceof RandomAccess) {
@@ -946,27 +924,8 @@ public class ArrayLists {
 	nElems += cs;
 	//Hit fastpath
 	fillRange(sz, cl);
-      } else if (c instanceof IReduceInit) {
-	((IReduceInit)c).reduce(new IFnDef() {
-	    public Object invoke(Object lhs, Object rhs) {
-	      add(rhs);
-	      return this;
-	    }
-	  }, this);
-      } else if (c instanceof Iterable) {
-	final Iterator iter = ((Iterable)c).iterator();
-	while(iter.hasNext()) {
-	  final int ne = nElems;
-	  final int[] d = ensureCapacity(ne+16);
-	  int idx = ne;
-	  final int eidx = idx + 16;
-	  for (; idx < eidx && iter.hasNext(); ++idx) {
-	    d[idx] = RT.intCast(Casts.longCast(iter.next()));
-	  }
-	  nElems = idx;
-	}
       } else {
-	throw new RuntimeException("Input is not an iterable nor an instance of IReduceInit");
+	ILongArrayList.super.addAllReducible(c);
       }
       return sz != size();
     }
@@ -1324,9 +1283,6 @@ public class ArrayLists {
       d[idx] = val;
       nElems = ne+1;
     }
-    public boolean addAll(Collection <? extends Object> c) {
-      return addAllReducible(c);
-    }
     public boolean addAllReducible(Object c) {
       final int sz = size();
       if (c instanceof RandomAccess) {
@@ -1337,27 +1293,8 @@ public class ArrayLists {
 	nElems += cs;
 	//Hit fastpath
 	fillRange(sz, cl);
-      } else if (c instanceof IReduceInit) {
-	((IReduceInit)c).reduce(new IFnDef() {
-	    public Object invoke(Object lhs, Object rhs) {
-	      add(rhs);
-	      return this;
-	    }
-	  }, this);
-      } else if (c instanceof Iterable) {
-	final Iterator iter = ((Iterable)c).iterator();
-	while(iter.hasNext()) {
-	  final int ne = nElems;
-	  final long[] d = ensureCapacity(ne+16);
-	  int idx = ne;
-	  final int eidx = idx + 16;
-	  for (; idx < eidx && iter.hasNext(); ++idx) {
-	    d[idx] = Casts.longCast(iter.next());
-	  }
-	  nElems = idx;
-	}
       } else {
-	throw new RuntimeException("Input is not an iterable nor an instance of IReduceInit");
+	ILongArrayList.super.addAllReducible(c);
       }
       return sz != size();
     }
@@ -1837,9 +1774,6 @@ public class ArrayLists {
       d[idx] = val;
       nElems = ne+1;
     }
-    public boolean addAll(Collection <? extends Object> c) {
-      return addAllReducible(c);
-    }
     public boolean addAllReducible(Object c) {
       final int sz = size();
       if (c instanceof RandomAccess) {
@@ -1850,27 +1784,8 @@ public class ArrayLists {
 	nElems += cs;
 	//Hit fastpath
 	fillRange(sz, cl);
-      } else if (c instanceof IReduceInit) {
-	((IReduceInit)c).reduce(new IFnDef() {
-	    public Object invoke(Object lhs, Object rhs) {
-	      add(rhs);
-	      return this;
-	    }
-	  }, this);
-      } else if (c instanceof Iterable) {
-	final Iterator iter = ((Iterable)c).iterator();
-	while(iter.hasNext()) {
-	  final int ne = nElems;
-	  final double[] d = ensureCapacity(ne+16);
-	  int idx = ne;
-	  final int eidx = idx + 16;
-	  for (; idx < eidx && iter.hasNext(); ++idx) {
-	    d[idx] = Casts.doubleCast(iter.next());
-	  }
-	  nElems = idx;
-	}
       } else {
-	throw new RuntimeException("Input is not an iterable nor an instance of IReduceInit");
+	IDoubleArrayList.super.addAllReducible(c);
       }
       return sz != size();
     }

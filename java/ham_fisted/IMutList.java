@@ -111,22 +111,18 @@ public interface IMutList<E>
   default boolean addAll(Collection<? extends E> c) {
     return addAllReducible(c);
   }
+  default Object ensureCapacity(int newlen) {
+    throw new RuntimeException("unimplemented");
+  }
   @SuppressWarnings("unchecked")
   default boolean addAllReducible(Object obj) {
     final int sz = size();
-    //If object implements IReduceInit then prefer that over iteration.
-    if(obj instanceof IReduceInit) {
-      ((IReduceInit)obj).reduce(new IFnDef() {
-	  public Object invoke(Object lhs, Object rhs) {
-	    add((E)rhs);
-	    return this;
-	  }
-	}, this);
-    } else {
-      for(Object item : (Collection)obj) {
-	add((E)item);
-      }
-    }
+    Transformables.genericReduce(new IFnDef() {
+	public Object invoke(Object lhs, Object rhs) {
+	  ((IMutList<E>)lhs).add((E)rhs);
+	  return lhs;
+	}
+      }, this, obj);
     return sz != size();
   }
   default boolean addAll(int idx, Collection<? extends E> c) {

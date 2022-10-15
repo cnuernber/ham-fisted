@@ -221,7 +221,7 @@
   ;;This is definitely 'cheating' in some dimensions but if we know the end result
   ;;is a double summation then if we typehint our entire pathway with doubles that will
   ;;allow the entire pathway to avoid boxing.  The predicate's return value must be
-  ;;an object.
+  ;;an object, however, not a long or a double so there is some minimal boxing.
   (let [mfn1 (fn ^double [^double v] (* v 2))
         mfn2 (fn ^double [^double v] (+ v 1))
         pred (fn [^double v] (== 0 (rem (long v) 3)))]
@@ -474,18 +474,6 @@
        :test :stable-summation
        :hamf (bench/benchmark-us (api/sum data))
        :clj (bench/benchmark-us (dfn/sum data))})))
-
-
-(defn stable-sum-reduction-perftest
-  []
-  (log/info "stable summation - dtype(clj) vs. hamf")
-  (for [n-elems [100 1000 1000000]]
-    (let [n-elems (long n-elems)
-          data (api/double-array (range n-elems))]
-      {:n-elems n-elems
-       :test :stable-summation
-       :double-reduction (bench/benchmark-us (api/sum-double-reduction-stable-nelems data))
-       :double-consumer (bench/benchmark-us (api/sum-stable-nelems data))})))
 
 
 (defn unstable-sum-perftest

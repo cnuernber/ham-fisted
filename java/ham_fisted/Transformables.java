@@ -50,25 +50,25 @@ public class Transformables {
     return !(obj == null || (Objects.equals(obj, RT.F)));
   }
   public static IFn toReductionFn(Object rfn) {
-    if(rfn instanceof IFn) rfn;
+    if(rfn instanceof IFn) return (IFn)rfn;
     if(rfn instanceof IFn.OLO) {
       final IFn.OLO rrfn = (IFn.OLO)rfn;
       return new IFnDef() {
 	public Object invoke(Object lhs, Object rhs) {
-	  return rrfn.invoke(lhs, Casts.longCast(rhs));
+	  return rrfn.invokePrim(lhs, Casts.longCast(rhs));
 	}
-      }
+      };
     }
     if(rfn instanceof IFn.ODO) {
       final IFn.ODO rrfn = (IFn.ODO)rfn;
       return new IFnDef() {
 	public Object invoke(Object lhs, Object rhs) {
-	  return rrfn.invoke(lhs, Casts.doubleCast(rhs));
+	  return rrfn.invokePrim(lhs, Casts.doubleCast(rhs));
 	}
-      }
+      };
     }
     else
-      throw new RuntimeException("Unrecognised function type: " + String.valueOf(obj.getClass()));
+      throw new RuntimeException("Unrecognised function type: " + String.valueOf(rfn.getClass()));
   }
 
   public static IFn.OLO toLongReductionFn(Object rfn) {
@@ -79,7 +79,7 @@ public class Transformables {
       final IFn.ODO rrfn = (IFn.ODO)rfn;
       return new IFn.OLO() {
 	public Object invokePrim(Object lhs, long rhs) {
-	  return rrfn.invoke(lhs, (double)rhs);
+	  return rrfn.invokePrim(lhs, (double)rhs);
 	}
       };
     }
@@ -92,7 +92,7 @@ public class Transformables {
       };
     }
     else
-      throw new RuntimeException("Unrecognised function type: " + String.valueOf(obj.getClass()));
+      throw new RuntimeException("Unrecognised function type: " + String.valueOf(rfn.getClass()));
   }
 
   public static IFn.ODO toDoubleReductionFn(Object rfn) {
@@ -101,9 +101,9 @@ public class Transformables {
     }
     if(rfn instanceof IFn.OLO) {
       final IFn.OLO rrfn = (IFn.OLO)rfn;
-      return new IFn.OLO() {
+      return new IFn.ODO() {
 	public Object invokePrim(Object lhs, double rhs) {
-	  return rrfn.invoke(lhs, (long)rhs);
+	  return rrfn.invokePrim(lhs, (long)rhs);
 	}
       };
     }
@@ -116,10 +116,10 @@ public class Transformables {
       };
     }
     else
-      throw new RuntimeException("Unrecognised function type: " + String.valueOf(obj.getClass()));
+      throw new RuntimeException("Unrecognised function type: " + String.valueOf(rfn.getClass()));
   }
 
-  public static Object longReduction(Object rfn, Object init, Object coll) {
+  public static Object longReduce(Object rfn, Object init, Object coll) {
     if (coll instanceof ITypedReduce)
       return ((ITypedReduce)coll).longReduction(toLongReductionFn(rfn), init);
 
@@ -128,12 +128,12 @@ public class Transformables {
       return ((IReduceInit)coll).reduce(rrfn, init);
     } else {
       if(!(coll instanceof Iterable))
-	throw new RuntimeException("Collection is neither reducible nor iterable: " + String.valueOf(rfn.getClass));
+	throw new RuntimeException("Collection is neither reducible nor iterable: " + String.valueOf(rfn.getClass()));
       return iterReduce(coll, init, rrfn);
     }
   }
 
-  public static Object doubleReduction(Object rfn, Object init, Object coll) {
+  public static Object doubleReduce(Object rfn, Object init, Object coll) {
     if (coll instanceof ITypedReduce)
       return ((ITypedReduce)coll).doubleReduction(toDoubleReductionFn(rfn), init);
 
@@ -142,12 +142,12 @@ public class Transformables {
       return ((IReduceInit)coll).reduce(rrfn, init);
     } else {
       if(!(coll instanceof Iterable))
-	throw new RuntimeException("Collection is neither reducible nor iterable: " + String.valueOf(rfn.getClass));
+	throw new RuntimeException("Collection is neither reducible nor iterable: " + String.valueOf(rfn.getClass()));
       return iterReduce(coll, init, rrfn);
     }
   }
 
-  public static Object genericReduction(Object rfn, Object init, Object coll) {
+  public static Object genericReduce(Object rfn, Object init, Object coll) {
     if (coll instanceof ITypedReduce)
       return ((ITypedReduce)coll).genericReduction(rfn, init);
 
@@ -156,7 +156,7 @@ public class Transformables {
       return ((IReduceInit)coll).reduce(rrfn, init);
     } else {
       if(!(coll instanceof Iterable))
-	throw new RuntimeException("Collection is neither reducible nor iterable: " + String.valueOf(rfn.getClass));
+	throw new RuntimeException("Collection is neither reducible nor iterable: " + String.valueOf(rfn.getClass()));
       return iterReduce(coll, init, rrfn);
     }
   }
@@ -195,85 +195,76 @@ public class Transformables {
   }
   public static Object singleMapReduce(final Object item, final IFn rfn,
 				       final IFn mapFn, Object init) {
-    if(item instanceof IReduceInit) {
-      IReduceInit reducer = (IReduceInit)item;
-      return reducer.reduce(new IFnDef() {
-	  public Object invoke(Object lhs, Object rhs) {
-	    return rfn.invoke(lhs, mapFn.invoke(rhs));
-	  }
-	}, init);
+    return genericReduce(new IFnDef() {
+	public Object invoke(Object lhs, Object rhs) {
+	  return rfn.invoke(lhs, mapFn.invoke(rhs));
+	}
+      }, init, item);
+  }
+  public interface IMapFn {
+    IFn.DD toDoubleFn();
+    IFn.LL toLongFn();
+  }
+  public static IFn.DD toDoubleMapFn(final IFn srcFn) {
+    if (srcFn instanceof IFn.DD)
+      return (IFn.DD)srcFn;
+    else if (srcFn instanceof IFn.LL){
+      final IFn.LL sfn = (IFn.LL)srcFn;
+      return new IFn.DD() {
+	public double invokePrim(double v) {
+	  return (double)sfn.invokePrim((long)v);
+	}
+      };
+    } else if (srcFn instanceof IMapFn) {
+      return ((IMapFn)srcFn).toDoubleFn();
     } else {
-      return iterReduce((Iterable)item, init, new IFnDef() {
-	  public Object invoke(Object lhs, Object rhs) {
-	    return rfn.invoke(lhs, mapFn.invoke(rhs));
-	  }
-	});
+      return new IFn.DD() {
+	public double invokePrim(double v) {
+	  return Casts.doubleCast(srcFn.invoke(v));
+	}
+      };
     }
   }
   public static Object singleMapDoubleReduce(final Object item, final IFn.ODO rfn,
 					     final IFn mapFn, Object init) {
-    if (item instanceof ITypedReduce) {
-      final IFn.ODO redFn;
-      if(mapFn instanceof IFn.DD) {
-	final IFn.DD ffn = (IFn.DD)mapFn;
-	redFn = new IFn.ODO() {
-	    public Object invokePrim(Object lhs, double v) {
-	      return rfn.invokePrim(lhs, ffn.invokePrim(v));
-	    }
-	  };
-      } else {
-	redFn = new IFn.ODO() {
-	    public Object invokePrim(Object lhs, double v) {
-	      return rfn.invokePrim(lhs, Casts.doubleCast(mapFn.invoke(v)));
-	    }
-	  };
-      }
-      return ((ITypedReduce)item).doubleReduction(redFn, init);
-    } else {
-      final IFn rrfn = new IFnDef() {
-	  public Object invoke(Object lhs, Object rhs) {
-	    return rfn.invokePrim(lhs, Casts.doubleCast(mapFn.invoke(rhs)));
-	  }
-	};
-      if (item instanceof IReduceInit) {
-	return ((IReduceInit)item).reduce(rrfn, init);
-      } else {
-	return iterReduce(item, init, rrfn);
-      }
-    }
+    final IFn.DD dmap = toDoubleMapFn(mapFn);
+    final IFn.ODO redFn = new IFn.ODO() {
+	public Object invokePrim(Object lhs, double rhs) {
+	  return rfn.invokePrim(lhs, dmap.invokePrim(rhs));
+	}
+      };
+    return doubleReduce(redFn, init, item);
   }
 
+  public static IFn.LL toLongMapFn(final IFn srcFn) {
+    if (srcFn instanceof IFn.LL)
+      return (IFn.LL)srcFn;
+    else if (srcFn instanceof IFn.DD){
+      final IFn.DD sfn = (IFn.DD)srcFn;
+      return new IFn.LL() {
+	public long invokePrim(long v) {
+	  return (long)sfn.invokePrim((double)v);
+	}
+      };
+    } else if (srcFn instanceof IMapFn) {
+      return ((IMapFn)srcFn).toLongFn();
+    } else {
+      return new IFn.LL() {
+	public long invokePrim(long v) {
+	  return Casts.longCast(srcFn.invoke(v));
+	}
+      };
+    }
+  }
   public static Object singleMapLongReduce(final Object item, final IFn.OLO rfn,
 					   final IFn mapFn, Object init) {
-    if (item instanceof ITypedReduce) {
-      final IFn.OLO redFn;
-      if(mapFn instanceof IFn.LL) {
-	final IFn.LL ffn = (IFn.LL)mapFn;
-	redFn = new IFn.OLO() {
-	    public Object invokePrim(Object lhs, long v) {
-	      return rfn.invokePrim(lhs, ffn.invokePrim(v));
-	    }
-	  };
-      } else {
-	redFn = new IFn.OLO() {
-	    public Object invokePrim(Object lhs, long v) {
-	      return rfn.invokePrim(lhs, Casts.longCast(mapFn.invoke(v)));
-	    }
-	  };
-      }
-      return ((ITypedReduce)item).longReduction(redFn, init);
-    } else {
-      final IFn rrfn = new IFnDef() {
-	  public Object invoke(Object lhs, Object rhs) {
-	    return rfn.invokePrim(lhs, Casts.longCast(mapFn.invoke(rhs)));
-	  }
-	};
-      if (item instanceof IReduceInit) {
-	return ((IReduceInit)item).reduce(rrfn, init);
-      } else {
-	return iterReduce(item, init, rrfn);
-      }
-    }
+    final IFn.LL dmap = toLongMapFn(mapFn);
+    final IFn.OLO redFn = new IFn.OLO() {
+	public Object invokePrim(Object lhs, long rhs) {
+	  return rfn.invokePrim(lhs, dmap.invokePrim(rhs));
+	}
+      };
+    return longReduce(redFn, init, item);
   }
 
   public static class MapIterable
@@ -394,29 +385,83 @@ public class Transformables {
     }
     @SuppressWarnings("unchecked")
     public void forEach(Consumer c) {
-      if(iterables.length == 1) {
-	final Object src = iterables[0];
-	if(src instanceof ITypedReduce) {
-	  ((ITypedReduce)src).forEach(new Consumer() {
-	      public void accept(Object obj) {
-		c.accept(fn.invoke(obj));
-	      }
-	    });
-	  return;
-	}
-      } else {
-	reduce(new IFnDef() {
-	    public Object invoke(Object lhs, Object rhs) {
-	      c.accept(rhs);
-	      return c;
-	    }
-	  }, c);
-      }
+      ITypedReduce.super.forEach(c);
     }
     public Object[] toArray() {
       return ArrayLists.toArray(this);
     }
   }
+  public interface IPredFn {
+    public IFn.DO toDoubleFn();
+    public IFn.LO toLongFn();
+  };
+  public static IFn.DO toDoublePredFn(IFn src) {
+    if(src instanceof IFn.DO)
+      return (IFn.DO)src;
+    if(src instanceof IFn.LO) {
+      final IFn.LO ss = (IFn.LO)src;
+      return new IFn.DO() {
+	public Object invokePrim(double v) {
+	  return ss.invokePrim((long)v);
+	}
+      };
+    }
+    if(src instanceof IPredFn)
+      return ((IPredFn)src).toDoubleFn();
+    return new IFn.DO() {
+      public Object invokePrim(double v) {
+	return src.invoke(v);
+      }
+    };
+  }
+  public static IFn.LO toLongPredFn(IFn src) {
+    if(src instanceof IFn.LO)
+      return (IFn.LO)src;
+    if(src instanceof IFn.DO) {
+      final IFn.DO ss = (IFn.DO)src;
+      return new IFn.LO() {
+	public Object invokePrim(long v) {
+	  return ss.invokePrim((double)v);
+	}
+      };
+    }
+    if(src instanceof IPredFn)
+      return ((IPredFn)src).toLongFn();
+    return new IFn.LO() {
+      public Object invokePrim(long v) {
+	return src.invoke(v);
+      }
+    };
+  }
+  public static class PredFn implements IFnDef, IPredFn {
+    final IFn srcPred;
+    final IFn dstPred;
+    public PredFn(IFn sp, IFn dp) {
+      srcPred = sp;
+      dstPred = dp;
+    }
+    public Object invoke(Object v) {
+      return truthy(srcPred.invoke(v)) && truthy(dstPred.invoke(v));
+    }
+    public IFn.DO toDoubleFn() {
+      IFn.DO ss = toDoublePredFn(srcPred);
+      IFn.DO dd = toDoublePredFn(dstPred);
+      return new IFn.DO() {
+	public Object invokePrim(double v) {
+	  return truthy(ss.invokePrim(v)) && truthy(dd.invokePrim(v));
+	}
+      };
+    }
+    public IFn.LO toLongFn() {
+      IFn.LO ss = toLongPredFn(srcPred);
+      IFn.LO dd = toLongPredFn(dstPred);
+      return new IFn.LO() {
+	public Object invokePrim(long v) {
+	  return truthy(ss.invokePrim(v)) && truthy(dd.invokePrim(v));
+	}
+      };
+    }
+  };
   public static class FilterIterable
     extends AbstractCollection
     implements Seqable, IMapable, ITypedReduce {
@@ -473,11 +518,7 @@ public class Transformables {
       return IteratorSeq.create(iterator());
     }
     public IMapable filter(IFn nfn) {
-      return new FilterIterable( new IFnDef() {
-	  public Object invoke(Object obj) {
-	    return truthy(pred.invoke(obj)) && truthy(nfn.invoke(obj));
-	  }
-	}, meta(), src);
+      return new FilterIterable(new PredFn(pred, nfn), meta(), src);
     }
     public IPersistentMap meta() { return meta; }
     public FilterIterable withMeta(IPersistentMap m) {
@@ -518,61 +559,24 @@ public class Transformables {
       }
     }
     public Object doubleReduction(final IFn.ODO rfn, Object init) {
-      if(src instanceof ITypedReduce) {
-	final IFn.ODO redFn;
-	if(pred instanceof IFn.DO) {
-	  final IFn.DO ffn = (IFn.DO)pred;
-	  redFn = new IFn.ODO() {
-	      public Object invokePrim(Object lhs, double v) {
-		if(truthy(ffn.invokePrim(v)))
-		  return rfn.invokePrim(lhs, v);
-		else
-		  return lhs;
-	      }
-	    };
-	} else {
-	  redFn = new IFn.ODO() {
-	      public Object invokePrim(Object lhs, double v) {
-		if(truthy(pred.invoke(v)))
-		  return rfn.invokePrim(lhs, v);
-		else
-		  return lhs;
-	      }
-	    };
-	}
-	return ((ITypedReduce)src).doubleReduction(redFn, init);
-      } else {
-	return ITypedReduce.super.doubleReduction(rfn, init);
-      }
+      final IFn.DO pfn = toDoublePredFn(pred);
+      return doubleReduce(new IFn.ODO() {
+	  public Object invokePrim(Object lhs, double v) {
+	    if(truthy(pfn.invokePrim(v)))
+	      return rfn.invokePrim(lhs, v);
+	    return lhs;
+	  }
+	}, init, src);
     }
     public Object longReduction(final IFn.OLO rfn, Object init) {
-      if(src instanceof ITypedReduce) {
-	final IFn.OLO redFn;
-	final LongConsumer ddc;
-	if(pred instanceof IFn.LO) {
-	  final IFn.LO ffn = (IFn.LO)pred;
-	  redFn = new IFn.OLO() {
-	      public Object invokePrim(Object lhs, long v) {
-		if(truthy(ffn.invokePrim(v)))
-		  return rfn.invokePrim(lhs, v);
-		else
-		  return lhs;
-	      }
-	    };
-	} else {
-	  redFn = new IFn.OLO() {
-	      public Object invokePrim(Object lhs, long v) {
-		if(truthy(pred.invoke(v)))
-		  return rfn.invokePrim(lhs, v);
-		else
-		  return lhs;
-	      }
-	    };
-	}
-	return ((ITypedReduce)src).longReduction(redFn, init);
-      } else {
-	return ITypedReduce.super.longReduction(rfn, init);
-      }
+      final IFn.LO pfn = toLongPredFn(pred);
+      return longReduce(new IFn.OLO() {
+	  public Object invokePrim(Object lhs, long v) {
+	    if(truthy(pfn.invokePrim(v)))
+	      return rfn.invokePrim(lhs, v);
+	    return lhs;
+	  }
+	}, init, src);
     }
     @SuppressWarnings("unchecked")
     public void forEach(Consumer c) {
@@ -672,36 +676,19 @@ public class Transformables {
       final int nData = data.length;
       final Iterable[] d = data;
       for(int idx = 0; idx < nData && !RT.isReduced(init); ++idx) {
-	final Iterable nextObj = d[idx];
-	if(nextObj instanceof IReduceInit) {
-	  init = ((IReduceInit)nextObj).reduce(fn, init);
-	} else {
-	  init = iterReduce(nextObj, init, fn);
-	}
+	final Iterable item = d[idx];
+	for(Iterator iter = item.iterator(); iter.hasNext() && !RT.isReduced(init);)
+	  init = genericReduce(fn, init, iter.next());
       }
       return init;
     }
-
     public Object longReduction(final IFn.OLO rfn, Object init) {
       final int nData = data.length;
       final Iterable[] d = data;
       for(int idx = 0; idx < nData && !RT.isReduced(init); ++idx) {
-	final Iterable nextObj = d[idx];
-	if(nextObj instanceof ITypedReduce) {
-	  init = ((ITypedReduce)nextObj).longReduction(rfn, init);
-	} else {
-	  final IFn rrfn = new IFnDef() {
-	      public Object invoke(Object lhs, Object rhs) {
-		return rfn.invokePrim(lhs, Casts.longCast(rhs));
-	      }
-	    };
-	  if (nextObj instanceof IReduceInit) {
-	    init = ((IReduceInit)nextObj).reduce(rrfn, init);
-	  }
-	  else {
-	    init = iterReduce(nextObj, init, rrfn);
-	  }
-	}
+	final Iterable item = d[idx];
+	for(Iterator iter = item.iterator(); iter.hasNext() && !RT.isReduced(init);)
+	  init = longReduce(rfn, init, iter.next());
       }
       return init;
     }
@@ -709,22 +696,9 @@ public class Transformables {
       final int nData = data.length;
       final Iterable[] d = data;
       for(int idx = 0; idx < nData && !RT.isReduced(init); ++idx) {
-	final Iterable nextObj = d[idx];
-	if(nextObj instanceof ITypedReduce) {
-	  init = ((ITypedReduce)nextObj).doubleReduction(rfn, init);
-	} else {
-	  final IFn rrfn = new IFnDef() {
-	      public Object invoke(Object lhs, Object rhs) {
-		return rfn.invokePrim(lhs, Casts.doubleCast(rhs));
-	      }
-	    };
-	  if (nextObj instanceof IReduceInit) {
-	    init = ((IReduceInit)nextObj).reduce(rrfn, init);
-	  }
-	  else {
-	    init = iterReduce(nextObj, init, rrfn);
-	  }
-	}
+	final Iterable item = d[idx];
+	for(Iterator iter = item.iterator(); iter.hasNext() && !RT.isReduced(init);)
+	  init = doubleReduce(rfn, init, iter.next());
       }
       return init;
     }
@@ -774,10 +748,10 @@ public class Transformables {
     public Object reduce(IFn rfn, Object init) {
       return singleMapReduce(list, rfn, fn, init);
     }
-    public Object doubleReduce(IFn.ODO rfn, Object init) {
+    public Object doubleReduction(IFn.ODO rfn, Object init) {
       return singleMapDoubleReduce(list, rfn, fn, init);
     }
-    public Object longReduce(IFn.OLO rfn, Object init) {
+    public Object longReduction(IFn.OLO rfn, Object init) {
       return singleMapLongReduce(list, rfn, fn, init);
     }
   }

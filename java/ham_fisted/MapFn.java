@@ -4,12 +4,32 @@ package ham_fisted;
 import clojure.lang.IFn;
 import clojure.lang.ISeq;
 
-public class MapFn implements IFnDef {
+public class MapFn implements IFnDef, Transformables.IMapFn {
   public final IFn srcFn;
   public final IFn dstFn;
   public MapFn(IFn sfn, IFn dfn) {
     srcFn = sfn;
     dstFn = dfn;
+  }
+
+  public IFn.DD toDoubleFn() {
+    IFn.DD sfn = Transformables.toDoubleMapFn(srcFn);
+    IFn.DD dfn = Transformables.toDoubleMapFn(dstFn);
+    return new IFn.DD() {
+      public double invokePrim(double v) {
+	return dfn.invokePrim(sfn.invokePrim(v));
+      }
+    };
+  }
+
+  public IFn.LL toLongFn() {
+    IFn.LL sfn = Transformables.toLongMapFn(srcFn);
+    IFn.LL dfn = Transformables.toLongMapFn(dstFn);
+    return new IFn.LL() {
+      public long invokePrim(long v) {
+	return dfn.invokePrim(sfn.invokePrim(v));
+      }
+    };
   }
 
   public Object invoke() {

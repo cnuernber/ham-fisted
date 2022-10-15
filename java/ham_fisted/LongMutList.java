@@ -9,6 +9,7 @@ import it.unimi.dsi.fastutil.longs.LongArrays;
 import it.unimi.dsi.fastutil.longs.LongComparator;
 import it.unimi.dsi.fastutil.ints.IntComparator;
 import java.util.function.LongConsumer;
+import clojure.lang.IFn;
 
 
 public interface LongMutList extends IMutList<Object> {
@@ -49,6 +50,18 @@ public interface LongMutList extends IMutList<Object> {
       add(startidx, l);
     }
   }
+
+  default boolean addAllReducible(Object obj) {
+    final int sz = size();
+    Transformables.longReduce(new IFn.OLO() {
+	public Object invokePrim(Object lhs, long rhs) {
+	  ((IMutList)lhs).addLong(rhs);
+	  return lhs;
+	}
+      }, this, obj);
+    return sz != size();
+  }
+
   default IntComparator indexComparator() {
     return new IntComparator() {
       public int compare(int lidx, int ridx) {
@@ -78,11 +91,11 @@ public interface LongMutList extends IMutList<Object> {
     LongArrays.shuffle(data, r);
     return ArrayLists.toList(data);
   }
-  default void doubleForEach(DoubleConsumer dc) {
-    longForEach(new LongConsumer() {
-	public void accept(long c) {
-	  dc.accept((double)c);
+  default Object doubleReduction(IFn.ODO fn, Object init) {
+    return longReduction(new IFn.OLO() {
+	public Object invokePrim(Object lhs, long v) {
+	  return fn.invokePrim(lhs, (double)v);
 	}
-      });
+      }, init);
   }
 }
