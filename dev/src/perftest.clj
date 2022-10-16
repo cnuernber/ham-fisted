@@ -247,6 +247,15 @@
                                        (api/sum)))}])))
 
 
+(defn stream-summation
+  []
+  (for [n-elems [10 10000 10000000]]
+    [{:n-elems n-elems
+      :test :stream-summation
+      :hamf (bench/benchmark-us (api/sum-stable-nelems (api/range n-elems)))
+      :java-stream (bench/benchmark-us (api/sum-stable-nelems-stream (api/range n-elems)))}]))
+
+
 (defn object-array-perftest
   []
   (log/info "obj array perftest")

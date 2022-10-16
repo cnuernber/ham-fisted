@@ -578,6 +578,33 @@ public class Transformables {
 	  }
 	}, init, src);
     }
+    public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn, ParallelOptions options) {
+      IFn newRFn;
+      if(rfn instanceof IFn.ODO) {
+	final IFn.DO pfn = toDoublePredFn(pred);
+	final IFn.ODO rrfn = (IFn.ODO)rfn;
+	newRFn = new Reductions.DoubleAccum() {
+	    public Object invokePrim(Object lhs, double v) {
+	      return truthy(pfn.invokePrim(v)) ? rrfn.invokePrim(lhs, v) : lhs;
+	    }
+	  };
+      } else if (rfn instanceof IFn.OLO) {
+	final IFn.LO pfn = toLongPredFn(pred);
+	final IFn.OLO rrfn = (IFn.OLO)rfn;
+	newRFn = new Reductions.LongAccum() {
+	    public Object invokePrim(Object lhs, long v) {
+	      return truthy(pfn.invokePrim(v)) ? rrfn.invokePrim(lhs, v) : lhs;
+	    }
+	  };
+      } else {
+	newRFn = new IFnDef() {
+	    public Object invoke(Object lhs, Object v) {
+	      return truthy(pred.invoke(v)) ? rfn.invoke(lhs, v) : lhs;
+	    }
+	  };
+      }
+      return Reductions.parallelReduction(initValFn, newRFn, mergeFn, options, src);
+    }
     @SuppressWarnings("unchecked")
     public void forEach(Consumer c) {
       ITypedReduce.super.forEach(c);
@@ -753,6 +780,33 @@ public class Transformables {
     }
     public Object longReduction(IFn.OLO rfn, Object init) {
       return singleMapLongReduce(list, rfn, fn, init);
+    }
+    public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn, ParallelOptions options) {
+      IFn newRFn;
+      if(fn instanceof IFn.ODO) {
+	final IFn.DD pfn = toDoubleMapFn(fn);
+	final IFn.ODO rrfn = (IFn.ODO)rfn;
+	newRFn = new Reductions.DoubleAccum() {
+	    public Object invokePrim(Object lhs, double v) {
+	      return rrfn.invokePrim(lhs, pfn.invokePrim(v));
+	    }
+	  };
+      } else if (rfn instanceof IFn.OLO) {
+	final IFn.LL pfn = toLongMapFn(fn);
+	final IFn.OLO rrfn = (IFn.OLO)rfn;
+	newRFn = new Reductions.LongAccum() {
+	    public Object invokePrim(Object lhs, long v) {
+	      return rrfn.invokePrim(lhs, pfn.invokePrim(v));
+	    }
+	  };
+      } else {
+	newRFn = new IFnDef() {
+	    public Object invoke(Object lhs, Object v) {
+	      return rfn.invoke(lhs, fn.invoke(v));
+	    }
+	  };
+      }
+      return Reductions.parallelReduction(initValFn, newRFn, mergeFn, options, list);
     }
   }
 

@@ -62,13 +62,16 @@ public final class Sum implements DoubleConsumer, Reducible, IDeref
     nElems++;
   }
 
+  public void merge(Sum other) {
+    final long ne = nElems;
+    accept(other.computeFinalSum());
+    nElems = ne + other.nElems;
+  }
+
   public Sum reduce(Collection<Reducible> rest) {
     final Sum retval = new Sum(d0, d1, simpleSum, nElems);
     for(Reducible rhs: rest) {
-      Sum sr = (Sum)rhs;
-      final long ne = retval.nElems;
-      retval.accept(sr.computeFinalSum());
-      retval.nElems = ne + sr.nElems;
+      retval.merge((Sum)rhs);
     }
     return retval;
   }

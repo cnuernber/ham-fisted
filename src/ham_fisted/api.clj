@@ -72,7 +72,8 @@
            [it.unimi.dsi.fastutil.objects ObjectArrays]
            [com.google.common.cache Cache CacheBuilder CacheLoader LoadingCache CacheStats]
            [com.google.common.collect MinMaxPriorityQueue]
-           [java.time Duration])
+           [java.time Duration]
+           [java.util.stream IntStream DoubleStream])
   (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize
                             into assoc-in get-in update assoc update-in hash-map
                             group-by subvec group-by mapv vec vector object-array
@@ -2555,6 +2556,30 @@ ham-fisted.api> @*1
                       (nan-strat-fn retval)
                       coll)
          @retval)))))
+
+
+(defn sum-stable-nelems-stream
+  ([coll] (sum-stable-nelems-stream coll nil))
+  ([coll options]
+   (let [^IMutList coll coll]
+     (let [dstream (-> (IntStream/range 0 (.size coll))
+                       (.parallel)
+                       (.mapToDouble (reify java.util.function.IntToDoubleFunction
+                                       (applyAsDouble [this idx]
+                                         (.getDouble coll idx)))))
+
+           ^DoubleStream dstream
+           (case (get options :nan-strategy :remove)
+             :keep dstream
+             :remove (.filter dstream (double-predicate v (not (Double/isNaN v))))
+             :exception (.map dstream (double-unary-operator v (when (Double/isNaN v)
+                                                                 (throw (RuntimeException. "NaN detected"))))))
+           ;; ^DoubleStream dstream (if (> 10000 (.size coll))
+           ;;                         (.parallel dstream)
+           ;;                         dstream)
+           ]
+       (println (type dstream) (.isParallel dstream))
+       (.sum dstream)))))
 
 
 (defn sum

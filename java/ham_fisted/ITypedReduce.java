@@ -7,6 +7,7 @@ import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.LongConsumer;
 import java.util.function.IntConsumer;
+import java.util.concurrent.ForkJoinPool;
 import clojure.lang.IReduceInit;
 import clojure.lang.IFn;
 
@@ -78,6 +79,11 @@ public interface ITypedReduce<E> extends IReduceInit {
 	throw new RuntimeException("reducer must be a typehinted instance of clojure.lang.IFn.");
       return indexedReduction((IFn.OLOO)rfn, initIdx, init);
     }
+  }
+
+  default Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
+				   ParallelOptions options) {
+    return genericReduction(rfn, initValFn.invoke());
   }
 
   //Typed this way in order to match java.util.List's forEach
