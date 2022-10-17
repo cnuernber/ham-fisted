@@ -468,6 +468,11 @@ public interface IMutList<E>
     }
     return init;
   }
+  default Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
+				   ParallelOptions options) {
+    return Reductions.parallelRandAccessReduction(initValFn, rfn, mergeFn,
+						  this, options);
+  }
   @SuppressWarnings("unchecked")
   default public void forEach(Consumer c) {
     final int sz = size();

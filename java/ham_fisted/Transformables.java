@@ -603,7 +603,7 @@ public class Transformables {
 	    }
 	  };
       }
-      return Reductions.parallelReduction(initValFn, newRFn, mergeFn, options, src);
+      return Reductions.parallelReduction(initValFn, newRFn, mergeFn, src, options);
     }
     @SuppressWarnings("unchecked")
     public void forEach(Consumer c) {
@@ -806,7 +806,7 @@ public class Transformables {
 	    }
 	  };
       }
-      return Reductions.parallelReduction(initValFn, newRFn, mergeFn, options, list);
+      return Reductions.parallelReduction(initValFn, newRFn, mergeFn, list, options);
     }
   }
 

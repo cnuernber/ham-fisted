@@ -36,7 +36,8 @@
              :as lznc]
             [ham-fisted.lazy-caching :as lzc]
             [ham-fisted.alists :as alists]
-            [com.climate.claypoole :as claypoole])
+            [com.climate.claypoole :as claypoole]
+            [ham-fisted.impl :as impl])
   (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
             BitmapTrieCommon$Box PersistentArrayMap ObjArray ImmutValues
@@ -49,7 +50,7 @@
             ArrayLists$IntArrayList ArrayLists$LongArrayList ArrayLists$DoubleArrayList
             ReverseList TypedList DoubleMutList LongMutList
             Consumers Sum Sum$SimpleSum Casts Reducible IndexedDoubleConsumer
-            IndexedLongConsumer IndexedConsumer ITypedReduce]
+            IndexedLongConsumer IndexedConsumer ITypedReduce ParallelOptions Reductions]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
@@ -222,6 +223,67 @@ This is currently the default hash provider for the library."}
                v (RT/first args)]
            (recur (assoc! m k v) (RT/next args)))
          (persistent! m))))))
+
+
+(defn- unpack-reduced
+  [item]
+  (if (reduced? item)
+    (deref item)
+    item))
+
+
+(defn fast-reduce
+  "Version of reduce that is a bit faster for things that aren't sequences and do not
+  implement IReduceInit.  If input collection implements ITypedReduce and input
+  rfn is one of IFn.ODO, IFn.OLO, then a primtiive type-specific reduction is used.
+  Note that the accumulator must be of type Object while the next element is of type
+  primitive type long or double.  This is to allow complex accumulators that may have
+  a type specific add method but themselves are objects:
+
+```clojure
+  ham-fisted.api> (fast-reduce double-consumer-accumulator
+                             (Sum$SimpleSum.)
+                             (range 1000))
+#<SimpleSum@69033843: 499500.0>
+ham-fisted.api> @*1
+499500.0
+```"
+  [rfn init iter]
+  (-> (Reductions/serialReduction rfn init iter)
+      (unpack-reduced)))
+
+
+(defn- options->parallel-options
+  [options ordered?]
+  (let [^ForkJoinPool pool (get options :pool (ForkJoinPool/commonPool))]
+    (ParallelOptions. (get options :min-n 10000)
+                      (get options :max-batch-size 64000)
+                      (boolean ordered?)
+                      pool
+                      (get options :parallelism (.getParallelism pool)))))
+
+
+(defn preduce
+  "Parallelized reduction.  Currently coll must either be random access or a lznc map/filter
+  chain based on one or more random access entities.  If input cannot be easily parallelized
+  lowers to a normal serial reduction.
+
+  * `init-val-fn` - Potentially called in reduction threads to produce each initial value.
+  * `rfn` - normal clojure reduction function.  Typehinting the second argument to double
+     or long will sometimes produce a faster reduction.
+  * `merge-fn` - Merge two reduction results into one.
+
+  Options:
+  * `:pool` - The fork-join pool to use.  Defaults to common pool assuming reduction is cpu-bound.
+  * `:parallelism` - What parallelism to use - defaults to pool's parallelism.
+  * `:max-batch-size` - Maximum batch size for indexed or grouped reductions.
+  * `:min-n` - minimum number of elements - fewer than these results in a linear reduction.
+  * `:ordered?` - True if results should be in order.  Unordered results are slightly faster.
+  "
+  ([init-val-fn rfn merge-fn coll] (preduce init-val-fn rfn merge-fn nil coll))
+  ([init-val-fn rfn merge-fn options coll]
+   (Reductions/parallelReduction init-val-fn rfn merge-fn coll
+                                 (options->parallel-options options (get options :ordered?)))))
 
 
 (def ^:private obj-ary-cls (Class/forName "[Ljava.lang.Object;"))
@@ -891,40 +953,6 @@ ham_fisted.PersistentHashMap
   (ForkJoinTask/inForkJoinPool))
 
 
-(defrecord ^:private GroupData [^long gsize ^long ngroups ^long leftover])
-
-
-(defn- n-elems->groups
-  ^GroupData [^long parallelism ^long n-elems ^long max-batch-size]
-  (let [gsize (max 1 (min max-batch-size (quot n-elems parallelism)))
-        ngroups (quot n-elems gsize)
-        leftover (rem n-elems gsize)
-        left-blocks (quot leftover ngroups)
-        gsize (+ gsize left-blocks)
-        leftover (rem leftover ngroups)]
-    (GroupData. gsize ngroups leftover)))
-
-(defn- pgroup-submission
-  [^long n-elems ^long parallelism body-fn options]
-  (let [pool (ForkJoinPool/commonPool)
-        n-elems (long n-elems)
-        ^GroupData gdata (n-elems->groups parallelism n-elems
-                                          (get options :batch-size 64000))
-        ;;_ (println parallelism gdata)
-        gsize (.gsize gdata)
-        ngroups (.ngroups gdata)
-        leftover (.leftover gdata)]
-    (->> (range ngroups)
-         (mapv (fn [^long gidx]
-                 (let [start-idx (long (+ (* gidx gsize)
-                                          (min gidx leftover)))
-                       end-idx (min n-elems
-                                    (long (+ (+ start-idx gsize)
-                                             (long (if (< gidx leftover)
-                                                     1 0)))))]
-                   (.submit pool ^Callable #(body-fn start-idx end-idx))))))))
-
-
 (defn pgroups
   "Run y groups across n-elems.   Y is common pool parallelism.
 
@@ -938,69 +966,9 @@ ham_fisted.PersistentHashMap
     to be parallelized.
   * `:batch-size` - max batch size.  Defaults to 64000."
   ([n-elems body-fn options]
-   (let [n-elems (long n-elems)
-         parallelism (ForkJoinPool/getCommonPoolParallelism)]
-     (if (or (in-fork-join-task?)
-             (< n-elems (max parallelism (long (get options :pgroup-min 0)))))
-       [(body-fn 0 n-elems)]
-       (->> (pgroup-submission n-elems parallelism body-fn options)
-            (map #(.get ^Future %))))))
+   (impl/pgroups n-elems body-fn (options->parallel-options options true)))
   ([n-elems body-fn]
    (pgroups n-elems body-fn nil)))
-
-
-(defn pmap
-  "pmap using the commonPool.  This is useful for interacting with other primitives, namely
-  [[pgroups]] which are also based on this pool.  This is a change from Clojure's base
-  pmap in that it uses the ForkJoinPool/commonPool for parallelism as opposed to the
-  agent pool - this makes it compose with pgroups and dtype-next's parallelism system.
-
-  Is guaranteed to *not* trigger the need for `shutdown-agents`."
-  ^java.lang.AutoCloseable [map-fn & sequences]
-  (if (in-fork-join-task?)
-    (apply map map-fn sequences)
-    (let [pool (ForkJoinPool/commonPool)
-          map-fn (bound-fn* map-fn)
-          ;;In this case we want a caching sequence - so we call 'seq' on a lazy noncaching
-          ;;map
-          submit-fn (case (count sequences)
-                      1 (fn [arg] (.submit pool ^Callable (fn [] (map-fn arg))))
-                      2 (fn [a1 a2] (.submit pool ^Callable (fn [] (map-fn a1 a2))))
-                      3 (fn [a1 a2 a3] (.submit pool ^Callable (fn [] (map-fn a1 a2 a3))))
-                      (fn [& args]
-                        (.submit pool ^Callable (fn [] (apply map-fn args)))))
-
-          future-seq (->> (apply map submit-fn sequences)
-                          (seq))
-          n-cpu (+ (ForkJoinPool/getCommonPoolParallelism) 2)
-          read-ahead (->> (concat (drop n-cpu future-seq) (repeat n-cpu nil)))]
-      ;;lazy noncaching map - the future itself does the caching for us.
-      (map (fn [cur read-ahead]
-             (.get ^Future cur))
-           future-seq read-ahead))))
-
-
-(defn- boxed-next-fn->seq
-  [next-fn]
-  (let [fn-val* (volatile! ::unread)]
-    (IteratorSeq/create
-     (reify Iterator
-       (hasNext [this]
-         (let [nv @fn-val*]
-           (if (identical? ::unread nv)
-             (do
-               (vreset! fn-val* (next-fn))
-               (.hasNext this))
-             (boolean @fn-val*))))
-       (next [this]
-         (let [retval
-               (when-let [^BitmapTrieCommon$Box data @fn-val*]
-                 (.-obj data))]
-           (vreset! fn-val* (next-fn))
-           retval))))))
-
-
-(defrecord ^:private ErrorRecord [e])
 
 
 (defn upgroups
@@ -1016,29 +984,20 @@ ham_fisted.PersistentHashMap
     to be parallelized.
   * `:batch-size` - max batch size.  Defaults to 64000."
   ([n-elems body-fn options]
-   (let [n-elems (long n-elems)
-         parallelism (ForkJoinPool/getCommonPoolParallelism)]
-     (if (or (in-fork-join-task?)
-             (< n-elems (max parallelism (long (get options :pgroup-min 0)))))
-       [(body-fn 0 n-elems)]
-       (let [res-queue (ArrayBlockingQueue. (+ parallelism 2))
-             iter (.iterator ^Iterable (pgroup-submission
-                                        n-elems parallelism
-                                        (fn [^long sidx ^long eidx]
-                                          (.put res-queue
-                                                (try
-                                                  (body-fn sidx eidx)
-                                                  (catch Exception e
-                                                    (ErrorRecord. e)))))
-                                        options))]
-         (boxed-next-fn->seq #(when (.hasNext iter)
-                                (.next iter)
-                                (let [v (.take res-queue)]
-                                  (if (instance? ErrorRecord v)
-                                    (throw (.-e ^ErrorRecord v))
-                                    (BitmapTrieCommon$Box. v)))))))))
+   (impl/pgroups n-elems body-fn (options->parallel-options options false)))
   ([n-elems body-fn]
    (upgroups n-elems body-fn nil)))
+
+
+(defn pmap
+  "pmap using the commonPool.  This is useful for interacting with other primitives, namely
+  [[pgroups]] which are also based on this pool.  This is a change from Clojure's base
+  pmap in that it uses the ForkJoinPool/commonPool for parallelism as opposed to the
+  agent pool - this makes it compose with pgroups and dtype-next's parallelism system.
+
+  Is guaranteed to *not* trigger the need for `shutdown-agents`."
+  [map-fn & sequences]
+  (impl/pmap (ParallelOptions. 0 64000 true) map-fn sequences))
 
 
 (defn upmap
@@ -1048,31 +1007,7 @@ ham_fisted.PersistentHashMap
   dtype-next's parallelism primitives *but* it does not impose an ordering constraint on the
   results and thus may be significantly faster in some cases."
   [map-fn & sequences]
-  (if (in-fork-join-task?)
-    (apply map map-fn sequences)
-    (let [pool (ForkJoinPool/commonPool)
-          n-cpu (ForkJoinPool/getCommonPoolParallelism)
-          map-fn (bound-fn* map-fn)
-          res-queue (ArrayBlockingQueue. (+ n-cpu 2))
-          future-seq (->> (apply map (fn [& args]
-                                       (.submit pool
-                                                ^Callable (fn []
-                                                            (.put res-queue
-                                                                  (try
-                                                                    (apply map-fn args)
-                                                                    (catch Throwable e
-                                                                      (ErrorRecord. e)))))))
-                                 sequences)
-                          ;;Lazy caching but non-chunking
-                          (seq))
-          read-ahead (concat (drop n-cpu future-seq) (repeat n-cpu nil))
-          next-sub (.iterator ^Iterable read-ahead)]
-      (boxed-next-fn->seq #(when (.hasNext next-sub)
-                             (.next next-sub)
-                             (let [v (.take res-queue)]
-                               (if (instance? ErrorRecord v)
-                                 (throw (.-e ^ErrorRecord v))
-                                 (BitmapTrieCommon$Box. v))))))))
+  (impl/pmap (ParallelOptions. 0 64000 false) map-fn sequences))
 
 
 (defn ^:no-doc pfrequencies
@@ -2377,59 +2312,6 @@ ham-fisted.api> @*1
       (throw (Exception. "pred is not an instance of a java.util.function unary operator")))))
 
 
-(defn iter-reduce
-  "Faster reduce for things like arraylists or hashmap entrysets that implement Iterable
-  but not IReduceInit."
-  ([rfn init iter] (Transformables/iterReduce iter init rfn))
-  ([rfn iter] (Transformables/iterReduce iter rfn)))
-
-
-(defn- unpack-reduced
-  [item]
-  (if (reduced? item)
-    (deref item)
-    item))
-
-
-(defn fast-reduce
-  "Version of reduce that is a bit faster for things that aren't sequences and do not
-  implement IReduceInit.  If input collection implements ITypedReduce and input
-  rfn is one of IFn.ODO, IFn.OLO, then a primtiive type-specific reduction is used.
-  Note that the accumulator must be of type Object while the next element is of type
-  primitive type long or double.  This is to allow complex accumulators that may have
-  a type specific add method but themselves are objects:
-
-```clojure
-  ham-fisted.api> (fast-reduce double-consumer-accumulator
-                             (Sum$SimpleSum.)
-                             (range 1000))
-#<SimpleSum@69033843: 499500.0>
-ham-fisted.api> @*1
-499500.0
-```"
-  ([rfn init iter]
-   (->
-    (cond
-      (instance? ITypedReduce iter)
-      (.genericReduction ^ITypedReduce iter rfn init)
-      (instance? IReduceInit iter)
-      (.reduce ^IReduceInit iter rfn init)
-      (instance? Map iter)
-      (iter-reduce rfn init (.entrySet ^Map iter))
-      :else
-      (iter-reduce rfn init (->collection iter)))
-    (unpack-reduced)))
-  ([rfn iter]
-   (->
-    (cond
-      (instance? IReduce iter)
-      (.reduce ^IReduce iter rfn)
-      (instance? Map iter)
-      (iter-reduce rfn (.entrySet ^Map iter))
-      :else
-      (iter-reduce rfn (->collection iter)))
-    (unpack-reduced))))
-
 
 (defn- force-indexed-consumer
   ^IndexedConsumer [consumer]
@@ -2536,50 +2418,20 @@ ham-fisted.api> @*1
   "Stable sum returning map of {:sum :n-elems}. See options for [[sum]]."
   ([coll] (sum-stable-nelems coll nil))
   ([coll options]
-   (let [coll (->reducible coll)
-         nan-strat-fn (options->double-nan-strat options)]
-     (if (instance? IMutList coll)
-       (let [^IMutList coll coll]
-         (->> (upgroups
-               (.size coll)
-               (fn [^long sidx ^long eidx]
-                 (let [retval (Sum.)]
-                   (fast-reduce double-consumer-accumulator
-                                (nan-strat-fn retval)
-                                (.subList coll sidx eidx))
-                   retval))
-               {:pgroup-min 10000})
-              (reduce-reducibles)
-              (deref)))
-       (let [retval (Sum.)]
-         (fast-reduce double-consumer-accumulator
-                      (nan-strat-fn retval)
-                      coll)
-         @retval)))))
-
-
-(defn sum-stable-nelems-stream
-  ([coll] (sum-stable-nelems-stream coll nil))
-  ([coll options]
-   (let [^IMutList coll coll]
-     (let [dstream (-> (IntStream/range 0 (.size coll))
-                       (.parallel)
-                       (.mapToDouble (reify java.util.function.IntToDoubleFunction
-                                       (applyAsDouble [this idx]
-                                         (.getDouble coll idx)))))
-
-           ^DoubleStream dstream
-           (case (get options :nan-strategy :remove)
-             :keep dstream
-             :remove (.filter dstream (double-predicate v (not (Double/isNaN v))))
-             :exception (.map dstream (double-unary-operator v (when (Double/isNaN v)
-                                                                 (throw (RuntimeException. "NaN detected"))))))
-           ;; ^DoubleStream dstream (if (> 10000 (.size coll))
-           ;;                         (.parallel dstream)
-           ;;                         dstream)
-           ]
-       (println (type dstream) (.isParallel dstream))
-       (.sum dstream)))))
+   (let [coll (->reducible coll)]
+     @(preduce #(Sum.) double-consumer-accumulator (fn [^Sum lhs ^Sum rhs]
+                                                     (.merge lhs rhs)
+                                                     lhs)
+               ;;Order isn't important here but you can provide your own fork-join pool
+               (options->parallel-options options false)
+               (case (get options :nan-strategy :remove)
+                 :remove (filter (fn [^double v] (not (Double/isNaN v))) coll)
+                 :keep coll
+                 :exception (map (fn ^double [^double v]
+                                   (when (Double/isNaN v)
+                                     (throw (Exception. "Nan detected")))
+                                   v)
+                                 coll))))))
 
 
 (defn sum

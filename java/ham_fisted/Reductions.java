@@ -7,6 +7,7 @@ import clojure.lang.IReduceInit;
 import java.util.RandomAccess;
 import java.util.List;
 import java.util.Iterator;
+import java.util.Map;
 
 
 public class Reductions {
@@ -32,29 +33,34 @@ public class Reductions {
 	return l.reduce(rfn, init);
     } else if (coll instanceof IReduceInit) {
       return ((IReduceInit)coll).reduce(rfn, init);
+    } else if (coll instanceof Map) {
+      return Transformables.iterReduce(((Map)coll).entrySet(), init, rfn);
     } else {
       return Transformables.iterReduce(coll, init, rfn);
     }
   }
 
-  public static Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn, ParallelOptions options, Object coll) {
+  public static Object parallelRandAccessReduction(IFn initValFn, IFn rfn, IFn mergeFn, List l, ParallelOptions options) {
+    final IFn gfn = new IFnDef() {
+	public Object invoke(Object osidx, Object oeidx) {
+	  final int sidx = RT.intCast(osidx);
+	  final int eidx = RT.intCast(oeidx);
+	  return serialReduction(rfn, initValFn.invoke(), l.subList(sidx, eidx));
+	}
+      };
+    final Iterable groups = (Iterable) ForkJoinPatterns.parallelIndexGroups(l.size(), gfn, options);
+    final Iterator giter = groups.iterator();
+    Object initObj = giter.next();
+    while(giter.hasNext())
+      initObj = mergeFn.invoke(initObj, giter.next());
+    return initObj;
+  }
+
+  public static Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn, Object coll, ParallelOptions options) {
     if(coll instanceof ITypedReduce) {
       return ((ITypedReduce)coll).parallelReduction(initValFn, rfn, mergeFn, options);
     } else if (coll instanceof RandomAccess) {
-      final List l = (List) coll;
-      final IFn gfn = new IFnDef() {
-	  public Object invoke(Object osidx, Object oeidx) {
-	    final int sidx = RT.intCast(osidx);
-	    final int eidx = RT.intCast(oeidx);
-	    return serialReduction(rfn, initValFn.invoke(), l.subList(sidx, eidx));
-	  }
-	};
-	final Iterable groups = (Iterable) ForkJoinPatterns.parallelIndexGroups(l.size(), gfn, options);
-	final Iterator giter = groups.iterator();
-	Object initObj = giter.next();
-	while(giter.hasNext())
-	  initObj = mergeFn.invoke(initObj, giter.next());
-	return initObj;
+      return parallelRandAccessReduction(initValFn, rfn, mergeFn, (List)coll, options);
     } else {
 	return serialReduction(rfn, initValFn.invoke(), coll);
     }

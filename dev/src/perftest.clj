@@ -225,7 +225,7 @@
   (let [mfn1 (fn ^double [^double v] (* v 2))
         mfn2 (fn ^double [^double v] (+ v 1))
         pred (fn [^double v] (== 0 (rem (long v) 3)))]
-    (for [n-elems [100 1000 100000]]
+    (for [n-elems [10 100 1000 100000]]
       [{:n-elems n-elems
         :test :sequence-summation
         :clj (bench/benchmark-us (->> (clojure.core/range n-elems)
@@ -233,6 +233,11 @@
                                       (clojure.core/map mfn2)
                                       (clojure.core/filter pred)
                                       (api/sum)))
+        :hamf (bench/benchmark-us (->> (api/range n-elems)
+                                       (lznc/map mfn1)
+                                       (lznc/map mfn2)
+                                       (lznc/filter pred)
+                                       (api/sum)))
         :eduction (bench/benchmark-us (->> (api/range n-elems)
                                            (eduction
                                             (comp
@@ -240,20 +245,7 @@
                                              (clojure.core/map mfn2)
                                              (clojure.core/filter pred)))
                                            (api/sum)))
-        :hamf (bench/benchmark-us (->> (api/range n-elems)
-                                       (lznc/map mfn1)
-                                       (lznc/map mfn2)
-                                       (lznc/filter pred)
-                                       (api/sum)))}])))
-
-
-(defn stream-summation
-  []
-  (for [n-elems [10 10000 10000000]]
-    [{:n-elems n-elems
-      :test :stream-summation
-      :hamf (bench/benchmark-us (api/sum-stable-nelems (api/range n-elems)))
-      :java-stream (bench/benchmark-us (api/sum-stable-nelems-stream (api/range n-elems)))}]))
+        }])))
 
 
 (defn object-array-perftest

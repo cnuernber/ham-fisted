@@ -39,7 +39,8 @@
 (defn ->reducible
   [item]
   (if (or (instance? IReduceInit item)
-          (instance? IReduce item))
+          (instance? IReduce item)
+          (instance? Iterable item))
     item
     (->collection item)))
 
