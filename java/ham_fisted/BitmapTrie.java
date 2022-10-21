@@ -1058,17 +1058,9 @@ class BitmapTrie implements IObj, TrieBase {
     return false;
   }
   //Returned hashbase's count or size is incorrect.
-  final BitmapTrie keyspaceSplit(int splitidx, int nsplits) {
-    final int groupSize = 1024 / nsplits;
-    final int leftover = 1024 % nsplits;
-    final int startidx = (splitidx * groupSize) + (splitidx < leftover ? splitidx : leftover);
-    final int localsize = groupSize + (splitidx < leftover ? 1 : 0);
-    final int endidx = startidx + localsize;
-    /* out.println("groupsize: " + String.valueOf(groupSize) + */
-    /* 		" splitidx: " + String.valueOf(splitidx) + */
-    /* 		" localsize: " + String.valueOf(localsize) + */
-    /* 		" startidx: " + String.valueOf(startidx) + */
-    /* 		" endidx: " + String.valueOf(endidx)); */
+  //Keyspaces is viewed as linear space 0-1024.  This encompasses the first 2 levels of the
+  //bitmap trie.
+  final BitmapTrie keyspaceSplit(final int startidx, final int endidx) {
     BitmapTrie retval = new BitmapTrie(hp);
     retval.count = -1;
     int obitmap = 0;
@@ -1116,35 +1108,6 @@ class BitmapTrie implements IObj, TrieBase {
     return retval;
   }
 
-  final BitmapTrie[] splitBases(int nsplits ) {
-    nsplits = Math.min(nsplits, 1024);
-    final int nelemsPerSplit = Math.max(1, 1024 / nsplits);
-    BitmapTrie[] retval = new BitmapTrie[nsplits];
-    for (int idx = 0; idx < nsplits; ++idx ) {
-      retval[idx] = keyspaceSplit(idx, nsplits);
-    }
-    return retval;
-  }
-
-  final Iterator[] splitIterators(int nsplits, Function<ILeaf,Object> fn) {
-    BitmapTrie[] bases = splitBases(nsplits);
-    int nbases = bases.length;
-    Iterator[] retval = new Iterator[nbases];
-    for (int idx = 0; idx < nbases; ++idx)
-      retval[idx] = bases[idx].iterator(fn);
-    return retval;
-  }
-
-  public final Iterator[] splitKeys(int nsplits ) {
-    return splitIterators(nsplits, keyIterFn);
-  }
-  public final Iterator[] splitValues(int nsplits ) {
-    return splitIterators(nsplits, valIterFn);
-  }
-  public final Iterator[] splitEntries(int nsplits ) {
-    return splitIterators(nsplits, entryIterFn);
-  }
-
   final void serialTraversal(Consumer<ILeaf> action) {
     HTIterator iter = new HTIterator(identityIterFn, nullEntry, root.iterator());
     while(iter.hasNext()) {
@@ -1152,60 +1115,9 @@ class BitmapTrie implements IObj, TrieBase {
     }
   }
 
-  final void parallelTraversal(Consumer<ILeaf> action, ExecutorService executor,
-			       int parallelism) throws InterruptedException,
-						       ExecutionException {
-    if (ForkJoinTask.inForkJoinPool()
-	&& executor == ForkJoinPool.commonPool()) {
-      serialTraversal(action);
-    }
-    final int nelems = size();
-    int splits = Math.min(1024, parallelism);
-    BitmapTrie[] bases = splitBases(splits);
-    final int nTasks = bases.length;
-    final Future[] tasks = new Future[nTasks];
-    for(int idx = 0; idx < nTasks; ++idx) {
-      final int localIdx = idx;
-      tasks[localIdx] = executor.submit(new Runnable() {
-	  public void run() {
-	    bases[localIdx].serialTraversal(action);
-	  }
-	});
-    }
-    //Finish iteration
-    for(int idx = 0; idx < nTasks; ++idx) {
-      tasks[idx].get();
-    }
-  }
-
-  final void parallelTraversal(Consumer<ILeaf> action) throws InterruptedException,
-							      ExecutionException {
-    parallelTraversal(action, ForkJoinPool.commonPool(),
-		      ForkJoinPool.getCommonPoolParallelism());
-  }
-
   @SuppressWarnings("unchecked")
   final void forEach(BiConsumer action) {
     serialTraversal(lf -> action.accept(lf.key(), lf.val()));
-  }
-  @SuppressWarnings("unchecked")
-  final void parallelForEach(BiConsumer action, ExecutorService executor,
-			     int parallelism) throws Exception {
-    parallelTraversal(lf -> action.accept(lf.key(), lf.val()), executor, parallelism);
-  }
-  @SuppressWarnings("unchecked")
-  final void parallelForEach(BiConsumer action) throws Exception {
-    parallelTraversal(lf -> action.accept(lf.key(), lf.val()));
-  }
-
-  @SuppressWarnings("unchecked")
-  final void parallelUpdateValues(BiFunction action, ExecutorService executor,
-				  int parallelism) throws Exception {
-    parallelTraversal(lf->lf.val(action.apply(lf.key(), lf.val())), executor, parallelism);
-  }
-  @SuppressWarnings("unchecked")
-  final void parallelUpdateValues(BiFunction action) throws Exception {
-    parallelTraversal(lf->lf.val(action.apply(lf.key(), lf.val())));
   }
 
   final BitmapTrie immutUpdate(BiFunction action) {

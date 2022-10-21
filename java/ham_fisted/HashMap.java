@@ -180,22 +180,6 @@ public final class HashMap<K,V>
     hb.forEach(action);
   }
 
-  public void parallelForEach(BiConsumer<? super K,? super V> action, ExecutorService es,
-			      int parallelism) throws Exception {
-    hb.parallelForEach(action, es, parallelism);
-  }
-  public void parallelForEach(BiConsumer<? super K,? super V> action) throws Exception {
-    hb.parallelForEach(action);
-  }
-  public void parallelUpdateValues(BiFunction<? super V,? super V,? extends V> action,
-				   ExecutorService es,
-				   int parallelism) throws Exception {
-    hb.parallelUpdateValues(action, es, parallelism);
-  }
-  public void parallelUpdateValues(BiFunction<? super K,? super V,? extends V> action) throws Exception {
-    hb.parallelUpdateValues(action);
-  }
-
   @SuppressWarnings("unchecked")
   public V getOrDefault(Object key, V defaultValue) {
     return (V)hb.getOrDefault(key, defaultValue);
@@ -212,19 +196,6 @@ public final class HashMap<K,V>
 
   @SuppressWarnings("unchecked")
   public Set<K> keySet() { return (Set<K>)new PersistentHashSet(hb); }
-
-  @SuppressWarnings("unchecked")
-  public final Iterator<K>[] splitKeys(int nsplits ) {
-    return (Iterator<K>[])hb.splitKeys(nsplits);
-  }
-  @SuppressWarnings("unchecked")
-  public final Iterator<V>[] splitValues(int nsplits ) {
-    return (Iterator<V>[])hb.splitValues(nsplits);
-  }
-  @SuppressWarnings("unchecked")
-  public final Iterator<Map.Entry<K,V>>[] splitEntries(int nsplits ) {
-    return (Iterator<Map.Entry<K,V>>[])hb.splitEntries(nsplits);
-  }
 
 
   /**

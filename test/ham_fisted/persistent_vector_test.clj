@@ -100,11 +100,13 @@
       (is (= (convert-fn 60)
              (let [prim-vec (vec-fn (lznc/map convert-fn (api/range 1000)))]
                (convert-fn (reduce (partial all-add convert-fn)
-                                   (api/subvec prim-vec 10 15))))))
+                                   (api/subvec prim-vec 10 15)))))
+          k)
       (is (= (convert-fn 60)
              (let [prim-vec (api/vec (range 1000))]
                (reduce (partial all-add convert-fn)
-                       (api/subvec prim-vec 10 15))))))))
+                       (api/subvec prim-vec 10 15))))
+          k))))
 
 
 (deftest test-vec-associative

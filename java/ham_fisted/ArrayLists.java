@@ -1213,7 +1213,7 @@ public class ArrayLists {
     }
     @SuppressWarnings("unchecked")
     public int binarySearch(Object v, Comparator c) {
-      final long vv = RT.longCast(Casts.longCast(v));
+      final long vv = Casts.longCast(v);
       final LongComparator bc = asLongComparator(c);
       if(c == null || bc != null)
 	return fixSubArrayBinarySearch(sidx, size(),
@@ -1930,7 +1930,7 @@ public class ArrayLists {
     public Character get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
     public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
     public void setLong(int idx, long obj) {
-      char v = RT.charCast(obj);
+      char v = Casts.charCast(obj);
       idx = checkIndex(idx, dlen) + sidx;
       data[idx] = v;
     }

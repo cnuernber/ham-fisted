@@ -59,6 +59,21 @@ and keywords cache their hash values.  Strings, however, are an example of somet
 these primitives (and things like frequencies) will perform substantially better.
 
 
+### Casting and Finite Numbers
+
+Float and double values are only allowed to cast to long if they are
+[finite](https://docs.oracle.com/javase/8/docs/api/java/lang/Double.html#isFinite-double-).
+Boolean values casted to long or double are 0 for false and 1 for true.  Any nonzero
+finite number casted to boolean is true, 0 is false, non-finite numbers are errors.  `nil`
+casted to a floating point number is NaN.  NaN casted to an object is NaN.  If objects
+are not number then nil is false and non-nil is true.  Any undefined cast falls back to
+`clojure.lang.RT.xCast` where `x` denotes the target type.
+
+
+Reading data from contains leads to unchecked casts while writing data to contains
+leads to checked casts.
+
+
 
 #### update-values, group-by-reduce, mapmap
 

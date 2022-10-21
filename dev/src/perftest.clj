@@ -222,9 +222,9 @@
   ;;is a double summation then if we typehint our entire pathway with doubles that will
   ;;allow the entire pathway to avoid boxing.  The predicate's return value must be
   ;;an object, however, not a long or a double so there is some minimal boxing.
-  (let [mfn1 (fn ^double [^double v] (* v 2))
-        mfn2 (fn ^double [^double v] (+ v 1))
-        pred (fn [^double v] (== 0 (rem (long v) 3)))]
+  (let [mfn1 (fn ^long [^long v] (* v 2))
+        mfn2 (fn ^long [^long v] (+ v 1))
+        pred (fn [^long v] (== 0 (rem (long v) 3)))]
     (for [n-elems [10 100 1000 100000]]
       [{:n-elems n-elems
         :test :sequence-summation
@@ -244,8 +244,7 @@
                                              (clojure.core/map mfn1)
                                              (clojure.core/map mfn2)
                                              (clojure.core/filter pred)))
-                                           (api/sum)))
-        }])))
+                                           (api/sum)))}])))
 
 
 (defn object-array-perftest

@@ -50,7 +50,9 @@
             ArrayLists$IntArrayList ArrayLists$LongArrayList ArrayLists$DoubleArrayList
             ReverseList TypedList DoubleMutList LongMutList
             Consumers Sum Sum$SimpleSum Casts Reducible IndexedDoubleConsumer
-            IndexedLongConsumer IndexedConsumer ITypedReduce ParallelOptions Reductions]
+            IndexedLongConsumer IndexedConsumer ITypedReduce ParallelOptions Reductions
+            Reductions$LO Reductions$LL Reductions$DO Reductions$DD Reductions$DDD
+            Reductions$LLL]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
@@ -1973,7 +1975,6 @@ ham-fisted.api> (binary-search data 1.1 nil)
   (^chars [data] (do-make-array clojure.core/char-array char-array-list data)))
 
 
-
 (defn float-array-list
   (^IMutList [] (FloatArrayList. (clojure.core/float-array 4) 0 nil))
   (^IMutList [data]
@@ -2080,8 +2081,8 @@ ham-fisted.api> (binary-search data 1.1 nil)
      DoubleBinaryOperator
      (applyAsDouble [this# ~lvar ~rvar]
        ~@code)
-     IFnDef
-     (invoke [this# l# r#]
+     Reductions$DDD
+     (invokePrim [this# l# r#]
        (.applyAsDouble this# l# r#))))
 
 
@@ -2093,8 +2094,8 @@ ham-fisted.api> (binary-search data 1.1 nil)
      LongBinaryOperator
      (applyAsLong [this ~lvar ~rvar]
        ~@code)
-     IFnDef
-     (invoke [this# l# r#]
+     Reductions$LLL
+     (invokePrim [this# l# r#]
        (.applyAsLong this# l# r#))))
 
 
@@ -2165,9 +2166,9 @@ ham-fisted.api> @*1
      DoublePredicate
      (test [this ~varname]
        ~code)
-     IFnDef
-     (invoke [this# d#]
-       (.test this# (Casts/doubleCast d#)))))
+     Reductions$DO
+     (invokePrim [this# d#]
+       (.test this# d#))))
 
 
 (defmacro double-unary-operator
@@ -2177,9 +2178,9 @@ ham-fisted.api> @*1
      DoubleUnaryOperator
      (applyAsDouble [this# ~varname]
        ~code)
-     IFnDef
+     Reductions$DD
      (invoke [this# v#]
-       (.applyAsDouble this# (Casts/doubleCast v#)))))
+       (.applyAsDouble this# v#))))
 
 
 (defmacro long-predicate
@@ -2189,9 +2190,9 @@ ham-fisted.api> @*1
      LongPredicate
      (test [this ~varname]
        ~code)
-     IFnDef
-     (invoke [this# d#]
-       (.test this# (Casts/longCast d#)))))
+     Reductions$LO
+     (invokePrim [this# d#]
+       (.test this# d#))))
 
 
 (defmacro long-unary-operator
@@ -2201,9 +2202,9 @@ ham-fisted.api> @*1
      LongUnaryOperator
      (applyAsLong [this# ~varname]
        ~code)
-     IFnDef
-     (invoke [this# v#]
-       (.applyAsLong this# (Casts/longCast v#)))))
+     Reductions$LL
+     (invokePrim [this# v#]
+       (.applyAsLong this# v#))))
 
 (defmacro predicate
   "Create an implementation of java.util.Function.Predicate"
@@ -2214,7 +2215,7 @@ ham-fisted.api> @*1
        ~code)
      IFnDef
      (invoke [this# d#]
-       (.test this# (Casts/longCast d#)))))
+       (.test this# d#))))
 
 
 (defmacro unary-operator
@@ -2222,11 +2223,11 @@ ham-fisted.api> @*1
   [varname code]
   `(reify
      UnaryOperator
-     (applyAsLong [this# ~varname]
+     (apply [this# ~varname]
        ~code)
      IFnDef
      (invoke [this# v#]
-       (.applyAsLong this# (Casts/longCast v#)))))
+       (.apply this# v#))))
 
 
 
@@ -2589,6 +2590,24 @@ ham-fisted.api> @*1
   index."
   ([v] (clojure.core/repeat v))
   (^List [n v] (ConstList/create n v nil)))
+
+
+(defn ^:no-doc double-eq
+  [lhs rhs]
+  (if (number? lhs)
+    (let [lhs (double lhs)
+          rhs (double rhs)]
+      (cond
+        (and (Double/isNaN lhs)
+             (Double/isNaN rhs))
+        true
+        (or (Double/isNaN lhs)
+            (Double/isNaN rhs))
+        false
+        :else
+        (== lhs rhs)))
+    (and (== (count lhs) (count rhs))
+         (every? identity (map double-eq lhs rhs)))))
 
 
 (comment

@@ -4,32 +4,52 @@ package ham_fisted;
 import clojure.lang.IFn;
 import clojure.lang.ISeq;
 
-public class MapFn implements IFnDef, Transformables.IMapFn {
+public class MapFn implements IFnDef {
+  public static IFn create(IFn src, IFn dst) {
+    if(src instanceof IFn.OD && dst instanceof IFn.DD) {
+      final IFn.OD ss = (IFn.OD)src;
+      final IFn.DD dd = (IFn.DD)dst;
+      return new Reductions.OD() {
+	public double invokePrim(Object obj) {
+	  return dd.invokePrim(ss.invokePrim(obj));
+	}
+      };
+    }
+    else if (src instanceof IFn.OL && dst instanceof IFn.LL) {
+      final IFn.OL ss = (IFn.OL)src;
+      final IFn.LL dd = (IFn.LL)dst;
+      return new Reductions.OL() {
+	public long invokePrim(Object obj) {
+	  return dd.invokePrim(ss.invokePrim(obj));
+	}
+      };
+    } else if( src instanceof IFn.LL && dst instanceof IFn.LL) {
+      final IFn.LL ss = (IFn.LL)src;
+      final IFn.LL dd = (IFn.LL)dst;
+      return new Reductions.LL() {
+	public long invokePrim(long v) {
+	  return dd.invokePrim(ss.invokePrim(v));
+	}
+      };
+    }
+    else if( src instanceof IFn.DD && dst instanceof IFn.DD) {
+      final IFn.DD ss = (IFn.DD)src;
+      final IFn.DD dd = (IFn.DD)dst;
+      return new Reductions.DD() {
+	public double invokePrim(double v) {
+	  return dd.invokePrim(ss.invokePrim(v));
+	}
+      };
+    }
+    //Fallthrough, no special treatment
+    return new MapFn(src, dst);
+  }
+
   public final IFn srcFn;
   public final IFn dstFn;
-  public MapFn(IFn sfn, IFn dfn) {
+  private MapFn(IFn sfn, IFn dfn) {
     srcFn = sfn;
     dstFn = dfn;
-  }
-
-  public IFn.DD toDoubleFn() {
-    IFn.DD sfn = Transformables.toDoubleMapFn(srcFn);
-    IFn.DD dfn = Transformables.toDoubleMapFn(dstFn);
-    return new IFn.DD() {
-      public double invokePrim(double v) {
-	return dfn.invokePrim(sfn.invokePrim(v));
-      }
-    };
-  }
-
-  public IFn.LL toLongFn() {
-    IFn.LL sfn = Transformables.toLongMapFn(srcFn);
-    IFn.LL dfn = Transformables.toLongMapFn(dstFn);
-    return new IFn.LL() {
-      public long invokePrim(long v) {
-	return dfn.invokePrim(sfn.invokePrim(v));
-      }
-    };
   }
 
   public Object invoke() {

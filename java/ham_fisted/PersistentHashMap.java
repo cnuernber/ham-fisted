@@ -131,24 +131,6 @@ public final class PersistentHashMap
     return hb.iterator(valIterFn);
   }
 
-  public final PersistentHashMap[] splitMaps(int nsplits) {
-    BitmapTrie[] bases = hb.splitBases(nsplits);
-    PersistentHashMap[] retval = new PersistentHashMap[bases.length];
-    for (int idx = 0; idx < retval.length; ++idx)
-      retval[idx] = new PersistentHashMap(bases[idx]);
-    return retval;
-  }
-
-  public final Iterator[] splitKeys(int nsplits ) {
-    return hb.splitKeys(nsplits);
-  }
-  public final Iterator[] splitValues(int nsplits ) {
-    return hb.splitValues(nsplits);
-  }
-  public final Iterator[] splitEntries(int nsplits ) {
-    return hb.splitEntries(nsplits);
-  }
-
   public final IPersistentMap assoc(Object key, Object val) {
     if (hb.size() == 0) {
       return new PersistentHashMap(new BitmapTrie(hb.hp, hb.meta, key, val));
@@ -193,14 +175,6 @@ public final class PersistentHashMap
   public void forEach(BiConsumer action) {
     hb.forEach(action);
   }
-  public void parallelForEach(BiConsumer action, ExecutorService es,
-			      int parallelism) throws Exception {
-    hb.parallelForEach(action, es, parallelism);
-  }
-  public void parallelForEach(BiConsumer action) throws Exception {
-    hb.parallelForEach(action);
-  }
-
   public final PersistentHashMap union(MapSet other, BiFunction remappingFunction) {
     return new PersistentHashMap(hb.union(((BitmapTrieOwner)other).bitmapTrie(),
 					  remappingFunction));
@@ -245,67 +219,6 @@ public final class PersistentHashMap
     while(bmIter.hasNext())
       retval = retval.union(unpackFromObject(bmIter.next()), valueMapper, true);
     return new PersistentHashMap(retval);
-  }
-
-  @SuppressWarnings("unchecked")
-  public final static PersistentHashMap parallelUnionReduce(BiFunction valueMapper, Iterable bitmaps,
-							    ExecutorService executor, int parallelism)
-    throws Exception {
-
-    if((ForkJoinTask.inForkJoinPool()
-	&& executor == ForkJoinPool.commonPool())
-       || parallelism == 1) {
-      return unionReduce(valueMapper, bitmaps);
-    }
-
-    ArrayList<BitmapTrie> bms = new ArrayList();
-    for(Object obj : bitmaps) {
-      bms.add((obj instanceof BitmapTrie ? (BitmapTrie)obj :
-	       ((BitmapTrieOwner)obj).bitmapTrie()));
-    }
-    int nbms = bms.size();
-    if (nbms == 0)
-      return null;
-    if (nbms == 1)
-      return new PersistentHashMap(bms.get(0));
-    final BitmapTrie initial = bms.get(0);
-    //We can't currently split up maps in more than 1024 elems.
-    parallelism = Math.min(1024, parallelism);
-    final int nsplits = parallelism;
-    Future[] futures = new Future[parallelism];
-    for (int idx = 0; idx < parallelism; ++idx) {
-      final int splitidx = idx;
-      futures[idx] = executor.submit(new Callable<BitmapTrie>() {
-	  public BitmapTrie call() {
-	    BitmapTrie target = initial.keyspaceSplit(splitidx, nsplits).shallowClone(null);
-	    for( int bidx = 1; bidx < nbms; ++bidx) {
-	      target = target.union(bms.get(bidx).keyspaceSplit(splitidx, nsplits),
-				    valueMapper,
-				    true);
-	    }
-	    //Force traversal to calculate map size in the work thread.
-	    target.size();
-	    return target;
-	  }
-	});
-    }
-    //Second loop is hyper fast because we know the keys can't collide meaning the 'union'
-    //operation really is in-place with no merging and full structural sharing.
-    BitmapTrie result = (BitmapTrie)futures[0].get();
-    int sum = result.size();
-    for (int idx = 1; idx < parallelism; ++idx ) {
-      BitmapTrie nextTrie = (BitmapTrie)futures[idx].get();
-      sum += nextTrie.size();
-      result = result.union(nextTrie, valueMapper);
-    }
-    result.count = sum;
-    return new PersistentHashMap(result);
-  }
-
-  public final static PersistentHashMap parallelUnionReduce(BiFunction valueMapper, Iterable bitmaps)
-    throws Exception {
-    return parallelUnionReduce(valueMapper, bitmaps, ForkJoinPool.commonPool(),
-			       ForkJoinPool.getCommonPoolParallelism());
   }
 
   public void printNodes() { hb.printNodes(); }

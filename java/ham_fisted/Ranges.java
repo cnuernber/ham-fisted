@@ -154,9 +154,9 @@ public class Ranges {
       throw new RuntimeException("Infinite range: " + String.valueOf(step) + " : " + String.valueOf(st));
     }
     public long[] toLongArray() {
-      final long st = RT.longCast(step);
+      final long st = Casts.longCast(step);
       if (st != 0)
-	return ArrayLists.larange(RT.longCast(start), RT.longCast(end), RT.longCast(step));
+	return ArrayLists.larange(Casts.longCast(start), Casts.longCast(end), Casts.longCast(step));
       throw new RuntimeException("Infinite range: " + String.valueOf(step) + " : " + String.valueOf(st));
     }
     public double[] toDoubleArray() {

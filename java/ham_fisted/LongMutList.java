@@ -19,7 +19,7 @@ public interface LongMutList extends IMutList<Object> {
   @SuppressWarnings("unchecked")
   default Object set(int idx, Object obj) { final long v = getLong(idx); setLong(idx, Casts.longCast(obj)); return v; }
   default void setBoolean(int idx, boolean obj) { setLong(idx, obj ? 1 : 0); }
-  default void setDouble(int idx, double obj) { setLong(idx, (long)obj); }
+  default void setDouble(int idx, double obj) { setLong(idx, Casts.longCast(obj)); }
   default Object get(int idx) { return getLong(idx); }
   default double getDouble(int idx) { return getLong(idx); }
   default void fillRange(int startidx, final int endidx, Object v) {

@@ -386,7 +386,7 @@ public interface IMutList<E>
   @SuppressWarnings("unchecked")
   default void setDouble(int idx, double v) { set(idx, (E)Double.valueOf(v)); }
   default boolean getBoolean(int idx) { return Casts.booleanCast(get(idx)); }
-  default long getLong(int idx) { return RT.longCast(get(idx)); }
+  default long getLong(int idx) { return Casts.longCast(get(idx)); }
   default double getDouble(int idx) {
     final Object obj = get(idx);
     return obj != null ? Casts.doubleCast(obj) : Double.NaN;
@@ -474,20 +474,8 @@ public interface IMutList<E>
 						  this, options);
   }
   @SuppressWarnings("unchecked")
-  default public void forEach(Consumer c) {
-    final int sz = size();
-    for (int idx = 0; idx < sz; ++idx)
-      c.accept(get(idx));
-  }
-  default public void doubleForEach(DoubleConsumer c) {
-    final int sz = size();
-    for (int idx = 0; idx < sz; ++idx)
-      c.accept(getDouble(idx));
-  }
-  default public void longForEach(LongConsumer c) {
-    final int sz = size();
-    for (int idx = 0; idx < sz; ++idx)
-      c.accept(getLong(idx));
+  default void forEach(Consumer c) {
+    ITypedReduce.super.forEach(c);
   }
   default int hasheq() {
     return CljHash.listHasheq(this);
