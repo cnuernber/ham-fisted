@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
@@ -42,7 +43,8 @@ import java.math.BigDecimal;
 public final class PersistentHashMap
   extends APersistentMap
   implements IObj, IMapIterable, IKVReduce, IEditableCollection,
-	     MapSet, BitmapTrieOwner, IHashEq, ImmutValues, MapEquivalence {
+	     MapSet, BitmapTrieOwner, IHashEq, ImmutValues, MapEquivalence,
+	     ITypedReduce {
 
   final BitmapTrie hb;
   int cachedHash = 0;
@@ -222,6 +224,27 @@ public final class PersistentHashMap
   }
 
   public void printNodes() { hb.printNodes(); }
+
+
+  public Object reduce(IFn rfn, Object init) {
+    return Transformables.iterReduce(entrySet(), init, rfn);
+  }
+
+  public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
+				  ParallelOptions options ) {
+    return Reductions.parallelCollectionReduction(initValFn, rfn, mergeFn, entrySet(),
+						  options);
+  }
+
+  @SuppressWarnings("unchecked")
+  public void forEach(Consumer c) {
+    reduce( new IFnDef() {
+	public Object invoke(Object lhs, Object rhs) {
+	  c.accept(rhs);
+	  return c;
+	}
+      }, c);
+  }
 
 
   static final void ensureDifferent(HashProvider hp, Object[] keys) {

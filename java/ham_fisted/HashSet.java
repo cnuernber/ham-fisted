@@ -6,6 +6,8 @@ import static ham_fisted.BitmapTrie.*;
 import java.util.AbstractSet;
 import java.util.Iterator;
 import java.util.Arrays;
+import java.util.Spliterator;
+import java.util.function.Consumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import clojure.lang.IObj;
@@ -18,12 +20,13 @@ import clojure.lang.IteratorSeq;
 import clojure.lang.ILookup;
 import clojure.lang.IHashEq;
 import clojure.lang.IPersistentCollection;
+import clojure.lang.IFn;
 
 
 public class HashSet<E>
   extends AbstractSet<E>
   implements MapSet, BitmapTrieOwner, IObj, ITransientSet, Seqable,
-	     ILookup, IFnDef, IHashEq {
+	     ILookup, IFnDef, IHashEq, ITypedReduce {
   BitmapTrie hb;
 
   public static final Object PRESENT = new Object();
@@ -61,6 +64,10 @@ public class HashSet<E>
   @SuppressWarnings("unchecked")
   public final Iterator<E> iterator() {
     return hb.iterator(keyIterFn);
+  }
+  @SuppressWarnings("unchecked")
+  public final Spliterator<E> spliterator() {
+    return hb.spliterator(keyIterFn);
   }
   public final ISeq seq() { return IteratorSeq.create(iterator()); }
   public final boolean remove(Object k) { return hb.remove(k) != null; }
@@ -140,5 +147,23 @@ public class HashSet<E>
   }
   public final Object invoke(Object key, Object notFound) {
     return contains(key) ? key : notFound;
+  }
+  public Object reduce(IFn rfn, Object init) {
+    return Transformables.iterReduce(this, init, rfn);
+  }
+
+  public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
+				  ParallelOptions options ) {
+    return Reductions.parallelCollectionReduction(initValFn, rfn, mergeFn, this, options);
+  }
+
+  @SuppressWarnings("unchecked")
+  public void forEach(Consumer c) {
+    reduce( new IFnDef() {
+	public Object invoke(Object lhs, Object rhs) {
+	  c.accept(rhs);
+	  return c;
+	}
+      }, c);
   }
 }

@@ -12,20 +12,24 @@ import clojure.lang.IHashEq;
 import clojure.lang.IObj;
 import clojure.lang.IteratorSeq;
 import clojure.lang.ISeq;
+import clojure.lang.IFn;
 import clojure.lang.ILookup;
 import clojure.lang.IEditableCollection;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Spliterator;
 import java.util.Set;
 import java.util.Arrays;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Consumer;
 
 
 public class PersistentHashSet
   implements IPersistentSet, Collection, Set, Serializable, IHashEq, IObj,
-	     MapSet, BitmapTrieOwner, ILookup, IEditableCollection, IFnDef {
+	     MapSet, BitmapTrieOwner, ILookup, IEditableCollection, IFnDef,
+	     ITypedReduce {
   final BitmapTrie hb;
   int cachedHash = 0;
 
@@ -111,6 +115,7 @@ public class PersistentHashSet
   public final ISeq seq() { return IteratorSeq.create(iterator()); }
 
   public final Iterator iterator() { return hb.iterator(keyIterFn); }
+  public final Spliterator spliterator() { return hb.spliterator(keyIterFn); }
 
   public PersistentHashSet intersection(MapSet rhs, BiFunction valueMap) {
     return new PersistentHashSet(hb.intersection(((BitmapTrieOwner)rhs).bitmapTrie(),
@@ -165,5 +170,22 @@ public class PersistentHashSet
       return new HashSet(equalHashProvider);
     return new TransientHashSet(hb);
   }
+  public Object reduce(IFn rfn, Object init) {
+    return Transformables.iterReduce(this, init, rfn);
+  }
 
+  public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
+				  ParallelOptions options ) {
+    return Reductions.parallelCollectionReduction(initValFn, rfn, mergeFn, this, options);
+  }
+
+  @SuppressWarnings("unchecked")
+  public void forEach(Consumer c) {
+    reduce( new IFnDef() {
+	public Object invoke(Object lhs, Object rhs) {
+	  c.accept(rhs);
+	  return c;
+	}
+      }, c);
+  }
 }

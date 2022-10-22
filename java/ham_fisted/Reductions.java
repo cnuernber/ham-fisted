@@ -122,6 +122,11 @@ public class Reductions {
   static class ErrorRecord {
     public final Exception e;
     public ErrorRecord(Exception _e) { e = _e; }
+    public static Object checkError(Object obj) {
+      if (obj instanceof ErrorRecord)
+	throw new RuntimeException("Error during reduction", ((ErrorRecord)obj).e);
+      return obj;
+    }
   }
 
   @SuppressWarnings("unchecked")
@@ -185,9 +190,9 @@ public class Reductions {
 	}
 	return fval;
       } else {
-	Object fval = ab.take();
+	Object fval = ErrorRecord.checkError(ab.take());
 	for(int idx = 1; idx < nSubs; ++idx) {
-	  fval = mergeFn.invoke(fval, ab.take());
+	  fval = mergeFn.invoke(fval, ErrorRecord.checkError(ab.take()));
 	}
 	return fval;
       }

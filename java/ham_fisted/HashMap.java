@@ -23,6 +23,7 @@ import java.util.Iterator;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.concurrent.ExecutorService;
 
@@ -34,7 +35,7 @@ import java.util.concurrent.ExecutorService;
 public final class HashMap<K,V>
   implements Map<K,V>, ITransientMap, ITransientAssociative2, IObj,
 	     MapSet, BitmapTrieOwner, ILookup, IFnDef, IHashEq,
-	     ImmutValues
+	     ImmutValues, ITypedReduce
 {
 
   final BitmapTrie hb;
@@ -387,5 +388,25 @@ public final class HashMap<K,V>
 	return new HashMap<K,V>(srcFn.apply(values));
       }
     };
+  }
+
+  public Object reduce(IFn rfn, Object init) {
+    return Transformables.iterReduce(entrySet(), init, rfn);
+  }
+
+  public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
+				  ParallelOptions options ) {
+    return Reductions.parallelCollectionReduction(initValFn, rfn, mergeFn, entrySet(),
+						  options);
+  }
+
+  @SuppressWarnings("unchecked")
+  public void forEach(Consumer c) {
+    reduce( new IFnDef() {
+	public Object invoke(Object lhs, Object rhs) {
+	  c.accept(rhs);
+	  return c;
+	}
+      }, c);
   }
 }

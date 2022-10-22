@@ -14,6 +14,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Spliterator;
 import java.util.function.Function;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -953,7 +954,58 @@ class BitmapTrie implements IObj, TrieBase {
     return new HTIterator(fn, nullEntry, root.iterator());
   }
 
-  class EntrySet<K,V> extends AbstractSet<Map.Entry<K,V>> {
+  static class TrieSpliterator implements Spliterator {
+    BitmapTrie root;
+    BitmapTrie subtree;
+    Iterator subtreeIter;
+    int sidx;
+    int eidx;
+    final Function<ILeaf,Object> fn;
+    public TrieSpliterator(BitmapTrie _root, int _sidx, int _eidx,
+			   Function<ILeaf,Object> _fn) {
+      root = _root;
+      subtree = null;
+      subtreeIter = null;
+      sidx = _sidx;
+      eidx = _eidx;
+      fn = _fn;
+    }
+    public TrieSpliterator(BitmapTrie _root, Function<ILeaf,Object> _fn) {
+      root = _root;
+      subtree = null;
+      subtreeIter = null;
+      sidx = 0;
+      eidx = 1024;
+      fn = _fn;
+    }
+    BitmapTrie getSubtree() { if(subtree == null) subtree = root.keyspaceSplit(sidx,eidx); return subtree; }
+    public int characteristics() { return Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.SIZED; }
+    public long estimateSize() { return getSubtree().size(); }
+    public long getExactSizeIfKnown() { return estimateSize(); }
+    @SuppressWarnings("unchecked")
+    public boolean tryAdvance(Consumer c) {
+      if(subtreeIter == null)
+	subtreeIter = getSubtree().iterator(fn);
+      final boolean retval = subtreeIter.hasNext();
+      if(retval) c.accept(subtreeIter.next());
+      return retval;
+    }
+    public Spliterator trySplit() {
+      final int partLen = (eidx - sidx)/2;
+      final int nextSidx = sidx + partLen;
+      subtree = null;
+      subtreeIter = null;
+      final TrieSpliterator retval = new TrieSpliterator(root, nextSidx, eidx, fn);
+      eidx = nextSidx;
+      return retval;
+    }
+  };
+
+  final Spliterator spliterator(Function<ILeaf,Object> fn) {
+    return new TrieSpliterator(this, fn);
+  }
+
+  class EntrySet<K,V> extends AbstractSet<Map.Entry<K,V>> implements ITypedReduce {
 
     final boolean allowsClear;
 
@@ -978,6 +1030,11 @@ class BitmapTrie implements IObj, TrieBase {
       return retval;
     }
 
+    @SuppressWarnings("unchecked")
+    public final Spliterator<Map.Entry<K,V>> spliterator() {
+      return (Spliterator<Map.Entry<K,V>>)BitmapTrie.this.spliterator(entryIterFn);
+    }
+
     public final boolean contains(Object o) {
       if (!(o instanceof Map.Entry))
 	return false;
@@ -988,6 +1045,25 @@ class BitmapTrie implements IObj, TrieBase {
 	Objects.equals(candidate.key(), key) &&
 	Objects.equals(candidate.val(), e.getValue());
     }
+
+    public Object reduce(IFn rfn, Object init) {
+      return Transformables.iterReduce(this, init, rfn);
+    }
+
+    public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
+				    ParallelOptions options ) {
+      return Reductions.parallelCollectionReduction(initValFn, rfn, mergeFn, this, options);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void forEach(Consumer c) {
+      reduce( new IFnDef() {
+	  public Object invoke(Object lhs, Object rhs) {
+	    c.accept(rhs);
+	    return c;
+	  }
+	}, c);
+    }
   }
 
   final <K,V> Set<Map.Entry<K,V>> entrySet(Map.Entry<K,V> me, boolean allowsClear) {
@@ -995,7 +1071,7 @@ class BitmapTrie implements IObj, TrieBase {
   }
 
 
-  class KeySet<K> extends AbstractSet<K> {
+  class KeySet<K> extends AbstractSet<K> implements ITypedReduce {
     final boolean allowsClear;
     KeySet(boolean _ac) {
       allowsClear = _ac;
@@ -1015,8 +1091,32 @@ class BitmapTrie implements IObj, TrieBase {
       return retval;
     }
 
+    @SuppressWarnings("unchecked")
+    public final Spliterator<K> spliterator() {
+      return (Spliterator<K>)BitmapTrie.this.spliterator(keyIterFn);
+    }
+
     public final boolean contains(Object key) {
       return getNode(key) != null;
+    }
+
+    public Object reduce(IFn rfn, Object init) {
+      return Transformables.iterReduce(this, init, rfn);
+    }
+
+    public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
+				    ParallelOptions options ) {
+      return Reductions.parallelCollectionReduction(initValFn, rfn, mergeFn, this, options);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void forEach(Consumer c) {
+      reduce( new IFnDef() {
+	  public Object invoke(Object lhs, Object rhs) {
+	    c.accept(rhs);
+	    return c;
+	  }
+	}, c);
     }
   }
 
@@ -1025,7 +1125,7 @@ class BitmapTrie implements IObj, TrieBase {
   }
 
 
-  class ValueCollection<V>  extends AbstractCollection<V> {
+  class ValueCollection<V>  extends AbstractCollection<V> implements ITypedReduce {
     boolean allowsClear;
     ValueCollection(boolean ac) { allowsClear = ac; }
     public final int size() { return BitmapTrie.this.size(); }
@@ -1038,6 +1138,28 @@ class BitmapTrie implements IObj, TrieBase {
     public final Iterator<V> iterator() {
       @SuppressWarnings("unchecked") Iterator<V> retval = (Iterator<V>) BitmapTrie.this.iterator(valIterFn);
       return retval;
+    }
+    @SuppressWarnings("unchecked")
+    public final Spliterator<V> spliterator() {
+      return (Spliterator<V>)BitmapTrie.this.spliterator(valIterFn);
+    }
+    public Object reduce(IFn rfn, Object init) {
+      return Transformables.iterReduce(this, init, rfn);
+    }
+
+    public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
+				    ParallelOptions options ) {
+      return Reductions.parallelCollectionReduction(initValFn, rfn, mergeFn, this, options);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void forEach(Consumer c) {
+      reduce( new IFnDef() {
+	  public Object invoke(Object lhs, Object rhs) {
+	    c.accept(rhs);
+	    return c;
+	  }
+	}, c);
     }
   }
   final <V> Collection<V> values(V obj, boolean allowsClear) {
