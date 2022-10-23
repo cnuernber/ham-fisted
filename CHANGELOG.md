@@ -1,3 +1,6 @@
+# 2.000-beta-25
+ * Removed claypoole from dependencies.
+ 
 # 2.000-beta-24
  * preduce has new option to help parallelize concat operations - they can be parallelized
    two different ways, either elemwise where each container parallelizes its reduction or

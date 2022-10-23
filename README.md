@@ -87,6 +87,67 @@ leads to checked casts.
 (->> (map map-fn src-map) (remove nil?) (into {}))
 ```
 
+#### Parallelized Reductions - preduce
+
+
+Reductions over finite containers such as arrays, persistent vectors, all
+hashmaps, hashsets, ranges from this library and all java.util.* containers
+can be parallelized.  This includes map/filter/concat chains derived from
+these contains assuming you use map,filter, and concat from the lazy-noncaching
+namespace.  For instance:
+
+```clojure
+user> (require '[ham-fisted.api :as hamf])
+niluser>
+user> (require '[ham-fisted.lazy-noncaching :as lznc])
+nil
+user> ;;Import summation double consumer
+user> (import '[ham_fisted Sum])
+ham_fisted.Sum
+user> ;;Parallelized reduction
+user> (->> (range 1000000)
+           (hamf/preduce #(Sum.) hamf/double-consumer-accumulator
+                         (fn [^Sum l ^Sum r]
+                           (.merge l r)
+                           l)))
+#<Sum@63ffc541: {:sum 4.999995E11, :n-elems 1000000}>
+user> ;; Also parallelized
+user> (->> (range 1000000)
+           (lznc/map (fn [l] (* l 2)))
+           (lznc/map (fn [l] (+ l 1)))
+           (lznc/filter (fn [l] (== 0 (rem (long l) 3))))
+           (hamf/preduce #(Sum.) hamf/double-consumer-accumulator
+                         (fn [^Sum l ^Sum r]
+                           (.merge l r)
+                           l)))
+#<Sum@289a6972: {:sum 3.33332666667E11, :n-elems 333333}>
+user> ;;Fully typed and parallelized
+user> (->> (range 1000000)
+           (lznc/map (fn ^long [^long l] (* l 2)))
+           (lznc/map (fn ^long [^long l] (+ l 1)))
+           (lznc/filter (fn [^long l] (== 0 (rem l 3))))
+           (hamf/preduce #(Sum.) hamf/double-consumer-accumulator
+                         (fn [^Sum l ^Sum r]
+                           (.merge l r)
+                           l)))
+#<Sum@a418e7c: {:sum 3.33332666667E11, :n-elems 333333}>
+user> ;;Syntax helpers for this type of parallelization
+user> (->> (range 1000000)
+           (lznc/map (hamf/long-unary-operator l (* l 2)))
+           (lznc/map (hamf/long-unary-operator l (+ l 1)))
+           (lznc/filter (hamf/long-predicate l (== 0 (rem l 3))))
+           (hamf/preduce #(Sum.) hamf/double-consumer-accumulator
+                         (fn [^Sum l ^Sum r]
+                           (.merge l r)
+                           l)))
+#<Sum@5984a26b: {:sum 3.33332666667E11, :n-elems 333333}>
+```
+
+This parallelization allows for users to pass in their own forkjoin pools
+so you can use it for blocking tasks although it is setup be default for
+cpu-bound operations.  Concat operations can parallelize reductions over
+non-finite contains using the default `:seq-wise` `:cat-parallelization`
+option.
 
 
 #### All Arrays Are First Class

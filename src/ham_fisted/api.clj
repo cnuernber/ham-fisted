@@ -36,7 +36,6 @@
              :as lznc]
             [ham-fisted.lazy-caching :as lzc]
             [ham-fisted.alists :as alists]
-            [com.climate.claypoole :as claypoole]
             [ham-fisted.impl :as impl])
   (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
@@ -2181,11 +2180,11 @@ ham-fisted.api> @*1
 
 (defmacro double-unary-operator
   "Create an implementation of java.util.function.DoubleUnaryOperator"
-  [varname code]
+  [varname & code]
   `(reify
      DoubleUnaryOperator
      (applyAsDouble [this# ~varname]
-       ~code)
+       ~@code)
      Reductions$DD
      (invoke [this# v#]
        (.applyAsDouble this# v#))))
@@ -2205,11 +2204,11 @@ ham-fisted.api> @*1
 
 (defmacro long-unary-operator
   "Create an implementation of java.util.function.LongUnaryOperator"
-  [varname code]
+  [varname & code]
   `(reify
      LongUnaryOperator
      (applyAsLong [this# ~varname]
-       ~code)
+       ~@code)
      Reductions$LL
      (invokePrim [this# v#]
        (.applyAsLong this# v#))))
@@ -2228,11 +2227,11 @@ ham-fisted.api> @*1
 
 (defmacro unary-operator
   "Create an implementation of java.util.function.UnaryOperator"
-  [varname code]
+  [varname & code]
   `(reify
      UnaryOperator
      (apply [this# ~varname]
-       ~code)
+       ~@code)
      IFnDef
      (invoke [this# v#]
        (.apply this# v#))))
@@ -2434,12 +2433,12 @@ ham-fisted.api> @*1
                ;;Order isn't important here but you can provide your own fork-join pool
                (options->parallel-options options false)
                (case (get options :nan-strategy :remove)
-                 :remove (filter (fn [^double v] (not (Double/isNaN v))) coll)
+                 :remove (filter (double-predicate v (not (Double/isNaN v))) coll)
                  :keep coll
-                 :exception (map (fn ^double [^double v]
-                                   (when (Double/isNaN v)
-                                     (throw (Exception. "Nan detected")))
-                                   v)
+                 :exception (map (double-unary-operator v
+                                                        (when (Double/isNaN v)
+                                                          (throw (Exception. "Nan detected")))
+                                                        v)
                                  coll))))))
 
 

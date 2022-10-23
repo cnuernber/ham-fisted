@@ -1,6 +1,5 @@
 {:paths ["src" "target/classes"]
  :deps {it.unimi.dsi/fastutil-core {:mvn/version "8.5.8"}
-        org.clj-commons/claypoole  {:mvn/version "1.2.2"}
         com.google.guava/guava     {:mvn/version "31.1-jre"}}
  :aliases
  {;; Run with clj -T:build function-in-build
