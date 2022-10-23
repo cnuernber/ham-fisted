@@ -12,11 +12,16 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Random;
 import java.util.Collections;
+import java.util.Spliterator;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.LongBinaryOperator;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.LongConsumer;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
+import java.util.stream.DoubleStream;
+import java.util.stream.Stream;
 import it.unimi.dsi.fastutil.objects.ObjectArrays;
 import it.unimi.dsi.fastutil.ints.IntArrays;
 import it.unimi.dsi.fastutil.ints.IntComparator;
@@ -257,6 +262,9 @@ public interface IMutList<E>
     }
   }
   default Iterator<E> riterator() { return new RIter<E>(this); }
+  default Spliterator<E> spliterator() {
+    return new RandomAccessSpliterator<E>(this);
+  }
   default Object[] fillArray(Object[] data) {
     final int sz = size();
     for (int idx = 0; idx < sz; ++idx)
@@ -631,5 +639,23 @@ public interface IMutList<E>
   }
   default IPersistentVector empty() {
     return ArrayImmutList.EMPTY;
+  }
+
+  //Long stream to account for IMutLists that are longer than Integer.MAX_VALUE.
+  default LongStream indexStream(boolean parallel) {
+    LongStream retval = LongStream.range(0, size());
+    return parallel ? retval.parallel() : retval;
+  }
+
+  default Stream objStream(boolean parallel) {
+    return indexStream(parallel).mapToObj((long idx)->get((int)idx));
+  }
+
+  default DoubleStream doubleStream(boolean parallel) {
+    return indexStream(parallel).mapToDouble((long idx)->getDouble((int)idx));
+  }
+
+  default LongStream longStream(boolean parallel) {
+    return indexStream(parallel).map((long idx)->getLong((int)idx));
   }
 }

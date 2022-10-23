@@ -40,11 +40,11 @@ public class ConstList implements IMutList<Object>, TypedList {
       throw new RuntimeException("End index out of range.");
     return create(eidx-sidx, value, meta);
   }
-  public ConstList sort(Comparable c) { return this; }
+  public void sort(Comparable c) { }
   public ConstList immutSort(Comparable c) { return this; }
   public ConstList ImmutSort() { return this; }
   public ConstList reverse() { return this; }
-  public int[] sortIndirect() { return new int[nElems]; }
+  public int[] sortIndirect() { return ArrayLists.iarange(0, nElems, 1); }
   public Object[] toArray() {
     Object[] retval = new Object[nElems];
     Arrays.fill(retval, value);

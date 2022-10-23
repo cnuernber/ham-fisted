@@ -134,7 +134,7 @@ public class Reductions {
 						    Spliterator s, ParallelOptions options) {
     try {
       final ForkJoinPool pool = options.pool;
-      final long nSplits = Math.round(Math.log(options.parallelism * 2) / Math.log(2));
+      final long nSplits = Math.round(Math.log(options.parallelism * 4) / Math.log(2));
       Spliterator[] splitIters = new Spliterator[] { s };
       for(int idx = 0; idx < nSplits; ++idx) {
 	final int sl = splitIters.length;
@@ -215,20 +215,25 @@ public class Reductions {
       return serialReduction(rfn, initValFn.invoke(), coll);
     if(coll instanceof ITypedReduce) {
       return ((ITypedReduce)coll).parallelReduction(initValFn, rfn, mergeFn, options);
-    } else if (coll instanceof RandomAccess) {
+    }  else if (coll instanceof RandomAccess) {
       return parallelRandAccessReduction(initValFn, rfn, mergeFn, (List)coll, options);
+      //Early check here for IReduceInit to catch Clojure's hashmap, hashset and
+      //transducer map,filter chains not parallelizable datastructures.
+    } else if (coll instanceof IReduceInit) {
+      return serialReduction(rfn, initValFn.invoke(), coll);
+      //java hashmap and concurrent hashmap, linked hashmap, etc.
     } else if (coll instanceof Map) {
       return parallelCollectionReduction(initValFn, rfn, mergeFn,
 					 ((Map)coll).entrySet(), options);
+      //All java.util set implementations.
     } else if (coll instanceof Set) {
       return parallelCollectionReduction(initValFn, rfn, mergeFn,
 					 (Collection)coll, options);
-      //Cull out clojure things that do not have a good spliterator implementation.
-    } else if (coll instanceof IReduceInit) {
-      return serialReduction(rfn, initValFn.invoke(), coll);
+      //Fallthrough - these are probably not parallelizeable but we can try.
     } else if (coll instanceof Iterable) {
       return parallelSpliteratorReduction(initValFn, rfn, mergeFn,
 					  ((Iterable)coll).spliterator(), options);
+      //Finally everything else.
     } else {
       return serialReduction(rfn, initValFn.invoke(), coll);
     }

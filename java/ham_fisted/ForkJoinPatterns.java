@@ -10,4 +10,7 @@ public class ForkJoinPatterns {
   public static Iterable parallelIndexGroups(long nElems, IFn bodyFn, ParallelOptions options) {
     return (Iterable)Clojure.var("ham-fisted.impl", "pgroups").invoke(nElems, bodyFn, options);
   }
+  public static Iterable pmap(ParallelOptions options, IFn bodyFn, Object sequences) {
+    return (Iterable)Clojure.var("ham-fisted.impl", "pmap").invoke(options, bodyFn, sequences);
+  }
 }

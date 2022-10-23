@@ -16,16 +16,16 @@ import clojure.lang.IFn;
  */
 public interface ITypedReduce<E> extends IReduceInit {
   default Object doubleReduction(IFn.ODO op, Object init) {
-    return reduce(new IFnDef() {
-	public Object invoke(Object lhs, Object rhs) {
-	  return op.invokePrim(lhs, Casts.doubleCast(rhs));
+    return reduce(new Reductions.DoubleAccum() {
+	public Object invokePrim(Object lhs, double rhs) {
+	  return op.invokePrim(lhs, rhs);
 	}
       }, init);
   }
   default Object longReduction(IFn.OLO op, Object init) {
-    return reduce(new IFnDef() {
-	public Object invoke(Object lhs, Object rhs) {
-	  return op.invokePrim(lhs, Casts.longCast(rhs));
+    return reduce(new Reductions.LongAccum() {
+	public Object invokePrim(Object lhs, long rhs) {
+	  return op.invokePrim(lhs, rhs);
 	}
       }, init);
   }

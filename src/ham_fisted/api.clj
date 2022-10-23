@@ -52,7 +52,7 @@
             Consumers Sum Sum$SimpleSum Casts Reducible IndexedDoubleConsumer
             IndexedLongConsumer IndexedConsumer ITypedReduce ParallelOptions Reductions
             Reductions$LO Reductions$LL Reductions$DO Reductions$DD Reductions$DDD
-            Reductions$LLL]
+            Reductions$LLL ParallelOptions$CatParallelism]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
@@ -262,13 +262,17 @@ ham-fisted.api> @*1
                       (get options :max-batch-size 64000)
                       (boolean ordered?)
                       pool
-                      (get options :parallelism (.getParallelism pool)))))
+                      (get options :parallelism (.getParallelism pool))
+                      (case (get options :cat-parallelism :seq-wise)
+                        :seq-wise ParallelOptions$CatParallelism/SEQWISE
+                        :elem-wise ParallelOptions$CatParallelism/ELEMWISE))))
 
 
 (defn preduce
   "Parallelized reduction.  Currently coll must either be random access or a lznc map/filter
-  chain based on one or more random access entities.  If input cannot be easily parallelized
-  lowers to a normal serial reduction.
+  chain based on one or more random access entities, hashmaps and sets from this library or
+  any java.util set, hashmap or concurrent versions of these.  If input cannot be
+  parallelized this lowers to a normal serial reduction.
 
   * `init-val-fn` - Potentially called in reduction threads to produce each initial value.
   * `rfn` - normal clojure reduction function.  Typehinting the second argument to double
@@ -281,7 +285,11 @@ ham-fisted.api> @*1
   * `:max-batch-size` - Maximum batch size for indexed or grouped reductions.
   * `:min-n` - minimum number of elements - fewer than these results in a linear reduction.
   * `:ordered?` - True if results should be in order.  Unordered results are slightly faster.
-  "
+  * `:cat-parallelism` - Either `:seq-wise` or `:elem-wise`, defaults to `:seq-wise`.
+  This contols how a concat primitive parallelizes the reduction across its contains.
+  Elemwise means each container's reduction is individually parallelized while seqwise
+  indicates to do a pmap style initial reduction across containers then merge the
+  results."
   ([init-val-fn rfn merge-fn coll] (preduce init-val-fn rfn merge-fn nil coll))
   ([init-val-fn rfn merge-fn options coll]
    (Reductions/parallelReduction init-val-fn rfn merge-fn coll

@@ -1,3 +1,17 @@
+# 2.000-beta-24
+ * preduce has new option to help parallelize concat operations - they can be parallelized
+   two different ways, either elemwise where each container parallelizes its reduction or
+   by sequence where an initial reduction is done with pmap then the results are merged.
+ * all random access contains support spliterator and typed stream construction.
+ * Fix bug in upmap causing hanging with short sequences.
+
+# 2.000-beta-23
+ * double conversion to long fails for NaN.
+ * Careful combining of typed map/filter chains to avoid causing inaccuracies when
+   converting from double to long.
+ * Major parallelism upgrade - spliterator-based objects such as java.util.hashmap and
+   all the hashmaps/hashsets from this library now support parallelized reduction.
+
 # 2.000-beta-22
  * Numeric values are range checked on input to addLong.
 

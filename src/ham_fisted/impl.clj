@@ -1,10 +1,10 @@
 (ns ham-fisted.impl
-  (:require [ham-fisted.lazy-noncaching :ref [map]])
+  (:require [ham-fisted.lazy-noncaching :refer [map]])
   (:import [java.util.concurrent ForkJoinPool ForkJoinTask ArrayBlockingQueue Future]
            [java.util Iterator]
            [ham_fisted ParallelOptions]
            [clojure.lang IteratorSeq])
-  (:refer-clojure :exclude [pmap]))
+  (:refer-clojure :exclude [map pmap]))
 
 
 (defn in-fork-join-task?
@@ -130,8 +130,10 @@
 
           future-seq (->> (apply map submit-fn sequences) (seq))
           n-cpu (+ (ForkJoinPool/getCommonPoolParallelism) 2)
+          ;;Account for short sequences!!
+          n-cpu (count (take n-cpu future-seq))
           read-ahead (->> (concat (drop n-cpu future-seq) (repeat n-cpu nil)))]
       (if (.-ordered options)
         ;;lazy noncaching map - the future itself does the caching for us.
         (map (fn [cur read-ahead] (.get ^Future cur)) future-seq read-ahead)
-        (iter-queue->seq queue (.iterator ^Iterable read-ahead))))))
+        (iter-queue->seq (.iterator ^Iterable read-ahead) queue)))))

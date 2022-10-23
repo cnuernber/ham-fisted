@@ -730,28 +730,74 @@ public class Transformables {
       for(int idx = 0; idx < nData && !RT.isReduced(init); ++idx) {
 	final Iterable item = d[idx];
 	for(Iterator iter = item.iterator(); iter.hasNext() && !RT.isReduced(init);)
-	  init = genericReduce(fn, init, iter.next());
+	  init = Reductions.serialReduction(fn, init, iter.next());
       }
       return init;
     }
-    public Object longReduction(final IFn.OLO rfn, Object init) {
-      final int nData = data.length;
-      final Iterable[] d = data;
-      for(int idx = 0; idx < nData && !RT.isReduced(init); ++idx) {
-	final Iterable item = d[idx];
-	for(Iterator iter = item.iterator(); iter.hasNext() && !RT.isReduced(init);)
-	  init = longReduce(rfn, init, iter.next());
+    static class CatIterIter implements Iterator {
+      Iterator gpIter;
+      Iterator parentIter;
+      CatIterIter(Iterator _gpIter) {
+	gpIter = _gpIter;
+	parentIter = null;
+	advance();
       }
-      return init;
+      public boolean hasNext() { return parentIter != null && parentIter.hasNext(); }
+      public Object next() {
+	final Object rv = parentIter.next();
+	if(!parentIter.hasNext())
+	  advance();
+	return rv;
+      }
+      void advance() {
+	if(hasNext()) { return; }
+	while(gpIter != null && gpIter.hasNext()) {
+	  parentIter = null;
+	  final Iterable parent = (Iterable)gpIter.next();
+	  if(parent != null) {
+	    parentIter = parent.iterator();
+	  }
+	  if(hasNext())
+	    return;
+	}
+	gpIter = null;
+	parentIter = null;
+      }
     }
-    public Object doubleReduction(final IFn.ODO rfn, Object init) {
+    Object preduceSeqwise(IFn initValFn, IFn rfn, IFn mergeFn, Object init,
+				 ParallelOptions options) {
+      final Iterable initSequence = new Iterable() {
+	  public Iterator iterator() {
+	    return new CatIterIter(ArrayLists.toList(data).iterator());
+	  }
+	};
+      final Iterable partiallyReduced = ForkJoinPatterns.pmap(options, new IFnDef() {
+	  public Object invoke(Object arg) {
+	    return Reductions.serialReduction(rfn, initValFn.invoke(), arg);
+	  }
+	}, ArrayLists.toList(new Object[] { initSequence }));
+      return Reductions.serialReduction(mergeFn, init, partiallyReduced);
+    }
+    public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
+				    ParallelOptions options) {
       final int nData = data.length;
       final Iterable[] d = data;
-      for(int idx = 0; idx < nData && !RT.isReduced(init); ++idx) {
-	final Iterable item = d[idx];
-	for(Iterator iter = item.iterator(); iter.hasNext() && !RT.isReduced(init);)
-	  init = doubleReduce(rfn, init, iter.next());
+      Object init = initValFn.invoke();
+      switch (options.catParallelism) {
+      case ELEMWISE: {
+	for(int idx = 0; idx < nData && !RT.isReduced(init); ++idx) {
+	  final Iterable item = d[idx];
+	  for(Iterator iter = item.iterator(); iter.hasNext() && !RT.isReduced(init);)
+	    init = mergeFn.invoke(init, Reductions.parallelReduction(initValFn, rfn, mergeFn,
+								     iter.next(), options));
+	}
+	break;
       }
+      case SEQWISE: {
+	init = preduceSeqwise(initValFn, rfn, mergeFn, init, options);
+	break;
+      }
+      };
       return init;
     }
     @SuppressWarnings("unchecked")
