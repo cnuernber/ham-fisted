@@ -20,6 +20,7 @@ import clojure.lang.IEditableCollection;
 import clojure.lang.ITransientCollection;
 import clojure.lang.IMapIterable;
 import clojure.lang.IKVReduce;
+import clojure.lang.IReduceInit;
 import clojure.lang.IHashEq;
 import clojure.lang.IFn;
 import clojure.lang.IDeref;
@@ -29,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Objects;
 import java.util.AbstractSet;
+import java.util.AbstractCollection;
 import java.util.Iterator;
 import java.util.Collection;
 import java.util.Arrays;
@@ -39,7 +41,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class PersistentArrayMap
   implements IPersistentMap, Map, IObj, IEditableCollection, MapSet, BitmapTrieOwner,
-	     IMapIterable, IKVReduce, IHashEq, ImmutValues, MapEquivalence, IFnDef {
+	     IMapIterable, IKVReduce, IHashEq, ImmutValues, MapEquivalence, IFnDef,
+	     IReduceInit {
   final HashProvider hp;
   final Object[] kvs;
   final int nElems;
@@ -364,6 +367,16 @@ public class PersistentArrayMap
     return init;
   }
 
+  public final Object reduce(IFn rfn, Object init) {
+    final int ne = nElems;
+    final Object[] data = kvs;
+    final int nne = ne *2;
+    for (int idx = 0; idx < nne && !RT.isReduced(init); idx += 2)
+      init = rfn.invoke(init, data[idx], data[idx+1]);
+
+    return RT.isReduced(init) ? ((IDeref)init).deref() : init;
+  }
+
   public final ITransientCollection asTransient() {
     return copyToTrie(hp, nElems, kvs, meta, nElems);
   }
@@ -519,7 +532,7 @@ public class PersistentArrayMap
     };
   }
   public final Collection values() {
-    return new AbstractSet() {
+    return new AbstractCollection() {
       public final int size() {
 	return PersistentArrayMap.this.size();
       }

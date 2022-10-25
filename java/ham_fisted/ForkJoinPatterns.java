@@ -2,6 +2,7 @@ package ham_fisted;
 
 import clojure.lang.IFn;
 import clojure.java.api.Clojure;
+import java.util.Spliterator;
 
 
 public class ForkJoinPatterns {
@@ -12,5 +13,9 @@ public class ForkJoinPatterns {
   }
   public static Iterable pmap(ParallelOptions options, IFn bodyFn, Object sequences) {
     return (Iterable)Clojure.var("ham-fisted.impl", "pmap").invoke(options, bodyFn, sequences);
+  }
+  public static Object parallelSpliteratorReduce(IFn initValFn, IFn rfn, IFn mergeFn,
+						 Spliterator s, ParallelOptions options) {
+    return Clojure.var("ham-fisted.impl", "parallel-spliterator-reduce").invoke(initValFn, rfn, mergeFn, s, options);
   }
 }

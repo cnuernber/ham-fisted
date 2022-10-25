@@ -26,8 +26,7 @@
    :exec-fn codox.main/-main
    :exec-args {:group-id "com.cnuernber"
                :artifact-id "ham-fisted"
-               ;;Change this also in bquild.clj
-               :version "1.000-beta-24"
+               :version "1.000-beta-25"
                :name "Ham-Fisted"
                :description "High Performance Clojure Primitives"
                :metadata {:doc/format :markdown}

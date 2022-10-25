@@ -423,4 +423,56 @@ public interface IFnDef extends IFn
     String name = getClass().getName();
     throw new ArityException(n, name);
   }
+
+
+  public interface LO extends IFnDef, IFn.LO {
+    default Object invoke(Object arg) {
+      return invokePrim(Casts.longCast(arg));
+    }
+  }
+  public interface LL extends IFnDef, IFn.LL {
+    default Object invoke(Object arg) {
+      return invokePrim(Casts.longCast(arg));
+    }
+  }
+  public interface DO extends IFnDef, IFn.DO {
+    default Object invoke(Object arg) {
+      return invokePrim(Casts.doubleCast(arg));
+    }
+  }
+  public interface DD extends IFnDef, IFn.DD {
+    default Object invoke(Object arg) {
+      return invokePrim(Casts.doubleCast(arg));
+    }
+  }
+  public interface DDD extends IFnDef, IFn.DDD {
+    default Object invoke(Object lhs, Object rhs) {
+      return invokePrim(Casts.doubleCast(lhs), Casts.doubleCast(rhs));
+    }
+  }
+  public interface LLL extends IFnDef, IFn.LLL {
+    default Object invoke(Object lhs, Object rhs) {
+      return invokePrim(Casts.longCast(lhs), Casts.longCast(rhs));
+    }
+  }
+  public interface OL extends IFnDef, IFn.OL {
+    default Object invoke(Object arg) {
+      return invokePrim(arg);
+    }
+  }
+  public interface OD extends IFnDef, IFn.OD {
+    default Object invoke(Object arg) {
+      return invokePrim(arg);
+    }
+  }
+  public interface ODO extends IFnDef, IFn.ODO {
+    default Object invoke(Object lhs, Object rhs) {
+      return invokePrim(lhs, Casts.doubleCast(rhs));
+    }
+  }
+  public interface OLO extends IFnDef, IFn.OLO {
+    default Object invoke(Object lhs, Object rhs) {
+      return invokePrim(lhs, Casts.longCast(rhs));
+    }
+  }
 }

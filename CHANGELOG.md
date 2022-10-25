@@ -1,5 +1,9 @@
 # 2.000-beta-25
  * Removed claypoole from dependencies.
+ * Move typed clojure function interface definitions from Reductions to IFnDef.
+ * Added overrides of keys, vals that produce parallelizable collections if the input
+   itself is a parallelizable collection - either maps from this library or any java
+   hashmap.
  
 # 2.000-beta-24
  * preduce has new option to help parallelize concat operations - they can be parallelized

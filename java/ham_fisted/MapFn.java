@@ -9,7 +9,7 @@ public class MapFn implements IFnDef {
     if(src instanceof IFn.OD && dst instanceof IFn.DD) {
       final IFn.OD ss = (IFn.OD)src;
       final IFn.DD dd = (IFn.DD)dst;
-      return new Reductions.OD() {
+      return new IFnDef.OD() {
 	public double invokePrim(Object obj) {
 	  return dd.invokePrim(ss.invokePrim(obj));
 	}
@@ -18,7 +18,7 @@ public class MapFn implements IFnDef {
     else if (src instanceof IFn.OL && dst instanceof IFn.LL) {
       final IFn.OL ss = (IFn.OL)src;
       final IFn.LL dd = (IFn.LL)dst;
-      return new Reductions.OL() {
+      return new IFnDef.OL() {
 	public long invokePrim(Object obj) {
 	  return dd.invokePrim(ss.invokePrim(obj));
 	}
@@ -26,7 +26,7 @@ public class MapFn implements IFnDef {
     } else if( src instanceof IFn.LL && dst instanceof IFn.LL) {
       final IFn.LL ss = (IFn.LL)src;
       final IFn.LL dd = (IFn.LL)dst;
-      return new Reductions.LL() {
+      return new IFnDef.LL() {
 	public long invokePrim(long v) {
 	  return dd.invokePrim(ss.invokePrim(v));
 	}
@@ -35,7 +35,7 @@ public class MapFn implements IFnDef {
     else if( src instanceof IFn.DD && dst instanceof IFn.DD) {
       final IFn.DD ss = (IFn.DD)src;
       final IFn.DD dd = (IFn.DD)dst;
-      return new Reductions.DD() {
+      return new IFnDef.DD() {
 	public double invokePrim(double v) {
 	  return dd.invokePrim(ss.invokePrim(v));
 	}

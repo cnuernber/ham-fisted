@@ -196,7 +196,7 @@ public class Transformables {
   public static IFn checkedSingleMapFn(IFn fn) {
     if(fn instanceof IFn.LL) {
       final IFn.LL ff = (IFn.LL)fn;
-      return new Reductions.LL() {
+      return new IFnDef.LL() {
 	public long invokePrim(long v) {
 	  return ff.invokePrim(v);
 	}
@@ -427,7 +427,7 @@ public class Transformables {
       if((src instanceof IFn.LO) && (dst instanceof IFn.LO)) {
 	final IFn.LO ss = (IFn.LO)src;
 	final IFn.LO dd = (IFn.LO)dst;
-	return new Reductions.LO() {
+	return new IFnDef.LO() {
 	  public Object invokePrim(long v) {
 	    return truthy(ss.invokePrim(v)) && truthy(dd.invokePrim(v));
 	  }
@@ -435,7 +435,7 @@ public class Transformables {
       } else if((src instanceof IFn.DO) && (dst instanceof IFn.DO)) {
 	final IFn.DO ss = (IFn.DO)src;
 	final IFn.DO dd = (IFn.DO)dst;
-	return new Reductions.DO() {
+	return new IFnDef.DO() {
 	  public Object invokePrim(double v) {
 	    return truthy(ss.invokePrim(v)) && truthy(dd.invokePrim(v));
 	  }
@@ -458,7 +458,7 @@ public class Transformables {
   public static IFn checkedPred(IFn src) {
     if(src instanceof IFn.LO) {
       final IFn.LO ss = (IFn.LO)src;
-      return new Reductions.LO() { public Object invokePrim(long v) { return ss.invokePrim(v); } };
+      return new IFnDef.LO() { public Object invokePrim(long v) { return ss.invokePrim(v); } };
     }
     return src;
   }

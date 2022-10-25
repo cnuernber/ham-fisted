@@ -50,8 +50,8 @@
             ReverseList TypedList DoubleMutList LongMutList
             Consumers Sum Sum$SimpleSum Casts Reducible IndexedDoubleConsumer
             IndexedLongConsumer IndexedConsumer ITypedReduce ParallelOptions Reductions
-            Reductions$LO Reductions$LL Reductions$DO Reductions$DD Reductions$DDD
-            Reductions$LLL ParallelOptions$CatParallelism]
+            IFnDef$LO IFnDef$LL IFnDef$DO IFnDef$DD IFnDef$DDD
+            IFnDef$LLL ParallelOptions$CatParallelism]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
@@ -82,7 +82,8 @@
                             sort int-array long-array double-array float-array
                             range map concat filter filterv first last pmap take take-last drop
                             drop-last sort-by repeat repeatedly shuffle into-array
-                            empty? reverse byte-array short-array char-array boolean-array]))
+                            empty? reverse byte-array short-array char-array boolean-array
+                            keys vals]))
 
 
 (set! *warn-on-reflection* true)
@@ -716,7 +717,7 @@ ham_fisted.PersistentHashMap
 (defn map-keyset
   "Return the keyset of the map.  This may not be in the same order as (keys m) or (vals
   m).  For hamf maps, this has the same ordering as (keys m).  For both hamf and java
-  hashmaps, the returned implementation of java.util.Set both more utility and better
+  hashmaps, the returned implementation of java.util.Set has both more utility and better
   performance than (keys m)."
   ^Set [^Map m] (.keySet m))
 
@@ -727,6 +728,20 @@ ham_fisted.PersistentHashMap
   hamf hashmaps and java hashmaps, this has better performance for reductions especially
   using `fast-reduce` than (vals m)."
   ^Collection [^Map m] (.values m))
+
+
+(defn keys
+  "Return the keys of a map.  This version allows parallel reduction operations on
+  the returned sequence."
+  [m]
+  (map key m))
+
+
+(defn vals
+  "Return the values of a map.  This version allows parallel reduction operations on
+  the returned sequence.  Returned sequence is in same order as `(keys m)`."
+  [m]
+  (map val m))
 
 
 (defn map-union
@@ -2088,7 +2103,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
      DoubleBinaryOperator
      (applyAsDouble [this# ~lvar ~rvar]
        ~@code)
-     Reductions$DDD
+     IFnDef$DDD
      (invokePrim [this# l# r#]
        (.applyAsDouble this# l# r#))))
 
@@ -2101,7 +2116,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
      LongBinaryOperator
      (applyAsLong [this ~lvar ~rvar]
        ~@code)
-     Reductions$LLL
+     IFnDef$LLL
      (invokePrim [this# l# r#]
        (.applyAsLong this# l# r#))))
 
@@ -2173,7 +2188,7 @@ ham-fisted.api> @*1
      DoublePredicate
      (test [this ~varname]
        ~code)
-     Reductions$DO
+     IFnDef$DO
      (invokePrim [this# d#]
        (.test this# d#))))
 
@@ -2185,7 +2200,7 @@ ham-fisted.api> @*1
      DoubleUnaryOperator
      (applyAsDouble [this# ~varname]
        ~@code)
-     Reductions$DD
+     IFnDef$DD
      (invoke [this# v#]
        (.applyAsDouble this# v#))))
 
@@ -2197,7 +2212,7 @@ ham-fisted.api> @*1
      LongPredicate
      (test [this ~varname]
        ~code)
-     Reductions$LO
+     IFnDef$LO
      (invokePrim [this# d#]
        (.test this# d#))))
 
@@ -2209,9 +2224,10 @@ ham-fisted.api> @*1
      LongUnaryOperator
      (applyAsLong [this# ~varname]
        ~@code)
-     Reductions$LL
+     IFnDef$LL
      (invokePrim [this# v#]
        (.applyAsLong this# v#))))
+
 
 (defmacro predicate
   "Create an implementation of java.util.Function.Predicate"
@@ -2615,6 +2631,7 @@ ham-fisted.api> @*1
         (== lhs rhs)))
     (and (== (count lhs) (count rhs))
          (every? identity (map double-eq lhs rhs)))))
+
 
 
 (comment

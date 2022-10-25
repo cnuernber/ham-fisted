@@ -1,10 +1,16 @@
 (ns ham-fisted.impl
-  (:require [ham-fisted.lazy-noncaching :refer [map]])
+  (:require [ham-fisted.lazy-noncaching :refer [map concat]])
   (:import [java.util.concurrent ForkJoinPool ForkJoinTask ArrayBlockingQueue Future]
            [java.util Iterator]
            [ham_fisted ParallelOptions]
-           [clojure.lang IteratorSeq])
-  (:refer-clojure :exclude [map pmap]))
+           [clojure.lang IteratorSeq]
+           [java.util Spliterator]
+           [ham_fisted Reductions$ReduceConsumer])
+  (:refer-clojure :exclude [map pmap concat]))
+
+
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 
 (defn in-fork-join-task?
@@ -16,6 +22,8 @@
 
 
 (defn- n-elems->groups
+  "This algorithm goes somewhat over batch size but attempts to all the indexes evenly
+  between tasks."
   ^GroupData [^long parallelism ^long n-elems ^long max-batch-size]
   (let [gsize (max 1 (min max-batch-size (quot n-elems parallelism)))
         ngroups (quot n-elems gsize)
@@ -50,6 +58,14 @@
 (defrecord ^:private ErrorRecord [e])
 
 
+(defn- queue-take
+  [^ArrayBlockingQueue queue]
+  (let [v (.take queue)]
+    (if (instance? ErrorRecord v)
+      (throw (.-e ^ErrorRecord v))
+      v)))
+
+
 (defmacro queue-put!
   [queue v]
   `(let [data# (try ~v (catch Exception e# (ErrorRecord. e#)))]
@@ -65,11 +81,7 @@
                         (hasNext [this] (.hasNext iter))
                         (next [this]
                           (.next iter)
-                          (let [v (.take queue)]
-                            (if (instance? ErrorRecord v)
-                              ;;Propagate to caller
-                              (throw (.-e ^ErrorRecord v))
-                              v))))))
+                          (queue-take queue)))))
 
 (defn pgroups
   "Run y groups across n-elems.   Y is common pool parallelism.
@@ -137,3 +149,51 @@
         ;;lazy noncaching map - the future itself does the caching for us.
         (map (fn [cur read-ahead] (.get ^Future cur)) future-seq read-ahead)
         (iter-queue->seq (.iterator ^Iterable read-ahead) queue)))))
+
+
+(defn- split-spliterator
+  [^long n-splits ^Spliterator spliterator]
+  (let [lhs spliterator
+        ;;Mutates lhs...
+        rhs (.trySplit spliterator)]
+    (if (<= n-splits 1)
+      [lhs rhs]
+      (let [n-splits (dec n-splits)]
+        (concat (split-spliterator (dec n-splits) lhs)
+                (split-spliterator (dec n-splits) rhs))))))
+
+
+(defn- consume-spliterator!
+  [^Reductions$ReduceConsumer c ^Spliterator s]
+  (if (and (not (.isReduced c))
+           (.tryAdvance s c))
+    (recur c s)
+    (deref c)))
+
+
+(defn parallel-spliterator-reduce
+  [initValFn rfn mergeFn ^Spliterator s ^ParallelOptions options]
+  (let [pool (.-pool options)
+        n-splits (Math/round (/ (Math/log (* 4 (.-parallelism options)))
+                                (Math/log 2)))
+        spliterators (vec (split-spliterator n-splits s))
+        n-iters (count spliterators)
+        ^ArrayBlockingQueue queue (when-not (.-ordered options)
+                                    (ArrayBlockingQueue. (+ (.-parallelism options) 2)))
+        futures
+        (mapv (fn [ridx]
+                (.submit pool
+                         ^Callable (fn []
+                                     (let [c (Reductions$ReduceConsumer. (initValFn) rfn)
+                                           ^Spliterator s (spliterators ridx)]
+                                       (if (.-ordered options)
+                                         (consume-spliterator! c s)
+                                         (queue-put! queue (consume-spliterator! c s)))))))
+              (range n-iters))]
+    (if (.-ordered options)
+      (reduce #(mergeFn %1 (.get ^Future %2))
+              (.get ^Future (first futures))
+              (rest futures))
+      (reduce (fn [v _idx] (mergeFn v (queue-take queue)))
+              (queue-take queue)
+              (range (dec n-iters))))))
