@@ -1,28 +1,31 @@
-# 2.000-beta-25
+# 1.000-beta-26
+ * IFnDef overloads implement their appropriate java.util.function counterparts.
+
+# 1.000-beta-25
  * Removed claypoole from dependencies.
  * Move typed clojure function interface definitions from Reductions to IFnDef.
  * Added overrides of keys, vals that produce parallelizable collections if the input
    itself is a parallelizable collection - either maps from this library or any java
    hashmap.
- 
-# 2.000-beta-24
+
+# 1.000-beta-24
  * preduce has new option to help parallelize concat operations - they can be parallelized
    two different ways, either elemwise where each container parallelizes its reduction or
    by sequence where an initial reduction is done with pmap then the results are merged.
  * all random access contains support spliterator and typed stream construction.
  * Fix bug in upmap causing hanging with short sequences.
 
-# 2.000-beta-23
+# 1.000-beta-23
  * double conversion to long fails for NaN.
  * Careful combining of typed map/filter chains to avoid causing inaccuracies when
    converting from double to long.
  * Major parallelism upgrade - spliterator-based objects such as java.util.hashmap and
    all the hashmaps/hashsets from this library now support parallelized reduction.
 
-# 2.000-beta-22
+# 1.000-beta-22
  * Numeric values are range checked on input to addLong.
 
-# 2.000-beta-21
+# 1.000-beta-21
  * Removed ensureCapacity from IMutList.
 
 # 1.000-beta-20

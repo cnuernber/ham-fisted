@@ -2197,12 +2197,9 @@ ham-fisted.api> @*1
   "Create an implementation of java.util.function.DoubleUnaryOperator"
   [varname & code]
   `(reify
-     DoubleUnaryOperator
-     (applyAsDouble [this# ~varname]
-       ~@code)
      IFnDef$DD
-     (invoke [this# v#]
-       (.applyAsDouble this# v#))))
+     (invokePrim [this# ~varname]
+       ~@code)))
 
 
 (defmacro long-predicate
@@ -2221,12 +2218,9 @@ ham-fisted.api> @*1
   "Create an implementation of java.util.function.LongUnaryOperator"
   [varname & code]
   `(reify
-     LongUnaryOperator
-     (applyAsLong [this# ~varname]
-       ~@code)
      IFnDef$LL
-     (invokePrim [this# v#]
-       (.applyAsLong this# v#))))
+     (invokePrim [this# ~varname]
+       ~@code)))
 
 
 (defmacro predicate
@@ -2419,23 +2413,6 @@ ham-fisted.api> @*1
                      coll))))
   consumer)
 
-
-
-
-(defn- options->double-nan-strat
-  [options]
-  (case (get options :nan-strategy :remove)
-    :remove #(consumer-filter (double-predicate
-                               v
-                               (Double/isFinite v))
-                              %)
-    :keep identity
-    :exception #(consumer-map (double-unary-operator
-                               v
-                               (do (when-not (Double/isFinite v)
-                                     (throw (Exception. "Nan detected")))
-                                   v))
-                              %)))
 
 
 (defn sum-stable-nelems

@@ -6,8 +6,21 @@ import clojure.lang.ISeq;
 import clojure.lang.Util;
 import clojure.lang.RT;
 import clojure.lang.ArityException;
+import java.util.function.Function;
+import java.util.function.LongFunction;
+import java.util.function.ToLongFunction;
+import java.util.function.DoubleFunction;
+import java.util.function.ToDoubleFunction;
+import java.util.function.UnaryOperator;
+import java.util.function.DoubleUnaryOperator;
+import java.util.function.LongUnaryOperator;
+import java.util.function.BinaryOperator;
+import java.util.function.DoubleBinaryOperator;
+import java.util.function.LongBinaryOperator;
 
 
+//UnaryOperator and BinaryOperator have mutually invalid overloads for andThen so we can't implement
+//those here.
 public interface IFnDef extends IFn
 {
   
@@ -424,45 +437,68 @@ public interface IFnDef extends IFn
     throw new ArityException(n, name);
   }
 
+  public interface OO extends IFnDef, UnaryOperator {
+    default Object apply(Object arg) { return invoke(arg); }
+  }
 
-  public interface LO extends IFnDef, IFn.LO {
+  public interface OOO extends IFnDef, BinaryOperator {
+    default Object apply(Object l, Object r) { return invoke(l,r); }
+  }
+
+  public interface LO extends IFnDef, IFn.LO, LongFunction {
     default Object invoke(Object arg) {
       return invokePrim(Casts.longCast(arg));
     }
+    default Object apply(long v) { return invokePrim(v); }
   }
-  public interface LL extends IFnDef, IFn.LL {
+  public interface LL extends IFnDef, IFn.LL, LongUnaryOperator {
     default Object invoke(Object arg) {
       return invokePrim(Casts.longCast(arg));
     }
+    default long applyAsLong(long v) {
+      return invokePrim(v);
+    }
   }
-  public interface DO extends IFnDef, IFn.DO {
+  public interface OL extends IFnDef, IFn.OL, ToLongFunction {
+    default Object invoke(Object arg) {
+      return invokePrim(arg);
+    }
+    default long applyAsLong(Object v) { return invokePrim(v); }
+  }
+  public interface DO extends IFnDef, IFn.DO, DoubleFunction {
     default Object invoke(Object arg) {
       return invokePrim(Casts.doubleCast(arg));
     }
+    default Object apply(double v) { return invokePrim(v); }
   }
-  public interface DD extends IFnDef, IFn.DD {
+  public interface DD extends IFnDef, IFn.DD, DoubleUnaryOperator {
     default Object invoke(Object arg) {
       return invokePrim(Casts.doubleCast(arg));
     }
+    default double applyAsDouble(double v) {
+      return invokePrim(v);
+    }
   }
-  public interface DDD extends IFnDef, IFn.DDD {
+  public interface OD extends IFnDef, IFn.OD, ToDoubleFunction {
+    default Object invoke(Object arg) {
+      return invokePrim(arg);
+    }
+    default double applyAsDouble(Object v) { return invokePrim(v); }
+  }
+  public interface DDD extends IFnDef, IFn.DDD, DoubleBinaryOperator {
     default Object invoke(Object lhs, Object rhs) {
       return invokePrim(Casts.doubleCast(lhs), Casts.doubleCast(rhs));
     }
+    default double applyAsDouble(double l, double r) {
+      return invokePrim(l,r);
+    }
   }
-  public interface LLL extends IFnDef, IFn.LLL {
+  public interface LLL extends IFnDef, IFn.LLL, LongBinaryOperator {
     default Object invoke(Object lhs, Object rhs) {
       return invokePrim(Casts.longCast(lhs), Casts.longCast(rhs));
     }
-  }
-  public interface OL extends IFnDef, IFn.OL {
-    default Object invoke(Object arg) {
-      return invokePrim(arg);
-    }
-  }
-  public interface OD extends IFnDef, IFn.OD {
-    default Object invoke(Object arg) {
-      return invokePrim(arg);
+    default long applyAsLong(long l, long r) {
+      return invokePrim(l,r);
     }
   }
   public interface ODO extends IFnDef, IFn.ODO {
