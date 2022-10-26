@@ -64,8 +64,6 @@ public interface IMutList<E>
   default boolean add(E v) { throw new UnsupportedOperationException("Unimplemented"); }
   default void add(int idx, E v) { throw new UnsupportedOperationException("Unimplemented"); }
   @SuppressWarnings("unchecked")
-  default void addBoolean(boolean v) { add((E)Boolean.valueOf(v)); }
-  @SuppressWarnings("unchecked")
   default void addLong(long v) { add((E)Long.valueOf(v)); }
   @SuppressWarnings("unchecked")
   default void addDouble(double v) { add((E)Double.valueOf(v)); }
@@ -388,12 +386,9 @@ public interface IMutList<E>
   }
   default E set(int idx, E v) { throw new UnsupportedOperationException("Unimplemented"); }
   @SuppressWarnings("unchecked")
-  default void setBoolean(int idx, boolean v) { set(idx, (E)Boolean.valueOf(v)); }
-  @SuppressWarnings("unchecked")
   default void setLong(int idx, long v) { set(idx, (E)Long.valueOf(v)); }
   @SuppressWarnings("unchecked")
   default void setDouble(int idx, double v) { set(idx, (E)Double.valueOf(v)); }
-  default boolean getBoolean(int idx) { return Casts.booleanCast(get(idx)); }
   default long getLong(int idx) { return Casts.longCast(get(idx)); }
   default double getDouble(int idx) {
     final Object obj = get(idx);

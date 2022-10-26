@@ -228,27 +228,6 @@ public class ArrayLists {
       throw new RuntimeException("unimplemented");
     }
   }
-  public interface IBooleanArrayList extends BooleanMutList, ArrayOwner, TypedList,
-					    ArrayPersistentVector
-  {
-    default Class containedType() { return getArraySection().array.getClass().getComponentType(); }
-    default IPersistentVector unsafeImmut() { return ImmutList.create(true, meta(), (Object[])getArraySection().array); }
-    default List immutShuffle(Random r) { return immutShuffleDefault(this, r); }
-    default List immutSort(Comparator c) { return immutSortDefault(this, c); }
-    default void fillRange(int startidx, int endidx, Object v) {
-      checkIndexRange(size(), startidx, endidx);
-      fill(startidx, endidx, v);
-    }
-    default void fillRange(int startidx, List v) {
-      final ArraySection as = getArraySection();
-      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v))
-	BooleanMutList.super.fillRange(startidx, v);
-    }
-    default Object ensureCapacity(int newlen) {
-      throw new RuntimeException("unimplemented");
-    }
-    default Object toNativeArray() { return copyOf(size()); }
-  }
 
   static int fixSubArrayBinarySearch(final int sidx, final int len, final int res) {
     return res < 0 ? -1 - (res + sidx) : res - sidx;
@@ -2004,7 +1983,7 @@ public class ArrayLists {
   public static IMutList<Object> toList(final char[] data) { return toList(data, 0, data.length, null); }
 
 
-  public static class BooleanArraySubList implements IBooleanArrayList {
+  public static class BooleanArraySubList implements ILongArrayList {
     public final boolean[] data;
     public final int sidx;
     public final int dlen;
@@ -2026,6 +2005,16 @@ public class ArrayLists {
     public boolean getBoolean(int idx) { return data[checkIndex(idx, dlen)+sidx]; }
     public void setBoolean(int idx, boolean obj) {
       data[checkIndex(idx, dlen)+sidx] = obj;
+    }
+    public long getLong(int idx) { return Casts.longCast(data[checkIndex(idx, dlen)+sidx]); }
+    public void setLong(int idx, long obj) {
+      data[checkIndex(idx, dlen)+sidx] = Casts.booleanCast(obj);
+    }
+    public Object get(int idx) { return getBoolean(idx); }
+    public Object set(int idx, Object v) {
+      final boolean retval = getBoolean(idx);
+      setBoolean(idx, Casts.booleanCast(v));
+      return retval;
     }
     public IMutList cloneList() { return (IMutList)toList(Arrays.copyOfRange(data, sidx, sidx+dlen)); }
     public List<Object> subList(int ssidx, int seidx) {

@@ -126,13 +126,5 @@ public class ReindexList implements IMutList, TypedList {
       checkIndex(idx, indexes.length);
       mlist.setDouble(indexes[idx], nv);
     }
-    public boolean getBoolean(int idx) {
-      checkIndex(idx, indexes.length);
-      return mlist.getBoolean(indexes[idx]);
-    }
-    public void setBoolean(int idx, boolean nv) {
-      checkIndex(idx, indexes.length);
-      mlist.setBoolean(indexes[idx], nv);
-    }
   }
 }

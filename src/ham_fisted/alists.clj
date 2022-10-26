@@ -5,7 +5,7 @@
   (:require [ham-fisted.iterator :as iterator]
             [ham-fisted.print :as pp])
   (:import [ham_fisted ArrayLists ArrayLists$ILongArrayList ArrayLists$IDoubleArrayList
-            ArrayLists$IBooleanArrayList Transformables ArrayHelpers Casts IMutList
+            Transformables ArrayHelpers Casts IMutList
             ArraySection
             ArrayLists$ObjectArrayList ArrayLists$ObjectArraySubList
             ArrayLists$ByteArraySubList ArrayLists$ShortArraySubList ArrayLists$CharArraySubList
@@ -120,8 +120,8 @@
                       RT/charCast Casts/longCast Casts/longCast add-long-reduce)
 (make-prim-array-list FloatArrayList floats ArrayLists$IDoubleArrayList getDouble setDouble
                       addDouble float unchecked-double Casts/doubleCast add-double-reduce)
-(make-prim-array-list BooleanArrayList booleans ArrayLists$IBooleanArrayList getBoolean
-                      setBoolean addBoolean Casts/booleanCast Casts/booleanCast
+(make-prim-array-list BooleanArrayList booleans ArrayLists$ILongArrayList getLong
+                      setLong addLong Casts/booleanCast Casts/longCast
                       Casts/booleanCast add-long-reduce)
 
 

@@ -1,3 +1,6 @@
+# 1.000-beta-27
+ * Remove explicit support for boolean primitives.
+
 # 1.000-beta-26
  * IFnDef overloads implement their appropriate java.util.function counterparts.
 
