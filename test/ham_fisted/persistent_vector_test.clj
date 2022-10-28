@@ -233,6 +233,10 @@
   (is (= 22 (api/fast-reduce + 10 (api/subvec (api/int-array [0 2 4 6]) 1)))))
 
 
+(defn tryc
+  []
+  (conj (lznc/concat [1 2 3] [4 5 6]) nil))
+
 (deftest concatv-special-cases
   (is (= (reduce + 0 (api/concatv [] (list 1 2 3) nil nil
                                   (clojure.core/vector 1 2 3 4 5) (api/array-list [1 2 3 4])
@@ -240,7 +244,19 @@
          (reduce + 0 (concat [] (list 1 2 3) nil nil
                              (clojure.core/vector 1 2 3 4 5) (api/array-list [1 2 3 4])
                              (api/vec (api/range 50))))))
+  (is (= (reduce + 0 (lznc/concat [] (list 1 2 3) nil nil
+                                  (clojure.core/vector 1 2 3 4 5) (api/array-list [1 2 3 4])
+                                  (api/vec (api/range 50))))
+         (reduce + 0 (concat [] (list 1 2 3) nil nil
+                             (clojure.core/vector 1 2 3 4 5) (api/array-list [1 2 3 4])
+                             (api/vec (api/range 50))))))
   (is (= (api/concatv [] (list 1 2 3) nil nil
+                      (clojure.core/vector 1 2 3 4 5) (api/array-list [1 2 3 4])
+                      (api/vec (api/range 50)))
+         (concat [] (list 1 2 3) nil nil
+                 (clojure.core/vector 1 2 3 4 5) (api/array-list [1 2 3 4])
+                 (api/vec (api/range 50)))))
+  (is (= (lznc/concat [] (list 1 2 3) nil nil
                       (clojure.core/vector 1 2 3 4 5) (api/array-list [1 2 3 4])
                       (api/vec (api/range 50)))
          (concat [] (list 1 2 3) nil nil

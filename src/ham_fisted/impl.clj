@@ -1,11 +1,13 @@
 (ns ham-fisted.impl
   (:require [ham-fisted.lazy-noncaching :refer [map concat]])
-  (:import [java.util.concurrent ForkJoinPool ForkJoinTask ArrayBlockingQueue Future]
+  (:import [java.util.concurrent ForkJoinPool ForkJoinTask ArrayBlockingQueue Future
+            TimeUnit]
            [java.util Iterator]
            [ham_fisted ParallelOptions]
            [clojure.lang IteratorSeq]
            [java.util Spliterator]
-           [ham_fisted Reductions$ReduceConsumer])
+           [ham_fisted Reductions$ReduceConsumer Reductions]
+           [java.util.logging Logger Level])
   (:refer-clojure :exclude [map pmap concat]))
 
 
@@ -34,6 +36,18 @@
     (GroupData. gsize ngroups leftover)))
 
 
+(defn- seq->lookahead
+  [^long n-ahead data]
+  (let [data (seq data)
+        n-ahead (count (take n-ahead data))]
+    [data (concat (drop n-ahead data) (repeat n-ahead nil))]))
+
+
+(defn n-lookahead
+  ^long [^ParallelOptions options]
+  (* (.-parallelism options) 2))
+
+
 (defn- pgroup-submission
   [^long n-elems body-fn ^ParallelOptions options]
   (let [pool (.-pool options)
@@ -45,14 +59,15 @@
         ngroups (.ngroups gdata)
         leftover (.leftover gdata)]
     (->> (range ngroups)
-         (mapv (fn [^long gidx]
-                 (let [start-idx (long (+ (* gidx gsize)
-                                          (min gidx leftover)))
-                       end-idx (min n-elems
-                                    (long (+ (+ start-idx gsize)
-                                             (long (if (< gidx leftover)
-                                                     1 0)))))]
-                   (.submit pool ^Callable #(body-fn start-idx end-idx))))))))
+         (map (fn [^long gidx]
+                (let [start-idx (long (+ (* gidx gsize)
+                                         (min gidx leftover)))
+                      end-idx (min n-elems
+                                   (long (+ (+ start-idx gsize)
+                                            (long (if (< gidx leftover)
+                                                    1 0)))))]
+                  (.submit pool ^Callable #(body-fn start-idx end-idx)))))
+         (seq->lookahead (n-lookahead options)))))
 
 
 (defrecord ^:private ErrorRecord [e])
@@ -67,9 +82,13 @@
 
 
 (defmacro queue-put!
-  [queue v]
+  [queue v put-timeout-ms]
   `(let [data# (try ~v (catch Exception e# (ErrorRecord. e#)))]
-     (.put ~queue data#)
+     (when-not (.offer ~queue data# ~put-timeout-ms TimeUnit/MILLISECONDS)
+       (let [msg# (str ":put-timeout-ms " ~put-timeout-ms
+                       "ms exceeded")]
+         (.warning (Logger/getLogger "ham_fisted") msg#)
+         (throw (RuntimeException. msg#))))
      data#))
 
 
@@ -82,6 +101,12 @@
                         (next [this]
                           (.next iter)
                           (queue-take queue)))))
+
+
+(defn- options->queue
+  ^ArrayBlockingQueue [^ParallelOptions options]
+  (when-not (.-ordered options)
+    (ArrayBlockingQueue. (n-lookahead options))))
 
 (defn pgroups
   "Run y groups across n-elems.   Y is common pool parallelism.
@@ -100,17 +125,16 @@
              (< n-elems (.-minN options))
              (< parallelism 2))
        [(body-fn 0 n-elems)]
-       (let [^ArrayBlockingQueue queue (when-not (.-ordered options)
-                                         (ArrayBlockingQueue. (* parallelism 2)))
+       (let [queue (options->queue options)
              wrapped-body-fn (if (.-ordered options)
                                body-fn
                                (fn [^long sidx ^long eidx]
-                                 (queue-put! queue (body-fn sidx eidx))))
-             submissions (pgroup-submission n-elems wrapped-body-fn options)]
+                                 (queue-put! queue (body-fn sidx eidx) (.-putTimeoutMs options))))
+             [submissions lookahead] (pgroup-submission n-elems wrapped-body-fn options)]
          (if (.-ordered options)
            ;;This will correctly propagate errors
-           (map #(.get ^Future %) submissions)
-           (iter-queue->seq (.iterator ^Iterable (range (count submissions))) queue))))))
+           (map (fn [l r] (.get ^Future l)) submissions lookahead)
+           (iter-queue->seq (.iterator ^Iterable lookahead) queue))))))
   ([n-elems body-fn]
    (pgroups n-elems body-fn nil)))
 
@@ -123,8 +147,7 @@
           parallelism (.-parallelism options)
           ;;In this case we want a caching sequence - so we call 'seq' on a lazy noncaching
           ;;map
-          ^ArrayBlockingQueue queue (when-not (.-ordered options)
-                                      (ArrayBlockingQueue. (* parallelism 2)))
+          queue (options->queue options)
           submit-fn
           (if (.-ordered options)
             (case (count sequences)
@@ -134,21 +157,18 @@
               (fn [& args]
                 (.submit pool ^Callable (fn [] (apply map-fn args)))))
             (case (count sequences)
-              1 (fn [arg] (.submit pool ^Callable (fn [] (queue-put! queue (map-fn arg)))))
-              2 (fn [a1 a2] (.submit pool ^Callable (fn [] (queue-put! queue (map-fn a1 a2)))))
-              3 (fn [a1 a2 a3] (.submit pool ^Callable (fn [] (queue-put! queue (map-fn a1 a2 a3)))))
+              1 (fn [arg] (.submit pool ^Callable (fn [] (queue-put! queue (map-fn arg) (.-putTimeoutMs options)))))
+              2 (fn [a1 a2] (.submit pool ^Callable (fn [] (queue-put! queue (map-fn a1 a2) (.-putTimeoutMs options)))))
+              3 (fn [a1 a2 a3] (.submit pool ^Callable (fn [] (queue-put! queue (map-fn a1 a2 a3) (.-putTimeoutMs options)))))
               (fn [& args]
-                (.submit pool ^Callable (fn [] (queue-put! queue (apply map-fn args)))))))
+                (.submit pool ^Callable (fn [] (queue-put! queue (apply map-fn args) (.-putTimeoutMs options)))))))
 
-          future-seq (->> (apply map submit-fn sequences) (seq))
-          n-cpu (+ (ForkJoinPool/getCommonPoolParallelism) 2)
-          ;;Account for short sequences!!
-          n-cpu (count (take n-cpu future-seq))
-          read-ahead (->> (concat (drop n-cpu future-seq) (repeat n-cpu nil)))]
+          [submissions lookahead] (->> (apply map submit-fn sequences)
+                                       (seq->lookahead (n-lookahead options)))]
       (if (.-ordered options)
         ;;lazy noncaching map - the future itself does the caching for us.
-        (map (fn [cur read-ahead] (.get ^Future cur)) future-seq read-ahead)
-        (iter-queue->seq (.iterator ^Iterable read-ahead) queue)))))
+        (map (fn [cur read-ahead] (.get ^Future cur)) submissions lookahead)
+        (iter-queue->seq (.iterator ^Iterable lookahead) queue)))))
 
 
 (defn- split-spliterator
@@ -176,24 +196,22 @@
   (let [pool (.-pool options)
         n-splits (Math/round (/ (Math/log (* 4 (.-parallelism options)))
                                 (Math/log 2)))
-        spliterators (vec (split-spliterator n-splits s))
-        n-iters (count spliterators)
-        ^ArrayBlockingQueue queue (when-not (.-ordered options)
-                                    (ArrayBlockingQueue. (+ (.-parallelism options) 2)))
-        futures
-        (mapv (fn [ridx]
-                (.submit pool
-                         ^Callable (fn []
-                                     (let [c (Reductions$ReduceConsumer. (initValFn) rfn)
-                                           ^Spliterator s (spliterators ridx)]
-                                       (if (.-ordered options)
-                                         (consume-spliterator! c s)
-                                         (queue-put! queue (consume-spliterator! c s)))))))
-              (range n-iters))]
-    (if (.-ordered options)
-      (reduce #(mergeFn %1 (.get ^Future %2))
-              (.get ^Future (first futures))
-              (rest futures))
-      (reduce (fn [v _idx] (mergeFn v (queue-take queue)))
-              (queue-take queue)
-              (range (dec n-iters))))))
+        spliterators (split-spliterator n-splits s)
+        ^ArrayBlockingQueue queue (options->queue options)
+        [submissions lookahead]
+        (->> spliterators
+             (map (fn [spliterator]
+                    (.submit pool
+                             ^Callable
+                             (fn []
+                               (let [c (Reductions$ReduceConsumer. (initValFn) rfn)
+                                     ^Spliterator s spliterator]
+                                 (if (.-ordered options)
+                                   (consume-spliterator! c s)
+                                   (queue-put! queue (consume-spliterator! c s)
+                                               (.-putTimeoutMs options))))))))
+             (seq->lookahead (n-lookahead options)))]
+    (->> (if (.-ordered options)
+           (map (fn [l r] (.get ^Future l)) submissions lookahead)
+           (map (fn [l] (queue-take queue)) lookahead))
+         (Reductions/iterableMerge mergeFn))))

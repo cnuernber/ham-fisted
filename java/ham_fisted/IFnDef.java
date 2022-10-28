@@ -23,7 +23,7 @@ import java.util.function.LongBinaryOperator;
 //those here.
 public interface IFnDef extends IFn
 {
-  
+
   default Object call() {
     return invoke();
   }
@@ -509,6 +509,11 @@ public interface IFnDef extends IFn
   public interface OLO extends IFnDef, IFn.OLO {
     default Object invoke(Object lhs, Object rhs) {
       return invokePrim(lhs, Casts.longCast(rhs));
+    }
+  }
+  public interface LLO extends IFnDef, IFn.LLO {
+    default Object invoke(Object l, Object r) {
+      return invokePrim(Casts.longCast(l), Casts.longCast(r));
     }
   }
 }

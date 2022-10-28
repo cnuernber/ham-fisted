@@ -8,7 +8,7 @@
            [java.lang.reflect Array]
            [it.unimi.dsi.fastutil.ints IntArrays]
            [java.util RandomAccess Collection Map List Random]
-           [clojure.lang RT IPersistentMap IReduceInit IReduce])
+           [clojure.lang RT IPersistentMap IReduceInit IReduce PersistentList])
   (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle object-array
                             remove]))
 
@@ -121,7 +121,7 @@
 (defn map
   ([f arg]
    (cond
-     (nil? arg) nil
+     (nil? arg) PersistentList/EMPTY
      (instance? Transformables$IMapable arg)
      (.map ^Transformables$IMapable arg f)
      (instance? RandomAccess arg)
@@ -138,24 +138,18 @@
 
 
 (defn concat
-  ([] nil)
-  ([& args]
-   (let [a (first args)
-         rargs (seq (rest args))]
-     (if (nil? rargs)
-       a
-       (if (instance? Transformables$IMapable a)
-         (.cat ^Transformables$IMapable a rargs)
-         (let [^IPersistentMap m nil
-               ^"[Ljava.lang.Iterable;" avs (into-array Iterable [args])]
-           (Transformables$CatIterable. m avs)))))))
+  ([] PersistentList/EMPTY)
+  ([a] (if a a PersistentList/EMPTY))
+  ([a & args]
+   (if (instance? Transformables$IMapable a)
+    (.cat ^Transformables$IMapable a args)
+    (Transformables$CatIterable. (cons a args)))))
 
 
 (defn filter
   [pred coll]
   (cond
-    (nil? coll)
-    nil
+    (nil? coll) PersistentList/EMPTY
     (instance? Transformables$IMapable coll)
     (.filter ^Transformables$IMapable coll pred)
     :else

@@ -384,7 +384,7 @@
         tdata (mapv #(rem (unchecked-long %) 7) (range n-elems))
         answer (api/frequencies tdata)
         panswer (api/pfrequencies tdata)]
-    (is (.equals answer panswer))))
+    (is (= answer panswer))))
 
 
 

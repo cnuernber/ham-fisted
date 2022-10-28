@@ -68,11 +68,9 @@ public final class Sum implements DoubleConsumer, Reducible, IDeref
     nElems = ne + other.nElems;
   }
 
-  public Sum reduce(Collection<Reducible> rest) {
+  public Sum reduce(Reducible other) {
     final Sum retval = new Sum(d0, d1, simpleSum, nElems);
-    for(Reducible rhs: rest) {
-      retval.merge((Sum)rhs);
-    }
+    retval.merge((Sum)other);
     return retval;
   }
 
@@ -86,14 +84,11 @@ public final class Sum implements DoubleConsumer, Reducible, IDeref
   {
     double simpleSum;
     public SimpleSum() { simpleSum = 0.0; }
+    public SimpleSum(SimpleSum o) { simpleSum = o.simpleSum; }
     public void accept(double val) { simpleSum += val; }
-    public SimpleSum reduce(Collection<Reducible> rest) {
-      final SimpleSum retval = new SimpleSum();
-      retval.simpleSum = simpleSum;
-      for(Reducible rhs : rest) {
-	final SimpleSum other = (SimpleSum)rhs;
-	retval.simpleSum += other.simpleSum;
-      }
+    public SimpleSum reduce(Reducible other) {
+      final SimpleSum retval = new SimpleSum(this);
+      retval.accept(((SimpleSum)other).simpleSum);
       return retval;
     }
     public Object deref() {

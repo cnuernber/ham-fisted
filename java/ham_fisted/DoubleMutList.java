@@ -85,4 +85,20 @@ public interface DoubleMutList extends IMutList<Object> {
     DoubleArrays.shuffle(bdata, r);
     return ArrayLists.toList(bdata);
   }
+
+  default Object reduce(final IFn fn, Object init) {
+    final IFn.ODO rrfn = fn instanceof IFn.ODO ? (IFn.ODO)fn : new IFn.ODO() {
+	public Object invokePrim(Object lhs, double v) {
+	  return fn.invoke(lhs, v);
+	}
+      };
+    return doubleReduction(rrfn, init);
+  }
+  default Object longReduction(IFn.OLO fn, Object init) {
+    return doubleReduction(new IFn.ODO() {
+	public Object invokePrim(Object lhs, double v) {
+	  return fn.invokePrim(lhs, Casts.longCast(v));
+	}
+      }, init);
+  }
 }

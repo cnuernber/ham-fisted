@@ -17,14 +17,14 @@ public class Ranges {
     public final long start;
     public final long end;
     public final long step;
-    public final int nElems;
+    public final long nElems;
     public final IPersistentMap meta;
     int _hash = 0;
     public LongRange(long s, long e, long _step, IPersistentMap m) {
       start = s;
       end = e;
       step = _step;
-      nElems = RT.intCast((e - s)/_step);
+      nElems = (e - s)/_step;
       if (nElems < 0)
 	throw new RuntimeException("Invalid Range - start: " + String.valueOf(s)
 				   + " end: " + String.valueOf(e) + " step: " +
@@ -44,9 +44,9 @@ public class Ranges {
     }
     public String toString() { return Transformables.sequenceToString(this); }
     public Class containedType() { return Long.TYPE; }
-    public int size() { return nElems; }
+    public int size() { return RT.intCast(nElems); }
     public long getLong(int idx) {
-      final int sz = size();
+      final long sz = nElems;
       if(idx < 0)
 	idx += sz;
       if(idx < 0 || idx >= sz)
@@ -73,32 +73,40 @@ public class Ranges {
 
       return retval;
     }
-    public LongMutList subList(int sidx, int eidx) {
-      ChunkedList.sublistCheck(sidx, eidx, size());
+    public LongMutList subList(long sidx, long eidx) {
+      ChunkedList.sublistCheck(sidx, eidx, nElems);
       return new LongRange(start + sidx*step, start + eidx*step, step, meta);
     }
+    public LongMutList subList(int sidx, int eidx) {
+      return subList((long)sidx, (long)eidx);
+    }
     public Object reduce(final IFn fn, Object init) {
-      final int sz = size();
-      long st = start;
-      final long se = step;
-      for(int idx = 0; idx < sz && !RT.isReduced(init); ++idx, st += se)
-	init = fn.invoke(init, st);
-      return init;
+      final IFn.OLO rrfn = fn instanceof IFn.OLO ? (IFn.OLO)fn : new IFn.OLO() {
+	  public Object invokePrim(Object lhs, long v) {
+	    return fn.invoke(lhs, v);
+	  }
+	};
+      return longReduction(rrfn, init);
     }
     public Object longReduction(IFn.OLO op, Object init) {
-      final int sz = size();
+      final long sz = nElems;
       final long se = step;
       long st = start;
-      for(int idx = 0; idx < sz && !RT.isReduced(init); ++idx, st += se)
+      for(long idx = 0; idx < sz && !RT.isReduced(init); ++idx, st += se)
 	init = op.invokePrim(init, st);
       return init;
     }
-    public void longForEach(LongConsumer lc) {
-      final int sz = size();
-      final long se = step;
-      long st = start;
-      for(int idx = 0; idx < sz; ++idx, st += se)
-	lc.accept(st);
+    public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
+				     ParallelOptions options) {
+      if(nElems > options.minN) {
+	return Reductions.parallelIndexGroupReduce(new IFnDef.LLO() {
+	    public Object invokePrim(long sidx, long eidx) {
+	      return Reductions.serialReduction(rfn, initValFn.invoke(), subList(sidx, eidx));
+	    }
+	  }, nElems, mergeFn, options);
+      } else {
+	return Reductions.serialReduction(rfn, initValFn.invoke(), this);
+      }
     }
     public IPersistentMap meta() { return meta; }
     public LongRange withMeta(IPersistentMap m) {
@@ -110,7 +118,7 @@ public class Ranges {
     public final double start;
     public final double end;
     public final double step;
-    public final int nElems;
+    public final long nElems;
     public final IPersistentMap meta;
     int _hash = 0;
     public DoubleRange(double s, double e, double _step, IPersistentMap _meta) {
@@ -118,7 +126,8 @@ public class Ranges {
       end = e;
       step = _step;
       meta = _meta;
-      nElems = RT.intCast((e - s)/_step);
+      //Floor to long intentional
+      nElems = Math.max(0, (long)((e - s)/_step));
       if (nElems < 0)
 	throw new RuntimeException("Invalid Range - start: " + String.valueOf(s)
 				   + " end: " + String.valueOf(e) + " step: " +
@@ -137,9 +146,9 @@ public class Ranges {
     }
     public String toString() { return Transformables.sequenceToString(this); }
     public Class containedType() { return Double.TYPE; }
-    public int size() { return nElems; }
+    public int size() { return RT.intCast(nElems); }
     public double getDouble(int idx) {
-      final int sz = size();
+      final long sz = nElems;
       if(idx < 0)
 	idx += sz;
       if(idx < 0 || idx >= sz)
@@ -162,9 +171,40 @@ public class Ranges {
     public double[] toDoubleArray() {
       return ArrayLists.darange(start, end, step);
     }
-    public DoubleMutList subList(int sidx, int eidx) {
+    public DoubleMutList subList(long sidx, long eidx) {
       ChunkedList.sublistCheck(sidx, eidx, size());
       return new DoubleRange(start + sidx*step, start + eidx*step, step, meta);
+    }
+    public DoubleMutList subList(int sidx, int eidx) {
+      return subList((long)sidx, (long)eidx);
+    }
+    public Object reduce(final IFn fn, Object init) {
+      final IFn.ODO rrfn = fn instanceof IFn.ODO ? (IFn.ODO)fn : new IFn.ODO() {
+	  public Object invokePrim(Object lhs, double v) {
+	    return fn.invoke(lhs, v);
+	  }
+	};
+      return doubleReduction(rrfn, init);
+    }
+    public Object doubleReduction(IFn.ODO op, Object init) {
+      final long sz = nElems;
+      final double se = step;
+      final double st = start;
+      for(long idx = 0; idx < sz && !RT.isReduced(init); ++idx)
+	init = op.invokePrim(init, st + (se*idx));
+      return init;
+    }
+    public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
+				     ParallelOptions options) {
+      if(nElems > options.minN) {
+	return Reductions.parallelIndexGroupReduce(new IFnDef.LLO() {
+	    public Object invokePrim(long sidx, long eidx) {
+	      return Reductions.serialReduction(rfn, initValFn.invoke(), subList(sidx, eidx));
+	    }
+	  }, nElems, mergeFn, options);
+      } else {
+	return Reductions.serialReduction(rfn, initValFn.invoke(), this);
+      }
     }
     public IPersistentMap meta() { return meta; }
     public DoubleRange withMeta(IPersistentMap m) {

@@ -11,6 +11,7 @@ public class ParallelOptions {
   public final ForkJoinPool pool;
   public final int parallelism;
   public final CatParallelism catParallelism;
+  public final int putTimeoutMs;
 
   public enum CatParallelism {
     //Parallelize assuming catenation of large-N containers
@@ -22,17 +23,18 @@ public class ParallelOptions {
 
   public ParallelOptions(int _minN, int batchSize, boolean _ordered,
 			 ForkJoinPool _pool, int _parallelism,
-			 CatParallelism _catParallelism) {
+			 CatParallelism _catParallelism, int _putTimeoutMs) {
     minN = _minN;
     maxBatchSize = batchSize;
     ordered = _ordered;
     pool = _pool;
     parallelism = _parallelism;
     catParallelism = _catParallelism;
+    putTimeoutMs = _putTimeoutMs;
   }
   public ParallelOptions(int minN, int batchSize, boolean ordered) {
     this(minN, batchSize, ordered,
 	 ForkJoinPool.commonPool(), ForkJoinPool.getCommonPoolParallelism(),
-	 CatParallelism.SEQWISE);
+	 CatParallelism.SEQWISE, 5000);
   }
 }

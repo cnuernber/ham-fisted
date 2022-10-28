@@ -359,10 +359,8 @@ public class PersistentArrayMap
     final int ne = nElems;
     final Object[] data = kvs;
     final int nne = ne *2;
-    for (int idx = 0; idx < nne; idx += 2) {
+    for (int idx = 0; idx < nne && !RT.isReduced(init); idx += 2) {
       init = f.invoke(init, data[idx], data[idx+1]);
-      if (RT.isReduced(init))
-	return ((IDeref)init).deref();
     }
     return init;
   }
@@ -374,7 +372,7 @@ public class PersistentArrayMap
     for (int idx = 0; idx < nne && !RT.isReduced(init); idx += 2)
       init = rfn.invoke(init, data[idx], data[idx+1]);
 
-    return RT.isReduced(init) ? ((IDeref)init).deref() : init;
+    return init;
   }
 
   public final ITransientCollection asTransient() {

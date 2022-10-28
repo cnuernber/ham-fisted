@@ -1,3 +1,15 @@
+# 1.000-beta-28
+ * Use lookahead and put timeouts for all parallelization primitives so that if a long
+  running parallelization is cancelled the forkjoin pool itself isn't hung.
+ * Enable long and double ranges whose size is larger than Integer/MAX_VALUE.  This includes
+   parallelized reductions which even optimized take basically forever.
+ * Add better defaults for reductions to long and double -specific IMutList interfaces.
+ * Ensure reduction implementations do not dereference a reduced accumulator.
+ * Fix reducible interface to it matches preduce.
+ * Added persistent! implementation which fails gracefully if input is already persistent.
+ * Fixed group-by, group-by-reduce, and pfrequencies implementation to use preduce.
+ * conj works on map, filter, and concat from the lazy-noncaching library.
+
 # 1.000-beta-27
  * Remove explicit support for boolean primitives.
 

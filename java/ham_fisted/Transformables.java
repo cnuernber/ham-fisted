@@ -32,6 +32,12 @@ import clojure.lang.IPersistentMap;
 import clojure.lang.IReduce;
 import clojure.lang.IReduceInit;
 import clojure.lang.IDeref;
+import clojure.lang.Sequential;
+import clojure.lang.Murmur3;
+import clojure.lang.Util;
+import clojure.lang.IHashEq;
+import clojure.lang.IPersistentCollection;
+import clojure.lang.PersistentList;
 
 
 public class Transformables {
@@ -47,7 +53,7 @@ public class Transformables {
     }
   }
   public static boolean truthy(final Object obj) {
-    return !(obj == null || (Objects.equals(obj, RT.F)));
+    return Casts.booleanCast(obj);
   }
   public static IFn toReductionFn(Object rfn) {
     if(rfn instanceof IFn) return (IFn)rfn;
@@ -178,6 +184,8 @@ public class Transformables {
     return c;
   }
   public static Object iterReduce(Object obj, IFn fn) {
+    if(obj == null) return fn.invoke();
+
     final Iterator it = toIterable(obj).iterator();
     Object init = it.hasNext() ? it.next() : null;
     while(it.hasNext() && !RT.isReduced(init)) {
@@ -187,6 +195,8 @@ public class Transformables {
   }
 
   public static Object iterReduce(Object obj, Object init, IFn fn) {
+    if(obj == null) return init;
+
     final Iterator it = toIterable(obj).iterator();
     while(it.hasNext() && !RT.isReduced(init)) {
       init = fn.invoke(init, it.next());
@@ -298,9 +308,49 @@ public class Transformables {
     return Reductions.serialReduction(longMapReducer(rfn, mapFn), init, item);
   }
 
+  public static boolean seqEquiv(Seqable ss, Object o){
+	ISeq s = ss.seq();
+	if(s != null)
+	  return s.equiv(o);
+	else
+	  return (o instanceof Sequential || o instanceof List) && RT.seq(o) == null;
+  }
+
+  public static int seqHashCode(Seqable ss) {
+    ISeq s = ss.seq();
+    if(s == null)
+      return 1;
+    return Util.hash(s);
+  }
+
+  public interface IterableSeq extends Collection, Seqable, IMapable, ITypedReduce,
+				       IHashEq, Sequential, IPersistentCollection {
+    default int hasheq() { return Murmur3.hashOrdered(this); }
+    default boolean equiv(Object o) { return seqEquiv(this, o); }
+    default int count() {
+      long retval = 0;
+      final Iterator iter = iterator();
+      while(iter.hasNext()) {
+	++retval;
+	iter.next();
+      }
+      return RT.intCast(retval);
+    }
+    default IPersistentCollection cons(Object o) {
+      return RT.cons(o, seq());
+    }
+    default IPersistentCollection empty() {
+      return PersistentList.EMPTY;
+    }
+    @SuppressWarnings("unchecked")
+    default void forEach(Consumer c) {
+      ITypedReduce.super.forEach(c);
+    }
+  }
+
   public static class MapIterable
     extends AbstractCollection
-    implements Seqable, IMapable, ITypedReduce {
+    implements IterableSeq {
     final Iterable[] iterables;
     final IFn fn;
     final IPersistentMap meta;
@@ -384,6 +434,9 @@ public class Transformables {
     public ISeq seq() {
       return IteratorSeq.create(iterator());
     }
+    public boolean equals(Object o) { return equiv(o); }
+    public int hashCode(){ return hasheq(); }
+
     public MapIterable map(IFn nfn) {
       return new MapIterable(MapFn.create(fn, nfn), meta(), iterables);
     }
@@ -404,19 +457,15 @@ public class Transformables {
       if(iterables.length == 1) {
 	return singleMapDoubleReduce(iterables[0], rfn, fn, init);
       } else {
-	return ITypedReduce.super.doubleReduction(rfn, init);
+	return IterableSeq.super.doubleReduction(rfn, init);
       }
     }
     public Object longReduction(final IFn.OLO rfn, Object init) {
       if(iterables.length == 1) {
 	return singleMapLongReduce(iterables[0], rfn, fn, init);
       } else {
-	return ITypedReduce.super.longReduction(rfn, init);
+	return IterableSeq.super.longReduction(rfn, init);
       }
-    }
-    @SuppressWarnings("unchecked")
-    public void forEach(Consumer c) {
-      ITypedReduce.super.forEach(c);
     }
     public Object[] toArray() {
       return ArrayLists.toArray(this);
@@ -464,7 +513,7 @@ public class Transformables {
   }
   public static class FilterIterable
     extends AbstractCollection
-    implements Seqable, IMapable, ITypedReduce {
+    implements IterableSeq {
     final IFn pred;
     final Iterable src;
     final IPersistentMap meta;
@@ -514,6 +563,9 @@ public class Transformables {
     public Iterator iterator() {
       return new FilterIterator(src.iterator(), pred);
     }
+
+    public int hashCode(){ return hasheq(); }
+    public boolean equals(Object o) { return equiv(o); }
     public ISeq seq() {
       return IteratorSeq.create(iterator());
     }
@@ -630,10 +682,6 @@ public class Transformables {
       }
       return Reductions.parallelReduction(initValFn, newRFn, mergeFn, src, options);
     }
-    @SuppressWarnings("unchecked")
-    public void forEach(Consumer c) {
-      ITypedReduce.super.forEach(c);
-    }
     public Object[] toArray() {
       return ArrayLists.toArray(this);
     }
@@ -642,7 +690,7 @@ public class Transformables {
 
   public static class CatIterable
     extends AbstractCollection
-    implements Seqable, IMapable, ITypedReduce {
+    implements IterableSeq {
     //this is an array of iterables of iterables.
     final Iterable[] data;
     final IPersistentMap meta;
@@ -650,11 +698,17 @@ public class Transformables {
       data = f;
       meta = _meta;
     }
+    public CatIterable(Iterable arglist) {
+      data = new Iterable[]{arglist};
+      meta = null;
+    }
     public CatIterable(CatIterable other, IPersistentMap m) {
       data = other.data;
       meta = m;
     }
     public String toString() { return sequenceToString(this); }
+    public boolean equals(Object o) { return equiv(o); }
+    public int hashCode() { return hasheq(); }
     public int size() { return iterCount(iterator()); }
     public boolean isEmpty() {
       return iterator().hasNext() == false;
@@ -799,10 +853,6 @@ public class Transformables {
       }
       };
       return init;
-    }
-    @SuppressWarnings("unchecked")
-    public void forEach(Consumer c) {
-      ITypedReduce.super.forEach(c);
     }
     public Object[] toArray() {
       return ArrayLists.toArray(this);

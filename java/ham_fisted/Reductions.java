@@ -25,7 +25,15 @@ public class Reductions {
 
   public interface LongAccum extends IFnDef.OLO {}
 
+  public static Reducible reduceReducibles(Iterable<Reducible> data) {
+    Iterator<Reducible> iter = data.iterator();
+    Reducible initial = iter.hasNext() ? iter.next() : null;
+    return initial.reduceIter(iter);
+  }
+
   public static Object serialReduction(IFn rfn, Object init, Object coll) {
+    if( coll == null) return init;
+
     if(coll instanceof ITypedReduce) {
       final ITypedReduce l = (ITypedReduce)coll;
       if(rfn instanceof IFn.ODO)
@@ -43,20 +51,28 @@ public class Reductions {
     }
   }
 
-  public static Object parallelRandAccessReduction(IFn initValFn, IFn rfn, IFn mergeFn, List l, ParallelOptions options) {
-    final IFn gfn = new IFnDef() {
-	public Object invoke(Object osidx, Object oeidx) {
-	  final int sidx = RT.intCast(osidx);
-	  final int eidx = RT.intCast(oeidx);
-	  return serialReduction(rfn, initValFn.invoke(), l.subList(sidx, eidx));
-	}
-      };
-    final Iterable groups = (Iterable) ForkJoinPatterns.parallelIndexGroups(l.size(), gfn, options);
+  public static Object iterableMerge(IFn mergeFn, final Iterable groups) {
     final Iterator giter = groups.iterator();
-    Object initObj = giter.next();
+    Object initObj = giter.hasNext() ? giter.next() : null;
     while(giter.hasNext())
       initObj = mergeFn.invoke(initObj, giter.next());
     return initObj;
+  }
+
+  public static Object parallelIndexGroupReduce(IFn groupFn, long nElems, IFn mergeFn,
+						ParallelOptions options) {
+    return iterableMerge(mergeFn,
+			 ForkJoinPatterns.parallelIndexGroups(nElems, groupFn, options));
+  }
+
+  public static Object parallelRandAccessReduction(IFn initValFn, IFn rfn, IFn mergeFn,
+						   List l, ParallelOptions options) {
+    return parallelIndexGroupReduce( new IFnDef.LLO() {
+	public Object invokePrim(long sidx, long eidx) {
+	  return serialReduction(rfn, initValFn.invoke(),
+				 l.subList(RT.intCast(sidx), RT.intCast(eidx)));
+	}
+      }, l.size(), mergeFn, options);
   }
 
   public static class ReduceConsumer implements Consumer, IDeref {
@@ -85,6 +101,8 @@ public class Reductions {
 
   public static Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
 					 Object coll, ParallelOptions options) {
+    if(coll == null) return initValFn.invoke();
+
     if(options.parallelism < 2)
       return serialReduction(rfn, initValFn.invoke(), coll);
     if(coll instanceof ITypedReduce) {

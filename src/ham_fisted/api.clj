@@ -51,7 +51,7 @@
             Consumers Sum Sum$SimpleSum Casts Reducible IndexedDoubleConsumer
             IndexedLongConsumer IndexedConsumer ITypedReduce ParallelOptions Reductions
             IFnDef$LO IFnDef$LL IFnDef$DO IFnDef$DD IFnDef$DDD
-            IFnDef$LLL ParallelOptions$CatParallelism]
+            IFnDef$LLL ParallelOptions$CatParallelism IFnDef$OO IFnDef$OOO]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
@@ -83,14 +83,15 @@
                             range map concat filter filterv first last pmap take take-last drop
                             drop-last sort-by repeat repeatedly shuffle into-array
                             empty? reverse byte-array short-array char-array boolean-array
-                            keys vals]))
+                            keys vals persistent!]))
 
 
 (set! *warn-on-reflection* true)
 
 (declare assoc! conj! vec mapv vector object-array range first take drop into-array shuffle
          object-array-list fast-reduce int-array-list long-array-list double-array-list
-         int-array argsort byte-array short-array char-array boolean-array repeat)
+         int-array argsort byte-array short-array char-array boolean-array repeat
+         persistent!)
 
 
 (defn ->collection
@@ -256,16 +257,17 @@ ham-fisted.api> @*1
 
 
 (defn- options->parallel-options
-  [options ordered?]
+  [options]
   (let [^ForkJoinPool pool (get options :pool (ForkJoinPool/commonPool))]
-    (ParallelOptions. (get options :min-n 10000)
+    (ParallelOptions. (get options :min-n 1000)
                       (get options :max-batch-size 64000)
-                      (boolean ordered?)
+                      (boolean (get options :ordered? true))
                       pool
                       (get options :parallelism (.getParallelism pool))
                       (case (get options :cat-parallelism :seq-wise)
                         :seq-wise ParallelOptions$CatParallelism/SEQWISE
-                        :elem-wise ParallelOptions$CatParallelism/ELEMWISE))))
+                        :elem-wise ParallelOptions$CatParallelism/ELEMWISE)
+                      (get options :put-timeout-ms 5000))))
 
 
 (defn preduce
@@ -286,6 +288,8 @@ ham-fisted.api> @*1
   * `:min-n` - minimum number of elements - fewer than these results in a linear reduction.
   * `:ordered?` - True if results should be in order.  Unordered results are slightly faster.
   * `:cat-parallelism` - Either `:seq-wise` or `:elem-wise`, defaults to `:seq-wise`.
+  * `:put-timeout-ms` - Number of milliseconds to wait for queue space before throwing
+     an exception in unordered reductions.
   This contols how a concat primitive parallelizes the reduction across its contains.
   Elemwise means each container's reduction is individually parallelized while seqwise
   indicates to do a pmap style initial reduction across containers then merge the
@@ -293,7 +297,7 @@ ham-fisted.api> @*1
   ([init-val-fn rfn merge-fn coll] (preduce init-val-fn rfn merge-fn nil coll))
   ([init-val-fn rfn merge-fn options coll]
    (Reductions/parallelReduction init-val-fn rfn merge-fn coll
-                                 (options->parallel-options options (get options :ordered?)))))
+                                 (options->parallel-options options))))
 
 
 (def ^:private obj-ary-cls (Class/forName "[Ljava.lang.Object;"))
@@ -304,7 +308,7 @@ ham-fisted.api> @*1
 
 (defn obj-ary
   "As quickly as possible, produce an object array from these inputs.  Very fast for arities
-  <= 6."
+  <= 16."
   (^objects [] (object-array 0))
   (^objects [v0] (ObjArray/create v0))
   (^objects [v0 v1] (ObjArray/create v0 v1))
@@ -619,21 +623,26 @@ ham_fisted.PersistentHashMap
     (throw (Exception. "Item cannot be conj!'d"))))
 
 
+(defmacro bi-function
+  "Create an implementation of java.util.function.BiFunction."
+  [arg1 arg2 & code]
+  `(reify IFnDef$OOO (invoke [this# ~arg1 ~arg2] ~@code)))
+
+
 (defn ->bi-function
   "Convert an object to a java.util.BiFunction. Object can either already be a
   bi-function or an IFn to be invoked with 2 arguments."
   ^BiFunction [cljfn]
   (if (instance? BiFunction cljfn)
     cljfn
-    (reify BiFunction (apply [this a b] (cljfn a b)))))
+    (bi-function a b (cljfn a b))))
 
 
-(defmacro bi-function
-  "Create an implementation of java.util.function.BiFunction"
-  [arg1 arg2 code]
-  `(reify BiFunction
-     (apply [this ~arg1 ~arg2]
-       ~code)))
+
+(defmacro function
+  "Create a java.util.function.Function"
+  [arg & code]
+  `(reify IFnDef$OO (invoke [this# ~arg] ~@code)))
 
 
 (defn ->function
@@ -984,13 +993,15 @@ ham_fisted.PersistentHashMap
 
   Returns a sequence of the results of body-fn applied to each group of indexes.
 
+  Before using this primitive please see if [[preduce]] will work.
+
   Options:
 
   * `:pgroup-min` - when provided n-elems must be more than this value for the computation
     to be parallelized.
   * `:batch-size` - max batch size.  Defaults to 64000."
   ([n-elems body-fn options]
-   (impl/pgroups n-elems body-fn (options->parallel-options options true)))
+   (impl/pgroups n-elems body-fn (options->parallel-options (assoc options :ordered? true))))
   ([n-elems body-fn]
    (pgroups n-elems body-fn nil)))
 
@@ -1002,13 +1013,15 @@ ham_fisted.PersistentHashMap
 
   Returns a sequence of the results of body-fn applied to each group of indexes.
 
+  Before using this primitive please see if [[preduce]] will work.
+
   Options:
 
   * `:pgroup-min` - when provided n-elems must be more than this value for the computation
     to be parallelized.
   * `:batch-size` - max batch size.  Defaults to 64000."
   ([n-elems body-fn options]
-   (impl/pgroups n-elems body-fn (options->parallel-options options false)))
+   (impl/pgroups n-elems body-fn (options->parallel-options (assoc options :ordered? false))))
   ([n-elems body-fn]
    (upgroups n-elems body-fn nil)))
 
@@ -1019,14 +1032,19 @@ ham_fisted.PersistentHashMap
   pmap in that it uses the ForkJoinPool/commonPool for parallelism as opposed to the
   agent pool - this makes it compose with pgroups and dtype-next's parallelism system.
 
+    Before using this primitive please see if [[preduce]] will work.
+
   Is guaranteed to *not* trigger the need for `shutdown-agents`."
   [map-fn & sequences]
   (impl/pmap (ParallelOptions. 0 64000 true) map-fn sequences))
 
 
 (defn upmap
-  "Unordered pmap using the commonPool.  This is useful for interacting with other primitives,
-  namely [[pgroups]] which are also based on this pool.
+  "Unordered pmap using the commonPool.  This is useful for interacting with other
+  primitives, namely [[pgroups]] which are also based on this pool.
+
+  Before using this primitive please see if [[preduce]] will work.
+
   Like pmap this uses the commonPool so it composes with this api's pmap, pgroups, and
   dtype-next's parallelism primitives *but* it does not impose an ordering constraint on the
   results and thus may be significantly faster in some cases."
@@ -1034,18 +1052,25 @@ ham_fisted.PersistentHashMap
   (impl/pmap (ParallelOptions. 0 64000 false) map-fn sequences))
 
 
+(defn persistent!
+  "If object is an ITransientCollection, call clojure.core/persistent!.  Else return
+  collection."
+  [v]
+  (if (instance? ITransientCollection v)
+    (clojure.core/persistent! v)
+    v))
+
+
 (defn ^:no-doc pfrequencies
-  "Parallelized frequencies. Can be faster for large random-access containers."
+  "Parallelized frequencies. Can be faster for large parallelizable containers."
   [tdata]
-  (let [n-elems (count tdata)]
-    (->> (pgroups n-elems
-               (fn [^long start-idx ^long end-idx]
-                 (let [gsize (- end-idx start-idx)
-                       hm (mut-map)]
-                   (dotimes [idx gsize]
-                     (.compute hm (tdata (+ idx start-idx)) BitmapTrieCommon/incBiFn))
-                   hm)))
-         (reduce #(map-union BitmapTrieCommon/sumBiFn %1 %2)))))
+  (-> (preduce #(mut-map)
+               (fn [^Map l v]
+                 (.compute l v BitmapTrieCommon/incBiFn)
+                 l)
+               #(map-union BitmapTrieCommon/sumBiFn %1 %2)
+               tdata)
+      (persistent!)))
 
 
 (defn frequencies
@@ -1407,19 +1432,22 @@ ham_fisted.PersistentHashMap
   "Group items in collection by the grouping function f.  Returns persistent map of
   keys to persistent vectors."
   [f coll]
-  (let [retval (mut-map)
-        compute-fn (reify Function
+  (let [compute-fn (reify Function
                      (apply [this k]
-                       (object-array-list)))
-        coll (->reducible coll)]
-    (fast-reduce (fn [retval v]
-                   (.add ^List (compute-if-absent! retval (f v) compute-fn) v)
-                   retval)
-                 retval
+                       (object-array-list)))]
+    (-> (preduce #(mut-map)
+                 (fn [^Map l v]
+                   (.add ^List (compute-if-absent! l (f v) compute-fn) v)
+                   l)
+                 (fn [^Map lhs ^Map rhs]
+                   (map-union (bi-function l r (.addAll ^List l r)) lhs rhs))
+                 ;;We want the results to be in order
+                 {:ordered? true
+                  :min-n 1000}
                  coll)
-    (update-values retval (reify BiFunction
-                            (apply [this k v]
-                              (immut-list v))))))
+        (update-values (reify BiFunction
+                         (apply [this k v]
+                           (immut-list v)))))))
 
 
 (defn group-by-reduce
@@ -1450,29 +1478,29 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
 {0 98, 1 99, 2 93, 3 94, 4 95, 5 96, 6 97}
 ```"
   ([key-fn reduce-fn finalize-fn coll]
-   (let [retval (mut-map)
-         box-fn (reify Function
-                  (apply [this k]
-                    (BitmapTrieCommon$Box.)))
-         update-fn (reify BiFunction
-                     (apply [this oldv newv]
-                       (if (reduced? oldv)
-                         oldv
-                         (reduce-fn oldv newv))))
+   (let [box-fn (function _k (BitmapTrieCommon$Box.))
+         update-fn (bi-function oldv newv (if (reduced? oldv)
+                                            oldv
+                                            (reduce-fn oldv newv)))
+         union-bfn (bi-function l r (cond (reduced? l) l
+                                          (reduced? r) r
+                                          :else (reduce-fn l r)))
          finalize-fn (or finalize-fn identity)]
-     (fast-reduce (fn [retval v]
-                    (let [b (compute-if-absent! retval (key-fn v) box-fn)]
-                      (.inplaceUpdate ^BitmapTrieCommon$Box b update-fn v))
-                    retval)
-                  retval coll)
-     (.replaceAll retval (bi-function
-                          k b
-                          (let [^BitmapTrieCommon$Box b b
-                                v (.obj b)]
-                            (if (reduced? v)
-                              (deref v)
-                              (finalize-fn v)))))
-     (persistent! retval)))
+     (-> (preduce #(mut-map)
+                  (fn [^Map l v]
+                    (let [b (compute-if-absent! l (key-fn v) box-fn)]
+                      (.inplaceUpdate ^BitmapTrieCommon$Box b update-fn v)
+                      l))
+                  #(map-union union-bfn %1 %2)
+                  {:min-n 1000}
+                  coll)
+         (update-values (bi-function
+                         k b
+                         (let [^BitmapTrieCommon$Box b b
+                               v (.obj b)]
+                           (if (reduced? v)
+                             (deref v)
+                             (finalize-fn v))))))))
   ([key-fn reduce-fn coll]
    (group-by-reduce key-fn reduce-fn nil coll)))
 
@@ -2165,20 +2193,17 @@ ham-fisted.api> @*1
 
 
 (defn sum-fast
-  "Fast simple double summation.  Does not do any summation compensation but does
-  parallelize the summation for huge random access containers leading to some additional
-  numeric stability."
+  "Fast simple double summation.  Does not do any nan checing or summation compensation
+  but does parallelize the summation for huge containers leading to some
+  additional numeric stability."
   ^double [coll]
-  (let [coll (->reducible coll)]
-    (if (instance? RandomAccess coll)
-      (let [^List coll coll]
-        (->> (upgroups (.size coll)
-                       (fn [^long sidx ^long eidx]
-                         @(fast-reduce double-consumer-accumulator (Sum$SimpleSum.)
-                                       (.subList coll sidx eidx)))
-                       (:pgroup-min 100000))
-             (fast-reduce + 0.0)))
-      @(fast-reduce double-consumer-accumulator (Sum$SimpleSum.) coll))))
+  (-> (preduce #(Sum$SimpleSum.)
+               double-consumer-accumulator
+               (fn [^Sum$SimpleSum l ^Sum$SimpleSum r]
+                 (.reduce l r))
+               {:min-n 10000}
+               coll)
+      (deref)))
 
 
 (defmacro double-predicate
@@ -2230,7 +2255,7 @@ ham-fisted.api> @*1
      Predicate
      (test [this ~varname]
        ~code)
-     IFnDef
+     IFnDef.OO
      (invoke [this# d#]
        (.test this# d#))))
 
@@ -2238,14 +2263,13 @@ ham-fisted.api> @*1
 (defmacro unary-operator
   "Create an implementation of java.util.function.UnaryOperator"
   [varname & code]
-  `(reify
-     UnaryOperator
-     (apply [this# ~varname]
-       ~@code)
-     IFnDef
-     (invoke [this# v#]
-       (.apply this# v#))))
+  `(function ~varname ~@code))
 
+
+(defmacro binary-operator
+  "Create an implementation of java.util.function.BinaryOperator"
+  [arg1 arg2 & code]
+  `(bi-function ~arg1 ~arg2 ~@code))
 
 
 (defmacro double-consumer
@@ -2420,11 +2444,14 @@ ham-fisted.api> @*1
   ([coll] (sum-stable-nelems coll nil))
   ([coll options]
    (let [coll (->reducible coll)]
-     @(preduce #(Sum.) double-consumer-accumulator (fn [^Sum lhs ^Sum rhs]
-                                                     (.merge lhs rhs)
-                                                     lhs)
+     @(preduce #(Sum.) double-consumer-accumulator
+               (fn [^Sum lhs ^Sum rhs]
+                 (.merge lhs rhs)
+                 lhs)
                ;;Order isn't important here but you can provide your own fork-join pool
-               (options->parallel-options options false)
+               ;;or min default
+               (-> (merge {:min-n 10000} options)
+                   (assoc :ordered? false))
                (case (get options :nan-strategy :remove)
                  :remove (filter (double-predicate v (not (Double/isNaN v))) coll)
                  :keep coll

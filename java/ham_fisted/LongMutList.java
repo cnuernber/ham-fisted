@@ -91,6 +91,15 @@ public interface LongMutList extends IMutList<Object> {
     LongArrays.shuffle(data, r);
     return ArrayLists.toList(data);
   }
+
+  default Object reduce(final IFn fn, Object init) {
+    final IFn.OLO rrfn = fn instanceof IFn.OLO ? (IFn.OLO)fn : new IFn.OLO() {
+	public Object invokePrim(Object lhs, long v) {
+	  return fn.invoke(lhs, v);
+	}
+      };
+    return longReduction(rrfn, init);
+  }
   default Object doubleReduction(IFn.ODO fn, Object init) {
     return longReduction(new IFn.OLO() {
 	public Object invokePrim(Object lhs, long v) {
