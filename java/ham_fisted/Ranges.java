@@ -9,6 +9,7 @@ import clojure.lang.RT;
 import clojure.lang.IPersistentMap;
 import clojure.lang.IFn;
 import clojure.lang.IDeref;
+import clojure.lang.Util;
 
 
 
@@ -45,14 +46,17 @@ public class Ranges {
     public String toString() { return Transformables.sequenceToString(this); }
     public Class containedType() { return Long.TYPE; }
     public int size() { return RT.intCast(nElems); }
-    public long getLong(int idx) {
-      final long sz = nElems;
+    public long lgetLong(long idx) {
+       final long sz = nElems;
       if(idx < 0)
 	idx += sz;
       if(idx < 0 || idx >= sz)
 	throw new RuntimeException("Index out of range: " + String.valueOf(idx) +
 				   " size: " + String.valueOf(sz));
       return start + step*idx;
+    }
+    public long getLong(int idx) {
+      return lgetLong(idx);
     }
     public int[] toIntArray() {
       return ArrayLists.iarange(RT.intCast(start), RT.intCast(end), RT.intCast(step));
@@ -98,14 +102,32 @@ public class Ranges {
     }
     public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
 				     ParallelOptions options) {
-      if(nElems > options.minN) {
-	return Reductions.parallelIndexGroupReduce(new IFnDef.LLO() {
-	    public Object invokePrim(long sidx, long eidx) {
-	      return Reductions.serialReduction(rfn, initValFn.invoke(), subList(sidx, eidx));
-	    }
-	  }, nElems, mergeFn, options);
+      return Reductions.parallelIndexGroupReduce(new IFnDef.LLO() {
+	  public Object invokePrim(long sidx, long eidx) {
+	    return Reductions.serialReduction(rfn, initValFn.invoke(), subList(sidx, eidx));
+	  }
+	}, nElems, mergeFn, options);
+    }
+    public Object lnth(long idx) {
+      final long sz = nElems;
+      if (idx < 0)
+	idx = idx + sz;
+      return lgetLong(idx);
+    }
+    public Object lnth(long idx, Object notFound) {
+      final long sz = nElems;
+      if (idx < 0)
+	idx = idx + sz;
+      return idx < sz && idx > -1 ? lgetLong(idx) : notFound;
+    }
+    public Object invoke(Object arg) {
+      return lnth(Casts.longCast(arg));
+    }
+    public Object invoke(Object arg, Object defVal) {
+      if(Util.isInteger(arg)) {
+	return lnth(Casts.longCast(arg), defVal);
       } else {
-	return Reductions.serialReduction(rfn, initValFn.invoke(), this);
+	return defVal;
       }
     }
     public IPersistentMap meta() { return meta; }
@@ -147,7 +169,7 @@ public class Ranges {
     public String toString() { return Transformables.sequenceToString(this); }
     public Class containedType() { return Double.TYPE; }
     public int size() { return RT.intCast(nElems); }
-    public double getDouble(int idx) {
+    public double lgetDouble(long idx) {
       final long sz = nElems;
       if(idx < 0)
 	idx += sz;
@@ -156,6 +178,7 @@ public class Ranges {
 				   " size: " + String.valueOf(sz));
       return start + step*idx;
     }
+    public double getDouble(int idx) { return lgetDouble(idx); }
     public int[] toIntArray() {
       final int st = RT.intCast(step);
       if (st != 0)
@@ -204,6 +227,28 @@ public class Ranges {
 	  }, nElems, mergeFn, options);
       } else {
 	return Reductions.serialReduction(rfn, initValFn.invoke(), this);
+      }
+    }
+    public Object lnth(long idx) {
+      final long sz = nElems;
+      if (idx < 0)
+	idx = idx + sz;
+      return lgetDouble(idx);
+    }
+    public Object lnth(long idx, Object notFound) {
+      final long sz = nElems;
+      if (idx < 0)
+	idx = idx + sz;
+      return idx < sz && idx > -1 ? lgetDouble(idx) : notFound;
+    }
+    public Object invoke(Object arg) {
+      return lnth(Casts.longCast(arg));
+    }
+    public Object invoke(Object arg, Object defVal) {
+      if(Util.isInteger(arg)) {
+	return lnth(Casts.longCast(arg), defVal);
+      } else {
+	return defVal;
       }
     }
     public IPersistentMap meta() { return meta; }

@@ -1,3 +1,9 @@
+# 1.000-beta-29
+ * Ranges with more than Integer/MAX_VALUE elems can be accessed via their IFn overloads
+  and support custom lgetLong and lgetDouble methods that take long indexes for long and
+  double ranges.
+
+
 # 1.000-beta-28
  * Use lookahead and put timeouts for all parallelization primitives so that if a long
   running parallelization is cancelled the forkjoin pool itself isn't hung.

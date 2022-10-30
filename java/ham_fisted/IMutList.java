@@ -402,10 +402,12 @@ public interface IMutList<E>
   }
 
   default Object invoke(Object idx) {
-    return nth(RT.intCast(idx));
+    return nth(RT.intCast(Casts.longCast(idx)));
   }
   default Object invoke(Object idx, Object notFound) {
-    return nth(RT.intCast(idx), notFound);
+    if(Util.isInteger(idx))
+      return nth(RT.intCast(Casts.longCast(idx)), notFound);
+    return notFound;
   }
   default Object valAt(Object idx) {
     return invoke(idx);
