@@ -12,7 +12,8 @@
             ArrayLists$IntArraySubList ArrayLists$IntArrayList
             ArrayLists$LongArraySubList ArrayLists$LongArrayList
             ArrayLists$FloatArraySubList ArrayLists$BooleanArraySubList
-            ArrayLists$DoubleArraySubList ArrayLists$DoubleArrayList]
+            ArrayLists$DoubleArraySubList ArrayLists$DoubleArrayList
+            ArrayLists$IArrayList]
            [clojure.lang IPersistentMap IReduceInit RT]
            [java.util Arrays RandomAccess List]))
 
@@ -120,7 +121,7 @@
                       RT/charCast Casts/longCast Casts/longCast add-long-reduce)
 (make-prim-array-list FloatArrayList floats ArrayLists$IDoubleArrayList getDouble setDouble
                       addDouble float unchecked-double Casts/doubleCast add-double-reduce)
-(make-prim-array-list BooleanArrayList booleans ArrayLists$ILongArrayList getLong
+(make-prim-array-list BooleanArrayList booleans ArrayLists$IArrayList getLong
                       setLong addLong Casts/booleanCast Casts/longCast
                       Casts/booleanCast add-long-reduce)
 

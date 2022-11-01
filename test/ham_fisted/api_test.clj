@@ -43,3 +43,10 @@
          (conj (lznc/filter even? (list 1 2 3 4)) 4)))
   (is (= (conj (concat [1 2 3] [4 5 6]) 4)
          (conj (lznc/concat [1 2 3] [4 5 6]) 4))))
+
+
+(deftest empty-seq-preduce
+  (is (== 0.0 (hamf/sum (list))))
+  (is (== 19900.0 (hamf/sum (range 200))))
+  (is (= 1 (hamf/preduce (constantly 1) + + nil)))
+  (is (= 1 (hamf/preduce (constantly 1) + + (list)))))

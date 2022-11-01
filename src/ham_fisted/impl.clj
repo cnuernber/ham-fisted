@@ -3,7 +3,7 @@
   (:import [java.util.concurrent ForkJoinPool ForkJoinTask ArrayBlockingQueue Future
             TimeUnit]
            [java.util Iterator]
-           [ham_fisted ParallelOptions]
+           [ham_fisted ParallelOptions BitmapTrieCommon$Box]
            [clojure.lang IteratorSeq]
            [java.util Spliterator]
            [ham_fisted Reductions$ReduceConsumer Reductions]
@@ -38,6 +38,7 @@
 
 (defn- seq->lookahead
   [^long n-ahead data]
+  ;;Ensure lazy-caching
   (let [data (seq data)
         n-ahead (count (take n-ahead data))]
     [data (concat (drop n-ahead data) (repeat n-ahead nil))]))
@@ -75,7 +76,8 @@
 
 (defn- queue-take
   [^ArrayBlockingQueue queue]
-  (let [v (.take queue)]
+  (let [^BitmapTrieCommon$Box b (.take queue)
+        v (.-obj b)]
     (if (instance? ErrorRecord v)
       (throw (.-e ^ErrorRecord v))
       v)))
@@ -83,7 +85,9 @@
 
 (defmacro queue-put!
   [queue v put-timeout-ms]
-  `(let [data# (try ~v (catch Exception e# (ErrorRecord. e#)))]
+  ;;You cannot put nil into a queue
+  `(let [data# (-> (try ~v (catch Exception e# (ErrorRecord. e#)))
+                   (BitmapTrieCommon$Box.))]
      (when-not (.offer ~queue data# ~put-timeout-ms TimeUnit/MILLISECONDS)
        (let [msg# (str ":put-timeout-ms " ~put-timeout-ms
                        "ms exceeded")]

@@ -1983,7 +1983,7 @@ public class ArrayLists {
   public static IMutList<Object> toList(final char[] data) { return toList(data, 0, data.length, null); }
 
 
-  public static class BooleanArraySubList implements ILongArrayList {
+  public static class BooleanArraySubList implements IArrayList {
     public final boolean[] data;
     public final int sidx;
     public final int dlen;

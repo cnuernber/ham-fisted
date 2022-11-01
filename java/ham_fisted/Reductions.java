@@ -5,6 +5,7 @@ import clojure.lang.IFn;
 import clojure.lang.RT;
 import clojure.lang.IReduceInit;
 import clojure.lang.IDeref;
+import clojure.lang.Seqable;
 import java.util.RandomAccess;
 import java.util.List;
 import java.util.Iterator;
@@ -121,12 +122,6 @@ public class Reductions {
     } else if (coll instanceof Set) {
       return parallelCollectionReduction(initValFn, rfn, mergeFn,
 					 (Collection)coll, options);
-      //Fallthrough - these are probably not parallelizeable but we can try.
-    } else if (coll instanceof Iterable) {
-      return ForkJoinPatterns.parallelSpliteratorReduce(initValFn, rfn, mergeFn,
-							((Iterable)coll).spliterator(),
-							options);
-      //Finally everything else.
     } else {
       return serialReduction(rfn, initValFn.invoke(), coll);
     }
