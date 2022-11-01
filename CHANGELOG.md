@@ -1,3 +1,6 @@
+# 1.000-beta-30
+ * Various bugfixes from dtype work.
+
 # 1.000-beta-29
  * Ranges with more than Integer/MAX_VALUE elems can be accessed via their IFn overloads
   and support custom lgetLong and lgetDouble methods that take long indexes for long and
