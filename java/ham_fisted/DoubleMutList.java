@@ -19,6 +19,24 @@ public interface DoubleMutList extends IMutList<Object> {
   default void setLong(int idx, long obj) { setDouble(idx, (double)obj); }
   default Object get(int idx) { return getDouble(idx); }
   default long getLong(int idx) { return (long)getDouble(idx); }
+  static class DoubleSubList extends IMutList.MutSubList<Object> implements DoubleMutList {
+    @SuppressWarnings("unchecked")
+    public DoubleSubList(IMutList l, int ss, int ee) {
+      super(l, ss, ee);
+    }
+    public Object reduce(IFn rfn, Object init) { return DoubleMutList.super.reduce(rfn, init); }
+    public Object longReduction(IFn.OLO rfn, Object init) {
+      return DoubleMutList.super.longReduction(rfn, init);
+    }
+    public IMutList<Object> subList(int ssidx, int seidx) {
+      ChunkedList.sublistCheck(ssidx, seidx, size());
+      return ((IMutList<Object>)list).subList(sidx + ssidx, sidx + seidx);
+    }
+  }
+  default IMutList<Object> subList(int sidx, int eidx) {
+    ChunkedList.sublistCheck(sidx, eidx, size());
+    return new DoubleSubList(this, sidx, eidx);
+  }
   default boolean addAllReducible(Object obj) {
     final int sz = size();
     Transformables.doubleReduce(new IFn.ODO() {

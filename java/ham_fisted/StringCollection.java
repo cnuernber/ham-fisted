@@ -23,7 +23,7 @@ public class StringCollection implements IMutList<Character> {
     return csData;
   }
   public final Character get(int idx) { return toCharArray()[idx]; }
-  public final List<Character> subList(int startidx, int endidx) {
+  public final IMutList<Character> subList(int startidx, int endidx) {
     return new StringCollection((String)cs.subSequence(startidx, endidx));
   }
   public final Object[] fillArray(Object[] data) {

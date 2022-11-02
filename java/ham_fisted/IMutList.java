@@ -164,13 +164,85 @@ public interface IMutList<E>
     return size() == osz;
   }
 
+  static class MutSubList<E> implements IMutList<E> {
+    final IMutList<E> list;
+    final int sidx;
+    final int eidx;
+    final int nElems;
+    public MutSubList(IMutList<E> list, int ss, int ee) {
+      this.list = list;
+      sidx = ss;
+      eidx = ee;
+      nElems = ee - ss;
+    }
+    public int size() { return nElems; }
+    public E get(int idx) {
+      ChunkedList.indexCheck(sidx, nElems, idx);
+      return list.get(sidx+idx);
+    }
+    public long getLong(int idx) {
+      ChunkedList.indexCheck(sidx, nElems, idx);
+      return list.getLong(sidx+idx);
+    }
+    public double getDouble(int idx) {
+      ChunkedList.indexCheck(sidx, nElems, idx);
+      return list.getDouble(sidx+idx);
+    }
+    @SuppressWarnings("unchecked")
+    public E set(int idx, E v) {
+      ChunkedList.indexCheck(sidx, nElems, idx);
+      return list.set(sidx+idx, v);
+    }
+    public void setLong(int idx, long v) {
+      ChunkedList.indexCheck(sidx, nElems, idx);
+      list.setLong(sidx+idx, v);
+    }
+    public void setDouble(int idx, double v) {
+      ChunkedList.indexCheck(sidx, nElems, idx);
+      list.setDouble(sidx+idx, v);
+    }
+    public Object reduce(IFn rfn, Object init) {
+      final int ee = eidx;
+      final IMutList l = list;
+      for(int idx = sidx; idx < eidx && !RT.isReduced(init); ++idx)
+	init = rfn.invoke(init, l.get(idx));
+      return init;
+    }
+    public Object longReduction(IFn.OLO rfn, Object init) {
+      final int ee = eidx;
+      final IMutList l = list;
+      for(int idx = sidx; idx < eidx && !RT.isReduced(init); ++idx)
+	init = rfn.invokePrim(init, l.getLong(idx));
+      return init;
+    }
+    public Object doubleReduction(IFn.ODO rfn, Object init) {
+      final int ee = eidx;
+      final IMutList l = list;
+      for(int idx = sidx; idx < eidx && !RT.isReduced(init); ++idx)
+	init = rfn.invokePrim(init, l.getDouble(idx));
+      return init;
+    }
+    @SuppressWarnings("unchecked")
+    public IMutList<E> subList(int ssidx, int seidx) {
+      ChunkedList.sublistCheck(ssidx, seidx, nElems);
+      if(ssidx == 0 && seidx == nElems)
+	return this;
+      return list.subList(ssidx + sidx, seidx + sidx);
+    }
+    public IPersistentMap meta() { return list.meta(); }
+    @SuppressWarnings("unchecked")
+    public IMutList<E> withMeta(IPersistentMap meta) {
+      return new MutSubList<E>((IMutList<E>)list.withMeta(meta), sidx, eidx);
+    }
+  }
+
   @SuppressWarnings("unchecked")
-  default List<E> subList(int startidx, int endidx) {
+  default IMutList<E> subList(int startidx, int endidx) {
     final int sz = size();
     if (startidx == 0 && endidx == sz)
       return this;
-    ChunkedList.checkIndexRange(0, sz, startidx, endidx);
-    return ReindexList.create(ArrayLists.iarange(startidx, endidx, 1), this, meta());
+    ChunkedList.sublistCheck(startidx, endidx, size());
+    return new MutSubList<E>(this, startidx, endidx);
   }
 
   default int indexOf(Object o) {

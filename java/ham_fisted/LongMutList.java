@@ -28,6 +28,25 @@ public interface LongMutList extends IMutList<Object> {
       setLong(startidx, l);
     }
   }
+  static class LongSubList extends IMutList.MutSubList<Object> implements LongMutList {
+    @SuppressWarnings("unchecked")
+    public LongSubList(IMutList l, int ss, int ee) {
+      super(l, ss, ee);
+    }
+    public Object reduce(IFn rfn, Object init) { return LongMutList.super.reduce(rfn, init); }
+    public Object doubleReduction(IFn.ODO rfn, Object init) {
+      return LongMutList.super.doubleReduction(rfn, init);
+    }
+    public IMutList<Object> subList(int ssidx, int seidx) {
+      ChunkedList.sublistCheck(ssidx, seidx, size());
+      return ((IMutList<Object>)list).subList(sidx + ssidx, sidx + seidx);
+    }
+  }
+  @SuppressWarnings("unchecked")
+  default IMutList<Object> subList(int ssidx, int seidx) {
+    ChunkedList.sublistCheck(ssidx, seidx, size());
+    return new LongSubList(this, ssidx, seidx);
+  }
   default void fillRange(int startidx, List l) {
     if (l.isEmpty())
       return;

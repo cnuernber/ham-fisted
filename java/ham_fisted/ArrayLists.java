@@ -264,9 +264,9 @@ public class ArrayLists {
       data[idx] = obj;
       return retval;
     }
-    public List<Object> subList(int ssidx, int seidx) {
+    public IMutList<Object> subList(int ssidx, int seidx) {
       ChunkedList.sublistCheck(ssidx, seidx, size());
-      return toList(data, ssidx + sidx, seidx + sidx, meta());
+      return (IMutList<Object>)toList(data, ssidx + sidx, seidx + sidx, meta());
     }
     public IPersistentMap meta() { return meta; }
     public IObj withMeta(IPersistentMap m) {
@@ -389,9 +389,9 @@ public class ArrayLists {
       }
       return sz != size();
     }
-    public List<Object> subList(int ssidx, int seidx) {
+    public IMutList<Object> subList(int ssidx, int seidx) {
       ChunkedList.sublistCheck(ssidx, seidx, size());
-      return toList(data, ssidx, seidx, meta());
+      return (IMutList<Object>)toList(data, ssidx, seidx, meta());
     }
     public IPersistentMap meta() { return meta; }
     public IObj withMeta(IPersistentMap m) {
@@ -487,9 +487,9 @@ public class ArrayLists {
 	}
       };
     }
-    public List<Object> subList(int ssidx, int seidx) {
+    public LongMutList subList(int ssidx, int seidx) {
       ChunkedList.sublistCheck(ssidx, seidx, size());
-      return toList(data, ssidx + sidx, seidx + sidx, meta());
+      return (LongMutList)toList(data, ssidx + sidx, seidx + sidx, meta());
     }
     public IPersistentMap meta() { return meta; }
     public IObj withMeta(IPersistentMap m) {
@@ -594,9 +594,9 @@ public class ArrayLists {
 	}
       };
     }
-    public List<Object> subList(int ssidx, int seidx) {
+    public LongMutList subList(int ssidx, int seidx) {
       ChunkedList.sublistCheck(ssidx, seidx, size());
-      return toList(data, ssidx + sidx, seidx + sidx, meta());
+      return (LongMutList)toList(data, ssidx + sidx, seidx + sidx, meta());
     }
     public IPersistentMap meta() { return meta; }
     public IObj withMeta(IPersistentMap m) {
@@ -706,9 +706,9 @@ public class ArrayLists {
     public void setLong(int idx, long obj) {
       setLong(data, sidx, nElems, idx, obj);
     }
-    public List<Object> subList(int ssidx, int seidx) {
+    public LongMutList subList(int ssidx, int seidx) {
       ChunkedList.sublistCheck(ssidx, seidx, size());
-      return toList(data, ssidx + sidx, seidx + sidx, meta());
+      return (LongMutList)toList(data, ssidx + sidx, seidx + sidx, meta());
     }
     public IPersistentMap meta() { return meta; }
     public IObj withMeta(IPersistentMap m) {
@@ -935,7 +935,7 @@ public class ArrayLists {
       }
       return true;
     }
-    public List<Object> subList(int ssidx, int seidx) {
+    public IMutList<Object> subList(int ssidx, int seidx) {
       ChunkedList.sublistCheck(ssidx, seidx, size());
       return toList(data, ssidx, seidx, meta());
     }
@@ -1085,7 +1085,7 @@ public class ArrayLists {
     public void setLong(int idx, long obj) {
       setLong(data, sidx, nElems, idx, obj);
     }
-    public List<Object> subList(int ssidx, int seidx) {
+    public IMutList<Object> subList(int ssidx, int seidx) {
       ChunkedList.sublistCheck(ssidx, seidx, size());
       return toList(data, ssidx + sidx, seidx + sidx, meta());
     }
@@ -1320,7 +1320,7 @@ public class ArrayLists {
       --nElems;
       return retval;
     }
-    public List<Object> subList(int ssidx, int seidx) {
+    public IMutList<Object> subList(int ssidx, int seidx) {
       ChunkedList.sublistCheck(ssidx, seidx, size());
       return toList(data, ssidx, seidx, meta());
     }
@@ -1432,7 +1432,7 @@ public class ArrayLists {
       idx = checkIndex(idx, dlen) + sidx;
       data[idx] = obj;
     }
-    public List<Object> subList(int ssidx, int seidx) {
+    public IMutList<Object> subList(int ssidx, int seidx) {
       ChunkedList.sublistCheck(ssidx, seidx, size());
       return toList(data, ssidx + sidx, seidx + sidx, meta());
     }
@@ -1578,7 +1578,7 @@ public class ArrayLists {
     public void setDouble(int idx, double obj) {
       setDouble(data, sidx, nElems, idx, obj);
     }
-    public List<Object> subList(int ssidx, int seidx) {
+    public IMutList<Object> subList(int ssidx, int seidx) {
       ChunkedList.sublistCheck(ssidx, seidx, size());
       return toList(data, ssidx + sidx, seidx + sidx, meta());
     }
@@ -1814,7 +1814,7 @@ public class ArrayLists {
       --nElems;
       return retval;
     }
-    public List<Object> subList(int ssidx, int seidx) {
+    public IMutList<Object> subList(int ssidx, int seidx) {
       ChunkedList.sublistCheck(ssidx, seidx, size());
       return toList(data, ssidx, seidx, meta());
     }
@@ -1913,7 +1913,7 @@ public class ArrayLists {
       idx = checkIndex(idx, dlen) + sidx;
       data[idx] = v;
     }
-    public List<Object> subList(int ssidx, int seidx) {
+    public IMutList<Object> subList(int ssidx, int seidx) {
       ChunkedList.sublistCheck(ssidx, seidx, size());
       return toList(data, ssidx + sidx, seidx + sidx, meta());
     }
@@ -2017,7 +2017,7 @@ public class ArrayLists {
       return retval;
     }
     public IMutList cloneList() { return (IMutList)toList(Arrays.copyOfRange(data, sidx, sidx+dlen)); }
-    public List<Object> subList(int ssidx, int seidx) {
+    public IMutList<Object> subList(int ssidx, int seidx) {
       ChunkedList.sublistCheck(ssidx, seidx, size());
       return toList(data, ssidx + sidx, seidx + sidx, meta());
     }

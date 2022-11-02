@@ -247,7 +247,7 @@ public class MutList<E>
     public final ListIterator<E> listIterator() {
       return listIterator(0);
     }
-    public final List<E> subList(int ssidx, int seidx) {
+    public final IMutList<E> subList(int ssidx, int seidx) {
       ChunkedList.sublistCheck(ssidx, seidx, nElems);
       return new SubMutList<E>(ssidx + startidx, seidx + startidx, data);
     }
@@ -320,7 +320,7 @@ public class MutList<E>
     }
   }
 
-  public final List<E> subList(int startidx, int endidx) {
+  public final IMutList<E> subList(int startidx, int endidx) {
     ChunkedList.sublistCheck(startidx, endidx, size());
     return new SubMutList<E>(startidx, endidx, data);
   }

@@ -87,6 +87,10 @@ public class ConstList implements IMutList<Object>, TypedList {
     }
     public Class containedType() { return Long.TYPE; }
     public long getLong(int idx) { return lval; }
+    public LongConstList subList(int sidx, int eidx) {
+      ChunkedList.sublistCheck(sidx, eidx, size());
+      return new LongConstList(eidx-sidx, lval, meta());
+    }
   }
   public static class DoubleConstList extends ConstList implements DoubleMutList {
     double lval;
@@ -96,5 +100,9 @@ public class ConstList implements IMutList<Object>, TypedList {
     }
     public Class containedType() { return Double.TYPE; }
     public double getDouble(int idx) { return lval; }
+    public DoubleConstList subList(int sidx, int eidx) {
+      ChunkedList.sublistCheck(sidx, eidx, size());
+      return new DoubleConstList(eidx-sidx, lval, meta());
+    }
   }
 }

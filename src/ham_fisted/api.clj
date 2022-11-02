@@ -2191,6 +2191,19 @@ ham-fisted.api> @*1
   dc)
 
 
+(defn consumer-accumulator
+  "Generic reduction function using a consumer"
+  [^Consumer c v]
+  (.accept c v)
+  c)
+
+
+(defn reducible-merge
+  "Parallel reduction merge function that expects both sides to be an instances of
+  Reducible"
+  [^Reducible lhs rhs]
+  (.reduce lhs rhs))
+
 
 (defn sum-fast
   "Fast simple double summation.  Does not do any nan checing or summation compensation
@@ -2199,8 +2212,7 @@ ham-fisted.api> @*1
   ^double [coll]
   (-> (preduce #(Sum$SimpleSum.)
                double-consumer-accumulator
-               (fn [^Sum$SimpleSum l ^Sum$SimpleSum r]
-                 (.reduce l r))
+               reducible-merge
                {:min-n 10000}
                coll)
       (deref)))
@@ -2438,28 +2450,31 @@ ham-fisted.api> @*1
   consumer)
 
 
+(defn ^:no-doc apply-nan-strategy
+  [options coll]
+  (case (get options :nan-strategy :remove)
+    :remove (filter (double-predicate v (not (Double/isNaN v))) coll)
+    :keep coll
+    :exception (map (double-unary-operator v
+                                           (when (Double/isNaN v)
+                                             (throw (Exception. "Nan detected")))
+                                           v)
+                    coll)))
+
 
 (defn sum-stable-nelems
   "Stable sum returning map of {:sum :n-elems}. See options for [[sum]]."
   ([coll] (sum-stable-nelems coll nil))
   ([coll options]
    (let [coll (->reducible coll)]
-     @(preduce #(Sum.) double-consumer-accumulator
-               (fn [^Sum lhs ^Sum rhs]
-                 (.merge lhs rhs)
-                 lhs)
-               ;;Order isn't important here but you can provide your own fork-join pool
-               ;;or min default
-               (-> (merge {:min-n 10000} options)
-                   (assoc :ordered? false))
-               (case (get options :nan-strategy :remove)
-                 :remove (filter (double-predicate v (not (Double/isNaN v))) coll)
-                 :keep coll
-                 :exception (map (double-unary-operator v
-                                                        (when (Double/isNaN v)
-                                                          (throw (Exception. "Nan detected")))
-                                                        v)
-                                 coll))))))
+     (->> (->reducible coll)
+          (apply-nan-strategy options)
+          (preduce #(Sum.) double-consumer-accumulator reducible-merge
+                   ;;Order isn't important here but you can provide your own fork-join pool
+                   ;;or min default
+                   (-> (merge {:min-n 10000} options)
+                       (assoc :ordered? false)))
+          (deref)))))
 
 
 (defn sum
@@ -2480,8 +2495,7 @@ ham-fisted.api> @*1
   See options for [[sum-stable]]."
   (^double [coll] (mean coll nil))
   (^double [coll options]
-   (let [coll (->collection coll)
-         vals (sum-stable-nelems coll options)]
+   (let [vals (sum-stable-nelems coll options)]
      (/ (double (vals :sum))
         (long (vals :n-elems))))))
 
