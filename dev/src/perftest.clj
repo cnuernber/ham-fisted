@@ -226,25 +226,34 @@
         mfn2 (fn ^long [^long v] (+ v 1))
         pred (fn [^long v] (== 0 (rem (long v) 3)))]
     (for [n-elems [10 100 1000 100000]]
-      [{:n-elems n-elems
-        :test :sequence-summation
-        :clj (bench/benchmark-us (->> (clojure.core/range n-elems)
-                                      (clojure.core/map mfn1)
-                                      (clojure.core/map mfn2)
-                                      (clojure.core/filter pred)
+      {:n-elems n-elems
+       :test :sequence-summation
+       :clj (bench/benchmark-us (->> (clojure.core/range n-elems)
+                                     (clojure.core/map mfn1)
+                                     (clojure.core/map mfn2)
+                                     (clojure.core/filter pred)
+                                     (api/sum)))
+       :hamf (bench/benchmark-us (->> (api/range n-elems)
+                                      (lznc/map mfn1)
+                                      (lznc/map mfn2)
+                                      (lznc/filter pred)
                                       (api/sum)))
-        :hamf (bench/benchmark-us (->> (api/range n-elems)
-                                       (lznc/map mfn1)
-                                       (lznc/map mfn2)
-                                       (lznc/filter pred)
-                                       (api/sum)))
-        :eduction (bench/benchmark-us (->> (api/range n-elems)
-                                           (eduction
-                                            (comp
-                                             (clojure.core/map mfn1)
-                                             (clojure.core/map mfn2)
-                                             (clojure.core/filter pred)))
-                                           (api/sum)))}])))
+       :eduction (bench/benchmark-us (->> (api/range n-elems)
+                                          (eduction
+                                           (comp
+                                            (clojure.core/map mfn1)
+                                            (clojure.core/map mfn2)
+                                            (clojure.core/filter pred)))
+                                          (api/sum)))})))
+
+
+(defn map-indexed-summation
+  []
+  (for [n-elems [10 100 1000 100000]]
+    {:n-elems n-elems
+     :test :map-indexed-summation
+     :clj (bench/benchmark-us (api/sum (map-indexed + (api/range n-elems))))
+     :hamf (bench/benchmark-us (api/sum (lznc/map-indexed + (api/range n-elems))))}))
 
 
 (defn object-array-perftest
@@ -354,9 +363,9 @@
   (let [n-elems 10000]
     [{:n-elems n-elems
       :test :group-by
-      :clj (bench/benchmark-us (clojure.core/group-by #(rem (unchecked-long %1) 7)
+      :clj (bench/benchmark-us (clojure.core/group-by #(rem (unchecked-long %1) 113)
                                                       (api/range n-elems)))
-      :hamf (bench/benchmark-us (api/group-by #(rem (unchecked-long %1) 7)
+      :hamf (bench/benchmark-us (api/group-by #(rem (unchecked-long %1) 113)
                                               (api/range n-elems)))}]))
 
 
@@ -365,16 +374,16 @@
   (log/info "group-by-reduce")
   ;;Choose a large-ish prime.  This emphasizes not only an efficient map datastructure but
   ;;also the much faster finalization step.
-  (let [n-elems 10000]
+  (let [n-elems 100000]
     [{:n-elems n-elems
       :test :group-by-reduce
       :clj (bench/benchmark-us (->> (clojure.core/group-by #(rem (unchecked-long %1) 337)
                                                            (api/range n-elems))
                                     (map (fn [[k v]]
-                                           [k (first v)]))
+                                           [k (reduce + 0 v)]))
                                     (into {})))
       :hamf (bench/benchmark-us (api/group-by-reduce #(rem (unchecked-long %1) 337)
-                                                     (fn [l r] l)
+                                                     +
                                                      (api/range n-elems)))}]))
 
 

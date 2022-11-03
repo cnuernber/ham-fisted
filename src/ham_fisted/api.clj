@@ -1447,7 +1447,7 @@ ham_fisted.PersistentHashMap
                    (.add ^List (compute-if-absent! l (f v) compute-fn) v)
                    l)
                  (fn [^Map lhs ^Map rhs]
-                   (map-union (bi-function l r (.addAll ^List l r)) lhs rhs))
+                   (map-union (bi-function l r (do (.addAll ^List l r) l)) lhs rhs))
                  ;;We want the results to be in order
                  {:ordered? true
                   :min-n 1000}
@@ -1489,9 +1489,11 @@ ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (rang
          update-fn (bi-function oldv newv (if (reduced? oldv)
                                             oldv
                                             (reduce-fn oldv newv)))
-         union-bfn (bi-function l r (cond (reduced? l) l
-                                          (reduced? r) r
-                                          :else (reduce-fn l r)))
+         union-bfn (bi-function l r
+                                (let [^BitmapTrieCommon$Box l l
+                                      ^BitmapTrieCommon$Box r r]
+                                  (.inplaceUpdate l update-fn (.-obj r))
+                                  l))
          finalize-fn (or finalize-fn identity)]
      (-> (preduce #(mut-map)
                   (fn [^Map l v]

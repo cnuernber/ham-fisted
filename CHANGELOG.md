@@ -1,3 +1,6 @@
+# 1.000-beta-32
+ * group-by, group-by-reduced fixed for large n.
+
 # 1.000-beta-31
  * min-n is now a long with parallel options.
  * lazy-noncaching namespace now has map-indexed.  Faster reductions and random access

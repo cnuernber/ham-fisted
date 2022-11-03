@@ -50,3 +50,10 @@
   (is (== 19900.0 (hamf/sum (range 200))))
   (is (= 1 (hamf/preduce (constantly 1) + + nil)))
   (is (= 1 (hamf/preduce (constantly 1) + + (list)))))
+
+
+(deftest group-by-reduce-large-n
+  (is (= 113 (count (hamf/group-by #(rem (unchecked-long %1) 113) (range 10000)))))
+  (is (= 337 (count (hamf/group-by-reduce #(rem (unchecked-long %1) 337)
+                                          +
+                                          (range 10000))))))
