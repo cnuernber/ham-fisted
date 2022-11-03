@@ -6,21 +6,22 @@ import java.util.List;
 import java.util.Arrays;
 import clojure.lang.IPersistentMap;
 import clojure.lang.RT;
+import clojure.lang.IFn;
 import it.unimi.dsi.fastutil.ints.IntComparator;
 
 
 public class ConstList implements IMutList<Object>, TypedList {
-  public final int nElems;
+  public final long nElems;
   public final Object value;
   public final IPersistentMap meta;
-  public ConstList(int _nElems, Object _v, IPersistentMap m) {
+  public ConstList(long _nElems, Object _v, IPersistentMap m) {
     nElems = _nElems;
     value = _v;
     meta = m;
   }
   public IMutList cloneList() { return this; }
   public Class containedType() { return value != null ? value.getClass() : Object.class; }
-  public static ConstList create(int nElems, Object value, IPersistentMap m) {
+  public static ConstList create(long nElems, Object value, IPersistentMap m) {
     if (value instanceof Long || value instanceof Integer
 	|| value instanceof Short || value instanceof Byte
 	|| value instanceof Character)
@@ -29,42 +30,42 @@ public class ConstList implements IMutList<Object>, TypedList {
       return new DoubleConstList(nElems, Casts.doubleCast(value), m);
     return new ConstList(nElems, value, m);
   }
-  public int size() { return nElems; }
+  public int size() { return RT.intCast(nElems); }
   public Object get(int idx) {
     return value;
   }
-  public ConstList subList(int sidx, int eidx) {
-    if( sidx < 0 || sidx >= nElems)
-      throw new RuntimeException("Start index out of range.");
-    if (eidx < sidx || eidx > nElems)
-      throw new RuntimeException("End index out of range.");
+  public ConstList subList(long sidx, long eidx) {
+    ChunkedList.sublistCheck(sidx, eidx, nElems);
     return create(eidx-sidx, value, meta);
+  }
+  public ConstList subList(int sidx, int eidx) {
+    return subList((long)sidx, (long)eidx);
   }
   public void sort(Comparable c) { }
   public ConstList immutSort(Comparable c) { return this; }
   public ConstList ImmutSort() { return this; }
   public ConstList reverse() { return this; }
-  public int[] sortIndirect() { return ArrayLists.iarange(0, nElems, 1); }
+  public int[] sortIndirect() { return ArrayLists.iarange(0, size(), 1); }
   public Object[] toArray() {
-    Object[] retval = new Object[nElems];
+    Object[] retval = new Object[size()];
     Arrays.fill(retval, value);
     return retval;
   }
   public int[] toIntArray() {
     int v = RT.intCast(Casts.longCast(value));
-    int[] retval = new int[nElems];
+    int[] retval = new int[size()];
     Arrays.fill(retval, v);
     return retval;
   }
   public long[] toLongArray() {
     long v = Casts.longCast(value);
-    long[] retval = new long[nElems];
+    long[] retval = new long[size()];
     Arrays.fill(retval, v);
     return retval;
   }
   public double[] toDoubleArray() {
     double v = Casts.doubleCast(value);
-    double[] retval = new double[nElems];
+    double[] retval = new double[size()];
     Arrays.fill(retval, v);
     return retval;
   }
@@ -80,29 +81,29 @@ public class ConstList implements IMutList<Object>, TypedList {
     return ConstList.create(nElems, value, m);
   }
   public static class LongConstList extends ConstList implements LongMutList {
-    long lval;
-    public LongConstList(int ne, long v, IPersistentMap m ) {
+    public final long lval;
+    public LongConstList(long ne, long v, IPersistentMap m ) {
       super(ne, v, m);
       lval = v;
     }
     public Class containedType() { return Long.TYPE; }
     public long getLong(int idx) { return lval; }
-    public LongConstList subList(int sidx, int eidx) {
-      ChunkedList.sublistCheck(sidx, eidx, size());
-      return new LongConstList(eidx-sidx, lval, meta());
+    public Object reduce(IFn rfn, Object init) { return LongMutList.super.reduce(rfn, init); }
+    public Object doubleReduction(IFn.ODO rfn, Object init) {
+      return LongMutList.super.doubleReduction(rfn, init);
     }
   }
   public static class DoubleConstList extends ConstList implements DoubleMutList {
-    double lval;
-    public DoubleConstList(int ne, double v, IPersistentMap m ) {
+    public final double lval;
+    public DoubleConstList(long ne, double v, IPersistentMap m ) {
       super(ne, v, m);
       lval = v;
     }
     public Class containedType() { return Double.TYPE; }
     public double getDouble(int idx) { return lval; }
-    public DoubleConstList subList(int sidx, int eidx) {
-      ChunkedList.sublistCheck(sidx, eidx, size());
-      return new DoubleConstList(eidx-sidx, lval, meta());
+    public Object reduce(IFn rfn, Object init) { return DoubleMutList.super.reduce(rfn, init); }
+    public Object longReduction(IFn.OLO rfn, Object init) {
+      return DoubleMutList.super.longReduction(rfn, init);
     }
   }
 }

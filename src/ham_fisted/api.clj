@@ -51,7 +51,8 @@
             Consumers Sum Sum$SimpleSum Casts Reducible IndexedDoubleConsumer
             IndexedLongConsumer IndexedConsumer ITypedReduce ParallelOptions Reductions
             IFnDef$LO IFnDef$LL IFnDef$DO IFnDef$DD IFnDef$DDD
-            IFnDef$LLL ParallelOptions$CatParallelism IFnDef$OO IFnDef$OOO]
+            IFnDef$LLL ParallelOptions$CatParallelism IFnDef$OO IFnDef$OOO IFnDef$ODO
+            IFnDef$OLO]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
@@ -83,7 +84,7 @@
                             range map concat filter filterv first last pmap take take-last drop
                             drop-last sort-by repeat repeatedly shuffle into-array
                             empty? reverse byte-array short-array char-array boolean-array
-                            keys vals persistent!]))
+                            keys vals persistent! rest]))
 
 
 (set! *warn-on-reflection* true)
@@ -91,7 +92,7 @@
 (declare assoc! conj! vec mapv vector object-array range first take drop into-array shuffle
          object-array-list fast-reduce int-array-list long-array-list double-array-list
          int-array argsort byte-array short-array char-array boolean-array repeat
-         persistent!)
+         persistent! rest)
 
 
 (defn ->collection
@@ -2157,7 +2158,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
     (.reduce r (rest reducibles))))
 
 
-(defn double-consumer-accumulator
+(def double-consumer-accumulator
   "Converts from a double consumer to a double reduction accumulator that returns the
   consumer:
 
@@ -2169,12 +2170,13 @@ ham-fisted.api> (fast-reduce double-consumer-accumulator
 ham-fisted.api> @*1
 499500.0
 ```"
-  ^DoubleConsumer [^DoubleConsumer dc ^double v]
-  (.accept dc v)
-  dc)
+  (reify IFnDef$ODO
+    (invokePrim [this dc v]
+      (.accept ^DoubleConsumer dc v)
+      dc)))
 
 
-(defn long-consumer-accumulator
+(def long-consumer-accumulator
   "Converts from a long consumer to a long reduction accumulator that returns the
   consumer:
 
@@ -2186,9 +2188,10 @@ ham-fisted.api> (fast-reduce double-consumer-accumulator
 ham-fisted.api> @*1
 499500.0
 ```"
-  ^LongConsumer [^LongConsumer dc ^long v]
-  (.accept dc v)
-  dc)
+  (reify IFnDef$OLO
+    (invokePrim [this dc v]
+      (.accept ^LongConsumer dc v)
+      dc)))
 
 
 (defn consumer-accumulator
@@ -2462,6 +2465,18 @@ ham-fisted.api> @*1
                     coll)))
 
 
+(defn ^:no-doc apply-nan-strategy
+  [options coll]
+  (case (get options :nan-strategy :remove)
+    :remove (filter (double-predicate v (not (Double/isNaN v))) coll)
+    :keep coll
+    :exception (map (double-unary-operator v
+                                           (when (Double/isNaN v)
+                                             (throw (Exception. "Nan detected")))
+                                           v)
+                    coll)))
+
+
 (defn sum-stable-nelems
   "Stable sum returning map of {:sum :n-elems}. See options for [[sum]]."
   ([coll] (sum-stable-nelems coll nil))
@@ -2529,6 +2544,17 @@ ham-fisted.api> @*1
         (RT/first (.rseq ^Reversible coll))
         :else
         (clojure.core/last coll)))))
+
+
+(defn rest
+  [coll]
+  (cond
+    (nil? coll) nil
+    (instance? RandomAccess coll)
+    (if (pos? (count coll))
+      (subvec coll 1)
+      [])
+    :else (clojure.core/rest coll)))
 
 
 (defn reverse

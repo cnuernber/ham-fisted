@@ -164,7 +164,7 @@ public interface IMutList<E>
     return size() == osz;
   }
 
-  static class MutSubList<E> implements IMutList<E> {
+  public static class MutSubList<E> implements IMutList<E> {
     final IMutList<E> list;
     final int sidx;
     final int eidx;
@@ -204,21 +204,21 @@ public interface IMutList<E>
     public Object reduce(IFn rfn, Object init) {
       final int ee = eidx;
       final IMutList l = list;
-      for(int idx = sidx; idx < eidx && !RT.isReduced(init); ++idx)
+      for(int idx = sidx; idx < ee && !RT.isReduced(init); ++idx)
 	init = rfn.invoke(init, l.get(idx));
       return init;
     }
     public Object longReduction(IFn.OLO rfn, Object init) {
       final int ee = eidx;
       final IMutList l = list;
-      for(int idx = sidx; idx < eidx && !RT.isReduced(init); ++idx)
+      for(int idx = sidx; idx < ee && !RT.isReduced(init); ++idx)
 	init = rfn.invokePrim(init, l.getLong(idx));
       return init;
     }
     public Object doubleReduction(IFn.ODO rfn, Object init) {
       final int ee = eidx;
       final IMutList l = list;
-      for(int idx = sidx; idx < eidx && !RT.isReduced(init); ++idx)
+      for(int idx = sidx; idx < ee && !RT.isReduced(init); ++idx)
 	init = rfn.invokePrim(init, l.getDouble(idx));
       return init;
     }
@@ -232,7 +232,7 @@ public interface IMutList<E>
     public IPersistentMap meta() { return list.meta(); }
     @SuppressWarnings("unchecked")
     public IMutList<E> withMeta(IPersistentMap meta) {
-      return new MutSubList<E>((IMutList<E>)list.withMeta(meta), sidx, eidx);
+      return ((IMutList<E>)list.withMeta(meta)).subList(sidx, eidx);
     }
   }
 

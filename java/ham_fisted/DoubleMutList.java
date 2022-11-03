@@ -28,10 +28,6 @@ public interface DoubleMutList extends IMutList<Object> {
     public Object longReduction(IFn.OLO rfn, Object init) {
       return DoubleMutList.super.longReduction(rfn, init);
     }
-    public IMutList<Object> subList(int ssidx, int seidx) {
-      ChunkedList.sublistCheck(ssidx, seidx, size());
-      return ((IMutList<Object>)list).subList(sidx + ssidx, sidx + seidx);
-    }
   }
   default IMutList<Object> subList(int sidx, int eidx) {
     ChunkedList.sublistCheck(sidx, eidx, size());

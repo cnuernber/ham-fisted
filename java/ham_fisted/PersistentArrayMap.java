@@ -370,7 +370,7 @@ public class PersistentArrayMap
     final Object[] data = kvs;
     final int nne = ne *2;
     for (int idx = 0; idx < nne && !RT.isReduced(init); idx += 2)
-      init = rfn.invoke(init, data[idx], data[idx+1]);
+      init = rfn.invoke(init, MapEntry.create(data[idx], data[idx+1]));
 
     return init;
   }

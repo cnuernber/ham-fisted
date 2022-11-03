@@ -37,12 +37,7 @@ public interface LongMutList extends IMutList<Object> {
     public Object doubleReduction(IFn.ODO rfn, Object init) {
       return LongMutList.super.doubleReduction(rfn, init);
     }
-    public IMutList<Object> subList(int ssidx, int seidx) {
-      ChunkedList.sublistCheck(ssidx, seidx, size());
-      return ((IMutList<Object>)list).subList(sidx + ssidx, sidx + seidx);
-    }
   }
-  @SuppressWarnings("unchecked")
   default IMutList<Object> subList(int ssidx, int seidx) {
     ChunkedList.sublistCheck(ssidx, seidx, size());
     return new LongSubList(this, ssidx, seidx);
