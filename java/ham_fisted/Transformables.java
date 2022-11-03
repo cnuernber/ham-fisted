@@ -346,6 +346,7 @@ public class Transformables {
     default void forEach(Consumer c) {
       ITypedReduce.super.forEach(c);
     }
+    default ISeq seq() { return IteratorSeq.create(iterator()); }
   }
 
   public static class MapIterable
@@ -369,7 +370,7 @@ public class Transformables {
     }
     public String toString() { return sequenceToString(this); }
     public boolean isEmpty() {
-      return seq() == null;
+      return iterator().hasNext() == false;
     }
     public int size() {
       return iterCount(iterator());
@@ -1034,6 +1035,48 @@ public class Transformables {
     public MapList withMeta(IPersistentMap m) {
       return new MapList(this, m);
     }
+  }
+
+  public static class IndexedMapper extends AbstractCollection
+    implements IterableSeq {
+    final IFn mapFn;
+    final Iterable src;
+    final IPersistentMap meta;
+    public IndexedMapper(IFn mapFn, Iterable src, IPersistentMap m) {
+      this.mapFn = mapFn;
+      this.src = src;
+      this.meta = m;
+    }
+    public String toString() { return sequenceToString(this); }
+    public boolean equals(Object other) { return equiv(other); }
+    public int hashCode() { return hasheq(); }
+    public boolean isEmpty() { return iterator().hasNext() == false; }
+    public int size() { return iterCount(src.iterator()); }
+    public static class CountingFn implements IFnDef {
+      long cnt;
+      final IFn mapFn;
+      public CountingFn(IFn mapFn) { cnt = 0; this.mapFn = mapFn; }
+      public Object invoke(Object arg) {
+	return mapFn.invoke(cnt++, arg);
+      }
+    }
+    MapIterable mapper() { return new MapIterable(new CountingFn(mapFn), meta, new Iterable[] { src }); }
+    public Iterator iterator() {
+      return mapper().iterator();
+    }
+    public Object reduce(IFn rfn, Object init) {
+      return mapper().reduce(rfn, init);
+    }
+    public IMapable map(IFn fn) {
+      final IFn srcFn = mapFn;
+      return new IndexedMapper(new IFnDef() {
+	  public Object invoke(Object idx, Object arg) {
+	    return fn.invoke(srcFn.invoke(idx,arg));
+	  }
+	}, src, meta);
+    }
+    public IPersistentMap meta() { return meta; }
+    public IObj withMeta(IPersistentMap m) { return new IndexedMapper(mapFn, src, meta); }
   }
 
   public static class CachingIterable extends AbstractCollection

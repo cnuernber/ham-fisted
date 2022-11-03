@@ -4,13 +4,13 @@
             Transformables$CatIterable Transformables$MapList Transformables$IMapable
             Transformables$SingleMapList Transformables StringCollection ArrayLists
             ArrayImmutList ArrayLists$ObjectArrayList IMutList TypedList LongMutList
-            DoubleMutList ReindexList]
+            DoubleMutList ReindexList Transformables$IndexedMapper]
            [java.lang.reflect Array]
            [it.unimi.dsi.fastutil.ints IntArrays]
            [java.util RandomAccess Collection Map List Random]
            [clojure.lang RT IPersistentMap IReduceInit IReduce PersistentList])
   (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle object-array
-                            remove]))
+                            remove map-indexed]))
 
 
 (def ^{:tag ArrayImmutList} empty-vec ArrayImmutList/EMPTY)
@@ -135,6 +135,24 @@
      (if (every? #(instance? RandomAccess %) args)
        (Transformables$MapList/create f nil (into-array List args))
        (Transformables$MapIterable. f nil (into-array Iterable ->collection args))))))
+
+
+(defn map-indexed
+  [map-fn coll]
+  (if (instance? RandomAccess coll)
+    (let [^List coll coll]
+      (reify
+        IMutList
+        (size [this] (.size coll))
+        (get [this idx] (map-fn idx (.get coll idx)))
+        (subList [this sidx eidx]
+          (map-indexed map-fn (.subList coll sidx eidx)))
+        Transformables$IMapable
+        (map [this mfn] (map-indexed (fn [idx v]
+                                       (-> (map-fn idx v)
+                                           (mfn)))
+                                     coll))))
+    (Transformables$IndexedMapper. map-fn coll nil)))
 
 
 (defn concat

@@ -5,7 +5,7 @@ import java.util.concurrent.ForkJoinPool;
 
 
 public class ParallelOptions {
-  public final int minN;
+  public final long minN;
   public final int maxBatchSize;
   public final boolean ordered;
   public final ForkJoinPool pool;
@@ -21,7 +21,7 @@ public class ParallelOptions {
     SEQWISE,
   }
 
-  public ParallelOptions(int _minN, int batchSize, boolean _ordered,
+  public ParallelOptions(long _minN, int batchSize, boolean _ordered,
 			 ForkJoinPool _pool, int _parallelism,
 			 CatParallelism _catParallelism, int _putTimeoutMs) {
     minN = _minN;
@@ -32,7 +32,7 @@ public class ParallelOptions {
     catParallelism = _catParallelism;
     putTimeoutMs = _putTimeoutMs;
   }
-  public ParallelOptions(int minN, int batchSize, boolean ordered) {
+  public ParallelOptions(long minN, int batchSize, boolean ordered) {
     this(minN, batchSize, ordered,
 	 ForkJoinPool.commonPool(), ForkJoinPool.getCommonPoolParallelism(),
 	 CatParallelism.SEQWISE, 5000);
