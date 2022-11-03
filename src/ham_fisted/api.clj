@@ -283,14 +283,20 @@ ham-fisted.api> @*1
   * `merge-fn` - Merge two reduction results into one.
 
   Options:
-  * `:pool` - The fork-join pool to use.  Defaults to common pool assuming reduction is cpu-bound.
-  * `:parallelism` - What parallelism to use - defaults to pool's parallelism.
-  * `:max-batch-size` - Maximum batch size for indexed or grouped reductions.
-  * `:min-n` - minimum number of elements - fewer than these results in a linear reduction.
-  * `:ordered?` - True if results should be in order.  Unordered results are slightly faster.
-  * `:cat-parallelism` - Either `:seq-wise` or `:elem-wise`, defaults to `:seq-wise`.
+  * `:pool` - The fork-join pool to use.  Defaults to common pool which assumes reduction is
+     cpu-bound.
+  * `:parallelism` - What parallelism to use - defaults to pool's `getParallelism` method.
+  * `:max-batch-size` - Rough maximum batch size for indexed or grouped reductions.  This
+     can both even out batch times and ensure you don't get into safepoint trouble with
+     jdk-8.
+  * `:min-n` - minimum number of elements before initiating a parallelized reduction -
+     Defaults to 1000 but you should customize this particular to your specific reduction.
+  * `:ordered?` - True if results should be in order.  Unordered results sometimes are
+    slightly faster but again you should test for your specific situation..
+  * `:cat-parallelism` - Either `:seq-wise` or `:elem-wise`, defaults to `:seq-wise`.  Test
+     for your specific situation, this really is data-dependent.
   * `:put-timeout-ms` - Number of milliseconds to wait for queue space before throwing
-     an exception in unordered reductions.
+     an exception in unordered reductions.  Defaults to 50000.
   This contols how a concat primitive parallelizes the reduction across its contains.
   Elemwise means each container's reduction is individually parallelized while seqwise
   indicates to do a pmap style initial reduction across containers then merge the

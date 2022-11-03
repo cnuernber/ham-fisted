@@ -467,7 +467,7 @@
 (defn stable-sum-perftest
   []
   (log/info "stable summation - dtype(clj) vs. hamf")
-  (for [n-elems [100 1000 1000000]]
+  (for [n-elems [10 100 1000 1000000]]
     (let [n-elems (long n-elems)
           data (api/double-array (range n-elems))]
       {:n-elems n-elems
