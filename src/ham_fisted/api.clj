@@ -1515,9 +1515,11 @@ ham_fisted.PersistentHashMap
   This type of reduction can be both faster and more importantly use
   less memory than a reduction of the forms:
 
-  ```clojure
-  (->> group-by map into)` or `(->> group-by mapmap)
-  ```
+```clojure
+  (->> group-by map into)
+  ;; or
+  (->> group-by mapmap)
+```
 
   Options (which are passed to [[preduce]]):
 
@@ -1526,8 +1528,9 @@ ham_fisted.PersistentHashMap
     - `(constantly (java.util.concurrent.ConcurrentHashMap. ...))`  Very fast update
        especially in the case where the keyspace is large.
     - `mut-map` - Fast merge, fast update, in-place immutable conversion via `persistent!`.
-    - `#(LinkedHashMap.) - All results are in order when used combined `{:ordered? true}`.
-      In this case the result keys will be in order *and* the result values will be in order.
+    - `java-hashmap` - fast merge, fast update, just a simple java.util.HashMap-based reduction.
+    - `#(LinkedHashMap.)` - When used with options {:ordered? true} the result keys will be
+       in order *and* the result values will be reduced in order.
 
   Beware that nil keys are not allowed in any java.util-based map."
   ([key-fn init-val-fn rfn merge-fn options coll]
