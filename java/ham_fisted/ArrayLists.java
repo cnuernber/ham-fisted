@@ -81,42 +81,13 @@ public class ArrayLists {
     default boolean equiv(Object other) {
       return IMutList.super.equiv(other);
     }
-    default IPersistentVector cons(Object o) {
-      return unsafeImmut().cons(o);
-    }
+    default IPersistentVector cons(Object o) { return immut().cons(o); }
     default IPersistentVector assocN(int i, Object o) {
-      return unsafeImmut().assocN(i, o);
+      return immut().assocN(i, o);
     }
     default int length() { return size(); }
     default Associative assoc(Object idx, Object o) {
-      return unsafeImmut().assoc(idx, o);
-    }
-    default IMapEntry entryAt(Object key) {
-      if(Util.isInteger(key)) {
-	int k = RT.intCast(key);
-	if(k >= 0 && k < size())
-	  return MapEntry.create(k, get(k));
-      }
-      return null;
-    }
-    default boolean containsKey(Object key) {
-      if (Util.isInteger(key)) {
-	final int k = RT.intCast(key);
-	return k >= 0 && k < size();
-      }
-      return false;
-    }
-    default int count() { return size(); }
-    default Object valAt(Object obj, Object notFound) {
-      if(Util.isInteger(obj)) {
-	int k = RT.intCast(obj);
-	if (k >= 0 && k < size())
-	  return get(k);
-      }
-      return notFound;
-    }
-    default Object valAt(Object obj) {
-      return valAt(obj, null);
+      return immut().assoc(idx, o);
     }
     default IPersistentStack pop() {
       final int nElems = size();
@@ -124,7 +95,7 @@ public class ArrayLists {
 	throw new RuntimeException("Can't pop empty vector");
       if (nElems == 1)
 	return ImmutList.EMPTY.withMeta(meta());
-      return unsafeImmut().pop();
+      return immut().pop();
     }
     default Object peek() {
       final int nElems = size();

@@ -360,13 +360,13 @@
 (defn group-by-perftest
   []
   (log/info "group-by")
-  (let [n-elems 10000]
-    [{:n-elems n-elems
-      :test :group-by
-      :clj (bench/benchmark-us (clojure.core/group-by #(rem (unchecked-long %1) 113)
-                                                      (api/range n-elems)))
-      :hamf (bench/benchmark-us (api/group-by #(rem (unchecked-long %1) 113)
-                                              (api/range n-elems)))}]))
+  (for [n-elems [100 10000]]
+    {:n-elems n-elems
+     :test :group-by
+     :clj (bench/benchmark-us (clojure.core/group-by #(rem (unchecked-long %1) 31)
+                                                     (api/range n-elems)))
+     :hamf (bench/benchmark-us (api/group-by #(rem (unchecked-long %1) 31)
+                                             (api/range n-elems)))}))
 
 
 (defn group-by-reduce-perftest
@@ -383,6 +383,8 @@
                                            [k (reduce + 0 v)]))
                                     (into {})))
       :hamf (bench/benchmark-us (api/group-by-reduce #(rem (unchecked-long %1) 337)
+                                                     +
+                                                     +
                                                      +
                                                      (api/range n-elems)))}]))
 

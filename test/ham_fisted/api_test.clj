@@ -23,9 +23,9 @@
 
 (deftest group-by-nil
   (is (= {} (hamf/group-by :a nil)))
-  (is (= {} (hamf/group-by-reduce :a + nil nil)))
+  (is (= {} (hamf/group-by-reduce :a + + + nil)))
   (is (= {} (hamf/group-by :a {})))
-  (is (= {} (hamf/group-by-reduce :a + nil {})))
+  (is (= {} (hamf/group-by-reduce :a + + + {})))
   )
 
 
@@ -42,7 +42,11 @@
   (is (= (conj (filter even? (list 1 2 3 4)) 4)
          (conj (lznc/filter even? (list 1 2 3 4)) 4)))
   (is (= (conj (concat [1 2 3] [4 5 6]) 4)
-         (conj (lznc/concat [1 2 3] [4 5 6]) 4))))
+         (conj (lznc/concat [1 2 3] [4 5 6]) 4)))
+  (is (= (conj (map-indexed + [1 2 3]) 4)
+         (conj (lznc/map-indexed + (apply list [1 2 3])) 4)))
+  (is (= (conj (map-indexed + nil) 4)
+         (conj (lznc/map-indexed + nil) 4))))
 
 
 (deftest empty-seq-preduce
@@ -55,5 +59,7 @@
 (deftest group-by-reduce-large-n
   (is (= 113 (count (hamf/group-by #(rem (unchecked-long %1) 113) (range 10000)))))
   (is (= 337 (count (hamf/group-by-reduce #(rem (unchecked-long %1) 337)
+                                          +
+                                          +
                                           +
                                           (range 10000))))))

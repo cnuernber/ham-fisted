@@ -139,7 +139,10 @@
 
 (defn map-indexed
   [map-fn coll]
-  (if (instance? RandomAccess coll)
+  (cond
+    (nil? coll)
+    coll
+    (instance? RandomAccess coll)
     (let [^List coll coll]
       (reify
         IMutList
@@ -152,6 +155,7 @@
                                        (-> (map-fn idx v)
                                            (mfn)))
                                      coll))))
+    :else
     (Transformables$IndexedMapper. map-fn coll nil)))
 
 

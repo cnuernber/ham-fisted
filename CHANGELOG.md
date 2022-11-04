@@ -1,3 +1,15 @@
+# 1.000-beta-33
+ * Finally a better api to group-by-reduce and group-by can now be implemented
+   via group-by-reduce.  group-by-reduce uses same 3 function arguments as
+   preduce so your reduction systems are interchangable between these two
+   systems.
+ * Fixed `conj` for all growable array lists.
+ * Added a protocol for parallel reductions.  This allows you to pass in one object
+   and transform it into the three functions required to do a parallel reduction.
+ * Added preduce-reducer, preduce-reducers for a single reducer or a sequence or
+   map of reducers, respectively.
+
+
 # 1.000-beta-32
  * group-by, group-by-reduced fixed for large n.
 

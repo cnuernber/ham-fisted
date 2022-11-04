@@ -10,6 +10,7 @@ import java.util.function.Function;
 import clojure.lang.Util;
 import clojure.lang.IHashEq;
 import clojure.lang.IFn;
+import clojure.lang.RT;
 
 /**
  * Interfaces and definitions used for implementing the bitmap trie.
@@ -84,6 +85,14 @@ public class BitmapTrieCommon {
     @SuppressWarnings("unchecked")
     public void inplaceUpdate(BiFunction bfn, Object newv) {
       obj = obj == null ? newv : bfn.apply(obj, newv);
+    }
+    public Box inplaceReduce(IFn rfn, Object newv) {
+      obj = RT.isReduced(obj) ? obj : rfn.invoke(obj, newv);
+      return this;
+    }
+    public Box inplaceMerge(IFn mergeFn, Box other) {
+      obj = mergeFn.invoke(obj, other.obj);
+      return this;
     }
   }
 

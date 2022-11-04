@@ -36,12 +36,13 @@
              :as lznc]
             [ham-fisted.lazy-caching :as lzc]
             [ham-fisted.alists :as alists]
-            [ham-fisted.impl :as impl])
+            [ham-fisted.impl :as impl]
+            [ham-fisted.protocols :as protocols])
   (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
             BitmapTrieCommon$Box PersistentArrayMap ObjArray ImmutValues
             MutList ImmutList StringCollection ArrayImmutList ArrayLists
-            ImmutSort IMutList Ranges$LongRange
+            ImmutSort IMutList Ranges$LongRange ArrayHelpers
             Ranges$DoubleRange IFnDef Transformables$MapIterable
             Transformables$FilterIterable Transformables$CatIterable
             Transformables$MapList Transformables$IMapable Transformables
@@ -92,7 +93,7 @@
 (declare assoc! conj! vec mapv vector object-array range first take drop into-array shuffle
          object-array-list fast-reduce int-array-list long-array-list double-array-list
          int-array argsort byte-array short-array char-array boolean-array repeat
-         persistent! rest)
+         persistent! rest immut-map keys vals)
 
 
 (defn ->collection
@@ -307,6 +308,61 @@ ham-fisted.api> @*1
                                  (options->parallel-options options))))
 
 
+(defn preduce-reducer
+  "Given an instance of [[ham-fisted.protocols/ParallelReducer]], perform a parallel
+  reduction.
+
+  See options for [[preduce]]."
+  ([reducer options coll]
+   (preduce (protocols/->init-val-fn reducer)
+            (protocols/->rfn reducer)
+            (protocols/->merge-fn reducer)
+            options
+            coll))
+  ([reducer coll]
+   (preduce-reducer reducer nil coll)))
+
+
+(defn- reducers->fns
+  [reducers]
+  (let [init-fns (mapv protocols/->init-val-fn reducers)
+        ^objects rfns (object-array (map protocols/->rfn reducers))
+        ^objects mergefns (object-array (map protocols/->merge-fn reducers))
+        n-vals (count rfns)]
+    {:init-val-fn (fn [] (object-array (map #(%) init-fns)))
+     :rfn
+     (fn [^objects acc v]
+       (dotimes [idx n-vals]
+         (ArrayHelpers/aset acc idx ((aget rfns idx) (aget acc idx) v)))
+       acc)
+     :merge-fn
+     (fn [^objects lhs ^objects rhs]
+       (dotimes [idx n-vals]
+         (ArrayHelpers/aset lhs idx ((aget mergefns idx) (aget lhs idx) (aget rhs idx))))
+       lhs)
+     :finalize-fn vec}))
+
+
+(defn preduce-reducers
+  "Given a map or sequence of [[ham-fisted.protocols/ParallelReducer]], produce a map or
+  sequence of reduced values. Reduces over input coll once in parallel if coll is large
+  enough.  See options for [[preduce]].
+
+```clojure
+ham-fisted.api> (preduce-reducers {:sum (Sum.) :mult *} (range 20))
+{:mult 0, :sum #<Sum@5082c3b7: {:sum 190.0, :n-elems 20}>}
+```"
+  ([reducers options coll]
+   (if (instance? Map reducers)
+     (->> (preduce-reducers (vals reducers) options coll)
+          (map vector (keys reducers))
+          (immut-map))
+     (let [{:keys [init-val-fn rfn merge-fn finalize-fn]} (reducers->fns reducers)]
+       (-> (preduce init-val-fn rfn merge-fn options coll)
+           (finalize-fn)))))
+  ([reducers coll] (preduce-reducers reducers nil coll)))
+
+
 (def ^:private obj-ary-cls (Class/forName "[Ljava.lang.Object;"))
 
 
@@ -517,8 +573,12 @@ ham_fisted.PersistentHashMap
   "Create a java.util.HashMap.  Duplicate keys are treated as if map was created by assoc."
   (^java.util.HashMap [] (java.util.HashMap.))
   (^java.util.HashMap [data]
-   (if (instance? Map data)
+   (cond
+     (instance? java.util.HashMap data)
+     data
+     (instance? Map data)
      (java.util.HashMap. ^Map data)
+     :else
      (reduce-put-map (java.util.HashMap.) data))))
 
 
@@ -628,6 +688,16 @@ ham_fisted.PersistentHashMap
     (do (.add ^List obj val) obj)
     :else
     (throw (Exception. "Item cannot be conj!'d"))))
+
+
+(defn add-all!
+  "Add all items from l2 to l1.  l1 is expected to be a java.util.List implementation.
+  Returns l1."
+  [l1 l2]
+  (if (instance? IMutList l1)
+    (.addAllReducible ^IMutList l1 l2)
+    (.addAll ^List l1 l2))
+  l1)
 
 
 (defmacro bi-function
@@ -769,7 +839,10 @@ ham_fisted.PersistentHashMap
    * `map1` - the lhs of the union.
    * `map2` - the rhs of the union.
 
-  Returns a persistent map."
+  Returns a persistent map if input is a persistent map else if map1 is a mutable map
+  map1 is returned with overlapping entries merged.  In this way you can pass in a
+  normal java hashmap, a linked java hashmap, or a persistent map and get back a result that
+  matches the input."
   [bfn map1 map2]
   (cond
     (nil? map1) map2
@@ -778,11 +851,23 @@ ham_fisted.PersistentHashMap
     (let [bfn (->bi-function bfn)]
       (if (and (map-set? map1) (map-set? map2))
         (.union (as-map-set map1) (as-map-set map2) bfn)
-        (let [retval (mut-map map1)]
+        (let [persistent? (instance? IPersistentMap map1)
+              map1 (if persistent?
+                     (mut-map map1)
+                     map1)]
           (.forEach ^Map map2 (reify BiConsumer
                                 (accept [this k v]
-                                  (.merge retval k v bfn))))
-          (persistent! retval))))))
+                                  (.merge ^Map map1 k v bfn))))
+          (cond-> map1
+            persistent?
+            (persistent!)))))))
+
+
+(defn map-union-java-hashmap
+  "Take the union of two maps returning a new map.  See documentation for [map-union].
+  Returns a java.util.HashMap."
+  ^java.util.HashMap [bfn ^Map lhs ^Map rhs]
+  (map-union bfn (java-hashmap lhs) rhs))
 
 
 (defn- set-map-union-bfn
@@ -808,6 +893,7 @@ ham_fisted.PersistentHashMap
   (cond
     (nil? s1) s2
     (nil? s2) s1
+    (identical? s1 s2) s1
     (and (map-set? s1) (map-set? s2))
     (.union (as-map-set s1) (as-map-set s2) (set-map-union-bfn s1 s2))
     (and (instance? Map s1) (instance? Map s2))
@@ -818,18 +904,6 @@ ham_fisted.PersistentHashMap
                                  (accept [this v]
                                    (.add retval v))))
       (persistent! retval))))
-
-
-(defn map-union-java-hashmap
-  "Take the union of two maps returning a new map.  See documentation for [map-union].
-  Returns a java.util.HashMap."
-  ^java.util.HashMap [bfn ^Map lhs ^Map rhs]
-  (let [bfn (->bi-function bfn)
-        retval (java-hashmap lhs)]
-    (.forEach rhs (reify BiConsumer
-                    (accept [this k v]
-                      (.merge retval k v bfn))))
-    retval))
 
 
 (defn union-reduce-maps
@@ -849,16 +923,11 @@ ham_fisted.PersistentHashMap
    (let [maps (->reducible maps)]
      (if (nil? maps)
        nil
-       (let [bfn (->bi-function bfn)
-             retval (java-hashmap (first maps))
-             maps (rest maps)
-             bic (reify BiConsumer
-                   (accept [this k v]
-                     (.merge retval k v bfn)))]
-         (reduce #(do (.forEach ^Map %2 bic)
-                      retval)
-                 retval
-                 maps)))))
+       (let [bfn (->bi-function bfn)]
+         (fast-reduce (fn [acc v]
+                        (map-union bfn acc v))
+                      (java-hashmap (first maps))
+                      (rest maps))))))
   (^java.util.HashMap [bfn maps]
    (union-reduce-java-hashmap bfn maps nil)))
 
@@ -947,13 +1016,16 @@ ham_fisted.PersistentHashMap
     (cond
       (immut-vals? map)
       (.immutUpdateValues (as-immut-vals map) bfn)
+      (instance? IPersistentMap map)
+      (-> (fast-reduce (fn [^Map acc kv]
+                         (.put acc (key kv) (.apply bfn (key kv) (val kv))))
+                       (mut-map)
+                       map)
+          (persistent!))
       (instance? Map map)
-      (let [retval (mut-map)]
-        (.forEach ^Map map
-                  (reify BiConsumer
-                    (accept [this k v]
-                      (.put retval k (.apply bfn k v)))))
-        (persistent! retval))
+      (do
+        (.replaceAll ^Map map bfn)
+        map)
       (instance? RandomAccess map)
       (let [^List map map
             retval (MutList.)]
@@ -1435,34 +1507,10 @@ ham_fisted.PersistentHashMap
   ([m sidx] (subvec m sidx (count m))))
 
 
-(defn group-by
-  "Group items in collection by the grouping function f.  Returns persistent map of
-  keys to persistent vectors."
-  [f coll]
-  (let [compute-fn (reify Function
-                     (apply [this k]
-                       (object-array-list)))]
-    (-> (preduce #(mut-map)
-                 (fn [^Map l v]
-                   (.add ^List (compute-if-absent! l (f v) compute-fn) v)
-                   l)
-                 (fn [^Map lhs ^Map rhs]
-                   (map-union (bi-function l r (do (.addAll ^List l r) l)) lhs rhs))
-                 ;;We want the results to be in order
-                 {:ordered? true
-                  :min-n 1000}
-                 coll)
-        (update-values (reify BiFunction
-                         (apply [this k v]
-                           (immut-list v)))))))
-
-
 (defn group-by-reduce
-  "Group by key. Apply the reduce-fn the existing value and on each successive value.
-  finalize-fn is called during finalization with the sole argument of the existing value.
-  If at any point result is reduced? group-by continues but further reductions for that
-  specific value cease.  In this case finalize-fn isn't called but the result is simply
-  deref'd during finalization.
+  "Group by key. Apply the reduce-fn with the new value an the return of init-val-fn.
+  Merged maps due to multithreading will be merged with merge-fn in a similar way
+  of [[preduce]].
 
   This type of reduction can be both faster and more importantly use
   less memory than a reduction of the forms:
@@ -1471,47 +1519,50 @@ ham_fisted.PersistentHashMap
   (->> group-by map into)` or `(->> group-by mapmap)
   ```
 
-```clojure
-ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) + (range 100))
-  {0 735, 1 750, 2 665, 3 679, 4 693, 5 707, 6 721}
-ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) max (shuffle (range 100)))
-  {0 98, 1 99, 2 93, 3 94, 4 95, 5 96, 6 97}
+  Options (which are passed to [[preduce]]):
 
-ham-fisted.api> ;;Reduce to map of first value found
-ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] l) (range 100))
-{0 0, 1 1, 2 2, 3 3, 4 4, 5 5, 6 6}
-ham-fisted.api> ;;Reduce to map of last value found
-ham-fisted.api> (group-by-reduce #(rem (unchecked-long %1) 7) (fn [l r] r) (range 100))
-{0 98, 1 99, 2 93, 3 94, 4 95, 5 96, 6 97}
-```"
-  ([key-fn reduce-fn finalize-fn coll]
-   (let [box-fn (function _k (BitmapTrieCommon$Box.))
-         update-fn (bi-function oldv newv (if (reduced? oldv)
-                                            oldv
-                                            (reduce-fn oldv newv)))
-         union-bfn (bi-function l r
-                                (let [^BitmapTrieCommon$Box l l
-                                      ^BitmapTrieCommon$Box r r]
-                                  (.inplaceUpdate l update-fn (.-obj r))
-                                  l))
-         finalize-fn (or finalize-fn identity)]
-     (-> (preduce #(mut-map)
-                  (fn [^Map l v]
-                    (let [b (compute-if-absent! l (key-fn v) box-fn)]
-                      (.inplaceUpdate ^BitmapTrieCommon$Box b update-fn v)
-                      l))
-                  #(map-union union-bfn %1 %2)
-                  {:min-n 1000}
-                  coll)
-         (update-values (bi-function
-                         k b
-                         (let [^BitmapTrieCommon$Box b b
-                               v (.obj b)]
-                           (if (reduced? v)
-                             (deref v)
-                             (finalize-fn v))))))))
-  ([key-fn reduce-fn coll]
-   (group-by-reduce key-fn reduce-fn nil coll)))
+  * `:map-fn` Function which takes no arguments and must return an instance of
+    java.util.Map that supports `computeIfAbsent`.  Some examples:
+    - `(constantly (java.util.concurrent.ConcurrentHashMap. ...))`  Very fast update
+       especially in the case where the keyspace is large.
+    - `mut-map` - Fast merge, fast update, in-place immutable conversion via `persistent!`.
+    - `#(LinkedHashMap.) - All results are in order when used combined `{:ordered? true}`.
+      In this case the result keys will be in order *and* the result values will be in order.
+
+  Beware that nil keys are not allowed in any java.util-based map."
+  ([key-fn init-val-fn rfn merge-fn options coll]
+   (let [has-map-fn? (get :map-fn options)
+         map-fn (get options :map-fn mut-map)
+         merge-bifn (->bi-function merge-fn)]
+     (cond-> (preduce map-fn
+                      (fn [^Map l v]
+                        ;;It annoys the hell out of me that I have to create a new
+                        ;;bifunction here but there is no threadsafe way to pass in the
+                        ;;new value to the reducer otherwise.
+                        (compute! l (key-fn v)
+                                  (bi-function k acc (rfn (or acc (init-val-fn)) v)))
+                        l)
+                      #(map-union merge-bifn %1 %2)
+                      (merge {:min-n 1000} options)
+                      coll)
+       ;;In the case where no map-fn was passed in we return a persistent hash map.
+       (not has-map-fn?)
+       (persistent!))))
+  ([key-fn init-val-fn rfn merge-fn coll]
+   (group-by-reduce key-fn init-val-fn rfn merge-fn nil coll)))
+
+
+(defn group-by
+  "Group items in collection by the grouping function f.  Returns persistent map of
+  keys to persistent vectors.
+
+  Options are same as [[group-by-reduce]] but this reductions defaults to an
+  ordered reduction."
+  ([f options coll]
+   (group-by-reduce f object-array-list conj! add-all!
+                    (merge {:ordered? true :min-n 1000} options) coll))
+  ([f coll]
+   (group-by f nil coll)))
 
 
 (defn mapv
@@ -2217,15 +2268,11 @@ ham-fisted.api> @*1
 
 
 (defn sum-fast
-  "Fast simple double summation.  Does not do any nan checing or summation compensation
+  "Fast simple double summation.  Does not do any nan checking or summation compensation
   but does parallelize the summation for huge containers leading to some
   additional numeric stability."
   ^double [coll]
-  (-> (preduce #(Sum$SimpleSum.)
-               double-consumer-accumulator
-               reducible-merge
-               {:min-n 10000}
-               coll)
+  (-> (preduce-reducer (Sum$SimpleSum.) {:min-n 10000} coll)
       (deref)))
 
 
@@ -2492,11 +2539,7 @@ ham-fisted.api> @*1
    (let [coll (->reducible coll)]
      (->> (->reducible coll)
           (apply-nan-strategy options)
-          (preduce #(Sum.) double-consumer-accumulator reducible-merge
-                   ;;Order isn't important here but you can provide your own fork-join pool
-                   ;;or min default
-                   (-> (merge {:min-n 10000} options)
-                       (assoc :ordered? false)))
+          (preduce-reducer (Sum.) options)
           (deref)))))
 
 
@@ -2515,7 +2558,7 @@ ham-fisted.api> @*1
 
 (defn mean
   "Return the mean of the collection.  Returns double/NaN for empty collections.
-  See options for [[sum-stable]]."
+  See options for [[sum]]."
   (^double [coll] (mean coll nil))
   (^double [coll options]
    (let [vals (sum-stable-nelems coll options)]
@@ -2555,6 +2598,8 @@ ham-fisted.api> @*1
 
 
 (defn rest
+  "Version of rest that does uses subvec if collection is random access.  This preserves the
+  ability to reduce in parallel over the collection."
   [coll]
   (cond
     (nil? coll) nil
