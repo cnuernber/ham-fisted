@@ -1,9 +1,16 @@
 (ns ham-fisted.protocols
   (:import [clojure.lang IFn]
            [java.util.function DoubleConsumer]
-           [ham_fisted Sum Sum$SimpleSum Reducible IFnDef$ODO]))
+           [ham_fisted Sum Sum$SimpleSum Reducible IFnDef$ODO ParallelOptions
+            Reductions]))
 
 
+(defprotocol ParallelReduction
+  "Protocol to define a parallel reduction in a collection-specific pathway.  Specializations
+  are in impl as that is where the parallelization routines are found."
+  (preduce [coll init-val-fn rfn merge-fn ^ParallelOptions options]
+    "Container-specific parallelized reduction.  Reductions must respect the pool passed in via
+the options."))
 
 
 (defprotocol ParallelReducer
@@ -11,14 +18,14 @@
   opposed to 3 separate functions."
   (->init-val-fn [item]
     "Returns the initial values for a parallel reduction.  This function
-takes no arguments and returns the initial reduction value.")
+takes no arguments and returns the initial accumulator.")
   (->rfn [item]
     "Returns the reduction function for a parallel reduction. This function takes
-two arguments, the initial value and a value from the collection and returns a new
-initial value.")
+two arguments, the accumulator and a value from the collection and returns a new
+or modified accumulator.")
   (->merge-fn [item]
     "Returns the merge function for a parallel reduction.  This function takes
-two initial values and returns a new initial value."))
+two accumulators  and returns a or modified accumulator."))
 
 
 (def ^:no-doc double-consumer-accumulator

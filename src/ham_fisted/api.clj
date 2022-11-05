@@ -304,13 +304,17 @@ ham-fisted.api> @*1
   results."
   ([init-val-fn rfn merge-fn coll] (preduce init-val-fn rfn merge-fn nil coll))
   ([init-val-fn rfn merge-fn options coll]
-   (Reductions/parallelReduction init-val-fn rfn merge-fn coll
+   (Reductions/parallelReduction init-val-fn rfn merge-fn (->reducible coll)
                                  (options->parallel-options options))))
 
 
 (defn preduce-reducer
   "Given an instance of [[ham-fisted.protocols/ParallelReducer]], perform a parallel
   reduction.
+
+  * reducer - instance of ParallelReducer
+  * options - Same options as preduce.
+  * coll - something potentially with a parallelizable reduction.
 
   See options for [[preduce]]."
   ([reducer options coll]
@@ -361,6 +365,55 @@ ham-fisted.api> (preduce-reducers {:sum (Sum.) :mult *} (range 20))
        (-> (preduce init-val-fn rfn merge-fn options coll)
            (finalize-fn)))))
   ([reducers coll] (preduce-reducers reducers nil coll)))
+
+
+(defn reducer-xform->reducer
+  "Given a reducer and a transducer xform produce a new reducer which will apply
+  the transducer pipeline before is reduction function.
+
+```clojure
+ham-fisted.api> (reduce-reducer (reducer-xform->reducer (Sum.) (clojure.core/filter even?))
+                                (range 1000))
+#<Sum@479456: {:sum 249500.0, :n-elems 500}>
+```
+  !! - If you use a stateful transducer here then you must *not* use the reducer in a
+  parallelized reduction."
+  [reducer xform]
+  (reify
+    ham_fisted.protocols.ParallelReducer
+    (->init-val-fn [this] (protocols/->init-val-fn reducer))
+    (->rfn [this] (xform (protocols/->rfn reducer)))
+    (->merge-fn [this] (protocols/->merge-fn reducer))))
+
+
+(defn reduce-reducer
+  "Serially reduce a reducer.
+
+```clojure
+ham-fisted.api> (reduce-reducer (Sum.) (range 1000))
+#<Sum@afbedb: {:sum 499500.0, :n-elems 1000}>
+```"
+  [reducer coll]
+  (let [rfn (protocols/->rfn reducer)
+        init-val-fn (protocols/->init-val-fn reducer)]
+    (fast-reduce rfn (init-val-fn) coll)))
+
+
+(defn reduce-reducers
+  "Serially reduce a map or sequence of reducers into a map or sequence of results.
+
+```clojure
+ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
+{:b 2432902008176640000, :a #<Sum@6bcebeb1: {:sum 210.0, :n-elems 20}>}
+```"
+  [reducers coll]
+  (if (instance? Map reducers)
+     (->> (reduce-reducers (vals reducers) coll)
+          (map vector (keys reducers))
+          (immut-map))
+     (let [{:keys [init-val-fn rfn merge-fn finalize-fn]} (reducers->fns reducers)]
+       (-> (fast-reduce rfn (init-val-fn) coll)
+           (finalize-fn)))))
 
 
 (def ^:private obj-ary-cls (Class/forName "[Ljava.lang.Object;"))

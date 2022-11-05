@@ -1,10 +1,12 @@
 (ns ham-fisted.impl
-  (:require [ham-fisted.lazy-noncaching :refer [map concat]])
+  (:require [ham-fisted.lazy-noncaching :refer [map concat]]
+            [ham-fisted.protocols :as protocols])
   (:import [java.util.concurrent ForkJoinPool ForkJoinTask ArrayBlockingQueue Future
             TimeUnit]
-           [java.util Iterator]
-           [ham_fisted ParallelOptions BitmapTrieCommon$Box]
-           [clojure.lang IteratorSeq]
+           [java.util Iterator Set Map]
+           [java.util.concurrent ConcurrentHashMap]
+           [ham_fisted ParallelOptions BitmapTrieCommon$Box ITypedReduce]
+           [clojure.lang IteratorSeq IReduceInit PersistentHashMap]
            [java.util Spliterator]
            [ham_fisted Reductions$ReduceConsumer Reductions]
            [java.util.logging Logger Level])
@@ -180,24 +182,30 @@
   (let [lhs spliterator
         ;;Mutates lhs...
         rhs (.trySplit spliterator)]
-    (if (<= n-splits 1)
-      [lhs rhs]
+    (cond
+      ;;Sometimes the splits fail as we have too few elements
+      (nil? rhs) [lhs]
+      ;;Here we have split enough
+      (<= n-splits 1) [lhs rhs]
+      :else
       (let [n-splits (dec n-splits)]
-        (concat (split-spliterator (dec n-splits) lhs)
-                (split-spliterator (dec n-splits) rhs))))))
+        (concat (split-spliterator n-splits lhs)
+                (split-spliterator n-splits rhs))))))
 
 
 (defn- consume-spliterator!
   [^Reductions$ReduceConsumer c ^Spliterator s]
-  (if (and (not (.isReduced c))
-           (.tryAdvance s c))
-    (recur c s)
-    (deref c)))
+  (.forEachRemaining s c))
 
 
 (defn parallel-spliterator-reduce
   [initValFn rfn mergeFn ^Spliterator s ^ParallelOptions options]
   (let [pool (.-pool options)
+        ;;I just want enough splits so that there is decent granularity as compared
+        ;;to the parallelism of the pool.  Another more common technique is to split
+        ;;until each spliterator has less than or equal to some threshold - this is used
+        ;;in various places but it requires the spliterator to estimate size correctly.
+        ;;This technique does not have that requirement.
         n-splits (Math/round (/ (Math/log (* 4 (.-parallelism options)))
                                 (Math/log 2)))
         spliterators (split-spliterator n-splits s)
@@ -219,3 +227,40 @@
            (map (fn [l r] (.get ^Future l)) submissions lookahead)
            (map (fn [l] (queue-take queue)) lookahead))
          (Reductions/iterableMerge mergeFn))))
+
+(defn- fjfork [task] (.fork ^ForkJoinTask task))
+(defn- fjjoin [task] (.join ^ForkJoinTask task))
+(defn- fjtask [^Callable f] (ForkJoinTask/adapt f))
+
+
+(extend-protocol protocols/ParallelReduction
+  Object
+  (preduce [coll init-val-fn rfn merge-fn options]
+    (cond
+      (instance? ITypedReduce coll)
+      (.parallelReduction ^ITypedReduce coll init-val-fn rfn merge-fn options)
+      (instance? RandomAccess coll)
+      (Reductions/parallelRandAccessReduction init-val-fn rfn merge-fn coll options)
+      (instance? IReduceInit coll)
+      (.reduce ^IReduceInit coll rfn (init-val-fn))
+      (instance? Set coll)
+      (parallel-spliterator-reduce init-val-fn rfn merge-fn
+                                   (.spliterator ^Set coll) options)
+      (instance? Map coll)
+      (parallel-spliterator-reduce init-val-fn rfn merge-fn
+                                   (.spliterator (.entrySet ^Map coll)) options)
+      :else
+      (Reductions/serialReduction rfn (init-val-fn) coll)))
+  PersistentHashMap
+  (preduce [coll init-val-fn rfn merge-fn options]
+    (let [options ^ParallelOptions options
+          pool (.-pool options)
+          n (.-minN options)
+          combinef (fn
+                     ([] (init-val-fn))
+                     ([lhs rhs] (merge-fn lhs rhs)))
+          fjinvoke (fn [f]
+                     (if (in-fork-join-task?)
+                       (f)
+                       (.invoke pool ^ForkJoinTask (fjtask f))))]
+      (.fold coll n combinef rfn fjinvoke fjtask fjfork fjjoin))))

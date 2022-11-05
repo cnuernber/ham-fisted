@@ -6,6 +6,7 @@ import clojure.lang.RT;
 import clojure.lang.IReduceInit;
 import clojure.lang.IDeref;
 import clojure.lang.Seqable;
+import clojure.java.api.Clojure;
 import java.util.RandomAccess;
 import java.util.List;
 import java.util.Iterator;
@@ -14,6 +15,8 @@ import java.util.Set;
 import java.util.Spliterator;
 import java.util.Collection;
 import java.util.function.Consumer;
+import java.util.function.DoubleConsumer;
+import java.util.function.LongConsumer;
 import java.util.concurrent.Future;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Callable;
@@ -79,17 +82,55 @@ public class Reductions {
   public static class ReduceConsumer implements Consumer, IDeref {
     Object init;
     public final IFn rfn;
+
+    public static class DoubleReduceConsumer extends ReduceConsumer implements DoubleConsumer {
+      public final IFn.ODO dfn;
+      public DoubleReduceConsumer(Object in, IFn _rfn) {
+	super(in, _rfn);
+	dfn = (IFn.ODO)_rfn;
+      }
+      public void accept(Object obj) { accept(Casts.doubleCast(obj)); }
+      public void accept(double v) {
+	if(!isReduced())
+	  init = dfn.invokePrim(init, v);
+      }
+    }
+
+    public static class LongReduceConsumer extends ReduceConsumer implements LongConsumer {
+      public final IFn.OLO dfn;
+      public LongReduceConsumer(Object in, IFn _rfn) {
+	super(in, _rfn);
+	dfn = (IFn.OLO)_rfn;
+      }
+      public void accept(Object obj) { accept(Casts.doubleCast(obj)); }
+      public void accept(long v) {
+	if(!isReduced())
+	  init = dfn.invokePrim(init, v);
+      }
+    }
+
     public ReduceConsumer(Object in, IFn _rfn) {
       init = in;
       rfn = _rfn;
     }
     public void accept(Object obj) {
-      init = rfn.invoke(init, obj);
+      if(!isReduced())
+	init = rfn.invoke(init, obj);
     }
     public boolean isReduced() {
       return RT.isReduced(init);
     }
     public Object deref() { return init; }
+
+    public static ReduceConsumer create(Object init, IFn rfn) {
+      if(rfn instanceof IFn.ODO) {
+	return new DoubleReduceConsumer(init, rfn);
+      } else if (rfn instanceof IFn.OLO) {
+	return new LongReduceConsumer(init, rfn);
+      } else {
+	return new ReduceConsumer(init,rfn);
+      }
+    }
   }
 
   public static Object parallelCollectionReduction(IFn initValFn, IFn rfn, IFn mergeFn,
@@ -106,24 +147,10 @@ public class Reductions {
 
     if(options.parallelism < 2)
       return serialReduction(rfn, initValFn.invoke(), coll);
-    if(coll instanceof ITypedReduce) {
-      return ((ITypedReduce)coll).parallelReduction(initValFn, rfn, mergeFn, options);
-    }  else if (coll instanceof RandomAccess) {
-      return parallelRandAccessReduction(initValFn, rfn, mergeFn, (List)coll, options);
-      //Early check here for IReduceInit to catch Clojure's hashmap, hashset and
-      //transducer map,filter chains not parallelizable datastructures.
-    } else if (coll instanceof IReduceInit) {
-      return serialReduction(rfn, initValFn.invoke(), coll);
-      //java hashmap and concurrent hashmap, linked hashmap, etc.
-    } else if (coll instanceof Map) {
-      return parallelCollectionReduction(initValFn, rfn, mergeFn,
-					 ((Map)coll).entrySet(), options);
-      //All java.util set implementations.
-    } else if (coll instanceof Set) {
-      return parallelCollectionReduction(initValFn, rfn, mergeFn,
-					 (Collection)coll, options);
-    } else {
-      return serialReduction(rfn, initValFn.invoke(), coll);
-    }
+
+    //Delegate back to clojure here so we can use a protocol to dispatch the
+    //parallel reduction.
+    return Clojure.var("ham-fisted.protocols", "preduce").invoke(coll, initValFn,
+								 rfn, mergeFn, options);
   }
 }

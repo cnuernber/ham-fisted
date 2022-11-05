@@ -1,3 +1,16 @@
+# 1.000-beta-34
+ * Enable parallelization for instances of clojure.core.PersistentHashMap.
+ * protocol-based parallelization of reductions so you can extend the parallelization
+   to new undiscovered classes.
+ * reducer-xform->reducer - Given a reducer and a transducer xform produce a new reducer
+   that will apply the transform to the reduction function of the reducer:
+
+```clojure
+ham-fisted.api> (reduce-reducer (reducer-xform->reducer (Sum.) (clojure.core/filter even?))
+                                (range 1000))
+#<Sum@70149930: {:sum 249500.0, :n-elems 500}>
+```
+
 # 1.000-beta-33
  * Finally a better api to group-by-reduce and group-by can now be implemented
    via group-by-reduce.  group-by-reduce uses same 3 function arguments as
