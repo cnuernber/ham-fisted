@@ -304,8 +304,9 @@ ham-fisted.api> @*1
   results."
   ([init-val-fn rfn merge-fn coll] (preduce init-val-fn rfn merge-fn nil coll))
   ([init-val-fn rfn merge-fn options coll]
-   (Reductions/parallelReduction init-val-fn rfn merge-fn (->reducible coll)
-                                 (options->parallel-options options))))
+   (unpack-reduced
+    (Reductions/parallelReduction init-val-fn rfn merge-fn (->reducible coll)
+                                  (options->parallel-options options)))))
 
 
 (defn preduce-reducer
@@ -318,33 +319,47 @@ ham-fisted.api> @*1
 
   See options for [[preduce]]."
   ([reducer options coll]
-   (preduce (protocols/->init-val-fn reducer)
-            (protocols/->rfn reducer)
-            (protocols/->merge-fn reducer)
-            options
-            coll))
+   (->> (preduce (protocols/->init-val-fn reducer)
+                 (protocols/->rfn reducer)
+                 (protocols/->merge-fn reducer)
+                 options
+                 coll)
+        (protocols/finalize reducer)))
   ([reducer coll]
    (preduce-reducer reducer nil coll)))
 
 
-(defn- reducers->fns
+(defn compose-reducers
+  "Given a map or sequence of reducers return a new reducer that produces a map or
+  vector of results."
   [reducers]
-  (let [init-fns (mapv protocols/->init-val-fn reducers)
-        ^objects rfns (object-array (map protocols/->rfn reducers))
-        ^objects mergefns (object-array (map protocols/->merge-fn reducers))
-        n-vals (count rfns)]
-    {:init-val-fn (fn [] (object-array (map #(%) init-fns)))
-     :rfn
-     (fn [^objects acc v]
-       (dotimes [idx n-vals]
-         (ArrayHelpers/aset acc idx ((aget rfns idx) (aget acc idx) v)))
-       acc)
-     :merge-fn
-     (fn [^objects lhs ^objects rhs]
-       (dotimes [idx n-vals]
-         (ArrayHelpers/aset lhs idx ((aget mergefns idx) (aget lhs idx) (aget rhs idx))))
-       lhs)
-     :finalize-fn vec}))
+  (if (instance? Map reducers)
+    (let [reducer (compose-reducers (vals reducers))]
+      (reify
+        ham_fisted.protocols.ParallelReducer
+        (->init-val-fn [_] (protocols/->init-val-fn reducer))
+        (->rfn [_] (protocols/->rfn reducer))
+        (->merge-fn [_] (protocols/->merge-fn reducer))
+        (finalize [_ v] (immut-map (map vector (keys reducers)
+                                        (protocols/finalize reducer v))))))
+    (let [init-fns (mapv protocols/->init-val-fn reducers)
+          ^objects rfns (object-array (map protocols/->rfn reducers))
+          ^objects mergefns (object-array (map protocols/->merge-fn reducers))
+          n-vals (count rfns)]
+      (reify
+        ham_fisted.protocols.ParallelReducer
+        (->init-val-fn [_] (fn [] (object-array (map #(%) init-fns))))
+        (->rfn [_]
+          (fn [^objects acc v]
+            (dotimes [idx n-vals]
+              (ArrayHelpers/aset acc idx ((aget rfns idx) (aget acc idx) v)))
+            acc))
+        (->merge-fn [_]
+          (fn [^objects lhs ^objects rhs]
+            (dotimes [idx n-vals]
+              (ArrayHelpers/aset lhs idx ((aget mergefns idx) (aget lhs idx) (aget rhs idx))))
+            lhs))
+        (finalize [_ v] (mapv #(protocols/finalize %1 %2) reducers v))))))
 
 
 (defn preduce-reducers
@@ -357,13 +372,7 @@ ham-fisted.api> (preduce-reducers {:sum (Sum.) :mult *} (range 20))
 {:mult 0, :sum #<Sum@5082c3b7: {:sum 190.0, :n-elems 20}>}
 ```"
   ([reducers options coll]
-   (if (instance? Map reducers)
-     (->> (preduce-reducers (vals reducers) options coll)
-          (map vector (keys reducers))
-          (immut-map))
-     (let [{:keys [init-val-fn rfn merge-fn finalize-fn]} (reducers->fns reducers)]
-       (-> (preduce init-val-fn rfn merge-fn options coll)
-           (finalize-fn)))))
+   (preduce-reducer (compose-reducers reducers) options coll))
   ([reducers coll] (preduce-reducers reducers nil coll)))
 
 
@@ -379,11 +388,18 @@ ham-fisted.api> (reduce-reducer (reducer-xform->reducer (Sum.) (clojure.core/fil
   !! - If you use a stateful transducer here then you must *not* use the reducer in a
   parallelized reduction."
   [reducer xform]
-  (reify
-    ham_fisted.protocols.ParallelReducer
-    (->init-val-fn [this] (protocols/->init-val-fn reducer))
-    (->rfn [this] (xform (protocols/->rfn reducer)))
-    (->merge-fn [this] (protocols/->merge-fn reducer))))
+  (let [rfn (protocols/->rfn reducer)
+        init-val-fn (protocols/->init-val-fn reducer)
+        xfn (xform (fn
+                     ([] (init-val-fn))
+                     ([v] (protocols/finalize reducer v))
+                     ([acc v] (rfn acc v))))]
+    (reify
+      ham_fisted.protocols.ParallelReducer
+      (->init-val-fn [this] init-val-fn)
+      (->rfn [this] xfn)
+      (->merge-fn [this] (protocols/->merge-fn reducer))
+      (finalize [this v] (xfn v)))))
 
 
 (defn reduce-reducer
@@ -396,7 +412,8 @@ ham-fisted.api> (reduce-reducer (Sum.) (range 1000))
   [reducer coll]
   (let [rfn (protocols/->rfn reducer)
         init-val-fn (protocols/->init-val-fn reducer)]
-    (fast-reduce rfn (init-val-fn) coll)))
+    (->> (fast-reduce rfn (init-val-fn) coll)
+         (protocols/finalize reducer))))
 
 
 (defn reduce-reducers
@@ -407,13 +424,7 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
 {:b 2432902008176640000, :a #<Sum@6bcebeb1: {:sum 210.0, :n-elems 20}>}
 ```"
   [reducers coll]
-  (if (instance? Map reducers)
-     (->> (reduce-reducers (vals reducers) coll)
-          (map vector (keys reducers))
-          (immut-map))
-     (let [{:keys [init-val-fn rfn merge-fn finalize-fn]} (reducers->fns reducers)]
-       (-> (fast-reduce rfn (init-val-fn) coll)
-           (finalize-fn)))))
+  (reduce-reducer (compose-reducers reducers) coll))
 
 
 (def ^:private obj-ary-cls (Class/forName "[Ljava.lang.Object;"))
@@ -2328,8 +2339,7 @@ ham-fisted.api> @*1
   but does parallelize the summation for huge containers leading to some
   additional numeric stability."
   ^double [coll]
-  (-> (preduce-reducer (Sum$SimpleSum.) {:min-n 10000} coll)
-      (deref)))
+  (preduce-reducer (Sum$SimpleSum.) {:min-n 10000} coll))
 
 
 (defmacro double-predicate
@@ -2592,11 +2602,9 @@ ham-fisted.api> @*1
   "Stable sum returning map of {:sum :n-elems}. See options for [[sum]]."
   ([coll] (sum-stable-nelems coll nil))
   ([coll options]
-   (let [coll (->reducible coll)]
-     (->> (->reducible coll)
-          (apply-nan-strategy options)
-          (preduce-reducer (Sum.) options)
-          (deref)))))
+   (->> (->reducible coll)
+        (apply-nan-strategy options)
+        (preduce-reducer (Sum.) options))))
 
 
 (defn sum

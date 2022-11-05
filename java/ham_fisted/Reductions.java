@@ -102,7 +102,7 @@ public class Reductions {
 	super(in, _rfn);
 	dfn = (IFn.OLO)_rfn;
       }
-      public void accept(Object obj) { accept(Casts.doubleCast(obj)); }
+      public void accept(Object obj) { accept(Casts.longCast(obj)); }
       public void accept(long v) {
 	if(!isReduced())
 	  init = dfn.invokePrim(init, v);

@@ -1,3 +1,8 @@
+# 1.000-beta-35
+ * Added finalize method to reducers to match transducer spec.
+ * exposed compose-reducers that produces a new reducer.
+ * This simplfied reduce-reducers and preduce-reducers.
+
 # 1.000-beta-34
  * Enable parallelization for instances of clojure.core.PersistentHashMap.
  * protocol-based parallelization of reductions so you can extend the parallelization

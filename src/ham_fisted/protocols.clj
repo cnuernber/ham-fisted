@@ -25,7 +25,10 @@ two arguments, the accumulator and a value from the collection and returns a new
 or modified accumulator.")
   (->merge-fn [item]
     "Returns the merge function for a parallel reduction.  This function takes
-two accumulators  and returns a or modified accumulator."))
+two accumulators  and returns a or modified accumulator.")
+  (finalize [item v]
+    "A finalize function called on the result of the reduction after it is
+reduced but before it is returned to the user.  Identity is a reasonable default."))
 
 
 (def ^:no-doc double-consumer-accumulator
@@ -44,11 +47,14 @@ two accumulators  and returns a or modified accumulator."))
   (->init-val-fn [this] this)
   (->rfn [this] this)
   (->merge-fn [this] this)
+  (finalize [this v] (this v)) ;;single-arity overload
   Sum
   (->init-val-fn [s] #(Sum.))
   (->rfn [s] double-consumer-accumulator)
   (->merge-fn [s] reducible-merge)
+  (finalize [s v] (deref v))
   Sum$SimpleSum
   (->init-val-fn [s] #(Sum$SimpleSum.))
   (->rfn [s] double-consumer-accumulator)
-  (->merge-fn [s] reducible-merge))
+  (->merge-fn [s] reducible-merge)
+  (finalize [s v] (deref v)))

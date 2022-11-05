@@ -3,7 +3,7 @@
             [ham-fisted.protocols :as protocols])
   (:import [java.util.concurrent ForkJoinPool ForkJoinTask ArrayBlockingQueue Future
             TimeUnit]
-           [java.util Iterator Set Map]
+           [java.util Iterator Set Map RandomAccess]
            [java.util.concurrent ConcurrentHashMap]
            [ham_fisted ParallelOptions BitmapTrieCommon$Box ITypedReduce]
            [clojure.lang IteratorSeq IReduceInit PersistentHashMap]
@@ -195,7 +195,8 @@
 
 (defn- consume-spliterator!
   [^Reductions$ReduceConsumer c ^Spliterator s]
-  (.forEachRemaining s c))
+  (.forEachRemaining s c)
+  @c)
 
 
 (defn parallel-spliterator-reduce
@@ -244,11 +245,10 @@
       (instance? IReduceInit coll)
       (.reduce ^IReduceInit coll rfn (init-val-fn))
       (instance? Set coll)
-      (parallel-spliterator-reduce init-val-fn rfn merge-fn
-                                   (.spliterator ^Set coll) options)
+      (Reductions/parallelCollectionReduction init-val-fn rfn merge-fn coll options)
       (instance? Map coll)
-      (parallel-spliterator-reduce init-val-fn rfn merge-fn
-                                   (.spliterator (.entrySet ^Map coll)) options)
+      (Reductions/parallelCollectionReduction init-val-fn rfn merge-fn
+                                              (.entrySet ^Map coll) options)
       :else
       (Reductions/serialReduction rfn (init-val-fn) coll)))
   PersistentHashMap
