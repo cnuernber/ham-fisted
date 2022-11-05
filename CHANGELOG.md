@@ -1,7 +1,9 @@
 # 1.000-beta-35
  * Added finalize method to reducers to match transducer spec.
- * exposed compose-reducers that produces a new reducer.
- * This simplfied reduce-reducers and preduce-reducers.
+ * Exposed `compose-reducers` that produces a new reducer from a map or sequence of 
+   other reducers.
+ * These changes simplfied `reduce-reducers` and `preduce-reducers`, `sum` and `sum-fast`.
+ 
 
 # 1.000-beta-34
  * Enable parallelization for instances of clojure.core.PersistentHashMap.

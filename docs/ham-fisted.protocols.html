@@ -14,7 +14,7 @@ two accumulators  and returns a or modified accumulator.</p>
 two arguments, the accumulator and a value from the collection and returns a new
 or modified accumulator.</p>
 </div></div></div><div class="public anchor" id="var-finalize"><h3>finalize</h3><div class="usage"><code>(finalize item v)</code></div><div class="doc"><div class="markdown"><p>A finalize function called on the result of the reduction after it is
-reduced but before it is returned to the user.  Identity is a reasonable default.</p>
+reduced but before it is returned to the user.  Returning v is a reasonable default.</p>
 </div></div></div></div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/protocols.clj#L16">view source</a></div></div><div class="public anchor" id="var-ParallelReduction"><h3>ParallelReduction</h3><h4 class="type">protocol</h4><div class="usage"></div><div class="doc"><div class="markdown"><p>Protocol to define a parallel reduction in a collection-specific pathway.  Specializations
 are in impl as that is where the parallelization routines are found.</p>
 </div></div><div class="members"><h4>members</h4><div class="inner"><div class="public anchor" id="var-preduce"><h3>preduce</h3><div class="usage"><code>(preduce coll init-val-fn rfn merge-fn options)</code></div><div class="doc"><div class="markdown"><p>Container-specific parallelized reduction.  Reductions must respect the pool passed in via

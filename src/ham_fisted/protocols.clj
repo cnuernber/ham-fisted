@@ -28,7 +28,7 @@ or modified accumulator.")
 two accumulators  and returns a or modified accumulator.")
   (finalize [item v]
     "A finalize function called on the result of the reduction after it is
-reduced but before it is returned to the user.  Identity is a reasonable default."))
+reduced but before it is returned to the user.  Returning v is a reasonable default."))
 
 
 (def ^:no-doc double-consumer-accumulator

@@ -174,21 +174,72 @@ works on the first stream in a pipeline so for instance:
   coll.stream().map().filter().parallel().collect();
 ```
 
-yeilds a serial collection while:
+yeilds a serial reduction while:
 
 ```java
   coll.stream().parallel().map().filter().collect();
 ```
 
-yeilds a parallel collection.
+yeilds a parallel reduction.
 
 This is unfortunate because it means you must go back in time
 to get a parallel version of the stream if you want to perform a parallel collection;
-something that may or may not be easily done.
+something that may or may not be easily done at the point in time when you decide you do
+in fact want to parallel reduction.
 
 The second more major flaw is stream-based parallelization is hampered additionally in that
 it does not allow the user to pass in a fork-join pool at any point and thus it only works
 on cpu-based reductions that can never hang in the ForkJoinPool's common pool.
+
+
+## reducers.clj And Parallel Folds
+
+Clojure has an alpha namespace that provides a parallel reduction, [reducers.clj](https://github.com/clojure/clojure/blob/master/src/clj/clojure/core/reducers.clj).  The signature
+for this method is:
+
+```clojure
+(defn fold
+  "Reduces a collection using a (potentially parallel) reduce-combine
+  strategy. The collection is partitioned into groups of approximately
+  n (default 512), each of which is reduced with reducef (with a seed
+  value obtained by calling (combinef) with no arguments). The results
+  of these reductions are then reduced with combinef (default
+  reducef). combinef must be associative, and, when called with no
+  arguments, (combinef) must produce its identity element. These
+  operations may be performed in parallel, but the results will
+  preserve order."
+  {:added "1.5"}
+  ([reducef coll] (fold reducef reducef coll))
+  ([combinef reducef coll] (fold 512 combinef reducef coll))
+  ([n combinef reducef coll]
+     (coll-fold coll n combinef reducef)))
+```
+
+In this case we use overloads of `combinef` or `reducef` to provider the initial accumulator
+(called the identity element), the rfn, finalization and the merge function.  `combinef` called
+with no arguments provides each thread context's accumulator and called with two arguments
+performs a merge of two accumulators.  `reducef` called with 2 arguments provides
+the reduction from a value into the accumulator and when called with one argument
+finalizes both the potentially stateful reducing function and finalizes the
+accumulator.  It prescribes the parallelization system but users can override a protocol
+to do it themselves.
+
+This the same major drawback as the java stream system, namely users cannot provide
+their own pool for parallelization.
+
+An interesting decision was made here as to whether one can actually parallelize the
+reduction or not.  Transducers, the elements providing `reducef`, may be stateful
+such as `(take 15)`.  One interesting difference is that state is done with a closure in
+the reduction function as opposed to providing a custom accumulator that wraps the user's
+accumulator but tracks state.
+
+One aspect we haven't discussed but that is also handled here in an interesting manner
+is that whether a reduction can be parallelized or not is a function both of the container
+*and* of the reducer.  This systems does a sort of double-dispatch where the transducer
+may choose to implement the parallel reduction, called `coll-fold` or not and is queried
+first and if it allows parallel reduction then the collection itself is dispatched upon.
+Overall this is a great choice because it disallows completely parallel dispatch if the
+transducer or the collection do not support it.
 
 
 ## Parallel Reducers
@@ -196,7 +247,9 @@ on cpu-based reductions that can never hang in the ForkJoinPool's common pool.
 If we combine all three functions: `init-val-fn`, `rfn`, and `merge-fn` into one object
 then we get a ParallelReducer, defined in protocols.clj.  This protocol allows the
 user to pass a single object into a parallelized reduction as opposed to three functions
-which is useful when we want to have many reducers reduce over a single source of data:
+which is useful when we want to have many reducers reduce over a single source of data.
+A `finalize` method is added in order to allow compositions of reducers and to allow
+reducers to elide state and information from end users:
 
 ```clojure
 (defprotocol ParallelReducer
@@ -211,7 +264,10 @@ two arguments, the initial value and a value from the collection and returns a n
 initial value.")
   (->merge-fn [item]
     "Returns the merge function for a parallel reduction.  This function takes
-two initial values and returns a new initial value."))
+two initial values and returns a new initial value.")
+  (finalize [item v]
+    "A finalize function called on the result of the reduction after it is
+reduced but before it is returned to the user.  Identity is a reasonable default."))
 ```
 
 There are defaults to the reducer protocol for an IFn which simple assumes it can be
@@ -266,14 +322,41 @@ of the single argument `clojure.core/filter` I think is more clear:
 
 It returns a function that, when given a reduction function, returns a new reduction
 function that when called in the two argument form is identical to the result above
-(although expressed in pure Clojure as opposed to Java).  It is unfortunate but it
-isn't clear to me at this time how to extend this design if `rf` isn't a simple IFn
-but itself is a parallelizable reducer with the three functions mentioned above.
-The issue is that there needs to be another overload of the two-argument form that
-indicates this is a merge operation as opposed to a reduction operation - perhaps a
-three arity form where the third argument is simply a placeholder.  Regardless in my
-opinion overloading arity to provide an interface is less clear than simply
-implementing the interface.
+(although expressed in pure Clojure as opposed to Java).
+
+
+If we start with the concept that a reduction starts at the collection, flows
+downward through the pipeline and bottoms out at the reducer then the
+lazy-noncaching namespace and java streams implement parallelization flowing from
+the container downward while consumer chains and transducers implement the pipeline
+flowing up from the reducer itself.  Thus we can build the pipeline either downward
+from the source or upward from the final reduction and we get slightly different properties
+but regardless one trait we would like to ensure correctness is to disable parallelization
+where it will cause an incorrect answer - such as in a stateful transducer.
+
+
+Broadly speaking, however, it can be faster to enable full parallelization and
+filter invalid results than it is to force an early serialization our problem and
+thus lose lots of our parallelization potential.  If we are concerned with
+performance we should attempt to move our transformations as much as possible into a
+parallelizable domain.
+
+
+For the `take-n` use case specifically mentioned above and potentially for others we
+can parallelize the reduction and do the take-n both in the parallelized phase and
+in the merge phase assuming we are using an ordered parallelization, so that doesn't
+itself necessarily force a serialized reduction but there are of course
+transformations and reductions that do.  There are intermediate points however that are
+perhaps somewhat wasteful in terms of cpu load but do allow for more parallelization - a
+tradeoff that is sometimes worth it. Generically speaking we can visualize this sort
+of a tradeoff as triangle of three points where one point is data locality, one
+point parallelism, and one point redundancy.  Specifically if we are willing to
+trade some cpu efficiency for some redundancy, for instance, then we often get more
+parallelization.  Likewise if we are willing to save/load data from 'far' away from
+the CPU, then we can cut down on redundancy but at the cost of locality.  For more
+on this line of thinking please take a moment and read at least some of Jonathan Ragan-Kelly's
+[excellent PhD thesis](http://people.csail.mit.edu/jrk/jrkthesis.pdf) - a better explanation
+of the above line of reasoning begins on page 20.
 
 
 ## Primitive Typed Serial Reductions
@@ -305,7 +388,7 @@ of sequences and reductions.
 If we increase the data size yet again then we can of course use the same design to
 distribute the computations to different machines.  As some people have figured out, however,
 simply implementing the transformations you need efficiently reduces or completely eliminates
-the need to distribute computation in the first place leading to a simple, easier to test and
+the need to distribute computation in the first place leading to a simpler, easier to test and
 more robust system.
 
 Ideally we can make achieving great performance for various algorithms clear and easy and
