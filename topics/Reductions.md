@@ -235,10 +235,10 @@ accumulator but tracks state.
 
 One aspect we haven't discussed but that is also handled here in an interesting manner
 is that whether a reduction can be parallelized or not is a function both of the container
-*and* of the reducer.  This systems does a sort of double-dispatch where the transducer
+*and* of the reducer.  `reducers.clj` does a sort of double-dispatch where the transducer
 may choose to implement the parallel reduction, called `coll-fold` or not and is queried
 first and if it allows parallel reduction then the collection itself is dispatched upon.
-Overall this is a great choice because it disallows completely parallel dispatch if the
+Overall this is a great, safe choice because it disallows completely parallel dispatch if the
 transducer or the collection do not support it.
 
 

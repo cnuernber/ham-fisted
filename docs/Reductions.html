@@ -175,10 +175,10 @@ the reduction function as opposed to providing a custom accumulator that wraps t
 accumulator but tracks state.</p>
 <p>One aspect we haven't discussed but that is also handled here in an interesting manner
 is that whether a reduction can be parallelized or not is a function both of the container
-<em>and</em> of the reducer.  This systems does a sort of double-dispatch where the transducer
+<em>and</em> of the reducer.  <code>reducers.clj</code> does a sort of double-dispatch where the transducer
 may choose to implement the parallel reduction, called <code>coll-fold</code> or not and is queried
 first and if it allows parallel reduction then the collection itself is dispatched upon.
-Overall this is a great choice because it disallows completely parallel dispatch if the
+Overall this is a great, safe choice because it disallows completely parallel dispatch if the
 transducer or the collection do not support it.</p>
 <h2>Parallel Reducers</h2>
 <p>If we combine all three functions: <code>init-val-fn</code>, <code>rfn</code>, and <code>merge-fn</code> into one object
