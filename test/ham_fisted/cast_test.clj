@@ -23,5 +23,5 @@
                                                (+ v 2.0)))
                                    (lznc/filter (fn [^long v]
                                                   (not (== 0 (rem v 3)))))))))
-  (is (thrown? Exception (api/boolean-array [nil ##NaN nil])))
+  (is (= [false false false] (api/->random-access (api/boolean-array [nil ##NaN nil]))))
   (is (= [false false] (api/->random-access (api/boolean-array [nil nil])))))

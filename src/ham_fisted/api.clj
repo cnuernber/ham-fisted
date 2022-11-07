@@ -2327,6 +2327,42 @@ ham-fisted.api> @*1
   c)
 
 
+(defmacro double-accumulator
+  "Type-hinted double reduction accumulator.
+  consumer:
+
+```clojure
+  ham-fisted.api> (fast-reduce (double-accumulator acc v (+ (double acc) v))
+                             0.0
+                             (range 1000))
+#<SimpleSum@2fbcf20: 499500.0>
+ham-fisted.api> @*1
+499500.0
+```"
+  [accvar varvar & code]
+  `(reify IFnDef$ODO
+     (invokePrim [this ~accvar ~varvar]
+       ~@code)))
+
+
+(defmacro long-accumulator
+  "Type-hinted double reduction accumulator.
+  consumer:
+
+```clojure
+  ham-fisted.api> (fast-reduce (double-accumulator acc v (+ (double acc) v))
+                             0.0
+                             (range 1000))
+#<SimpleSum@2fbcf20: 499500.0>
+ham-fisted.api> @*1
+499500.0
+```"
+  [accvar varvar & code]
+  `(reify IFnDef$OLO
+     (invokePrim [this ~accvar ~varvar]
+       ~@code)))
+
+
 (defn reducible-merge
   "Parallel reduction merge function that expects both sides to be an instances of
   Reducible"

@@ -47,12 +47,12 @@ public class Ranges {
     public Class containedType() { return Long.TYPE; }
     public int size() { return RT.intCast(nElems); }
     public long lgetLong(long idx) {
-       final long sz = nElems;
+      final long sz = nElems;
       if(idx < 0)
 	idx += sz;
       if(idx < 0 || idx >= sz)
-	throw new RuntimeException("Index out of range: " + String.valueOf(idx) +
-				   " size: " + String.valueOf(sz));
+	throw new IndexOutOfBoundsException("Index out of range: " + String.valueOf(idx) +
+					    " size: " + String.valueOf(sz));
       return start + step*idx;
     }
     public long getLong(int idx) {
@@ -151,7 +151,7 @@ public class Ranges {
       //Floor to long intentional
       nElems = Math.max(0, (long)((e - s)/_step));
       if (nElems < 0)
-	throw new RuntimeException("Invalid Range - start: " + String.valueOf(s)
+	throw new IndexOutOfBoundsException("Invalid Range - start: " + String.valueOf(s)
 				   + " end: " + String.valueOf(e) + " step: " +
 				   String.valueOf(_step));
     }
@@ -174,7 +174,7 @@ public class Ranges {
       if(idx < 0)
 	idx += sz;
       if(idx < 0 || idx >= sz)
-	throw new RuntimeException("Index out of range: " + String.valueOf(idx) +
+	throw new IndexOutOfBoundsException("Index out of range: " + String.valueOf(idx) +
 				   " size: " + String.valueOf(sz));
       return start + step*idx;
     }
@@ -183,13 +183,13 @@ public class Ranges {
       final int st = RT.intCast(step);
       if (st != 0)
 	return ArrayLists.iarange(RT.intCast(start), RT.intCast(end), RT.intCast(step));
-      throw new RuntimeException("Infinite range: " + String.valueOf(step) + " : " + String.valueOf(st));
+      throw new IndexOutOfBoundsException("Infinite range: " + String.valueOf(step) + " : " + String.valueOf(st));
     }
     public long[] toLongArray() {
       final long st = Casts.longCast(step);
       if (st != 0)
 	return ArrayLists.larange(Casts.longCast(start), Casts.longCast(end), Casts.longCast(step));
-      throw new RuntimeException("Infinite range: " + String.valueOf(step) + " : " + String.valueOf(st));
+      throw new IndexOutOfBoundsException("Infinite range: " + String.valueOf(step) + " : " + String.valueOf(st));
     }
     public double[] toDoubleArray() {
       return ArrayLists.darange(start, end, step);

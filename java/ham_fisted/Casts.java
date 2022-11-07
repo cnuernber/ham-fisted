@@ -14,7 +14,7 @@ public class Casts {
       return (Boolean)obj;
     if(obj instanceof Number) {
       final Number nobj = (Number)obj;
-      return ((obj instanceof Long) || (obj instanceof Integer)) ? nobj.longValue() != 0 : booleanCast(nobj.doubleValue());
+      return Util.isInteger(obj) ? nobj.longValue() != 0 : booleanCast(nobj.doubleValue());
     }
     if(obj instanceof Character)
       return ((Character)obj).charValue() != 0;
@@ -24,16 +24,10 @@ public class Casts {
     return obj != 0;
   }
   public static boolean booleanCast(double obj) {
-    if (! Double.isFinite(obj))
-      throw new RuntimeException("Non-finite double cannot be casted to boolean: "
-				 + String.valueOf(obj));
-    return obj != 0.0;
+    return Double.isNaN(obj) ? false : obj != 0.0;
   }
   public static boolean booleanCast(float obj) {
-    if (! Float.isFinite(obj))
-      throw new RuntimeException("Non-finite double cannot be casted to boolean: "
-				 + String.valueOf(obj));
-    return obj != 0.0;
+    return Float.isNaN(obj) ? false : obj != 0.0f;
  }
   public static boolean booleanCast(boolean obj) {
     return obj;

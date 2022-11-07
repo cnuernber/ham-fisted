@@ -222,9 +222,9 @@
   ;;is a double summation then if we typehint our entire pathway with doubles that will
   ;;allow the entire pathway to avoid boxing.  The predicate's return value must be
   ;;an object, however, not a long or a double so there is some minimal boxing.
-  (let [mfn1 (fn ^long [^long v] (* v 2))
-        mfn2 (fn ^long [^long v] (+ v 1))
-        pred (fn [^long v] (== 0 (rem (long v) 3)))]
+  (let [mfn1 (api/long-unary-operator v (* v 2))
+        mfn2 (api/long-unary-operator v (+ v 1))
+        pred (api/long-predicate v (== 0 (rem v 3)))]
     (for [n-elems [10 100 1000 100000]]
       {:n-elems n-elems
        :test :sequence-summation
@@ -245,6 +245,84 @@
                                             (clojure.core/map mfn2)
                                             (clojure.core/filter pred)))
                                           (api/sum)))})))
+
+
+(defn typed-vs-untyped-serial-reduction
+  []
+  (log/info "typed vs untyped reduction")
+  (let [mfn1 (api/long-unary-operator v (* v 2))
+        mfn2 (api/long-unary-operator v (+ v 1))
+        pred (api/long-predicate v (== 0 (rem v 3)))
+        ut1 (fn [v] (* (long v) 2))
+        ut2 (fn [v] (+ (long v) 1))
+        utp (fn [v] (== 0 (rem (long v) 3)))]
+    (for [n-elems [10000 1000000]]
+      {:n-elems n-elems
+       :test :typed-vs-untyped-serial
+       :untyped (bench/benchmark-us (->> (api/range n-elems)
+                                         (lznc/map ut1)
+                                         (lznc/map ut2)
+                                         (lznc/filter utp)
+                                         (api/fast-reduce (api/double-accumulator
+                                                           acc v (+ (double acc) v))
+                                                          0.0)))
+       :typed (bench/benchmark-us (->> (api/range n-elems)
+                                       (lznc/map mfn1)
+                                       (lznc/map mfn2)
+                                       (lznc/filter pred)
+                                       (api/fast-reduce (api/double-accumulator
+                                                         acc v (+ (double acc) v))
+                                                        0.0)))})))
+
+
+(defn typed-vs-untyped-parallel-reduction
+  []
+  (log/info "typed vs untyped reduction")
+  (let [mfn1 (api/long-unary-operator v (* v 2))
+        mfn2 (api/long-unary-operator v (+ v 1))
+        pred (api/long-predicate v (== 0 (rem v 3)))
+        ut1 (fn [v] (* (long v) 2))
+        ut2 (fn [v] (+ (long v) 1))
+        utp (fn [v] (== 0 (rem (long v) 3)))]
+    (for [n-elems [10000 1000000]]
+      {:n-elems n-elems
+       :test :typed-vs-untyped-parallel
+       :untyped (bench/benchmark-us (->> (api/range n-elems)
+                                         (lznc/map ut1)
+                                         (lznc/map ut2)
+                                         (lznc/filter utp)
+                                         (api/preduce-reducer (ham_fisted.Sum$SimpleSum.))))
+       :typed (bench/benchmark-us (->> (api/range n-elems)
+                                       (lznc/map mfn1)
+                                       (lznc/map mfn2)
+                                       (lznc/filter pred)
+                                       (api/preduce-reducer (ham_fisted.Sum$SimpleSum.))))})))
+
+
+(defn typed-consumer-vs-boxed
+  []
+  (log/info "typed vs untyped reduction")
+  (let [mfn1 (fn ^long [^long v] (* v 2))
+        mfn2 (fn ^long [^long v] (+ v 1))
+        pred (fn [^long v] (== 0 (rem v 3)))
+        ut1 (fn [v] (* (long v) 2))
+        ut2 (fn [v] (+ (long v) 1))
+        utp (fn [v] (== 0 (rem (long v) 3)))]
+    (for [n-elems [10000 1000000]]
+      {:n-elems n-elems
+       :test :consumer-vs-boxed
+       :boxed (bench/benchmark-us (->> (api/range n-elems)
+                                       (lznc/map mfn1)
+                                       (lznc/map mfn2)
+                                       (lznc/filter pred)
+                                       (api/fast-reduce (api/double-accumulator
+                                                         acc v (+ (double acc) v))
+                                                        0.0)))
+       :typed-consumer (bench/benchmark-us (->> (api/range n-elems)
+                                                (lznc/map mfn1)
+                                                (lznc/map mfn2)
+                                                (lznc/filter pred)
+                                                (api/reduce-reducer (ham_fisted.Sum$SimpleSum.))))})))
 
 
 (defn map-indexed-summation

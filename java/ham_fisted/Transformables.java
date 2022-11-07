@@ -20,6 +20,9 @@ import java.util.function.UnaryOperator;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.LongConsumer;
+import java.util.function.Predicate;
+import java.util.function.LongPredicate;
+import java.util.function.DoublePredicate;
 
 import clojure.lang.IFn;
 import clojure.lang.ArraySeq;
@@ -590,12 +593,27 @@ public class Transformables {
       }
       return ret;
     }
+    @SuppressWarnings("unchecked")
     public static IFn doubleReducer(final IFn.ODO rfn, final IFn pred) {
-      if(pred instanceof IFn.LO) {
+      if(pred instanceof LongPredicate) {
+	final LongPredicate pfn = (LongPredicate)pred;
+	return new Reductions.LongAccum() {
+	  public Object invokePrim(Object lhs, long v) {
+	    return pfn.test(v) ? rfn.invokePrim(lhs, (double)v) : lhs;
+	  }
+	};
+      } else if (pred instanceof IFn.LO) {
 	final IFn.LO pfn = (IFn.LO)pred;
 	return new Reductions.LongAccum() {
 	  public Object invokePrim(Object lhs, long v) {
 	    return truthy(pfn.invokePrim(v)) ? rfn.invokePrim(lhs, (double)v) : lhs;
+	  }
+	};
+      } else if (pred instanceof DoublePredicate) {
+	final DoublePredicate pfn = (DoublePredicate)pred;
+	return new Reductions.DoubleAccum() {
+	  public Object invokePrim(Object lhs, double v) {
+	    return pfn.test(v) ? rfn.invokePrim(lhs, v) : lhs;
 	  }
 	};
       } else if (pred instanceof IFn.DO) {
@@ -605,8 +623,14 @@ public class Transformables {
 	    return truthy(pfn.invokePrim(v)) ? rfn.invokePrim(lhs, v) : lhs;
 	  }
 	};
-      }
-      else {
+      } else if (pred instanceof Predicate) {
+	final Predicate pfn = (Predicate)pred;
+	return new IFnDef() {
+	  public Object invoke(Object lhs, Object v) {
+	    return pfn.test(v) ? rfn.invokePrim(lhs, Casts.doubleCast(v)) : lhs;
+	  }
+	};
+      } else {
 	return new IFnDef() {
 	  public Object invoke(Object lhs, Object v) {
 	    return truthy(pred.invoke(v)) ? rfn.invokePrim(lhs, Casts.doubleCast(v)) : lhs;
@@ -614,12 +638,27 @@ public class Transformables {
 	};
       }
     }
+    @SuppressWarnings("unchecked")
     public static IFn longReducer(final IFn.OLO rfn, final IFn pred) {
-      if(pred instanceof IFn.LO) {
+      if(pred instanceof LongPredicate) {
+	final LongPredicate pfn = (LongPredicate)pred;
+	return new Reductions.LongAccum() {
+	  public Object invokePrim(Object lhs, long v) {
+	    return pfn.test(v) ? rfn.invokePrim(lhs, v) : lhs;
+	  }
+	};
+      } else if(pred instanceof IFn.LO) {
 	final IFn.LO pfn = (IFn.LO)pred;
 	return new Reductions.LongAccum() {
 	  public Object invokePrim(Object lhs, long v) {
 	    return truthy(pfn.invokePrim(v)) ? rfn.invokePrim(lhs, v) : lhs;
+	  }
+	};
+      } else if (pred instanceof DoublePredicate) {
+	final DoublePredicate pfn = (DoublePredicate)pred;
+	return new Reductions.DoubleAccum() {
+	  public Object invokePrim(Object lhs, double v) {
+	    return pfn.test(v) ? rfn.invokePrim(lhs, Casts.longCast(v)) : lhs;
 	  }
 	};
       } else if (pred instanceof IFn.DO) {
@@ -629,8 +668,14 @@ public class Transformables {
 	    return truthy(pfn.invokePrim(v)) ? rfn.invokePrim(lhs, Casts.longCast(v)) : lhs;
 	  }
 	};
-      }
-      else {
+      } else if (pred instanceof Predicate) {
+	final Predicate pfn = (Predicate)pred;
+	return new IFnDef() {
+	  public Object invoke(Object lhs, Object v) {
+	    return pfn.test(v) ? rfn.invokePrim(lhs, Casts.longCast(v)) : lhs;
+	  }
+	};
+      } else {
 	return new IFnDef() {
 	  public Object invoke(Object lhs, Object v) {
 	    return truthy(pred.invoke(v)) ? rfn.invokePrim(lhs, Casts.longCast(v)) : lhs;
