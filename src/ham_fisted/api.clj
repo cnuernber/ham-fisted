@@ -53,7 +53,7 @@
             IndexedLongConsumer IndexedConsumer ITypedReduce ParallelOptions Reductions
             IFnDef$LO IFnDef$LL IFnDef$DO IFnDef$DD IFnDef$DDD
             IFnDef$LLL ParallelOptions$CatParallelism IFnDef$OO IFnDef$OOO IFnDef$ODO
-            IFnDef$OLO]
+            IFnDef$OLO IFnDef$OD IFnDef$OL]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
@@ -784,6 +784,22 @@ ham_fisted.PersistentHashMap
   "Create a java.util.function.Function"
   [arg & code]
   `(reify IFnDef$OO (invoke [this# ~arg] ~@code)))
+
+
+(defmacro to-long-function
+  "Create an instance of a function that converts objects to longs"
+  [varname & code]
+  `(reify IFnDef$OL
+     (invokePrim [this ~varname]
+       ~@code)))
+
+
+(defmacro to-double-function
+  "Create an instance of a function that converts objects to longs"
+  [varname & code]
+  `(reify IFnDef$OD
+     (invokePrim [this ~varname]
+       ~@code)))
 
 
 (defn ->function
