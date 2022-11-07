@@ -63,3 +63,7 @@
                                           +
                                           +
                                           (range 10000))))))
+
+
+(deftest compare-seq-with-nonseq
+  (is (not (= (hamf/vec (range 10)) :a))))

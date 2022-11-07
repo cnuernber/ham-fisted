@@ -1,3 +1,6 @@
+# 1.000-beta-38
+ * Fixed comparison of seq with nonseq.
+
 # 1.000-beta-37
  * Small perf enhancements from tmd perf regression
 

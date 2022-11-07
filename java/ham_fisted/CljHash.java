@@ -117,7 +117,7 @@ public class CljHash {
 	  return false;
       }
       return true;
-    } else {
+    } else if ( rhs instanceof Iterable) {
       Collection r = rhs instanceof Collection ? (Collection)rhs : (Collection)RT.seq(rhs);
       Iterator iter = r.iterator();
       final int sz = l.size();
@@ -128,5 +128,6 @@ public class CljHash {
       }
       return idx != sz || iter.hasNext() ? false : true;
     }
+    return false;
   }
 }
