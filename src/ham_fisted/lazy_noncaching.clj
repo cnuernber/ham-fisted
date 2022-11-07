@@ -125,9 +125,9 @@
      (instance? Transformables$IMapable arg)
      (.map ^Transformables$IMapable arg f)
      (instance? RandomAccess arg)
-     (Transformables$MapList/create f nil (into-array List (vector arg)))
+     (Transformables$SingleMapList. f nil arg)
      (.isArray (.getClass ^Object arg))
-     (Transformables$MapList/create f nil (into-array List (vector (ArrayLists/toList arg))))
+     (Transformables$SingleMapList. f nil (ArrayLists/toList arg))
      :else
      (Transformables$MapIterable. f nil (into-array Iterable (vector (->collection arg))))))
   ([f arg & args]

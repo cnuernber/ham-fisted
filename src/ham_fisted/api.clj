@@ -2427,7 +2427,7 @@ ham-fisted.api> @*1
      Predicate
      (test [this ~varname]
        ~code)
-     IFnDef.OO
+     IFnDef$OO
      (invoke [this# d#]
        (.test this# d#))))
 

@@ -1,9 +1,20 @@
+# 1.000-beta-37
+ * Small perf enhancements from tmd perf regression
+
+# 1.000-beta-36
+ * Added in explicit checks for long, double, and predicate objects in filter's reduction
+   specializations.  Potentially these are too expensive but it does help a bit with
+   longer sequences.
+ * Changed things such that Double/NaN evaluates to false.  This matches that the null
+   object evaluates to false and null evaluates to Double/NaN.
+
+
 # 1.000-beta-35
  * Added finalize method to reducers to match transducer spec.
- * Exposed `compose-reducers` that produces a new reducer from a map or sequence of 
+ * Exposed `compose-reducers` that produces a new reducer from a map or sequence of
    other reducers.
  * These changes simplfied `reduce-reducers` and `preduce-reducers`, `sum` and `sum-fast`.
- 
+
 
 # 1.000-beta-34
  * Enable parallelization for instances of clojure.core.PersistentHashMap.
