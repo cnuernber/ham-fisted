@@ -1,3 +1,6 @@
+# 1.000-beta-41
+ * ->collection is protocol driven.
+ 
 # 1.000-beta-40
  * maps are iterable...
 
