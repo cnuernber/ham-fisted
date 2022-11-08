@@ -485,6 +485,16 @@ public interface IFnDef extends IFn
     }
     default double applyAsDouble(Object v) { return invokePrim(v); }
   }
+  public interface LD extends IFnDef, IFn.LD {
+    default Object invoke(Object arg) {
+      return invokePrim(Casts.longCast(arg));
+    }
+  }
+  public interface DL extends IFnDef, IFn.DL {
+    default Object invoke(Object arg) {
+      return invokePrim(Casts.doubleCast(arg));
+    }
+  }
   public interface DDD extends IFnDef, IFn.DDD, DoubleBinaryOperator {
     default Object invoke(Object lhs, Object rhs) {
       return invokePrim(Casts.doubleCast(lhs), Casts.doubleCast(rhs));

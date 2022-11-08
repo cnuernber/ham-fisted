@@ -1,3 +1,9 @@
+# 1.000-beta-39
+ * Explicit protocols for serial and parallel reduction and reducers.
+ * Explicit support for BitSet objects.
+ * Updated (->reducible) pathways to check for protocol reducer support.
+ * Protocol for conversion of arbitrary types to iterable for map, filter support.
+
 # 1.000-beta-38
  * Fixed comparison of seq with nonseq.
 

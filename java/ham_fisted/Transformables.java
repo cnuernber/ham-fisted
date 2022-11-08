@@ -253,6 +253,13 @@ public class Transformables {
 	  return rfn.invokePrim(lhs, (double)mfn.invokePrim(v));
 	}
       };
+    } else if (mapFn instanceof IFn.LD) {
+      final IFn.LD mfn = (IFn.LD)mapFn;
+      return new Reductions.LongAccum() {
+	public Object invokePrim(Object lhs, long v) {
+	  return rfn.invokePrim(lhs, mfn.invokePrim(v));
+	}
+      };
     } else {
       return new IFnDef() {
 	public Object invoke(Object lhs, Object rhs) {
@@ -287,6 +294,13 @@ public class Transformables {
       final IFn.LL mfn = (IFn.LL)mapFn;
       return new Reductions.LongAccum() {
 	public Object invokePrim(Object lhs, long v) {
+	  return rfn.invokePrim(lhs, mfn.invokePrim(v));
+	}
+      };
+    } else if (mapFn instanceof IFn.DL) {
+      final IFn.DL mfn = (IFn.DL)mapFn;
+      return new Reductions.DoubleAccum() {
+	public Object invokePrim(Object lhs, double v) {
 	  return rfn.invokePrim(lhs, mfn.invokePrim(v));
 	}
       };

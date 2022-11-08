@@ -40,6 +40,23 @@ public class MapFn implements IFnDef {
 	  return dd.invokePrim(ss.invokePrim(v));
 	}
       };
+    } else if( src instanceof IFn.DL && dst instanceof IFn.LL) {
+      final IFn.DL ss = (IFn.DL)src;
+      final IFn.LL dd = (IFn.LL)dst;
+      return new IFnDef.DL() {
+	public long invokePrim(double v) {
+	  return dd.invokePrim(ss.invokePrim(v));
+	}
+      };
+    }
+    else if( src instanceof IFn.LD && dst instanceof IFn.DD) {
+      final IFn.LD ss = (IFn.LD)src;
+      final IFn.DD dd = (IFn.DD)dst;
+      return new IFnDef.LD() {
+	public double invokePrim(long v) {
+	  return dd.invokePrim(ss.invokePrim(v));
+	}
+      };
     }
     //Fallthrough, no special treatment
     return new MapFn(src, dst);

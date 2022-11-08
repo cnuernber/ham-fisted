@@ -53,7 +53,7 @@
             IndexedLongConsumer IndexedConsumer ITypedReduce ParallelOptions Reductions
             IFnDef$LO IFnDef$LL IFnDef$DO IFnDef$DD IFnDef$DDD
             IFnDef$LLL ParallelOptions$CatParallelism IFnDef$OO IFnDef$OOO IFnDef$ODO
-            IFnDef$OLO IFnDef$OD IFnDef$OL]
+            IFnDef$OLO IFnDef$OD IFnDef$OL IFnDef$LD IFnDef$DL]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
@@ -85,15 +85,15 @@
                             range map concat filter filterv first last pmap take take-last drop
                             drop-last sort-by repeat repeatedly shuffle into-array
                             empty? reverse byte-array short-array char-array boolean-array
-                            keys vals persistent! rest]))
+                            keys vals persistent! rest reduce]))
 
 
 (set! *warn-on-reflection* true)
 
 (declare assoc! conj! vec mapv vector object-array range first take drop into-array shuffle
-         object-array-list fast-reduce int-array-list long-array-list double-array-list
+         object-array-list reduce int-array-list long-array-list double-array-list
          int-array argsort byte-array short-array char-array boolean-array repeat
-         persistent! rest immut-map keys vals)
+         persistent! rest immut-map keys vals reduce)
 
 
 (defn ->collection
@@ -237,7 +237,7 @@ This is currently the default hash provider for the library."}
     item))
 
 
-(defn fast-reduce
+(defn reduce
   "Version of reduce that is a bit faster for things that aren't sequences and do not
   implement IReduceInit.  If input collection implements ITypedReduce and input
   rfn is one of IFn.ODO, IFn.OLO, then a primtiive type-specific reduction is used.
@@ -246,16 +246,19 @@ This is currently the default hash provider for the library."}
   a type specific add method but themselves are objects:
 
 ```clojure
-  ham-fisted.api> (fast-reduce double-consumer-accumulator
+  ham-fisted.api> (reduce double-consumer-accumulator
                              (Sum$SimpleSum.)
                              (range 1000))
 #<SimpleSum@69033843: 499500.0>
 ham-fisted.api> @*1
 499500.0
 ```"
-  [rfn init iter]
-  (-> (Reductions/serialReduction rfn init iter)
-      (unpack-reduced)))
+  ([rfn init coll]
+   (->> (->reducible coll)
+        (Reductions/serialReduction rfn init)
+        (unpack-reduced)))
+  ([rfn coll]
+   (reduce rfn (rfn) coll)))
 
 
 (defn- options->parallel-options
@@ -336,30 +339,32 @@ ham-fisted.api> @*1
   (if (instance? Map reducers)
     (let [reducer (compose-reducers (vals reducers))]
       (reify
-        ham_fisted.protocols.ParallelReducer
+        ham_fisted.protocols.Reducer
         (->init-val-fn [_] (protocols/->init-val-fn reducer))
         (->rfn [_] (protocols/->rfn reducer))
-        (->merge-fn [_] (protocols/->merge-fn reducer))
         (finalize [_ v] (immut-map (map vector (keys reducers)
-                                        (protocols/finalize reducer v))))))
+                                        (protocols/finalize reducer v))))
+        ham_fisted.protocols.ParallelReducer
+        (->merge-fn [_] (protocols/->merge-fn reducer))))
     (let [init-fns (mapv protocols/->init-val-fn reducers)
           ^objects rfns (object-array (map protocols/->rfn reducers))
           ^objects mergefns (object-array (map protocols/->merge-fn reducers))
           n-vals (count rfns)]
       (reify
-        ham_fisted.protocols.ParallelReducer
+        ham_fisted.protocols.Reducer
         (->init-val-fn [_] (fn [] (object-array (map #(%) init-fns))))
         (->rfn [_]
           (fn [^objects acc v]
             (dotimes [idx n-vals]
               (ArrayHelpers/aset acc idx ((aget rfns idx) (aget acc idx) v)))
             acc))
+        (finalize [_ v] (mapv #(protocols/finalize %1 %2) reducers v))
+        ham_fisted.protocols.ParallelReducer
         (->merge-fn [_]
           (fn [^objects lhs ^objects rhs]
             (dotimes [idx n-vals]
               (ArrayHelpers/aset lhs idx ((aget mergefns idx) (aget lhs idx) (aget rhs idx))))
-            lhs))
-        (finalize [_ v] (mapv #(protocols/finalize %1 %2) reducers v))))))
+            lhs))))))
 
 
 (defn preduce-reducers
@@ -395,11 +400,12 @@ ham-fisted.api> (reduce-reducer (reducer-xform->reducer (Sum.) (clojure.core/fil
                      ([v] (protocols/finalize reducer v))
                      ([acc v] (rfn acc v))))]
     (reify
-      ham_fisted.protocols.ParallelReducer
+      ham_fisted.protocols.Reducer
       (->init-val-fn [this] init-val-fn)
       (->rfn [this] xfn)
-      (->merge-fn [this] (protocols/->merge-fn reducer))
-      (finalize [this v] (xfn v)))))
+      (finalize [this v] (xfn v))
+      ham_fisted.protocols.ParallelReducer
+      (->merge-fn [this] (protocols/->merge-fn reducer)))))
 
 
 (defn reduce-reducer
@@ -412,7 +418,7 @@ ham-fisted.api> (reduce-reducer (Sum.) (range 1000))
   [reducer coll]
   (let [rfn (protocols/->rfn reducer)
         init-val-fn (protocols/->init-val-fn reducer)]
-    (->> (fast-reduce rfn (init-val-fn) coll)
+    (->> (reduce rfn (init-val-fn) coll)
          (protocols/finalize reducer))))
 
 
@@ -461,7 +467,7 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
   ([container data]
    (cond
      (instance? IEditableCollection container)
-     (-> (fast-reduce conj! (transient container) data)
+     (-> (reduce conj! (transient container) data)
          (persistent!))
      (instance? ITransientCollection container)
      (reduce conj! container data)
@@ -486,7 +492,7 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
 (defn reduce-put-map
   "Perform a reduction to put values as if by assoc into a mutable map."
   ^Map [^Map m data]
-  (fast-reduce (fn [^Map m d]
+  (reduce (fn [^Map m d]
                  (cond
                    (instance? Map$Entry d)
                    (.put m (.getKey ^Map$Entry d) (.getValue ^Map$Entry d))
@@ -524,7 +530,7 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
   ^objects [data]
   (if (instance? obj-ary-cls data)
     data
-    (-> (fast-reduce (fn [^List l d]
+    (-> (reduce (fn [^List l d]
                        (cond
                          (instance? Map$Entry d)
                          (do (.add l (.getKey ^Map$Entry d))
@@ -802,6 +808,18 @@ ham_fisted.PersistentHashMap
        ~@code)))
 
 
+(defmacro long-to-double-function
+  [varname & code]
+  `(reify IFnDef$LD
+     (invokePrim [this ~varname] ~@code)))
+
+
+(defmacro double-to-long-function
+  [varname & code]
+  `(reify IFnDef$DL
+     (invokePrim [this ~varname] ~@code)))
+
+
 (defn ->function
   "Convert an object to a java Function. Object can either already be a
   Function or an IFn to be invoked."
@@ -892,7 +910,7 @@ ham_fisted.PersistentHashMap
   "Return the values collection of the map.  This may not be in the same order as (keys m)
   or (vals m).  For hamf hashmaps, this does have the same order as (vals m).  For both
   hamf hashmaps and java hashmaps, this has better performance for reductions especially
-  using `fast-reduce` than (vals m)."
+  using `reduce` than (vals m)."
   ^Collection [^Map m] (.values m))
 
 
@@ -1004,7 +1022,7 @@ ham_fisted.PersistentHashMap
      (if (nil? maps)
        nil
        (let [bfn (->bi-function bfn)]
-         (fast-reduce (fn [acc v]
+         (reduce (fn [acc v]
                         (map-union bfn acc v))
                       (java-hashmap (first maps))
                       (rest maps))))))
@@ -1097,7 +1115,7 @@ ham_fisted.PersistentHashMap
       (immut-vals? map)
       (.immutUpdateValues (as-immut-vals map) bfn)
       (instance? IPersistentMap map)
-      (-> (fast-reduce (fn [^Map acc kv]
+      (-> (reduce (fn [^Map acc kv]
                          (.put acc (key kv) (.apply bfn (key kv) (val kv))))
                        (mut-map)
                        map)
@@ -1129,7 +1147,7 @@ ham_fisted.PersistentHashMap
   (->> (map map-fn src-map) (remove nil?) (into {}))
   ```"
   [map-fn src-map]
-  (-> (fast-reduce (fn [^Map m entry]
+  (-> (reduce (fn [^Map m entry]
                      (let [^Indexed result (map-fn entry)]
                        (when result
                          (.put m (.nth result 0) (.nth result 1)))
@@ -1721,7 +1739,7 @@ ham_fisted.PersistentHashMap
   ([^IMutList retval v1 v2 args]
    (when-not (nil? v1) (.addAllReducible retval (->reducible v1)))
    (when-not (nil? v2) (.addAllReducible retval (->reducible v2)))
-   (fast-reduce (fn [data c]
+   (reduce (fn [data c]
                   (when-not (nil? c) (.addAllReducible retval (->reducible c)))
                   retval)
                 retval
@@ -2305,7 +2323,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
   consumer:
 
 ```clojure
-ham-fisted.api> (fast-reduce double-consumer-accumulator
+ham-fisted.api> (reduce double-consumer-accumulator
                              (Sum$SimpleSum.)
                              (range 1000))
 #<SimpleSum@2fbcf20: 499500.0>
@@ -2323,7 +2341,7 @@ ham-fisted.api> @*1
   consumer:
 
 ```clojure
-ham-fisted.api> (fast-reduce double-consumer-accumulator
+ham-fisted.api> (reduce double-consumer-accumulator
                              (Sum$SimpleSum.)
                              (range 1000))
 #<SimpleSum@2fbcf20: 499500.0>
@@ -2348,7 +2366,7 @@ ham-fisted.api> @*1
   consumer:
 
 ```clojure
-  ham-fisted.api> (fast-reduce (double-accumulator acc v (+ (double acc) v))
+  ham-fisted.api> (reduce (double-accumulator acc v (+ (double acc) v))
                              0.0
                              (range 1000))
 #<SimpleSum@2fbcf20: 499500.0>
@@ -2366,7 +2384,7 @@ ham-fisted.api> @*1
   consumer:
 
 ```clojure
-  ham-fisted.api> (fast-reduce (double-accumulator acc v (+ (double acc) v))
+  ham-fisted.api> (reduce (double-accumulator acc v (+ (double acc) v))
                              0.0
                              (range 1000))
 #<SimpleSum@2fbcf20: 499500.0>
@@ -2590,7 +2608,7 @@ ham-fisted.api> @*1
      (if (instance? ITypedReduce coll)
        (.genericIndexedForEach ^ITypedReduce coll init-idx consumer)
        (let [consumer (force-indexed-consumer consumer)]
-         (fast-reduce (fn [^long idx val]
+         (reduce (fn [^long idx val]
                         (.accept consumer idx val)
                         (unchecked-inc idx))
                       init-idx
@@ -2618,7 +2636,7 @@ ham-fisted.api> @*1
     (if (instance? ITypedReduce coll)
       (.genericForEach ^ITypedReduce coll consumer)
       (let [consumer (force-consumer consumer)]
-        (fast-reduce (fn [c val]
+        (reduce (fn [c val]
                        (.accept consumer val)
                        c)
                      consumer
@@ -2774,11 +2792,11 @@ ham-fisted.api> @*1
                    (.maximumSize (int n))
                    (.create))
          values (->reducible values)]
-     (fast-reduce (fn [q obj]
-                    (.add queue obj)
-                    queue)
-                  queue
-                  values)
+     (reduce (fn [q obj]
+               (.add queue obj)
+               queue)
+             queue
+             values)
      (->collection (object-array queue))))
   ([n values]
    (take-min n nil values)))

@@ -173,6 +173,9 @@ public class ArrayLists {
       if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v))
 	LongMutList.super.fillRange(startidx, v);
     }
+    default Object reduce(IFn rfn, Object init) {
+      return LongMutList.super.reduce(rfn, init);
+    }
     default Object toNativeArray() { return copyOf(size()); }
     default Object ensureCapacity(int newlen) {
       throw new RuntimeException("unimplemented");
@@ -416,8 +419,15 @@ public class ArrayLists {
   @SuppressWarnings("unchecked")
   public static Object[] toArray(Collection c) {
     final ObjectArrayList res = new ObjectArrayList();
-    res.addAll(c);
+    res.addAllReducible(c);
     return res.toArray();
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T> T[] toArray(Collection c, T[] d) {
+    final ObjectArrayList res = ObjectArrayList.wrap(d, 0, null);
+    res.addAllReducible(c);
+    return (T[])res.toArray();
   }
 
   public static IMutList<Object> toList(final Object[] data, final int sidx, final int eidx, final IPersistentMap meta) {
@@ -796,6 +806,9 @@ public class ArrayLists {
       else
 	IntArrays.parallelQuickSort(retval, indexComparator(c));
       return retval;
+    }
+    public Object reduce(IFn rfn, Object init) {
+      return ILongArrayList.super.reduce(rfn, init);
     }
     public Object longReduction(IFn.OLO rfn, Object init) {
       final int es = eidx;
@@ -1933,6 +1946,12 @@ public class ArrayLists {
 	return fixSubArrayBinarySearch(sidx, size(),
 				       bc == null ? CharArrays.binarySearch(data, sidx, sidx+size(), vv) : CharArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
       return ILongArrayList.super.binarySearch(v, c);
+    }
+    public Object reduce(IFn rfn, Object init) {
+      final int sz = size();
+      for (int idx = 0; idx < sz && !RT.isReduced(init); ++idx)
+	init = rfn.invoke(init, data[idx+sidx]);
+      return init;
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);

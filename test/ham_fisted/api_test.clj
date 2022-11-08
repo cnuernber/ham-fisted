@@ -1,7 +1,8 @@
 (ns ham-fisted.api-test
   (:require [clojure.test :refer [deftest is]]
             [ham-fisted.api :as hamf]
-            [ham-fisted.lazy-noncaching :as lznc]))
+            [ham-fisted.lazy-noncaching :as lznc])
+  (:import [java.util BitSet]))
 
 
 
@@ -67,3 +68,21 @@
 
 (deftest compare-seq-with-nonseq
   (is (not (= (hamf/vec (range 10)) :a))))
+
+
+(deftest BitsetSet
+  (let [bs (doto (BitSet.)
+             (.set 1)
+             (.set 10))]
+    (is (= [1 10] (hamf/->random-access (hamf/int-array bs))))
+    (is (= [1.0 10.0] (->> bs
+                           (lznc/map (hamf/long-to-double-function v (double v)))
+                           (hamf/vec))))))
+
+
+(deftest char-array-reduction
+  (let [cv (hamf/char-array [20 30])]
+    (is (= [(char 20) (char 30)]
+           (hamf/reduce conj [] cv))))
+  (let [cv (hamf/char-array "hey")]
+    (is (= [\h \e \y] (hamf/reduce conj [] cv)))))

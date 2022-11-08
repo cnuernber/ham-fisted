@@ -5,10 +5,12 @@
             TimeUnit]
            [java.util Iterator Set Map RandomAccess]
            [java.util.concurrent ConcurrentHashMap]
-           [ham_fisted ParallelOptions BitmapTrieCommon$Box ITypedReduce]
-           [clojure.lang IteratorSeq IReduceInit PersistentHashMap]
-           [java.util Spliterator]
-           [ham_fisted Reductions$ReduceConsumer Reductions]
+           [ham_fisted ParallelOptions BitmapTrieCommon$Box ITypedReduce IFnDef
+            ICollectionDef ArrayLists$ObjectArrayList]
+           [clojure.lang IteratorSeq IReduceInit PersistentHashMap IFn$OLO IFn$ODO Seqable]
+           [java.util Spliterator BitSet Collection Iterator]
+           [ham_fisted Reductions$ReduceConsumer Reductions Transformables IFnDef$OLO
+            ArrayLists]
            [java.util.logging Logger Level])
   (:refer-clojure :exclude [map pmap concat]))
 
@@ -228,6 +230,120 @@
            (map (fn [l r] (.get ^Future l)) submissions lookahead)
            (map (fn [l] (queue-take queue)) lookahead))
          (Reductions/iterableMerge mergeFn))))
+
+
+(defn- bitset-reduce
+  [^BitSet coll rfn init]
+  (let [^IFn$OLO rfn (if (instance? IFn$OLO rfn)
+                       rfn
+                       (reify IFnDef$OLO
+                         (invokePrim [f acc v]
+                           (rfn acc v))))]
+    (loop [bit (.nextSetBit coll 0)
+           acc init]
+      (if (and (>= bit 0) (not (reduced? init)))
+        (recur (.nextSetBit coll (unchecked-inc bit))
+               (.invokePrim rfn acc bit))
+        init))))
+
+
+(deftype ^:private BitSetIterator [^{:unsynchronized-mutable true
+                                     :tag long} setbit
+                                   ^BitSet data]
+  Iterator
+  (hasNext [this] (not (== setbit -1)))
+  (next [this] (let [retval setbit
+                     nextbit (.nextSetBit data (unchecked-inc setbit))]
+                 (set! setbit (long (if (== nextbit -1) -1 nextbit)))
+                 retval)))
+
+
+(extend-protocol protocols/ToIterable
+  Object
+  (convertible-to-iterable? [item] (or (instance? Iterable item)
+                                       (instance? Seqable item)
+                                       (.isArray (.getClass item))))
+  (->iterable [item]
+    (cond
+      (instance? Iterable item)
+      item
+      (protocols/convertible-to-collection? item)
+      (protocols/->collection item)
+      :else
+      (RuntimeException. "Item is not iterable"))))
+
+
+(extend-protocol protocols/ToCollection
+  Object
+  (convertible-to-collection? [item] (or (instance? Collection item)
+                                         (instance? Seqable item)
+                                         (.isArray (.getClass item))))
+  (->collection [item]
+    (cond
+      (instance? Collection item)
+      item
+      (.isArray (.getClass item))
+      (ArrayLists/toList item)
+      (instance? Map item)
+      (.entrySet ^Map item)
+      (instance? Seqable item)
+      (seq item)
+      :else
+      (RuntimeException. "Item is not iterable")))
+  BitSet
+  (convertible-to-collection? [item] true)
+  (->collection [item]
+    (reify
+      ICollectionDef
+      (add [c obj]
+        (let [obj (int obj)
+              retval (.get item obj)]
+          (.set item (int obj))
+          retval))
+      (remove [c obj]
+        (let [obj (int obj)
+              retval (.get item obj)]
+          (.clear item obj)
+          retval))
+      (clear [c] (.clear item))
+      (size [c] (.cardinality item))
+      (iterator [c] (BitSetIterator. (.nextSetBit item 0) item))
+      (toArray [c] (let [alist (ArrayLists$ObjectArrayList. (.cardinality item))]
+                     (.addAllReducible alist c)
+                     (.toArray alist)))
+      IReduceInit
+      (reduce [c rfn init] (bitset-reduce item rfn init)))))
+
+
+(extend-protocol protocols/Reduction
+  nil
+  (reducible? [coll] true)
+  (reduce [coll rfn init]
+    init)
+  Object
+  (reducible? [coll] (instance? Iterable coll))
+  (reduce [coll rfn init]
+    (cond
+      (instance? ITypedReduce coll)
+      (cond
+        (instance? IFn$ODO rfn)
+        (.doubleReduction ^ITypedReduce coll rfn init)
+        (instance? IFn$OLO rfn)
+        (.longReduction ^ITypedReduce coll rfn init)
+        :else
+        (.reduce ^ITypedReduce coll rfn init))
+      (instance? IReduceInit coll)
+      (.reduce ^IReduceInit coll rfn init)
+      (instance? Map coll)
+      (Transformables/iterReduce (.entrySet ^Map coll) init rfn)
+      :else
+      (Transformables/iterReduce coll init rfn)))
+  ;;These aren't iterable but still quite useful
+  BitSet
+  (reducible? [coll] true)
+  (reduce [coll rfn init]
+    (bitset-reduce coll rfn init)))
+
 
 (defn- fjfork [task] (.fork ^ForkJoinTask task))
 (defn- fjjoin [task] (.join ^ForkJoinTask task))

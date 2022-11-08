@@ -67,7 +67,7 @@ public interface LongMutList extends IMutList<Object> {
 
   default boolean addAllReducible(Object obj) {
     final int sz = size();
-    Transformables.longReduce(new IFn.OLO() {
+    Reductions.serialReduction(new IFnDef.OLO() {
 	public Object invokePrim(Object lhs, long rhs) {
 	  ((IMutList)lhs).addLong(rhs);
 	  return lhs;

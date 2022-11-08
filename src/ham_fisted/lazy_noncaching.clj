@@ -1,5 +1,6 @@
 (ns ham-fisted.lazy-noncaching
-  (:require [ham-fisted.iterator :as iterator])
+  (:require [ham-fisted.iterator :as iterator]
+            [ham-fisted.protocols :as protocols])
   (:import [ham_fisted Transformables$MapIterable Transformables$FilterIterable
             Transformables$CatIterable Transformables$MapList Transformables$IMapable
             Transformables$SingleMapList Transformables StringCollection ArrayLists
@@ -40,7 +41,8 @@
   [item]
   (if (or (instance? IReduceInit item)
           (instance? IReduce item)
-          (instance? Iterable item))
+          (instance? Iterable item)
+          (protocols/reducible? item))
     item
     (->collection item)))
 
@@ -129,12 +131,12 @@
      (.isArray (.getClass ^Object arg))
      (Transformables$SingleMapList. f nil (ArrayLists/toList arg))
      :else
-     (Transformables$MapIterable. f nil (into-array Iterable (vector (->collection arg))))))
+     (Transformables$MapIterable/createSingle f nil (protocols/->iterable arg))))
   ([f arg & args]
    (let [args (concat [arg] args)]
      (if (every? #(instance? RandomAccess %) args)
        (Transformables$MapList/create f nil (into-array List args))
-       (Transformables$MapIterable. f nil (into-array Iterable ->collection args))))))
+       (Transformables$MapIterable. f nil (into-array Iterable protocols/->iterable args))))))
 
 
 (defn map-indexed
@@ -156,7 +158,7 @@
                                            (mfn)))
                                      coll))))
     :else
-    (Transformables$IndexedMapper. map-fn coll nil)))
+    (Transformables$IndexedMapper. map-fn (protocols/->iterable coll) nil)))
 
 
 (defn concat
@@ -175,7 +177,7 @@
     (instance? Transformables$IMapable coll)
     (.filter ^Transformables$IMapable coll pred)
     :else
-    (Transformables$FilterIterable. pred nil (Transformables/toIterable coll))))
+    (Transformables$FilterIterable. pred nil (protocols/->iterable coll))))
 
 
 (defn remove

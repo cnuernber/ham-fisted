@@ -117,7 +117,7 @@ public interface IMutList<E>
   @SuppressWarnings("unchecked")
   default boolean addAllReducible(Object obj) {
     final int sz = size();
-    Transformables.genericReduce(new IFnDef() {
+    Reductions.serialReduction(new IFnDef() {
 	public Object invoke(Object lhs, Object rhs) {
 	  ((IMutList<E>)lhs).add((E)rhs);
 	  return lhs;

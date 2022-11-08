@@ -35,7 +35,7 @@ public interface DoubleMutList extends IMutList<Object> {
   }
   default boolean addAllReducible(Object obj) {
     final int sz = size();
-    Transformables.doubleReduce(new IFn.ODO() {
+    Reductions.serialReduction(new IFnDef.ODO() {
 	public Object invokePrim(Object lhs, double rhs) {
 	  ((IMutList)lhs).addDouble(rhs);
 	  return lhs;

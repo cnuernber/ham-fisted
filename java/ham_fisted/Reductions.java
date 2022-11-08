@@ -36,23 +36,19 @@ public class Reductions {
   }
 
   public static Object serialReduction(IFn rfn, Object init, Object coll) {
-    if( coll == null) return init;
 
-    if(coll instanceof ITypedReduce) {
-      final ITypedReduce l = (ITypedReduce)coll;
-      if(rfn instanceof IFn.ODO)
-	return l.doubleReduction((IFn.ODO)rfn, init);
-      else if (rfn instanceof IFn.OLO)
-	return l.longReduction((IFn.OLO)rfn, init);
-      else
-	return l.reduce(rfn, init);
-    } else if (coll instanceof IReduceInit) {
-      return ((IReduceInit)coll).reduce(rfn, init);
-    } else if (coll instanceof Map) {
-      return Transformables.iterReduce(((Map)coll).entrySet(), init, rfn);
-    } else {
-      return Transformables.iterReduce(coll, init, rfn);
+    if( coll == null) return init;
+    if( coll instanceof ITypedReduce) {
+      if( rfn instanceof IFn.ODO )
+	return ((ITypedReduce)coll).doubleReduction((IFn.ODO)rfn, init);
+      if( rfn instanceof IFn.OLO )
+	return ((ITypedReduce)coll).longReduction((IFn.OLO)rfn, init);
+      return ((ITypedReduce)coll).reduce(rfn, init);
     }
+    if( coll instanceof IReduceInit) {
+      return ((IReduceInit)coll).reduce(rfn, init);
+    }
+    return Clojure.var("ham-fisted.protocols", "reduce").invoke(coll, rfn, init);
   }
 
   public static Object iterableMerge(IFn mergeFn, final Iterable groups) {
