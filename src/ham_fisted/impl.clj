@@ -6,11 +6,10 @@
            [java.util Iterator Set Map RandomAccess]
            [java.util.concurrent ConcurrentHashMap]
            [ham_fisted ParallelOptions BitmapTrieCommon$Box ITypedReduce IFnDef
-            ICollectionDef ArrayLists$ObjectArrayList]
+            ICollectionDef ArrayLists$ObjectArrayList Reductions$ReduceConsumer
+            Reductions Transformables IFnDef$OLO ArrayLists StringCollection]
            [clojure.lang IteratorSeq IReduceInit PersistentHashMap IFn$OLO IFn$ODO Seqable]
            [java.util Spliterator BitSet Collection Iterator]
-           [ham_fisted Reductions$ReduceConsumer Reductions Transformables IFnDef$OLO
-            ArrayLists]
            [java.util.logging Logger Level])
   (:refer-clojure :exclude [map pmap concat]))
 
@@ -290,6 +289,8 @@
       (seq item)
       :else
       (throw (RuntimeException. (str "Item is not iterable:" (type item))))))
+  String
+  (->collection [item] (StringCollection. item))
   BitSet
   (convertible-to-collection? [item] true)
   (->collection [item]

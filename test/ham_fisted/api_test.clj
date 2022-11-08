@@ -77,7 +77,8 @@
     (is (= [1 10] (hamf/->random-access (hamf/int-array bs))))
     (is (= [1.0 10.0] (->> bs
                            (lznc/map (hamf/long-to-double-function v (double v)))
-                           (hamf/vec))))))
+                           (hamf/vec))))
+    (is (not (nil? (hamf/->collection bs))))))
 
 
 (deftest char-array-reduction
@@ -86,6 +87,7 @@
            (hamf/reduce conj [] cv))))
   (let [cv (hamf/char-array "hey")]
     (is (= [\h \e \y] (hamf/reduce conj [] cv)))))
+
 
 (deftest java-maps-are-iterable
   (is (not (nil? (hamf/->collection (hamf/java-hashmap {:a 1 :b 2}))))))

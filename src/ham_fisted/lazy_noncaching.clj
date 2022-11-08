@@ -27,14 +27,8 @@
     (nil? item) empty-vec
     (instance? Collection item)
     item
-    (instance? Map item)
-    (.entrySet ^Map item)
-    (.isArray (.getClass ^Object item))
-    (ArrayLists/toList item)
-    (instance? String item)
-    (StringCollection. item)
     :else
-    (RT/seq item)))
+    (protocols/->collection item)))
 
 
 (defn ->reducible
