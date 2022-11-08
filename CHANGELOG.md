@@ -1,3 +1,6 @@
+# 1.000-beta-40
+ * maps are iterable...
+
 # 1.000-beta-39
  * Explicit protocols for serial and parallel reduction and reducers.
  * Explicit support for BitSet objects.

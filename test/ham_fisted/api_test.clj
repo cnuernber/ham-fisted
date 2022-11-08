@@ -86,3 +86,6 @@
            (hamf/reduce conj [] cv))))
   (let [cv (hamf/char-array "hey")]
     (is (= [\h \e \y] (hamf/reduce conj [] cv)))))
+
+(deftest java-maps-are-iterable
+  (is (not (nil? (hamf/->collection (hamf/java-hashmap {:a 1 :b 2}))))))

@@ -261,8 +261,7 @@
 (extend-protocol protocols/ToIterable
   Object
   (convertible-to-iterable? [item] (or (instance? Iterable item)
-                                       (instance? Seqable item)
-                                       (.isArray (.getClass item))))
+                                       (protocols/convertible-to-collection? item)))
   (->iterable [item]
     (cond
       (instance? Iterable item)
@@ -270,12 +269,13 @@
       (protocols/convertible-to-collection? item)
       (protocols/->collection item)
       :else
-      (RuntimeException. "Item is not iterable"))))
+      (throw (RuntimeException. (str "Item is not iterable: " (type item)))))))
 
 
 (extend-protocol protocols/ToCollection
   Object
   (convertible-to-collection? [item] (or (instance? Collection item)
+                                         (instance? Map item)
                                          (instance? Seqable item)
                                          (.isArray (.getClass item))))
   (->collection [item]
@@ -289,7 +289,7 @@
       (instance? Seqable item)
       (seq item)
       :else
-      (RuntimeException. "Item is not iterable")))
+      (throw (RuntimeException. (str "Item is not iterable:" (type item))))))
   BitSet
   (convertible-to-collection? [item] true)
   (->collection [item]
