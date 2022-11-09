@@ -408,6 +408,42 @@ ham-fisted.api> (reduce-reducer (reducer-xform->reducer (Sum.) (clojure.core/fil
       (->merge-fn [this] (protocols/->merge-fn reducer)))))
 
 
+(defn reducer->rf
+  "Given a reducer, return a transduce-compatible rf -
+
+```clojure
+ham-fisted.api> (transduce (clojure.core/map #(+ % 2)) (reducer->rfn (Sum.)) (range 200))
+{:sum 20300.0, :n-elems 200}
+```"
+  [reducer]
+  (let [rfn (protocols/->rfn reducer)
+        init-val-fn (protocols/->init-val-fn reducer)]
+    (fn
+      ([] (init-val-fn))
+      ([acc v] (rfn acc v))
+      ([v] (protocols/finalize reducer v)))))
+
+
+(defn reducer->completef
+  "Return fold-compatible pair of [reducef, completef] given a parallel reducer.
+  Note that folded reducers are not finalized as of this time:
+
+```clojure
+ham-fisted.api> (def data (vec (range 200000)))
+#'ham-fisted.api/data
+ham-fisted.api> (r/fold (reducer->completef (Sum.)) (reducer->rfn (Sum.)) data)
+#<Sum@858c206: {:sum 1.99999E10, :n-elems 200000}>
+```"
+  [reducer]
+  (let [rfn (protocols/->rfn reducer)
+        init-val-fn (protocols/->init-val-fn reducer)
+        merge-fn (protocols/->merge-fn reducer)]
+    (fn
+      ([] (init-val-fn))
+      ([l r] (merge-fn l r))
+      ([v] (protocols/finalize reducer v)))))
+
+
 (defn reduce-reducer
   "Serially reduce a reducer.
 
