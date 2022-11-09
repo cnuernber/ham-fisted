@@ -3,6 +3,7 @@
   slower than the java ones but *far* less code so these are used for the
   less-frequently-used primive datatypes - byte, short, char, and float."
   (:require [ham-fisted.iterator :as iterator]
+            [ham-fisted.protocols :as protocols]
             [ham-fisted.print :as pp])
   (:import [ham_fisted ArrayLists ArrayLists$ILongArrayList ArrayLists$IDoubleArrayList
             Transformables ArrayHelpers Casts IMutList
@@ -131,3 +132,44 @@
 (pp/implement-tostring-print CharArrayList)
 (pp/implement-tostring-print FloatArrayList)
 (pp/implement-tostring-print BooleanArrayList)
+
+
+(defn- ladd
+  [^IMutList m v]
+  (.add m v)
+  m)
+
+(defn- lmerge
+  [^IMutList l v]
+  (.addAllReducible l v)
+  l)
+
+
+(extend-protocol protocols/Reducer
+  ArrayLists$ObjectArrayList
+  (->init-val-fn [item] #(ArrayLists$ObjectArrayList.))
+  (->rfn [item] ladd)
+  (finalize [item v] v)
+  ArrayLists$IntArrayList
+  (->init-val-fn [item] #(ArrayLists$IntArrayList.))
+  (->rfn [item] ladd)
+  (finalize [item v] v)
+  ArrayLists$LongArrayList
+  (->init-val-fn [item] #(ArrayLists$LongArrayList.))
+  (->rfn [item] ladd)
+  (finalize [item v] v)
+  ArrayLists$DoubleArrayList
+  (->init-val-fn [item] #(ArrayLists$DoubleArrayList.))
+  (->rfn [item] ladd)
+  (finalize [item v] v))
+
+
+(extend-protocol protocols/ParallelReducer
+  ArrayLists$ObjectArrayList
+  (->merge-fn [l] lmerge)
+  ArrayLists$IntArrayList
+  (->merge-fn [l] lmerge)
+  ArrayLists$LongArrayList
+  (->merge-fn [l] lmerge)
+  ArrayLists$DoubleArrayList
+  (->merge-fn [l] lmerge))
