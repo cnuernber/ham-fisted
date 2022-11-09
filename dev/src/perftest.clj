@@ -11,7 +11,7 @@
             [criterium.core :as crit])
   (:import [java.util HashMap ArrayList Map List Map$Entry]
            [java.util.function BiFunction]
-           [ham_fisted IMutList]
+           [ham_fisted IMutList Sum$SimpleSum]
            [clojure.lang PersistentHashMap])
   (:gen-class))
 
@@ -38,9 +38,9 @@
       :java (bench/benchmark-us (java-hashmap data))
       :test :hashmap-construction
       :n-elems n-elems}
-     (let [method #(api/fast-reduce (fn [m tuple] (get m (nth tuple 1)) m)
-                                    %
-                                    data)
+     (let [method #(api/reduce (fn [m tuple] (get m (nth tuple 1)) m)
+                               %
+                               data)
            clj-d (clj-hashmap data)
            hm-d (hamf-hashmap data)
            jv-d (java-hashmap data)]
@@ -53,7 +53,7 @@
      ;;clojure.core/reduce.
      ;;Additionally, destructuring the java hashmap's key-value pair costs and exorbitant
      ;;amount.
-     (let [method #(api/fast-reduce (fn [^long sum ^long v] (+ sum v))
+     (let [method #(api/reduce (fn [^long sum ^long v] (+ sum v))
                                     0
                                     (api/map-values %))
            clj-d (clj-hashmap data)
@@ -189,7 +189,7 @@
         :n-elems n-elems
         :test :vector-access})
      (let [method (fn [vdata]
-                    (api/fast-reduce + 0 vdata))
+                    (api/reduce + 0 vdata))
            clj-d (vec data)
            hm-d (api/vec data)
            jv-d (api/array-list data)]
@@ -263,16 +263,12 @@
                                          (lznc/map ut1)
                                          (lznc/map ut2)
                                          (lznc/filter utp)
-                                         (api/fast-reduce (api/double-accumulator
-                                                           acc v (+ (double acc) v))
-                                                          0.0)))
+                                         (api/reduce-reducer (Sum$SimpleSum.))))
        :typed (bench/benchmark-us (->> (api/range n-elems)
                                        (lznc/map mfn1)
                                        (lznc/map mfn2)
                                        (lznc/filter pred)
-                                       (api/fast-reduce (api/double-accumulator
-                                                         acc v (+ (double acc) v))
-                                                        0.0)))})))
+                                       (api/reduce-reducer (Sum$SimpleSum.))))})))
 
 
 (defn typed-vs-untyped-parallel-reduction
@@ -315,7 +311,7 @@
                                        (lznc/map mfn1)
                                        (lznc/map mfn2)
                                        (lznc/filter pred)
-                                       (api/fast-reduce (api/double-accumulator
+                                       (api/reduce (api/double-accumulator
                                                          acc v (+ (double acc) v))
                                                         0.0)))
        :typed-consumer (bench/benchmark-us (->> (api/range n-elems)
