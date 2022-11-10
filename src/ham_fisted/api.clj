@@ -469,6 +469,71 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
   (reduce-reducer (compose-reducers reducers) coll))
 
 
+(defmacro declare-double-consumer-preducer!
+  "Bind a double consumer as a parallel reducer.
+
+  Consumer must implement java.util.function.DoubleConsumer,
+  ham_fisted.Reducible and clojure.lang.IDeref.
+
+  Returns instance of type bound.
+
+```clojure
+user> (require '[ham-fisted.api :as hamf])
+nil
+user> (import '[java.util.function DoubleConsumer])
+java.util.function.DoubleConsumer
+user> (import [ham_fisted Reducible])
+ham_fisted.Reducible
+user> (import '[clojure.lang IDeref])
+clojure.lang.IDeref
+user> (deftype MeanR [^{:unsynchronized-mutable true :tag 'double} sum
+                      ^{:unsynchronized-mutable true :tag 'long} n-elems]
+        DoubleConsumer
+        (accept [this v] (set! sum (+ sum v)) (set! n-elems (unchecked-inc n-elems)))
+        Reducible
+        (reduce [this o]
+          (set! sum (+ sum (.-sum ^MeanR o)))
+          (set! n-elems (+ n-elems (.-n-elems ^MeanR o)))
+          this)
+        IDeref (deref [this] (/ sum n-elems)))
+user.MeanR
+user> (hamf/declare-double-consumer-preducer! MeanR (MeanR. 0 0))
+nil
+user> (hamf/preduce-reducer (MeanR. 0 0) (hamf/range 200000))
+99999.5
+```"
+  [consumer-type constructor]
+  `(do (extend-type ~consumer-type
+         protocols/Reducer
+         (->init-val-fn [r#] (fn [] ~constructor))
+         (->rfn [r#] double-consumer-accumulator)
+         (finalize [r# v#] @v#)
+         protocols/ParallelReducer
+         (->merge-fn [r#] reducible-merge))
+       ~constructor))
+
+
+(defmacro declare-consumer-preducer!
+  "Bind a consumer as a parallel reducer.
+
+  Consumer must implement java.util.function.Consumer,
+  ham_fisted.Reducible and clojure.lang.IDeref.
+
+  Returns instance of type bound.
+
+  See documentation for [[declare-double-consumer-preducer!]].
+```"
+  [consumer-type constructor]
+  `(do (extend-type ~consumer-type
+         protocols/Reducer
+         (->init-val-fn [r#] (fn [] ~constructor))
+         (->rfn [r#] consumer-accumulator)
+         (finalize [r# v#] @v#)
+         protocols/ParallelReducer
+         (->merge-fn [r#] reducible-merge))
+       ~constructor))
+
+
 (def ^:private obj-ary-cls (Class/forName "[Ljava.lang.Object;"))
 
 
@@ -2441,11 +2506,11 @@ ham-fisted.api> @*1
 
 
 (defn sum-fast
-  "Fast simple double summation.  Does not do any nan checking or summation compensation
-  but does parallelize the summation for huge containers leading to some
-  additional numeric stability."
+  "Fast simple serial double summation.  Does not do any nan checking or summation
+  compensation."
   ^double [coll]
-  (preduce-reducer (Sum$SimpleSum.) {:min-n 10000} coll))
+  ;;Using raw reduce call as opposed to reduce-reducer to avoid protocol dispatch.
+  @(reduce double-consumer-accumulator (Sum$SimpleSum.) coll))
 
 
 (defmacro double-predicate
@@ -2898,7 +2963,6 @@ ham-fisted.api> @*1
         (== lhs rhs)))
     (and (== (count lhs) (count rhs))
          (every? identity (map double-eq lhs rhs)))))
-
 
 
 (comment

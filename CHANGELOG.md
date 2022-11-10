@@ -1,6 +1,14 @@
+# 1.000-beta-42
+ * declare-double-consumer-preducer! - given type derived from DoubleConsumer
+   and a few others, create a parallel reducer.
+ * declare-consumer-preducer! - similar to above, incoming data is not expected
+   to be a stream of double values.
+
 # 1.000-beta-41
- * ->collection is protocol driven.
- 
+ * ->collection is protocol driven allowing new non-collection things like bitmaps
+   to be turned temporarily into collections.  This means that reductions and collection
+   conversion are protocol driven.
+
 # 1.000-beta-40
  * maps are iterable...
 
