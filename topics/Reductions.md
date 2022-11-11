@@ -1,68 +1,63 @@
 # Reductions
 
-In ham-fisted I have attempted to extend the concept of reduction in Clojure a few
-ways taking influence from java streams and Clojure transducers.  The most important
-way is a formal definition of a parallel reduction.
+The ham-fisted project extends the concept of Clojure's `reduce` in a few ways,
+taking influence from java streams and Clojure transducers.  The most important
+way is a formal definition of a parallel reduction (analogous to `pmap` for `map`).
 
 
-We are only interested in the 4 argument form of reductions `(reduce rfn init coll)`.
-It turns out there are type issues with the 3 argument form `(reduce rfn coll)` as the
-reduction function - `rfn`'s leftmost argument could either be a value
-from the collection *or* an accumulated value.  While there are reductions where the
-accumulator is in the set of objects in the collection such as numeric `+`, these are
-not the most general and are a special case of a reduction where the accumulator may
-be a different type entirely than the values in the collection.
+Most interesting is the 3 argument form of `(reduce rfn init coll)`.  Problems
+exist with the 2 argument form `(reduce rfn coll)` as the reduction function -
+`rfn`'s leftmost argument is sometimes a value from the collection and at other
+times an accumulated value.  Some reductions have the property that the
+accumulator is in the set of objects in the collection (such as numeric `+`),
+these reductions are not the most general. They are a special case of a
+reduction where the accumulator may be a different type entirely than the values
+in the collection.
 
 
 ## Parallelizable Containers
 
+Efficient parallel reductions depend on parallelizable containers.
 
-In Java there are three types of containers that we can efficiently parallelize.
-The first two are finite contains that are either randomly addressable or have a
-spliterator design where we can divide the elements roughly but perhaps not
-precisely in half.  A array is an example of a randomly addressable container
-while a hashtable is an example of a container that allows us to split our iterator
-ending up with 2 iterators and dividing the elements roughly in half.
+Java has three types of containers that operate efficiently in parallel.
 
+1) Finite random access containers (ex: an array)
+2) Containers that can provide spliterators (ex: hashtable)
+3) A concatenation of containers suitable for parallel computation over the parts
 
-The third type of container is a concatenation many other containers
-where we can parallelize reduction across each sub-container in one of two ways, either
-by in parallel reducing each sub-container or by performing a parallelized reduction
-across each sub-container container.
-
-
-Regardless, we end up with a few types of containers we can parallelize; random access
-containers, maps and sets or more generally anything with a correct spliterator
-implementation, and concatenations of sub-containers each of which may not itself
-have a parallelizable reduction.
+These three types of containers we can parallelize; random access containers,
+maps and sets (or more generally anything with a correct spliterator
+implementation), and concatenations of sub-containers each of which may not
+itself have a parallelizable reduction.
 
 
 ## Parallelized Reduction
 
-A parallelized reduction must generally have a way of splitting up elements of the data
-source.  Then it will create many reduction contexts each of which will perform a
-serial reduction.  Finally it will need to merge the results back together.  I think this
-is perhaps a clearer definition of map-reduce than map-reduce but either way I think it
-is useful to compare a parallelized reduction in detail to a serial reduction.
+A parallelized reduction works by splitting up elements of the data source.
+Many reduction contexts operate simultaneous each of which will perform a serial
+reduction.  A separate step merges the results back together.  This may be
+thought of as the "true" map-reduce, but either way it may be useful to compare
+a parallelized reduction in detail to a serial reduction.
 
 
-So our parallelizable reduction entry point must have at least four things from the user:
+To perform a parallel reduction, four things must be provided:
 
-* `init-val-fn` - A function to produce initial accumulators for each reduction context.
-* `rfn` - a function that takes an accumulator and a value and updates the accumulator.  This
-  is the typical reduction operator used for clojure's `reduce` function.
+* `init-val-fn` - a function to produce initial accumulators for each reduction context
+* `rfn` - a function that takes an accumulator and a value and updates the accumulator ---  This
+  is the typical reduction function passed as the first argument to Clojure's `reduce`
 * `merge-fn` - a function that takes two accumulators and merges them to produces one
   result accumulator.
+* `coll` - a collection of items to reduce to a single output
 
 
-Here are the function signatures:
+Here are the function signatures (Keep in mind ... `preduce`:`reduce` :: `pmap`:`map`):
 
 ```clojure
 (defn preduce [init-val-fn rfn merge-fn coll] ...)
 ```
 
-We should note that the java stream 'collect' method takes the same four arguments where
-the collection is the `this` object:
+Notably Java streams have a 'collect' method that takes the same four arguments
+where the collection is the `this` object:
 
 ```java
 interface Stream<E> {
@@ -73,29 +68,30 @@ interface Stream<E> {
 ```
 
 
-The parallelizable reduction breaks down in a serial reduction when the init-val-fn is called
-once with no arguments and the entire collection is passed along with rfn to reduce:
+The parallelizable reduction operates as a a serial reduction if the init-val-fn
+is called exactly once with no arguments and the entire collection is passed
+along with rfn to reduce:
 
 ```clojure
 (reduce rfn (init-val-fn) coll)
 ```
 
-From there we can imagine `preduce` switching on the type of coll and performing one of four
-distinct types of reductions:
+From there `preduce` essentially switches on the type of coll and performs one
+of four distinct types of reductions:
 
  * serial
- * parallelizing over and index space.
- * parallelizing over and spliterator space.
- * parallelizing over sub-containers.
+ * parallel over and index space
+ * parallel over and spliterator space
+ * parallel over sub-containers
 
 
 ## Map, Filter, Concat Chains
 
 
-It is common in functional programming or perhaps ubiquitous to implement your data
-transformations as chains of map, filter, and concat operations.  Analyzing sequences
-of these operations yields a few insights with regards to reduction in general
-and parallelization of reductions.
+It is common in functional programming to implement data transformations as
+chains of `map`, `filter`, and `concat` operations.  Analyzing sequences of
+these operations is insight with regards to reduction in general and
+parallelization of reductions.
 
 
 The first insight is found in the Clojure transducer pathways and involves collapsing
@@ -120,10 +116,12 @@ public Object reduce(IFn rfn, Object init) {
 
 This results in 'collapsing' the reduction allowing the source to perform the
 iteration across its elements and simply dynamically creating a slightly more
-complex reduction function, `rfn`.  A similar pathway exists for map as we can always delegate
-up the chain making a slightly more complex reduction function as long as we are reducing
-over a single source of data.  This same optimization is done automatically Clojure's
-transducer implementations.
+complex reduction function, `rfn`.  A similar pathway exists for `map` as we can
+always delegate up the chain making a slightly more complex reduction function
+as long as we are reducing over a single source of data.  This optimization
+leads to many fewer function calls and intermediate collections when compared
+with naive implementations of `map` and `filter`. Clojure's transducers do this
+automatically.
 
 Collapsing the reduction also allows us to parallelize reductions like the initial one
 stated before as if the filter object has a parallelReduction method that does an identical
@@ -136,17 +134,19 @@ public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn) {
 }
 ```
 
-In this way we can parallelize reductions over map,filter chains assuming the source data
-itself allows for a parallelized reduction.  This optimization is *not* done in
-transducer pathways but it *is* done with java streams.
+If the source collection itself allows for parallel reduction, then it's
+possible to achieve similar 'collapsing' in `preduce`.  Clojure's transducers do
+not have this particular optimization for parallel reduction, but Java streams
+do.
 
 
-These optimizations are only available if we use the 4 argument form of reduce *and* if
-we assume that map, filter, and concat are lazy and non-caching.
+Also worth noting, these optimizations are only available if we use the 4
+argument form of reduce *and* if we assume that `map`, `filter`, and `concat` are lazy
+and non-caching.
 
 
-Given those assumtions, however, this means that we can parallelize a reduction over the
-entries, keys or values of map using simple primitive composition:
+With those assumptions in place it is possible to parallelize a reduction over
+the entries, keys or values of map using simple primitive composition:
 
 ```clojure
 user> (require '[ham-fisted.api :as hamf])
@@ -163,33 +163,34 @@ user> (hamf/preduce + + + (lznc/map key data))
 
 ## Stream-based Reductions
 
-Java streams have an interesting parallelization design that currently suffers from
-two flaws, one minor and one major.
+Java streams have a notion of parallel reduction built-in. Their design suffers
+from two flaws, one minor and one major.
 
-The first minor is that you can ask a stream for a parallel version of itself and it will
-give you one if possible else return a copy of itself.  Unfortunately this only
-works on the first stream in a pipeline so for instance:
+The first minor flaw is that you can ask a stream for a parallel version of
+itself and it will give you one if possible else return a copy of itself.
+Unfortunately this only works on the first stream in a pipeline so for instance:
 
 ```java
   coll.stream().map().filter().parallel().collect();
 ```
 
-yeilds a serial reduction while:
+yields a serial reduction while:
 
 ```java
   coll.stream().parallel().map().filter().collect();
 ```
 
-yeilds a parallel reduction.
+yields a parallel reduction.
 
-This is unfortunate because it means you must go back in time
-to get a parallel version of the stream if you want to perform a parallel collection;
-something that may or may not be easily done at the point in time when you decide you do
-in fact want to parallel reduction.
+This is unfortunate because it means you must go back in time to get a parallel
+version of the stream if you want to perform a parallel collection; something
+that may or may not be easily done at the point in time when you decide you do
+in fact want to parallel reduction (especially in library code).
 
-The second more major flaw is stream-based parallelization is hampered additionally in that
-it does not allow the user to pass in a fork-join pool at any point and thus it only works
-on cpu-based reductions that can never hang in the ForkJoinPool's common pool.
+The second and more major flaw is that stream-based parallelization does not
+allow the user to pass in their own fork-join pool at any point. This limits use
+to the built in pool where it's pad form to park threads or do blocking
+operations.
 
 
 ## reducers.clj And Parallel Folds
@@ -233,12 +234,13 @@ such as `(take 15)`.  One interesting difference is that state is done with a cl
 the reduction function as opposed to providing a custom accumulator that wraps the user's
 accumulator but tracks state.
 
-One aspect we haven't discussed but that is also handled here in an interesting manner
-is that whether a reduction can be parallelized or not is a function both of the container
-*and* of the reducer.  `reducers.clj` does a sort of double-dispatch where the transducer
-may choose to implement the parallel reduction, called `coll-fold` or not and is queried
-first and if it allows parallel reduction then the collection itself is dispatched upon.
-Overall this is a great, safe choice because it disallows completely parallel dispatch if the
+One aspect we haven't discussed but that is also handled here in an interesting
+manner is that whether a reduction can be parallelized or not is a function both
+of the container *and* of the reducer.  `reducers.clj` does a sort of
+double-dispatch where the transducer may choose to implement the parallel
+reduction, called `coll-fold` or not and is queried first and if it allows
+parallel reduction then the collection itself is dispatched.  Overall this is a
+great, safe choice because it disallows completely parallel dispatch if the
 transducer or the collection do not support it.
 
 
@@ -248,8 +250,8 @@ If we combine all three functions: `init-val-fn`, `rfn`, and `merge-fn` into one
 then we get a ParallelReducer, defined in protocols.clj.  This protocol allows the
 user to pass a single object into a parallelized reduction as opposed to three functions
 which is useful when we want to have many reducers reduce over a single source of data.
-A `finalize` method is added in order to allow compositions of reducers and to allow
-reducers to elide state and information from end users:
+A `finalize` method is added in order to allow compositions of reducers, and to allow
+reducers to hide state and information from end users:
 
 ```clojure
 (defprotocol ParallelReducer
@@ -270,14 +272,17 @@ two initial values and returns a new initial value.")
 reduced but before it is returned to the user.  Identity is a reasonable default."))
 ```
 
-There are defaults to the reducer protocol for an IFn which simple assumes it can be
-called with no arguments for a initial value and two arguments for both reduction
-and merge.  This works for things like `+` and `*`.  Additionally there are implementations
-provided for the ham_fisted Sum (Kahans compensated) and SimpleSum [DoubleConsumer](https://docs.oracle.com/javase/8/docs/api/java/util/function/DoubleConsumer.html) classes.
+There are defaults to the reducer protocol for an IFn which assumes it can be
+called with no arguments for a initial value and two arguments for both
+reduction and merge.  This works for things like `+` and `*`.  Additionally
+there are implementations provided for the ham_fisted Sum (Kahans compensated)
+and SimpleSum
+[DoubleConsumer](https://docs.oracle.com/javase/8/docs/api/java/util/function/DoubleConsumer.html)
+classes.
 
 
 With the three functions bundled into one logical protocol or object it is easy then
-to create complex or aggregate yet efficient parallelized reductions:
+to create complex (aggregate) and efficient parallelized reductions:
 
 ```clojure
 user> (require '[ham-fisted.api :as hamf])
@@ -287,20 +292,25 @@ user> (hamf/preduce-reducers {:sum + :product *} (range 1 20))
 user>
 ```
 
+This goes over the data in parallel, exactly once.
+
+
 ## Consumers, Transducers, and `rfn` Chains
 
-If we look at the reduction in terms of a push model as opposed to a pull model where the
-stream will push data into a consumer then we can implement similar map,filter chains
-that are based around create a new consumer that takes the older consumer and the predicate
-or mapping function.  In this way we can both implement a pipeline on the input stream
-and we can implement perhaps diverging pipelines on each reduction function in a
-multiple reducer scenario.  Since our init and merge functions operate accumulator
-space then remains unchanged so we can build up more and more sophisticated reduction
-functions and then still perform a parallelized reduction.  We then build up things in reverse
-which is the reason that `comp` works in reverse when working with transducers.
+If we look at the reduction in terms of a push model as opposed to a pull model
+where the stream will push data into a consumer then we can implement similar
+chains or map and filter.  These are based on creating a new consumer that takes
+the older consumer and the filter predicate or mapping function.  In this way
+one can implement a pipeline on the input stream, or perhaps diverging pipelines
+on each reduction function in a multiple reducer scenario.  Since the init and
+merge functions operate in accumulator space, which remains unchanged, one can
+develop up increasingly sophisticated reduction functions and still perform a
+parallelized reduction.  Naturally, everything is composed in reverse (push
+instead of pull), which is the reason that `comp` works in reverse when working
+with transducers.
 
-In fact, given that we now know the game about composing reduction functions, the definition
-of the single argument `clojure.core/filter` I think is more clear:
+In fact, given that the covers are pulled back on composing reduction functions,
+the definition of the single argument `clojure.core/filter` becomes more clear:
 
 ```clojure
 (defn filter
@@ -325,20 +335,21 @@ function that when called in the two argument form is identical to the result ab
 (although expressed in pure Clojure as opposed to Java).
 
 
-If we start with the concept that a reduction starts at the collection, flows
+Starting with the concept that a reduction begins at the collection, flows
 downward through the pipeline and bottoms out at the reducer then the
-lazy-noncaching namespace and java streams implement parallelization flowing from
-the container downward while consumer chains and transducers implement the pipeline
-flowing up from the reducer itself.  Thus we can build the pipeline either downward
-from the source or upward from the final reduction and we get slightly different properties
-but regardless one trait we would like to ensure correctness is to disable parallelization
-where it will cause an incorrect answer - such as in a stateful transducer.
+lazy-noncaching namespace and Java streams implement parallelization flowing
+from the container downward. Separately consumer chains and transducers
+implement the pipeline flowing up from the reducer itself.  Thus building the
+pipeline either downward from the source or upward from the final reduction
+produces subtly different properties.  Regardless, every system must disable
+parallelization where it will cause an incorrect answer (to ensure correctness)
+- such as in a stateful transducer.
 
 
 Broadly speaking, however, it can be faster to enable full parallelization and
-filter invalid results than it is to force an early serialization our problem and
-thus lose lots of our parallelization potential.  If we are concerned with
-performance we should attempt to move our transformations as much as possible into a
+filter invalid results than it is to force an early serialization our problem
+and thus lose lots of our parallelization potential.  When concerned with
+performance, attempt to move transformations as much as possible into a
 parallelizable domain.
 
 
@@ -369,27 +380,28 @@ default Object doubleReduction(IFn.ODO op, Object init);
 default Object longReduction(IFn.OLO op, Object init)
 ```
 
-where the next incoming value is a primitive object but the accumulator is still a generic
-object allows us to use things like `DoubleConsumers` and `LongConsumers` and avoid boxing our
-stream.  Furthermore if the aforementioned map and filter primitives are careful about
-their rfn composition we can maintained a completely primitive typed pipeline through our
-entire processing chain.
+where the next incoming value is a primitive object but the accumulator is still
+a generic object allows us to use things like `DoubleConsumers` and
+`LongConsumers` and avoid boxing the stream.  Furthermore if the aforementioned
+`map` and `filter` primitives are careful about their rfn composition we can
+maintain a completely primitive typed pipeline through an entire processing
+chain.
 
 
 ## One Final Note About Performance
 
 Collapsing reductions brings the source iteration pathway closer to the final
-reduction pathway in terms of machine stack space which I believe allows HotSpot to
+reduction pathway in terms of machine stack space which allows HotSpot to
 optimize the entire chain more readily.  Regardless of how good HotSpot gets,
 however, parallelizing will nearly always result in a larger win but both work
-together to enable peak performance on the JVM given arbitrary partially typed compositions
-of sequences and reductions.
+together to enable peak performance on the JVM given arbitrary partially typed
+compositions of sequences and reductions.
 
-If we increase the data size yet again then we can of course use the same design to
-distribute the computations to different machines.  As some people have figured out, however,
-simply implementing the transformations you need efficiently reduces or completely eliminates
-the need to distribute computation in the first place leading to a simpler, easier to test and
-more robust system.
+When increasing the data size yet again, one can of course use the same design
+to distribute the computations to different machines.  As some people have
+figured out, however, simply implementing the transformations you need
+efficiently reduces or completely eliminates the need to distribute computation
+in the first place leading to a simpler, easier to test and more robust system.
 
 Ideally we can make achieving great performance for various algorithms clear and easy and
 thus avoid myriad of issues regarding distributing computing in the first place.
