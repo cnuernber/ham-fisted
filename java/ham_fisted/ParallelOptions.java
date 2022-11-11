@@ -37,4 +37,8 @@ public class ParallelOptions {
 	 ForkJoinPool.commonPool(), ForkJoinPool.getCommonPoolParallelism(),
 	 CatParallelism.SEQWISE, 5000);
   }
+  public ParallelOptions minN(long newMinN) {
+    return new ParallelOptions(newMinN, maxBatchSize, ordered, pool, parallelism,
+			       catParallelism, putTimeoutMs);
+  }
 }

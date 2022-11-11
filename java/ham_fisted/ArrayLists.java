@@ -1183,6 +1183,13 @@ public class ArrayLists {
 				       bc == null ? LongArrays.binarySearch(data, sidx, sidx+size(), vv) : LongArrays.binarySearch(data, sidx, sidx+size(), vv, bc));
       return ILongArrayList.super.binarySearch(v, c);
     }
+    public Object longReduction(IFn.OLO rfn, Object init) {
+      final int ee = size();
+      final long[] d = data;
+      for(int idx = 0; idx < ee && !RT.isReduced(init); ++idx)
+	init = rfn.invokePrim(init, data[idx+sidx]);
+      return init;
+    }
     public void longForEach(LongConsumer c) {
       final int es = eidx;
       final long[] d = data;
