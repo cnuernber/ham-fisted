@@ -1236,8 +1236,7 @@ public class ArrayLists {
       }
       return d;
     }
-    public void addLong(long obj) {
-      int val = RT.intCast(obj);
+    public void addLong(long val) {
       final int ne = nElems;
       final long[] d = ensureCapacity(ne+1);
       d[ne] = val;
@@ -1248,7 +1247,7 @@ public class ArrayLists {
       idx = wrapCheckIndex(idx, nElems);
       if (idx == nElems) { add(obj); return; }
 
-      final int val = RT.intCast(Casts.longCast(obj));
+      final long val = Casts.longCast(obj);
       final int ne = nElems;
       final long[] d = ensureCapacity(ne+1);
       System.arraycopy(d, idx, d, idx+1, ne - idx);

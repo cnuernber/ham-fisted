@@ -91,3 +91,15 @@
 
 (deftest java-maps-are-iterable
   (is (not (nil? (hamf/->collection (hamf/java-hashmap {:a 1 :b 2}))))))
+
+
+(deftest set-add-long-val
+  (let [alist (hamf/long-array-list)]
+    (.add alist Long/MAX_VALUE)
+    (is (= [Long/MAX_VALUE] alist))
+    (.set alist 0 Long/MAX_VALUE)
+    (is (= [Long/MAX_VALUE] alist))
+    (is (= [Long/MAX_VALUE] (vec alist)))
+    (let [sl (.subList alist 0 1)]
+      (is (= [Long/MAX_VALUE] sl))
+      (is (= [Long/MAX_VALUE] (vec sl))))))
