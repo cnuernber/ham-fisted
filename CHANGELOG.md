@@ -1,3 +1,6 @@
+# 1.000-beta-45
+ * Small fixes and making helpers public for dtype-next work.
+ 
 # 1.000-beta-43
  * long lists really are long lists - copy-paste mistake from int lists.
  

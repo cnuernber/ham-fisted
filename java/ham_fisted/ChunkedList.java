@@ -220,7 +220,7 @@ public final class ChunkedList {
 					  + String.valueOf(sidx) + ")");
   }
 
-  static final int indexCheck(int startidx, int nElems, int idx) {
+  public static final int indexCheck(int startidx, int nElems, int idx) {
     if (idx < 0)
       throw new IndexOutOfBoundsException("Index underflow: " + String.valueOf(idx));
     if(idx >= nElems)
