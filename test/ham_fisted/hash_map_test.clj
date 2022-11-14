@@ -378,15 +378,6 @@
   (is (not (.equals (api/immut-set [:a :b :c]) nil))))
 
 
-(deftest concurrentCompute
-  ;;Testing high contention first
-  (let [n-elems 10000
-        tdata (mapv #(rem (unchecked-long %) 7) (range n-elems))
-        answer (api/frequencies tdata)
-        panswer (api/pfrequencies tdata)]
-    (is (= answer panswer))))
-
-
 
 ;;Standard tests
 

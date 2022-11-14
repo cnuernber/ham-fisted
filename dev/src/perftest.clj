@@ -11,7 +11,7 @@
             [criterium.core :as crit])
   (:import [java.util HashMap ArrayList Map List Map$Entry]
            [java.util.function BiFunction]
-           [ham_fisted IMutList Sum$SimpleSum]
+           [ham_fisted IMutList Sum$SimpleSum Sum]
            [clojure.lang PersistentHashMap])
   (:gen-class))
 
@@ -389,7 +389,7 @@
 (defn frequencies-perftest
   []
   (log/info "frequencies")
-  (for [n-elems [10 1000 10000]]
+  (for [n-elems [10 1000 10000 100000]]
     (let [tdata (lznc/map #(rem (unchecked-long %) 7) (api/range n-elems))]
       {:n-elems n-elems
        :test :frequencies
@@ -397,6 +397,18 @@
        :gbr-consumer (bench/benchmark-us (api/frequencies-gbr-consumer tdata))
        :bespoke (bench/benchmark-us (api/frequencies tdata))
        :clj (bench/benchmark-us (frequencies tdata))})))
+
+
+(defn serial-verse-parallel-sum
+  []
+  (log/info "parallel serial sum")
+  (for [n-elems [10000 100000 10000000]]
+    {:n-elems n-elems
+     :test :serial-parallel-sum
+     :serial (bench/benchmark-us (api/reduce-reducer (Sum.)
+                                                     (api/range n-elems)))
+     :parallel (bench/benchmark-us (api/preduce-reducer (Sum.)
+                                                        {:min-n 1000} (api/range n-elems)))}))
 
 
 (defn object-list-perftest
