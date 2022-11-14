@@ -389,12 +389,14 @@
 (defn frequencies-perftest
   []
   (log/info "frequencies")
-  (let [n-elems 10000
-        tdata (mapv #(rem (unchecked-long %) 7) (range n-elems))]
-    [{:n-elems n-elems
-      :test :frequencies
-      :clj (bench/benchmark-us (frequencies tdata))
-      :hamf (bench/benchmark-us (api/frequencies tdata))}]))
+  (for [n-elems [10 1000 10000]]
+    (let [tdata (lznc/map #(rem (unchecked-long %) 7) (api/range n-elems))]
+      {:n-elems n-elems
+       :test :frequencies
+       :gbr-inc (bench/benchmark-us (api/frequencies-gbr-inc tdata))
+       :gbr-consumer (bench/benchmark-us (api/frequencies-gbr-consumer tdata))
+       :bespoke (bench/benchmark-us (api/frequencies tdata))
+       :clj (bench/benchmark-us (frequencies tdata))})))
 
 
 (defn object-list-perftest

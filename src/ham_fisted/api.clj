@@ -53,7 +53,7 @@
             IndexedLongConsumer IndexedConsumer ITypedReduce ParallelOptions Reductions
             IFnDef$LO IFnDef$LL IFnDef$DO IFnDef$DD IFnDef$DDD
             IFnDef$LLL ParallelOptions$CatParallelism IFnDef$OO IFnDef$OOO IFnDef$ODO
-            IFnDef$OLO IFnDef$OD IFnDef$OL IFnDef$LD IFnDef$DL]
+            IFnDef$OLO IFnDef$OD IFnDef$OL IFnDef$LD IFnDef$DL Consumers$IncConsumer]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
@@ -93,7 +93,8 @@
 (declare assoc! conj! vec mapv vector object-array range first take drop into-array shuffle
          object-array-list reduce int-array-list long-array-list double-array-list
          int-array argsort byte-array short-array char-array boolean-array repeat
-         persistent! rest immut-map keys vals reduce)
+         persistent! rest immut-map keys vals reduce group-by-reduce consumer-accumulator
+         reducible-merge)
 
 
 (defn ->collection
@@ -1339,41 +1340,38 @@ ham_fisted.PersistentHashMap
     v))
 
 
-(defn ^:no-doc pfrequencies
-  "Parallelized frequencies. Can be faster for large parallelizable containers."
-  [tdata]
-  (-> (preduce #(mut-map)
-               (fn [^Map l v]
-                 (.compute l v BitmapTrieCommon/incBiFn)
-                 l)
-               #(map-union BitmapTrieCommon/sumBiFn %1 %2)
-               tdata)
-      (persistent!)))
+(defn frequencies-gbr-inc
+  "Faster implementation of clojure.core/frequencies."
+  [coll]
+  (group-by-reduce identity (constantly 0)
+                   (fn [acc v]
+                     (unchecked-inc (long acc)))
+                   +
+                   coll))
+
+
+(defn frequencies-gbr-consumer
+  "Faster implementation of clojure.core/frequencies."
+  [coll]
+  (-> (group-by-reduce identity #(Consumers$IncConsumer.)
+                       consumer-accumulator
+                       reducible-merge
+                       coll)
+      (update-values (bi-function k v (deref v)))))
 
 
 (defn frequencies
   "Faster implementation of clojure.core/frequencies."
   [coll]
-  (-> (reduce (fn [counts x]
-                (compute! counts x BitmapTrieCommon/incBiFn)
-                counts)
-              (mut-map)
-              coll)
+  (-> (preduce mut-map
+               (fn [^Map l v]
+                 (.compute l v BitmapTrieCommon/incBiFn)
+                 l)
+               #(map-union BitmapTrieCommon/incBiFn %1 %2)
+               {:min-n 1000}
+               coll)
       (persistent!)))
 
-
-(defn ^:no-doc pfrequencies-current-hashmap
-  "Parallelized frequencies.  Used for testing concurrentCompute functionality -
-  tdata must be random access and countable."
-  [tdata]
-  (let [n-elems (count tdata)
-        hm (java.util.concurrent.ConcurrentHashMap.)]
-    (pgroups n-elems
-          (fn [^long start-idx ^long end-idx]
-            (let [gsize (- end-idx start-idx)]
-              (dotimes [idx gsize]
-                (.compute hm (tdata (+ idx start-idx))
-                          BitmapTrieCommon/incBiFn)))))))
 
 (defn merge
   "Merge 2 maps with the rhs values winning any intersecting keys.  Uses map-union
@@ -2605,158 +2603,6 @@ ham-fisted.api> @*1
        ~@code)))
 
 
-(defmacro indexed-double-consumer
-  "Create an instance of a ham_fisted.IndexedDoubleConsumer"
-  [idxname varname & code]
-  `(reify
-     IndexedDoubleConsumer
-     (accept [this# ~idxname ~varname]
-       ~@code)))
-
-
-(defmacro indexed-long-consumer
-  "Create an instance of a ham_fisted.IndexedLongConsumer"
-  [idxname varname & code]
-  `(reify
-     IndexedLongConsumer
-     (accept [this# ~idxname ~varname]
-       ~@code)))
-
-
-(defmacro indexed-consumer
-  "Create an instance of a ham_fisted.IndexedConsumer"
-  [idxname varname & code]
-  `(reify Consumer
-     (accept [this# ~idxname ~varname]
-       ~@code)))
-
-
-(defn consumer-filter
-  "Filter a consumer returning a new consumer.  Consumer type is assumed to match
-  predicate type - long, double, or generic.  Returns new consumer."
-  [pred consumer]
-  (cond
-    (instance? DoublePredicate pred)
-    (Consumers/filter ^DoublePredicate pred ^DoubleConsumer consumer)
-    (instance? LongPredicate pred)
-    (Consumers/filter ^LongPredicate pred ^LongConsumer consumer)
-    :else
-    (if (instance? Predicate pred)
-      (Consumers/filter ^Predicate pred ^Consumer consumer)
-      (throw (Exception. "pred is not an instance of a java.util.function predicate")))))
-
-
-(defn consumer-map
-  "Map a consumer using an typed unary operator.  Consumer type is assumed to match
-  unary-op type.  Returns new consumer."
-  [unary-op consumer]
-  (cond
-    (instance? DoubleUnaryOperator unary-op)
-    (Consumers/map ^DoubleUnaryOperator unary-op ^DoubleConsumer consumer)
-    (instance? LongUnaryOperator unary-op)
-    (Consumers/map ^LongUnaryOperator unary-op ^LongConsumer consumer)
-    :else
-    (if (instance? UnaryOperator unary-op)
-      (Consumers/map ^UnaryOperator unary-op ^Consumer consumer)
-      (throw (Exception. "pred is not an instance of a java.util.function unary operator")))))
-
-
-
-(defn- force-indexed-consumer
-  ^IndexedConsumer [consumer]
-  (cond
-    (instance? IndexedDoubleConsumer consumer)
-    (let [^IndexedDoubleConsumer consumer consumer]
-      (reify IndexedConsumer
-        (accept [this idx val]
-          (.accept consumer idx (Casts/doubleCast val)))))
-    (instance? IndexedLongConsumer consumer)
-    (let [^IndexedLongConsumer consumer consumer]
-      (reify IndexedConsumer
-        (accept [this idx val]
-          (.accept consumer idx (Casts/longCast val)))))
-    :else
-    (if-not (instance? IndexedConsumer consumer)
-      (throw (Exception. "Consumer is not an instance of any indexed consumer"))
-      consumer)))
-
-
-(defn- force-consumer
-  ^Consumer [consumer]
-  (cond
-    (instance? DoubleConsumer consumer)
-    (let [^DoubleConsumer consumer consumer]
-      (reify Consumer
-        (accept [this val]
-          (.accept consumer (Casts/doubleCast val)))))
-    (instance? LongConsumer consumer)
-    (let [^LongConsumer consumer consumer]
-      (reify Consumer
-        (accept [this val]
-          (.accept consumer (Casts/longCast val)))))
-    :else
-    (if-not (instance? Consumer consumer)
-      (throw (Exception. "Consumer is not an instance of any consumer"))
-      consumer)))
-
-
-(defn indexed-consume!
-  "Consume a collection returning the consumer.
-  Consumer must be an implementation of one of the ham-fisted indexed consumers.
-  The consumer is returned."
-  ([consumer init-idx coll]
-   (let [init-idx (long init-idx)]
-     (if (instance? ITypedReduce coll)
-       (.genericIndexedForEach ^ITypedReduce coll init-idx consumer)
-       (let [consumer (force-indexed-consumer consumer)]
-         (reduce (fn [^long idx val]
-                        (.accept consumer idx val)
-                        (unchecked-inc idx))
-                      init-idx
-                      coll))))
-   consumer)
-  ([consumer coll]
-   (indexed-consume! consumer 0 coll)))
-
-
-(defn consume!
-  "Consume a collection returning the consumer.
-  Consumer must be an implementation of one of the ham-fisted indexed consumers or an
-  implementation of a java.util.function consumer.  Overloads for long or double are
-  respected.  In the cast of an indexed consumer the initial index is assumed to be 0."
-  [consumer coll]
-  (cond
-    (or
-     (instance? IndexedDoubleConsumer consumer)
-     (instance? IndexedLongConsumer consumer)
-     (instance? IndexedConsumer consumer))
-    (indexed-consume! consumer coll)
-    (or (instance? DoubleConsumer consumer)
-        (instance? LongConsumer consumer)
-        (instance? Consumer consumer))
-    (if (instance? ITypedReduce coll)
-      (.genericForEach ^ITypedReduce coll consumer)
-      (let [consumer (force-consumer consumer)]
-        (reduce (fn [c val]
-                       (.accept consumer val)
-                       c)
-                     consumer
-                     coll))))
-  consumer)
-
-
-(defn ^:no-doc apply-nan-strategy
-  [options coll]
-  (case (get options :nan-strategy :remove)
-    :remove (filter (double-predicate v (not (Double/isNaN v))) coll)
-    :keep coll
-    :exception (map (double-unary-operator v
-                                           (when (Double/isNaN v)
-                                             (throw (Exception. "Nan detected")))
-                                           v)
-                    coll)))
-
-
 (defn ^:no-doc apply-nan-strategy
   [options coll]
   (case (get options :nan-strategy :remove)
@@ -2963,114 +2809,3 @@ ham-fisted.api> @*1
         (== lhs rhs)))
     (and (== (count lhs) (count rhs))
          (every? identity (map double-eq lhs rhs)))))
-
-
-(comment
-
-  (require '[criterium.core :as crit])
-  (def data (double-array (shuffle (range 10000))))
-  (crit/quick-bench (argsort (double-comparator l r (Double/compare r l)) data))
-  ;; 861.1 us
-  (crit/quick-bench (sort data))
-  ;; 749.7 us
-  (crit/quick-bench (reduce + data))
-  ;; 309 us
-  (crit/quick-bench (reduce (fn [^double l ^double r]
-                              (unchecked-add l r)) data))
-  ;; 271 us
-  (crit/quick-bench (sum data))
-  (crit/quick-bench (dfn/sum-fast data))
-  ;; 10 us
-  (require '[tech.v3.datatype.argops :as argops])
-  (require '[tech.v3.datatype.functional :as dfn])
-  (import '[ham_fisted ArrayLists$ReductionConsumer])
-  (crit/quick-bench (let [dc (ArrayLists$ReductionConsumer. + 0)]
-                      (.forEach (->collection data) dc)
-                      (.value dc)))
-
-  (crit/quick-bench (->> (clojure.core/range 20000)
-                         (clojure.core/filter #(== 0 (rem (long %) 3)))
-                         (sum)))
-  ;;369us
-
-  (crit/quick-bench (->> (range 20000)
-                         (filter #(== 0 (rem (long %) 3)))
-                         (sum)))
-  ;;183us
-
-  (crit/quick-bench (->> (range 20000)
-                         (lzc/filter #(== 0 (rem (long %) 3)))
-                         (sum)))
-
-  (crit/quick-bench (->> (clojure.core/range 20000)
-                         (filter #(== 0 (rem (long %) 3)))
-                         (sum)))
-  ;;261us
-
-  (crit/quick-bench (->> (clojure.core/range 20000)
-                         (clojure.core/map #(* (long %) 2))
-                         (clojure.core/filter #(== 0 (rem (long %) 3)))
-                         (sum)))
-  ;;688us
-  (crit/quick-bench (->> (clojure.core/range 20000)
-                         (eduction
-                          (comp
-                           (clojure.core/map #(* (long %) 2))
-                           (clojure.core/filter #(== 0 (rem (long %) 3)))))
-                         (sum)))
-  ;;575us
-  (crit/quick-bench (->> (range 20000)
-                         (map #(* (long %) 2))
-                         (filter #(== 0 (rem (long %) 3)))
-                         (sum)))
-  ;;259us
-  (crit/quick-bench (->> (clojure.core/range 20000)
-                         (map #(* (long %) 2))
-                         (filter #(== 0 (rem (long %) 3)))
-                         (sum)))
-  ;;421us
-
-  (crit/quick-bench (->> (clojure.core/range 20000)
-                         (clojure.core/map #(* (long %) 2))
-                         (clojure.core/map #(+ 1 (long %)))
-                         (clojure.core/filter #(== 0 (rem (long %) 3)))
-                         (sum)))
-  ;;1.0ms
-  (crit/quick-bench (->> (range 20000)
-                         (eduction
-                          (comp
-                           (clojure.core/map #(* (long %) 2))
-                           (clojure.core/map #(+ 1 (long %)))
-                           (clojure.core/filter #(== 0 (rem (long %) 3)))))
-                         (sum)))
-  ;;887us
-  (crit/quick-bench (->> (range 20000)
-                         (map #(* (long %) 2))
-                         (map #(+ 1 (long %)))
-                         (filter #(== 0 (rem (long %) 3)))
-                         (sum)))
-  ;;422us
-  (crit/quick-bench (->> (clojure.core/range 20000)
-                         (map #(* (long %) 2))
-                         (map #(+ 1 (long %)))
-                         (filter #(== 0 (rem (long %) 3)))
-                         (sum)))
-  ;;643us
-
-
-  (crit/quick-bench (->> (reduce clojure.core/concat (repeat 200 (range 100)))
-                         (sum)))
-  ;;151ms
-
-  (crit/quick-bench (->> (apply clojure.core/concat (repeat 200 (range 100)))
-                         (sum)))
-  ;;2.44ms
-
-  (crit/quick-bench (->> (reduce concat (repeat 200 (range 100)))
-                         (sum)))
-  ;;737us
-  (crit/quick-bench (->> (apply concat (repeat 200 (range 100)))
-                         (sum)))
-  ;;263us
-
-  )
