@@ -110,6 +110,9 @@ public class ArrayLists {
   @SuppressWarnings("unchecked")
   static boolean fillRangeArrayCopy(Object dest, int sidx, int eidx, Class aryCls,
 				    int startidx, List l) {
+    //True means this function took care of the transfer, false means
+    //fallback to a more generalized transfer
+    if (l.isEmpty()) return true;
     final int sz = l.size();
     final int endidx = startidx + sz;
     checkIndexRange(eidx-sidx, startidx, endidx);
@@ -153,7 +156,7 @@ public class ArrayLists {
 	}
       }
     }
-    default Object[] ensureCapacity(int newlen) {
+    default Object ensureCapacity(int newlen) {
       throw new RuntimeException("unimplemented");
     }
   }
@@ -1743,7 +1746,7 @@ public class ArrayLists {
       d[ne] = obj;
       nElems = ne+1;
     }
-    public boolean add(Object obj) { addDouble(Casts.longCast(obj)); return true; }
+    public boolean add(Object obj) { addDouble(Casts.doubleCast(obj)); return true; }
     public void add(int idx, Object obj) {
       if (idx == nElems) { add(obj); return; }
       idx = wrapCheckIndex(idx, nElems);

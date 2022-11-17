@@ -103,3 +103,7 @@
     (let [sl (.subList alist 0 1)]
       (is (= [Long/MAX_VALUE] sl))
       (is (= [Long/MAX_VALUE] (vec sl))))))
+
+(deftest tostring-empty-range
+  (is (= "[]" (.toString (hamf/range 0))))
+  (is (= "[]" (.toString (hamf/range 0.0)))))

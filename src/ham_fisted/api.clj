@@ -59,7 +59,7 @@
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
             IEditableCollection RT IPersistentMap Associative Util IFn ArraySeq
             Reversible IReduce IReduceInit IFn$DD IFn$DL IFn$DO IFn$LD IFn$LL IFn$LO
-            IFn$OD IFn$OL IObj Util IReduceInit Seqable IteratorSeq]
+            IFn$OD IFn$OL IFn$OLO IFn$ODO IObj Util IReduceInit Seqable IteratorSeq]
            [java.util Map Map$Entry List RandomAccess Set Collection ArrayList Arrays
             Comparator Random Collections Iterator]
            [java.lang.reflect Array]
@@ -468,71 +468,6 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
 ```"
   [reducers coll]
   (reduce-reducer (compose-reducers reducers) coll))
-
-
-(defmacro declare-double-consumer-preducer!
-  "Bind a double consumer as a parallel reducer.
-
-  Consumer must implement java.util.function.DoubleConsumer,
-  ham_fisted.Reducible and clojure.lang.IDeref.
-
-  Returns instance of type bound.
-
-```clojure
-user> (require '[ham-fisted.api :as hamf])
-nil
-user> (import '[java.util.function DoubleConsumer])
-java.util.function.DoubleConsumer
-user> (import [ham_fisted Reducible])
-ham_fisted.Reducible
-user> (import '[clojure.lang IDeref])
-clojure.lang.IDeref
-user> (deftype MeanR [^{:unsynchronized-mutable true :tag 'double} sum
-                      ^{:unsynchronized-mutable true :tag 'long} n-elems]
-        DoubleConsumer
-        (accept [this v] (set! sum (+ sum v)) (set! n-elems (unchecked-inc n-elems)))
-        Reducible
-        (reduce [this o]
-          (set! sum (+ sum (.-sum ^MeanR o)))
-          (set! n-elems (+ n-elems (.-n-elems ^MeanR o)))
-          this)
-        IDeref (deref [this] (/ sum n-elems)))
-user.MeanR
-user> (hamf/declare-double-consumer-preducer! MeanR (MeanR. 0 0))
-nil
-user> (hamf/preduce-reducer (MeanR. 0 0) (hamf/range 200000))
-99999.5
-```"
-  [consumer-type constructor]
-  `(do (extend-type ~consumer-type
-         protocols/Reducer
-         (->init-val-fn [r#] (fn [] ~constructor))
-         (->rfn [r#] double-consumer-accumulator)
-         (finalize [r# v#] @v#)
-         protocols/ParallelReducer
-         (->merge-fn [r#] reducible-merge))
-       ~constructor))
-
-
-(defmacro declare-consumer-preducer!
-  "Bind a consumer as a parallel reducer.
-
-  Consumer must implement java.util.function.Consumer,
-  ham_fisted.Reducible and clojure.lang.IDeref.
-
-  Returns instance of type bound.
-
-  See documentation for [[declare-double-consumer-preducer!]].
-```"
-  [consumer-type constructor]
-  `(do (extend-type ~consumer-type
-         protocols/Reducer
-         (->init-val-fn [r#] (fn [] ~constructor))
-         (->rfn [r#] consumer-accumulator)
-         (finalize [r# v#] @v#)
-         protocols/ParallelReducer
-         (->merge-fn [r#] reducible-merge))
-       ~constructor))
 
 
 (def ^:private obj-ary-cls (Class/forName "[Ljava.lang.Object;"))
@@ -1733,16 +1668,38 @@ ham_fisted.PersistentHashMap
   ([key-fn init-val-fn rfn merge-fn options coll]
    (let [has-map-fn? (get :map-fn options)
          map-fn (get options :map-fn mut-map)
-         merge-bifn (->bi-function merge-fn)]
-     (cond-> (preduce map-fn
-                      (fn [^Map l v]
-                        ;;It annoys the hell out of me that I have to create a new
-                        ;;bifunction here but there is no threadsafe way to pass in the
-                        ;;new value to the reducer otherwise.
-                        (compute! l (key-fn v)
-                                  (bi-function k acc (rfn (or acc (init-val-fn)) v)))
-                        l)
-                      #(map-union merge-bifn %1 %2)
+         merge-bifn (->bi-function merge-fn)
+         rfn (cond
+               (or (= identity key-fn) (nil? key-fn))
+               (let [bifn (bi-function k acc (rfn (or acc (init-val-fn)) k))]
+                 (fn [^Map l v]
+                   (compute! l v bifn)
+                   l))
+               ;;These formulations can trigger more efficient primitive reductions when,
+               ;;for instance, you are reducing over a stream of integer indexes.
+               (and (instance? IFn$LO key-fn) (instance? IFn$OLO rfn))
+               (reify IFnDef$OLO
+                 (invokePrim [this l v]
+                   (compute! ^Map l (.invokePrim ^IFn$LO key-fn v)
+                             (bi-function
+                              k acc (.invokePrim ^IFn$OLO rfn (or acc (init-val-fn)) v)))
+                   l))
+               (and (instance? IFn$DO key-fn) (instance? IFn$ODO rfn))
+               (reify IFnDef$ODO
+                 (invokePrim [this l v]
+                   (compute! ^Map l (.invokePrim ^IFn$DO key-fn v)
+                             (bi-function
+                              k acc (.invokePrim ^IFn$ODO rfn (or acc (init-val-fn)) v)))
+                   l))
+               :else
+               (fn [^Map l v]
+                 ;;It annoys the hell out of me that I have to create a new
+                 ;;bifunction here but there is no threadsafe way to pass in the
+                 ;;new value to the reducer otherwise.
+                 (compute! l (key-fn v) (bi-function k acc (rfn (or acc (init-val-fn)) v)))
+                 l)
+               )]
+     (cond-> (preduce map-fn rfn  #(map-union merge-bifn %1 %2)
                       (merge {:min-n 1000} options)
                       coll)
        ;;In the case where no map-fn was passed in we return a persistent hash map.
@@ -1750,6 +1707,26 @@ ham_fisted.PersistentHashMap
        (persistent!))))
   ([key-fn init-val-fn rfn merge-fn coll]
    (group-by-reduce key-fn init-val-fn rfn merge-fn nil coll)))
+
+
+(defn group-by-reducer
+  "Perform a group-by-reduce passing in a reducer.  Same options as group-by-reduce.
+
+  Options:
+
+  * `:skip-finalize?` - skip finalization step."
+  ([key-fn reducer coll]
+   (group-by-reducer key-fn reducer nil coll))
+  ([key-fn reducer options coll]
+   (let [finalizer (if (:skip-finalize? options)
+                     identity
+                     #(update-values % (bi-function k v (protocols/finalize reducer v))))]
+     (-> (group-by-reduce key-fn
+                          (protocols/->init-val-fn reducer)
+                          (protocols/->rfn reducer)
+                          (protocols/->merge-fn reducer)
+                          options coll)
+         (finalizer)))))
 
 
 (defn group-by
@@ -2494,6 +2471,100 @@ ham-fisted.api> @*1
   `(reify IFnDef$OLO
      (invokePrim [this ~accvar ~varvar]
        ~@code)))
+
+
+(defn ->consumer
+  "Return an instance of a consumer, double consumer, or long consumer."
+  [cfn]
+  (cond
+    (or (instance? Consumer cfn)
+        (instance? DoubleConsumer cfn)
+        (instance? LongConsumer cfn))
+    cfn
+    (instance? IFn$DO cfn)
+    (reify DoubleConsumer (accept [this v] (.invokePrim ^IFn$DO cfn v)))
+    (instance? IFn$LO cfn)
+    (reify LongConsumer (accept [this v] (.invokePrim ^IFn$LO cfn v)))
+    :else
+    (reify Consumer (accept [this v] (cfn v)))))
+
+
+(defn consume!
+  "Consumer a collection.  This is simply a reduction where the return value
+  is ignored.
+
+  Returns the consumer."
+  [consumer coll]
+  (let [c (->consumer consumer)]
+    (cond
+      (instance? DoubleConsumer c)
+      (reduce double-consumer-accumulator c coll)
+      (instance? LongConsumer c)
+      (reduce long-consumer-accumulator c coll)
+      :else
+      (reduce consumer-accumulator c coll))
+    consumer))
+
+
+(defn double-consumer-preducer
+  "Return a preducer for a double consumer.
+
+  Consumer must implement java.util.function.DoubleConsumer,
+  ham_fisted.Reducible and clojure.lang.IDeref.
+
+```clojure
+user> (require '[ham-fisted.api :as hamf])
+nil
+user> (import '[java.util.function DoubleConsumer])
+java.util.function.DoubleConsumer
+user> (import [ham_fisted Reducible])
+ham_fisted.Reducible
+user> (import '[clojure.lang IDeref])
+clojure.lang.IDeref
+user> (deftype MeanR [^{:unsynchronized-mutable true :tag 'double} sum
+                      ^{:unsynchronized-mutable true :tag 'long} n-elems]
+        DoubleConsumer
+        (accept [this v] (set! sum (+ sum v)) (set! n-elems (unchecked-inc n-elems)))
+        Reducible
+        (reduce [this o]
+          (set! sum (+ sum (.-sum ^MeanR o)))
+          (set! n-elems (+ n-elems (.-n-elems ^MeanR o)))
+          this)
+        IDeref (deref [this] (/ sum n-elems)))
+user.MeanR
+user> (hamf/declare-double-consumer-preducer! MeanR (MeanR. 0 0))
+nil
+  user> (hamf/preduce-reducer (double-consumer-preducer #(MeanR. 0 0)) (hamf/range 200000))
+99999.5
+```"
+  [constructor]
+  (reify
+    protocols/Reducer
+    (->init-val-fn [r] constructor)
+    (->rfn [r] double-consumer-accumulator)
+    (finalize [r v] @v)
+    protocols/ParallelReducer
+    (->merge-fn [r] reducible-merge)))
+
+
+(defn consumer-preducer
+  "Bind a consumer as a parallel reducer.
+
+  Consumer must implement java.util.function.Consumer,
+  ham_fisted.Reducible and clojure.lang.IDeref.
+
+  Returns instance of type bound.
+
+  See documentation for [[declare-double-consumer-preducer!]].
+```"
+  [constructor]
+  (reify
+    protocols/Reducer
+    (->init-val-fn [r] constructor)
+    (->rfn [r] consumer-accumulator)
+    (finalize [r v] @v)
+    protocols/ParallelReducer
+    (->merge-fn [r] reducible-merge)))
 
 
 (defn reducible-merge

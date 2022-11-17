@@ -238,6 +238,8 @@ public final class ChunkedList {
 
   static final void checkIndexRange(int startidx, int nElems, int sidx, int eidx) {
     final int rne = eidx - sidx;
+    if(rne == 0 )
+      return;
     indexCheck(startidx, nElems, sidx);
     if (rne < 0)
       throw new RuntimeException("Range end point: " + String.valueOf(eidx)
