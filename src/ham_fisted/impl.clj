@@ -242,7 +242,7 @@
            acc init]
       (if (and (>= bit 0) (not (reduced? init)))
         (recur (.nextSetBit coll (unchecked-inc bit))
-               (.invokePrim rfn acc bit))
+               (.invokePrim rfn acc (Integer/toUnsignedLong bit)))
         init))))
 
 

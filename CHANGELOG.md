@@ -1,9 +1,13 @@
+# 1.000-beta-46
+ * Set protocol to supercede the set protocol from dtype-next.
+ * lots and lots of fixes from dataset work.
+
 # 1.000-beta-45
  * Small fixes and making helpers public for dtype-next work.
- 
+
 # 1.000-beta-43
  * long lists really are long lists - copy-paste mistake from int lists.
- 
+
 # 1.000-beta-42
  * declare-double-consumer-preducer! - given type derived from DoubleConsumer
    and a few others, create a parallel reducer.

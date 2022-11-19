@@ -19,7 +19,7 @@
 (defprotocol Reduction
   "Reduce a collection to an accumulator."
   (reducible? [coll])
-  (reduce [coll acc rfn]))
+  (reduce [coll rfn acc]))
 
 
 (defprotocol ParallelReduction
@@ -85,3 +85,11 @@ two accumulators  and returns a or modified accumulator."))
   (->merge-fn [s] reducible-merge)
   Sum$SimpleSum
   (->merge-fn [s] reducible-merge))
+
+
+(defprotocol SetOps
+  "Simple protocol for set operations to make them uniformly extensible to new objects."
+  (union [l r])
+  (difference [l r])
+  (intersection [l r])
+  (xor [l r]))
