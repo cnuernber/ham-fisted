@@ -1,3 +1,6 @@
+# 1.000-beta-47
+ * major double-array, float-array, long-array, int-array optimizations.
+
 # 1.000-beta-46
  * Set protocol to supercede the set protocol from dtype-next.
  * lots and lots of fixes from dataset work.

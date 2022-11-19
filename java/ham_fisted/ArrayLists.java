@@ -439,6 +439,7 @@ public class ArrayLists {
   }
   public static IMutList<Object> toList(final Object[] data) { return toList(data, 0, data.length, null); }
 
+
   public static class ByteArraySubList implements ILongArrayList {
     public final byte[] data;
     public final int dlen;
@@ -658,6 +659,7 @@ public class ArrayLists {
   }
   public static IMutList<Object> toList(final short[] data) { return toList(data, 0, data.length, null); }
 
+  public static int[] intArray(int len) { return new int[len]; }
   public static class IntArraySubList implements ILongArrayList {
     public final int[] data;
     public final int sidx;
@@ -819,6 +821,16 @@ public class ArrayLists {
       for(int ss = sidx; ss < es && !RT.isReduced(init); ++ss)
 	init = rfn.invokePrim(init, d[ss]);
       return init;
+    }
+    public void fillRange(int startidx, List v) {
+      final ArraySection as = getArraySection();
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
+	final int[] d = data;
+	final int sz = v.size();
+	final int ss = sidx + startidx;
+	for(int idx = 0; idx < sz; ++idx)
+	  data[idx+ss] = RT.intCast(Casts.longCast(v.get(idx)));
+      }
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1040,7 +1052,7 @@ public class ArrayLists {
   }
   public static IMutList<Object> toList(final int[] data) { return toList(data, 0, data.length, null); }
 
-
+  public static long[] longArray(int len) { return new long[len]; }
   public static class LongArraySubList implements ILongArrayList {
     public final long[] data;
     public final int sidx;
@@ -1198,6 +1210,16 @@ public class ArrayLists {
       final long[] d = data;
       for(int ss = sidx; ss < es; ++ss)
 	c.accept(d[ss]);
+    }
+    public void fillRange(int startidx, List v) {
+      final ArraySection as = getArraySection();
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
+	final long[] d = data;
+	final int sz = v.size();
+	final int ss = sidx + startidx;
+	for(int idx = 0; idx < sz; ++idx)
+	  data[idx+ss] = Casts.longCast(v.get(idx));
+      }
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1398,6 +1420,7 @@ public class ArrayLists {
   }
   public static IMutList<Object> toList(final long[] data) { return toList(data, 0, data.length, null); }
 
+  public static float[] floatArray(int len) { return new float[len]; }
   public static class FloatArraySubList implements IDoubleArrayList {
     public final float[] data;
     public final int sidx;
@@ -1521,6 +1544,16 @@ public class ArrayLists {
 	init = rfn.invokePrim(init, d[ss]);
       return init;
     }
+    public void fillRange(int startidx, List v) {
+      final ArraySection as = getArraySection();
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
+	final float[] d = data;
+	final int sz = v.size();
+	final int ss = sidx + startidx;
+	for(int idx = 0; idx < sz; ++idx)
+	  data[idx+ss] = (float)(Casts.doubleCast(v.get(idx)));
+      }
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, ssidx, seidx, (float)Casts.doubleCast(v));
@@ -1539,6 +1572,10 @@ public class ArrayLists {
     return new FloatArraySubList(data, sidx, dlen, meta);
   }
   public static IMutList<Object> toList(final float[] data) { return toList(data, 0, data.length, null); }
+
+  public static double[] doubleArray(int len) {
+    return new double[len];
+  }
 
   public static class DoubleArraySubList implements IDoubleArrayList {
     public final double[] data;
@@ -1692,6 +1729,16 @@ public class ArrayLists {
 	init = rfn.invokePrim(init, d[ss]);
       return init;
     }
+    public void fillRange(int startidx, List v) {
+      final ArraySection as = getArraySection();
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
+	final double[] d = data;
+	final int sz = v.size();
+	final int ss = sidx + startidx;
+	for(int idx = 0; idx < sz; ++idx)
+	  data[idx+ss] = Casts.doubleCast(v.get(idx));
+      }
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, sidx + ssidx, sidx + seidx, Casts.doubleCast(v));
@@ -1810,6 +1857,9 @@ public class ArrayLists {
     public IMutList<Object> subList(int ssidx, int seidx) {
       ChunkedList.sublistCheck(ssidx, seidx, size());
       return toList(data, ssidx, seidx, meta());
+    }
+    public void fillRange(int startidx, List v) {
+      ((IMutList)subList(0, nElems)).fillRange(startidx, v);
     }
     public IPersistentMap meta() { return meta; }
     public IObj withMeta(IPersistentMap m) {

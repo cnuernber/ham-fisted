@@ -81,10 +81,12 @@
 
 (defn ->random-access
   ^List [item]
-  (let [c (->collection item)]
-    (if (instance? RandomAccess c)
-      c
-      (->collection (object-array c)))))
+  (if (instance? RandomAccess item)
+    item
+    (let [c (->collection item)]
+      (if (instance? RandomAccess c)
+        c
+        (->collection (object-array c))))))
 
 
 (defn into-array
