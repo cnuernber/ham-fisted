@@ -2333,6 +2333,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
 
 
 (defmacro ivec
+  "Create a persistent-vector-compatible list backed by an int array."
   ([] `(ArrayLists/toList (int-array)))
   ([data] `(ArrayLists/toList (int-array ~data))))
 
@@ -2363,6 +2364,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
 
 
 (defmacro lvec
+  "Create a persistent-vector-compatible list backed by a long array."
   ([] `(ArrayLists/toList (long-array)))
   ([data] `(ArrayLists/toList (long-array ~data))))
 
@@ -2392,6 +2394,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
 
 
 (defmacro fvec
+  "Create a persistent-vector-compatible list backed by a float array."
   ([] `(ArrayLists/toList (float-array)))
   ([data] `(ArrayLists/toList (float-array ~data))))
 
@@ -2425,6 +2428,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
 
 
 (defmacro dvec
+  "Create a persistent-vector-compatible list backed by a double array."
   ([] `(ArrayLists/toList (double-array)))
   ([data] `(ArrayLists/toList (double-array ~data))))
 
