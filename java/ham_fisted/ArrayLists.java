@@ -275,6 +275,17 @@ public class ArrayLists {
       for(int ss = sidx; ss < es; ++ss)
 	c.accept(d[ss]);
     }
+    public void fillRange(int startidx, List v) {
+      final ArraySection as = getArraySection();
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
+	final int ss = startidx + sidx;
+	Reductions.serialReduction(new Reductions.IndexedAccum( new IFn.OLOO() {
+	    public Object invokePrim(Object acc, long idx, Object v) {
+	      ((Object[])acc)[(int)idx+ss] = v;
+	      return acc;
+	    }}), data, v);
+      }
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, sidx + ssidx, sidx + seidx, v);
@@ -825,11 +836,12 @@ public class ArrayLists {
     public void fillRange(int startidx, List v) {
       final ArraySection as = getArraySection();
       if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
-	final int[] d = data;
-	final int sz = v.size();
-	final int ss = sidx + startidx;
-	for(int idx = 0; idx < sz; ++idx)
-	  data[idx+ss] = RT.intCast(Casts.longCast(v.get(idx)));
+	final int ss = startidx + sidx;
+	Reductions.serialReduction(new Reductions.IndexedLongAccum( new IFn.OLLO() {
+	    public Object invokePrim(Object acc, long idx, long v) {
+	      ((int[])acc)[(int)idx+ss] = RT.intCast(v);
+	      return acc;
+	    }}), data, v);
       }
     }
     public void fill(int ssidx, int seidx, Object v) {
@@ -1214,11 +1226,12 @@ public class ArrayLists {
     public void fillRange(int startidx, List v) {
       final ArraySection as = getArraySection();
       if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
-	final long[] d = data;
-	final int sz = v.size();
-	final int ss = sidx + startidx;
-	for(int idx = 0; idx < sz; ++idx)
-	  data[idx+ss] = Casts.longCast(v.get(idx));
+	final int ss = startidx + sidx;
+	Reductions.serialReduction(new Reductions.IndexedLongAccum( new IFn.OLLO() {
+	    public Object invokePrim(Object acc, long idx, long v) {
+	      ((long[])acc)[(int)idx+ss] = v;
+	      return acc;
+	    }}), data, v);
       }
     }
     public void fill(int ssidx, int seidx, Object v) {
@@ -1547,11 +1560,12 @@ public class ArrayLists {
     public void fillRange(int startidx, List v) {
       final ArraySection as = getArraySection();
       if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
-	final float[] d = data;
-	final int sz = v.size();
 	final int ss = sidx + startidx;
-	for(int idx = 0; idx < sz; ++idx)
-	  data[idx+ss] = (float)(Casts.doubleCast(v.get(idx)));
+	Reductions.serialReduction(new Reductions.IndexedDoubleAccum( new IFn.OLDO() {
+	    public Object invokePrim(Object acc, long idx, double v) {
+	      ((float[])acc)[(int)idx+ss] = (float)v;
+	      return acc;
+	    }}), data, v);
       }
     }
     public void fill(int ssidx, int seidx, Object v) {
@@ -1732,11 +1746,12 @@ public class ArrayLists {
     public void fillRange(int startidx, List v) {
       final ArraySection as = getArraySection();
       if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
-	final double[] d = data;
-	final int sz = v.size();
 	final int ss = sidx + startidx;
-	for(int idx = 0; idx < sz; ++idx)
-	  data[idx+ss] = Casts.doubleCast(v.get(idx));
+	Reductions.serialReduction(new Reductions.IndexedDoubleAccum( new IFn.OLDO() {
+	    public Object invokePrim(Object acc, long idx, double v) {
+	      ((double[])acc)[(int)idx+ss] = v;
+	      return acc;
+	    }}), data, v);
       }
     }
     public void fill(int ssidx, int seidx, Object v) {

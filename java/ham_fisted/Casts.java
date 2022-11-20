@@ -96,15 +96,22 @@ public class Casts {
   public static double doubleCast(Object obj) {
     if (obj == null)
       return Double.NaN;
+    if (obj instanceof Double)
+      return (Double)obj;
+    if (obj instanceof Long)
+      return (double)(Long)obj;
     if (obj instanceof Boolean)
       return ((Boolean)obj) ? 1.0 : 0.0;
     return RT.doubleCast(obj);
   }
   public static double doubleCast(long obj) {
-    return RT.doubleCast(obj);
+    return (double)obj;
   }
   public static double doubleCast(double obj) {
-    return RT.doubleCast(obj);
+    return obj;
+  }
+  public static double doubleCast(float obj) {
+    return (double)obj;
   }
   public static double doubleCast(boolean obj) {
     return obj ? 1.0 : 0.0;

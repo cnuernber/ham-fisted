@@ -353,31 +353,23 @@ public interface IMutList<E>
     return toArray();
   }
   default int[] toIntArray() {
-    final int sz = size();
-    final int[] retval = new int[sz];
-    for(int idx = 0; idx < sz; ++idx)
-      retval[idx] = RT.intCast(getLong(idx));
+    final int[] retval = new int[size()];
+    ArrayLists.toList(retval).fillRange(0, this);
     return retval;
   }
   default long[] toLongArray() {
-    final int sz = size();
-    final long[] retval = new long[sz];
-    for(int idx = 0; idx < sz; ++idx)
-      retval[idx] = getLong(idx);
+    final long[] retval = new long[size()];
+    ArrayLists.toList(retval).fillRange(0, this);
     return retval;
   }
   default float[] toFloatArray() {
-    final int sz = size();
-    final float[] retval = new float[sz];
-    for(int idx = 0; idx < sz; ++idx)
-      retval[idx] = (float)getDouble(idx);
+    final float[] retval = new float[size()];
+    ArrayLists.toList(retval).fillRange(0, this);
     return retval;
   }
   default double[] toDoubleArray() {
-    final int sz = size();
-    final double[] retval = new double[sz];
-    for(int idx = 0; idx < sz; ++idx)
-      retval[idx] = getDouble(idx);
+    final double[] retval = new double[size()];
+    ArrayLists.toList(retval).fillRange(0, this);
     return retval;
   }
   @SuppressWarnings("unchecked")

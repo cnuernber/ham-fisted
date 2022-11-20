@@ -149,4 +149,38 @@ public class Reductions {
     return Clojure.var("ham-fisted.protocols", "preduce").invoke(coll, initValFn,
 								 rfn, mergeFn, options);
   }
+
+  public static class IndexedDoubleAccum implements IFnDef.ODO {
+    int idx;
+    final IFn.OLDO rfn;
+    public IndexedDoubleAccum(IFn.OLDO rfn) {
+      this.rfn = rfn;
+      this.idx = 0;
+    }
+    public Object invokePrim(Object acc, double v) {
+      return rfn.invokePrim(acc, idx++, v);
+    }
+  }
+  public static class IndexedLongAccum implements IFnDef.OLO {
+    int idx;
+    final IFn.OLLO rfn;
+    public IndexedLongAccum(IFn.OLLO rfn) {
+      this.rfn = rfn;
+      this.idx = 0;
+    }
+    public Object invokePrim(Object acc, long v) {
+      return rfn.invokePrim(acc, idx++, v);
+    }
+  }
+  public static class IndexedAccum implements IFnDef {
+    int idx;
+    final IFn.OLOO rfn;
+    public IndexedAccum(IFn.OLOO rfn) {
+      this.rfn = rfn;
+      this.idx = 0;
+    }
+    public Object invokePrim(Object acc, Object v) {
+      return rfn.invokePrim(acc, idx++, v);
+    }
+  }
 }

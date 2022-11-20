@@ -365,6 +365,27 @@
       :hamf (bench/benchmark-us (api/sort nil init-data))}]))
 
 
+(defn alloc-small-array
+  []
+  [{:test :alloc-small-double-array
+    :n-elems 5
+    :clj (bench/benchmark-us (double-array [1 2 3 4 5]))
+    :hamf (bench/benchmark-us (api/double-array [1 2 3 4 5]))}
+   {:test :alloc-small-double-array
+    :n-elems 10
+    :clj (bench/benchmark-us (double-array [1 2 3 4 5 6 7 8 9 10]))
+    :hamf (bench/benchmark-us (api/double-array [1 2 3 4 5 6 7 8 9 10]))}
+   {:test :alloc-small-double-array
+    :n-elems 100
+    :clj (bench/benchmark-us (double-array (range 100)))
+    :hamf (bench/benchmark-us (api/double-array (api/range 100)))}
+   (let [v (vec (api/range 1000))]
+     {:test :alloc-small-double-array
+      :n-elems 1000
+      :clj (bench/benchmark-us (double-array v))
+      :hamf (bench/benchmark-us (api/double-array v))})])
+
+
 (defn sort-double-array
   []
   (log/info "sort doubles")

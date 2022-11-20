@@ -2269,33 +2269,6 @@ ham-fisted.api> (binary-search data 1.1 nil)
                                 char-array-list data)))
 
 
-(defn float-array-list
-  (^IMutList [] (FloatArrayList. (clojure.core/float-array 4) 0 nil))
-  (^IMutList [data]
-   (if (number? data)
-     (FloatArrayList. (clojure.core/float-array data) 0 nil)
-     (let [^IMutList retval (if (instance? RandomAccess data)
-                              (float-array-list (.size ^List data))
-                              (float-array-list))]
-       (.addAllReducible retval data)
-       retval))))
-
-(defn ^:no-doc as-floats ^floats [data] data)
-
-
-(defmacro float-array
-  ([] `(ArrayLists/floatArray 0))
-  ([data]
-   `(impl-array-macro ~data ArrayLists/floatArray as-floats Casts/doubleCast
-                      float-array-list)))
-
-
-(defmacro fvec
-  ([] `(ArrayLists/toList (float-array)))
-  ([data] `(ArrayLists/toList (float-array ~data))))
-
-
-
 (defn boolean-array-list
   (^IMutList [] (BooleanArrayList. (clojure.core/boolean-array 4) 0 nil))
   (^IMutList [data]
@@ -2315,6 +2288,23 @@ ham-fisted.api> (binary-search data 1.1 nil)
                                    boolean-array-list data)))
 
 
+(defmacro ^:no-doc impl-array-macro
+  [data ctor elem-cast vecfn]
+  (cond
+    (number? data)
+    `(~ctor ~data)
+    ;;16 chosen arbitrarily
+    (and (vector? data) (< (count data) 16))
+    `(let [~'ary (~ctor ~(count data))]
+       (do
+         ~@(->> (range (count data))
+                (map (fn [^long idx]
+                       `(ArrayHelpers/aset ~'ary ~idx (~elem-cast ~(data idx))))))
+         ~'ary))
+    :else
+    `(~vecfn ~data)))
+
+
 (defn int-array-list
   "An array list that is as fast as java.util.ArrayList for add,get, etc but includes
   many accelerated operations such as fill and an accelerated addAll when the src data
@@ -2327,35 +2317,19 @@ ham-fisted.api> (binary-search data 1.1 nil)
        (.addAllReducible (->reducible cap-or-data))))))
 
 
-(defn ^:no-doc as-ints
-  "Cast data to an int array"
-  ^ints [data] data)
+(defn ^:no-doc int-array-v
+  [data]
+  (if (instance? IMutList data)
+    (.toIntArray ^IMutList data)
+    (do-make-array #(ArrayLists/intArray %) #(ArrayLists/toList ^ints %)
+                   int-array-list data)))
 
-
-(defmacro ^:no-doc impl-array-macro
-  [data ctor ary-cast elem-cast list-fn]
-  (cond
-    (number? data)
-    `(~ctor ~data)
-     (and (vector? data)
-          (< (count data) 10))
-     `(let [~'ary (~ctor ~(count data))]
-        (do
-          ~@(->> (range (count data))
-                 (map (fn [^long idx]
-                        `(ArrayHelpers/aset ~'ary ~idx (~elem-cast ~(data idx))))))
-          ~'ary))
-     :else
-     `(~ary-cast
-       (do-make-array #(~ctor %)
-                      #(ArrayLists/toList (~ary-cast %))
-                      ~list-fn ~data))))
 
 
 (defmacro int-array
   ([] `(ArrayLists/intArray 0))
   ([data]
-   `(impl-array-macro ~data ArrayLists/intArray as-ints Casts/longCast int-array-list)))
+   `(impl-array-macro ~data ArrayLists/intArray Casts/longCast int-array-v)))
 
 
 (defmacro ivec
@@ -2374,18 +2348,52 @@ ham-fisted.api> (binary-search data 1.1 nil)
      (doto (ArrayLists$LongArrayList.)
        (.addAllReducible (->reducible cap-or-data))))))
 
-(defn ^:no-doc as-longs ^longs [data] data)
+(defn ^:no-doc long-array-v
+  [data]
+  (if (instance? IMutList data)
+    (.toLongArray ^IMutList data)
+    (do-make-array #(ArrayLists/longArray %) #(ArrayLists/toList ^longs %)
+                   long-array-list data)))
 
 
 (defmacro long-array
   ([] `(ArrayLists/longArray 0))
   ([data]
-   `(impl-array-macro ~data ArrayLists/longArray as-longs Casts/longCast long-array-list)))
+   `(impl-array-macro ~data ArrayLists/longArray Casts/longCast long-array-v)))
 
 
 (defmacro lvec
   ([] `(ArrayLists/toList (long-array)))
   ([data] `(ArrayLists/toList (long-array ~data))))
+
+
+(defn float-array-list
+  (^IMutList [] (FloatArrayList. (clojure.core/float-array 4) 0 nil))
+  (^IMutList [data]
+   (if (number? data)
+     (FloatArrayList. (clojure.core/float-array data) 0 nil)
+     (let [^IMutList retval (if (instance? RandomAccess data)
+                              (float-array-list (.size ^List data))
+                              (float-array-list))]
+       (.addAllReducible retval data)
+       retval))))
+
+(defn ^:no-doc float-array-v
+  [data]
+  (if (instance? IMutList data)
+    (.toFloatArray ^IMutList data)
+    (do-make-array #(ArrayLists/floatArray %) #(ArrayLists/toList ^floats %)
+                   float-array-list data)))
+
+(defmacro float-array
+  ([] `(ArrayLists/floatArray 0))
+  ([data]
+   `(impl-array-macro ~data ArrayLists/floatArray Casts/doubleCast float-array-v)))
+
+
+(defmacro fvec
+  ([] `(ArrayLists/toList (float-array)))
+  ([data] `(ArrayLists/toList (float-array ~data))))
 
 
 (defn double-array-list
@@ -2400,14 +2408,20 @@ ham-fisted.api> (binary-search data 1.1 nil)
        (.addAllReducible (->reducible cap-or-data))))))
 
 
-(defn ^:no-doc as-doubles ^doubles [data] data)
+(defn ^:no-doc double-array-v
+  [data]
+  (if (instance? IMutList data)
+    (.toDoubleArray ^IMutList data)
+    (do-make-array #(ArrayLists/doubleArray %) #(ArrayLists/toList ^doubles %)
+                   double-array-list data)))
+
 
 
 (defmacro double-array
   ([] `(ArrayLists/doubleArray 0))
   ([data]
-   `(impl-array-macro ~data ArrayLists/doubleArray as-doubles Casts/doubleCast
-                      double-array-list)))
+   `(impl-array-macro ~data ArrayLists/doubleArray Casts/doubleCast double-array-v)))
+
 
 
 (defmacro dvec
