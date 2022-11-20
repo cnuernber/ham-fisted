@@ -3,7 +3,7 @@
            [java.util.function DoubleConsumer]
            [ham_fisted Sum Sum$SimpleSum Reducible IFnDef$ODO ParallelOptions
             Reductions])
-  (:refer-clojure :exclude [reduce]))
+  (:refer-clojure :exclude [reduce set?]))
 
 
 (defprotocol ToIterable
@@ -89,7 +89,21 @@ two accumulators  and returns a or modified accumulator."))
 
 (defprotocol SetOps
   "Simple protocol for set operations to make them uniformly extensible to new objects."
+  (set? [l])
   (union [l r])
   (difference [l r])
   (intersection [l r])
-  (xor [l r]))
+  (xor [l r])
+  (contains-fn [item]
+    "Return an efficient function for deciding if this set contains a single item.")
+  (^long cardinality [item]
+   "Some sets don't work with clojure's count function."))
+
+
+(defprotocol BitSet
+  "Protocol for efficiently dealing with bitsets"
+  (bitset? [item])
+  (contains-range? [item sidx eidx])
+  (intersects-range? [item sidx eidx])
+  (min-set-value [item])
+  (max-set-value [item]))
