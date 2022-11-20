@@ -65,7 +65,12 @@ public class Casts {
       return longCast(((Double)obj).doubleValue());
     else if (obj instanceof Float)
       return longCast(((Float)obj).floatValue());
-    return RT.longCast(obj);
+    else if (obj instanceof Number)
+      return RT.longCast(obj);
+    else if (obj instanceof Character)
+      return (long)(Character)obj;
+    else
+      throw new RuntimeException("Object cannot be casted to long: " + obj);
   }
   public static long longCast(long obj) {
     return obj;
@@ -80,7 +85,7 @@ public class Casts {
     return (long)obj;
   }
   public static long longCast(float obj) {
-    if(Float.isFinite(obj))
+    if(!Float.isFinite(obj))
       throw new RuntimeException("Non-finite float cannot be casted to long: "
 				 + String.valueOf(obj));
     return (long)obj;

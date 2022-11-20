@@ -2199,7 +2199,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
    (argsort comp-nan-last coll)))
 
 
-(defn- do-make-array
+(defn ^:no-doc do-make-array
   [clj-ary-fn ary-ra-fn ary-list-fn data]
   (if (number? data)
      (clj-ary-fn data)
@@ -2280,12 +2280,20 @@ ham-fisted.api> (binary-search data 1.1 nil)
        (.addAllReducible retval data)
        retval))))
 
+(defn ^:no-doc as-floats ^floats [data] data)
 
-(defn float-array
-  (^floats [] (float-array 0))
-  (^floats [data] (do-make-array #(ArrayLists/floatArray %)
-                                 #(ArrayLists/toList ^floats %)
-                                 float-array-list data)))
+
+(defmacro float-array
+  ([] `(ArrayLists/floatArray 0))
+  ([data]
+   `(impl-array-macro ~data ArrayLists/floatArray as-floats Casts/doubleCast
+                      float-array-list)))
+
+
+(defmacro fvec
+  ([] `(ArrayLists/toList (float-array)))
+  ([data] `(ArrayLists/toList (float-array ~data))))
+
 
 
 (defn boolean-array-list
@@ -2319,11 +2327,40 @@ ham-fisted.api> (binary-search data 1.1 nil)
        (.addAllReducible (->reducible cap-or-data))))))
 
 
-(defn int-array
-  (^ints [] (int-array 0))
-  (^ints [data] (do-make-array #(ArrayLists/intArray %)
-                               #(ArrayLists/toList ^ints %)
-                               int-array-list data)))
+(defn ^:no-doc as-ints
+  "Cast data to an int array"
+  ^ints [data] data)
+
+
+(defmacro ^:no-doc impl-array-macro
+  [data ctor ary-cast elem-cast list-fn]
+  (cond
+    (number? data)
+    `(~ctor ~data)
+     (and (vector? data)
+          (< (count data) 10))
+     `(let [~'ary (~ctor ~(count data))]
+        (do
+          ~@(->> (range (count data))
+                 (map (fn [^long idx]
+                        `(ArrayHelpers/aset ~'ary ~idx (~elem-cast ~(data idx))))))
+          ~'ary))
+     :else
+     `(~ary-cast
+       (do-make-array #(~ctor %)
+                      #(ArrayLists/toList (~ary-cast %))
+                      ~list-fn ~data))))
+
+
+(defmacro int-array
+  ([] `(ArrayLists/intArray 0))
+  ([data]
+   `(impl-array-macro ~data ArrayLists/intArray as-ints Casts/longCast int-array-list)))
+
+
+(defmacro ivec
+  ([] `(ArrayLists/toList (int-array)))
+  ([data] `(ArrayLists/toList (int-array ~data))))
 
 
 (defn long-array-list
@@ -2337,12 +2374,18 @@ ham-fisted.api> (binary-search data 1.1 nil)
      (doto (ArrayLists$LongArrayList.)
        (.addAllReducible (->reducible cap-or-data))))))
 
+(defn ^:no-doc as-longs ^longs [data] data)
 
-(defn long-array
-  (^longs [] (long-array 0))
-  (^longs [data] (do-make-array #(ArrayLists/longArray %)
-                                #(ArrayLists/toList ^longs %)
-                                long-array-list data)))
+
+(defmacro long-array
+  ([] `(ArrayLists/longArray 0))
+  ([data]
+   `(impl-array-macro ~data ArrayLists/longArray as-longs Casts/longCast long-array-list)))
+
+
+(defmacro lvec
+  ([] `(ArrayLists/toList (long-array)))
+  ([data] `(ArrayLists/toList (long-array ~data))))
 
 
 (defn double-array-list
@@ -2357,14 +2400,19 @@ ham-fisted.api> (binary-search data 1.1 nil)
        (.addAllReducible (->reducible cap-or-data))))))
 
 
-(defn double-array
-  (^doubles [] (double-array 0))
-  (^doubles [data]
-   (if (number? data)
-     (ArrayLists/doubleArray data))
-   (do-make-array #(ArrayLists/doubleArray %)
-                  #(ArrayLists/toList ^doubles %)
-                  double-array-list data)))
+(defn ^:no-doc as-doubles ^doubles [data] data)
+
+
+(defmacro double-array
+  ([] `(ArrayLists/doubleArray 0))
+  ([data]
+   `(impl-array-macro ~data ArrayLists/doubleArray as-doubles Casts/doubleCast
+                      double-array-list)))
+
+
+(defmacro dvec
+  ([] `(ArrayLists/toList (double-array)))
+  ([data] `(ArrayLists/toList (double-array ~data))))
 
 
 (defn object-array-list

@@ -53,38 +53,38 @@
    :char-vec-list {:convert-fn char :vec-fn
                    (fn ([] (api/->random-access (api/char-array-list)))
                      ([data] (api/->random-access (api/char-array-list (api/mapv char data)))))}
-   :int-vec {:convert-fn identity :vec-fn (comp api/->random-access api/int-array)}
+   :int-vec {:convert-fn identity :vec-fn (fn ([] (api/ivec)) ([data] (api/ivec data)))}
    :int-list-vec {:convert-fn identity :vec-fn api/int-array-list}
-   :long-vec {:convert-fn identity :vec-fn (comp api/->random-access api/long-array)}
+   :long-vec {:convert-fn identity :vec-fn (fn ([] (api/lvec)) ([data] (api/lvec data)))}
    :long-list-vec {:convert-fn identity :vec-fn api/long-array-list}
-   :float-vec {:convert-fn float :vec-fn (comp api/->random-access api/float-array)}
+   :float-vec {:convert-fn float :vec-fn (fn ([] (api/fvec)) ([data] (api/fvec data)))}
    :float-list-vec {:convert-fn float :vec-fn (comp api/->random-access api/float-array-list)}
-   :double-vec {:convert-fn double :vec-fn (comp api/->random-access api/double-array)}
+   :double-vec {:convert-fn double :vec-fn (fn ([] (api/dvec)) ([data] (api/dvec data)))}
    :double-list-vec {:convert-fn double :vec-fn api/double-array-list}
    })
 
 
 (defn test-reversed-vec-fn
-  [{:keys [convert-fn vec-fn]}]
+  [k {:keys [convert-fn vec-fn]}]
   (let [r (range 6)
         v (vec-fn r)
         reversed (.rseq v)]
     (testing "RSeq methods"
-      (is (= (api/mapv convert-fn [5 4 3 2 1 0]) reversed))
-      (is (= (convert-fn 5) (.first reversed)))
-      (is (= (api/mapv convert-fn [4 3 2 1 0]) (.next reversed)))
-      (is (= (api/mapv convert-fn [3 2 1 0]) (.. reversed next next)))
-      (is (= 6 (.count reversed))))
+      (is (= (api/mapv convert-fn [5 4 3 2 1 0]) reversed) (str k " " v " " reversed))
+      (is (= (convert-fn 5) (.first reversed)) k)
+      (is (= (api/mapv convert-fn [4 3 2 1 0]) (.next reversed)) k)
+      (is (= (api/mapv convert-fn [3 2 1 0]) (.. reversed next next)) k)
+      (is (= 6 (.count reversed)) k))
     (testing "clojure calling through"
-      (is (= (convert-fn 5) (first reversed)))
-      (is (= (convert-fn 5) (nth reversed 0))))
+      (is (= (convert-fn 5) (first reversed)) k)
+      (is (= (convert-fn 5) (nth reversed 0))) k)
     (testing "empty reverses to nil"
       (is (nil? (.. v empty rseq))))))
 
 
 (deftest test-reversed-vec
   (doseq [[k v] vec-fns]
-    (test-reversed-vec-fn v)))
+    (test-reversed-vec-fn k v)))
 
 
 (defn all-add

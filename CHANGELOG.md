@@ -1,3 +1,10 @@
+# 1.000-beta-48
+ * macros for double, float, long, and int array creation that will inline a fastpath
+   if the argument is a compile-time vector or integer.  Bugfix for casting floats
+   to longs.
+ * shorthand macros, ivec, lvec, fvec, dvec to create array-backed containers that
+   allow nth destructuring.
+
 # 1.000-beta-47
  * major double-array, float-array, long-array, int-array optimizations.
 
