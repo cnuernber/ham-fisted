@@ -1,7 +1,10 @@
+# 1.000-beta-50
+ * forgot type hints on array constructors.
+
 # 1.000-beta-49
  * Final round of optimizations for double array creation.  Turns out reductions really
    are faster.
-   
+
 # 1.000-beta-48
  * macros for double, float, long, and int array creation that will inline a fastpath
    if the argument is a compile-time vector or integer.  Bugfix for casting floats

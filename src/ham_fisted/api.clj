@@ -2318,7 +2318,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
 
 
 (defn ^:no-doc int-array-v
-  [data]
+  ^ints [data]
   (if (instance? IMutList data)
     (.toIntArray ^IMutList data)
     (do-make-array #(ArrayLists/intArray %) #(ArrayLists/toList ^ints %)
@@ -2350,7 +2350,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
        (.addAllReducible (->reducible cap-or-data))))))
 
 (defn ^:no-doc long-array-v
-  [data]
+  ^longs [data]
   (if (instance? IMutList data)
     (.toLongArray ^IMutList data)
     (do-make-array #(ArrayLists/longArray %) #(ArrayLists/toList ^longs %)
@@ -2381,7 +2381,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
        retval))))
 
 (defn ^:no-doc float-array-v
-  [data]
+  ^floats [data]
   (if (instance? IMutList data)
     (.toFloatArray ^IMutList data)
     (do-make-array #(ArrayLists/floatArray %) #(ArrayLists/toList ^floats %)
@@ -2412,7 +2412,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
 
 
 (defn ^:no-doc double-array-v
-  [data]
+  ^doubles [data]
   (if (instance? IMutList data)
     (.toDoubleArray ^IMutList data)
     (do-make-array #(ArrayLists/doubleArray %) #(ArrayLists/toList ^doubles %)
