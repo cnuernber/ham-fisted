@@ -53,7 +53,10 @@
             IndexedLongConsumer IndexedConsumer ITypedReduce ParallelOptions Reductions
             IFnDef$LO IFnDef$LL IFnDef$DO IFnDef$DD IFnDef$DDD
             IFnDef$LLL ParallelOptions$CatParallelism IFnDef$OO IFnDef$OOO IFnDef$ODO
-            IFnDef$OLO IFnDef$OD IFnDef$OL IFnDef$LD IFnDef$DL Consumers$IncConsumer]
+            IFnDef$OLO IFnDef$OD IFnDef$OL IFnDef$LD IFnDef$DL IFnDef$OLOO IFnDef$OLDO
+            IFnDef$OLLO Consumers$IncConsumer
+            Reductions$IndexedDoubleAccum Reductions$IndexedLongAccum
+            Reductions$IndexedAccum]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
@@ -2557,6 +2560,60 @@ ham-fisted.api> @*1
   `(reify IFnDef$OLO
      (invokePrim [this ~accvar ~varvar]
        ~@code)))
+
+
+(defmacro indexed-double-accum
+  "Create an indexed double accumulator that recieves and additional long index
+  during a reduction:
+
+```clojure
+ham-fisted.api> (reduce (indexed-double-accum
+                         acc idx v (conj acc [idx v]))
+                        []
+                        (range 5))
+[[0 0.0] [1 1.0] [2 2.0] [3 3.0] [4 4.0]]
+```"
+  [accvar idxvar varvar & code]
+  `(Reductions$IndexedDoubleAccum.
+    (reify IFnDef$OLDO
+      (invokePrim [this# ~accvar ~idxvar ~varvar]
+        ~@code))))
+
+
+(defmacro indexed-long-accum
+  "Create an indexed long accumulator that recieves and additional long index
+  during a reduction:
+
+```clojure
+ham-fisted.api> (reduce (indexed-long-accum
+                         acc idx v (conj acc [idx v]))
+                        []
+                        (range 5))
+[[0 0] [1 1] [2 2] [3 3] [4 4]]
+```"
+  [accvar idxvar varvar & code]
+  `(Reductions$IndexedLongAccum.
+    (reify IFnDef$OLLO
+      (invokePrim [this# ~accvar ~idxvar ~varvar]
+        ~@code))))
+
+
+(defmacro indexed-accum
+  "Create an indexed accumulator that recieves and additional long index
+  during a reduction:
+
+```clojure
+ham-fisted.api> (reduce (indexed-accum
+                         acc idx v (conj acc [idx v]))
+                        []
+                        (range 5))
+[[0 0] [1 1] [2 2] [3 3] [4 4]]
+```"
+  [accvar idxvar varvar & code]
+  `(Reductions$IndexedAccum.
+    (reify IFnDef$OLOO
+      (invokePrim [this# ~accvar ~idxvar ~varvar]
+        ~@code))))
 
 
 (defn ->consumer

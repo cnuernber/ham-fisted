@@ -179,7 +179,7 @@ public class Reductions {
       this.rfn = rfn;
       this.idx = 0;
     }
-    public Object invokePrim(Object acc, Object v) {
+    public Object invoke(Object acc, Object v) {
       return rfn.invokePrim(acc, idx++, v);
     }
   }

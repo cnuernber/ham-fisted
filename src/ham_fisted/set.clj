@@ -4,9 +4,16 @@
             [ham-fisted.impl]
             [clojure.set :as cset])
   (:import [ham_fisted HashSet PersistentHashSet Ranges$LongRange IMutList]
-           [java.util BitSet Set Map]
+           [java.util BitSet Set Map Collection]
+           [java.util.concurrent ConcurrentHashMap]
            [clojure.lang APersistentSet])
   (:refer-clojure :exclude [set set?]))
+
+
+(set! *warn-on-reflection* true)
+
+
+(declare unique bitset)
 
 
 (defn- set-add-all
@@ -14,7 +21,7 @@
   (api/reduce (fn [^Set acc v]
                  (.add acc v)
                  acc)
-               (HashSet.)
+               s
                data))
 
 (defn mut-set
@@ -34,10 +41,26 @@
          (persistent!)))))
 
 
+(defn set?
+  [data]
+  (when data (hamf-proto/set? data)))
+
+
 (defn java-hashset
   "Return a java hashset"
   (^Set [] (java.util.HashSet.))
-  (^Set [data] (set-add-all (java.util.HashSet.) data)))
+  (^Set [data] (if (instance? java.util.HashSet data)
+                 data
+                 (set-add-all (java.util.HashSet.) data))))
+
+
+(defn java-concurrent-hashset
+  "Create a concurrent hashset."
+  (^Set [] (ConcurrentHashMap/newKeySet))
+  (^Set [data]
+   (if (instance? Set data)
+     data
+     (unique {:set-constructor (constantly (java-concurrent-hashset))} data))))
 
 
 (def ^{:private true
@@ -52,12 +75,7 @@
 
 (defn- reduce->range
   [data]
-  (api/reduce (api/long-accumulator
-               acc v
-               (.set ^BitSet acc (unchecked-int v))
-               acc)
-              (BitSet.)
-              data))
+  (unique {:set-constructor bitset} data))
 
 (defn bitset
   "Create a java.util.Bitset.  The two argument version assumes you are passing in the
@@ -100,7 +118,7 @@
   (set? [l] true)
   (union [l r]
     (let [^BitSet l (.clone l)]
-      (.or (.clone l) (bitset r))
+      (.or ^BitSet (.clone l) (bitset r))
       l))
   (difference [l r]
     (let [^BitSet l (.clone l)]
@@ -117,6 +135,11 @@
   (contains-fn [l]
     (api/long-predicate v (.get l (unchecked-int v))))
   (cardinality [l] (.cardinality l)))
+
+
+(extend-protocol hamf-proto/PAdd
+  BitSet
+  (add-fn [c] (api/long-accumulator b v (.set ^BitSet b (unchecked-int v)) b)))
 
 
 (extend-protocol hamf-proto/BitSet
@@ -249,7 +272,7 @@
                   (api/ivec s)
                   (api/lvec s))))
             (let [^IMutList l (api/lvec s)]
-              ;;Sorting means downstream access is in memory order.  It
+              ;;Sorting means downstream access is in memory order.
               (.sort l nil)
               l)))]
     (if (== 0 ne)
@@ -257,3 +280,34 @@
       ;;Keeping track of the min, max values allows downstream functions to choose
       ;;perhaps different pathways.
       (vary-meta rv assoc :min (rv 0) :max (rv -1)))))
+
+
+(defn unique-reducer
+  "Create a parallel reducer that creates a set.
+
+  Options:
+
+  * `:set-constructor` construct something that implements [[ham-fisted.protocols/add-fn]]
+  and [[ham-fisted.protocols/union]]
+  * `:add-fn` Pass in user-defined add function as opposed to using protocol lookup to
+    find it."
+  [options]
+  (let [ctor (get options :set-constructor api/mut-set)
+        add-fn (or (get options :add-fn)
+                   (hamf-proto/add-fn (ctor)))]
+    (reify
+      hamf-proto/Reducer
+      (->init-val-fn [r] ctor)
+      (->rfn [r] add-fn)
+      (finalize [r v] (api/persistent! v))
+      hamf-proto/ParallelReducer
+      (->merge-fn [r] union))))
+
+
+(defn unique
+  "Create a set of unique items.  Parallelized and non-lazy.
+
+  See options for [[unique-reducer]] and [[ham-fisted.api/preduce-reducer]]."
+  ([options data]
+   (api/preduce-reducer (unique-reducer options) (merge {:min-n 1000} options) data))
+  ([data] (unique nil data)))

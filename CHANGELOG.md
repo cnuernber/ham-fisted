@@ -1,3 +1,9 @@
+# 1.000-beta-51
+ * additional set operation - parallelized `unique`.
+ * exposed indexed accumulator macros in api for use outside library.
+ * generic protocol fn add-fn that must return a reduction compatible function
+   for a given collection.
+
 # 1.000-beta-50
  * forgot type hints on array constructors.
 

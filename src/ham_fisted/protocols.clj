@@ -87,6 +87,12 @@ two accumulators  and returns a or modified accumulator."))
   (->merge-fn [s] reducible-merge))
 
 
+(defprotocol PAdd
+  "Define a function to mutably add items to a collection.  This function must return
+  the collection -- it must be useable in a reduction."
+  (add-fn [l]))
+
+
 (defprotocol SetOps
   "Simple protocol for set operations to make them uniformly extensible to new objects."
   (set? [l])

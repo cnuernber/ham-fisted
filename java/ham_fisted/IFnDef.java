@@ -526,4 +526,20 @@ public interface IFnDef extends IFn
       return invokePrim(Casts.longCast(l), Casts.longCast(r));
     }
   }
+
+  public interface OLOO extends IFnDef, IFn.OLOO {
+    default Object invoke(Object acc, Object idx, Object v) {
+      return invokePrim(acc, Casts.longCast(idx), v);
+    }
+  }
+  public interface OLDO extends IFnDef, IFn.OLDO {
+    default Object invoke(Object acc, Object idx, Object v) {
+      return invokePrim(acc, Casts.longCast(idx), Casts.doubleCast(v));
+    }
+  }
+  public interface OLLO extends IFnDef, IFn.OLLO {
+    default Object invoke(Object acc, Object idx, Object v) {
+      return invokePrim(acc, Casts.longCast(idx), Casts.longCast(v));
+    }
+  }
 }

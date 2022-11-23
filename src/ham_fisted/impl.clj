@@ -316,6 +316,11 @@
       (reduce [c rfn init] (bitset-reduce item rfn init)))))
 
 
+(extend-protocol protocols/PAdd
+  Collection
+  (add-fn [c] #(do (.add ^Collection %1 %2) %1)))
+
+
 (extend-protocol protocols/Reduction
   nil
   (reducible? [coll] true)
