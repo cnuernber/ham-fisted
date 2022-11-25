@@ -206,17 +206,6 @@ public class Transformables {
     }
     return init;
   }
-  public static IFn checkedSingleMapFn(IFn fn) {
-    if(fn instanceof IFn.LL) {
-      final IFn.LL ff = (IFn.LL)fn;
-      return new IFnDef.LL() {
-	public long invokePrim(long v) {
-	  return ff.invokePrim(v);
-	}
-      };
-    }
-    return fn;
-  }
   public static IFn mapReducer(final IFn rfn, final IFn mapFn) {
     return new IFnDef() {
       public Object invoke(Object lhs, Object rhs) {
@@ -397,7 +386,7 @@ public class Transformables {
       final IFn fn;
       public SingleIterator(IFn _fn, Iterator it) {
 	iter = it;
-	fn = checkedSingleMapFn(_fn);
+	fn = _fn;
       }
       public boolean hasNext() { return iter.hasNext(); }
       public Object next() { return fn.invoke(iter.next()); }
@@ -467,7 +456,7 @@ public class Transformables {
     }
     public Object reduce(IFn rfn, Object init) {
       if(iterables.length == 1)
-	return singleMapReduce(iterables[0], rfn, checkedSingleMapFn(fn), init);
+	return singleMapReduce(iterables[0], rfn, fn, init);
       else
 	return iterReduce(this, init, rfn);
     }
@@ -929,7 +918,7 @@ public class Transformables {
       nElems = l.size();
       list = l;
       fn = _fn;
-      checkedFn = checkedSingleMapFn(_fn);
+      checkedFn = _fn;
       meta = m;
     }
     public SingleMapList(SingleMapList o, IPersistentMap m) {
@@ -957,7 +946,7 @@ public class Transformables {
       return new SingleMapList(MapFn.create(fn, nfn), meta, list);
     }
     public Object reduce(IFn rfn, Object init) {
-      return singleMapReduce(list, rfn, checkedSingleMapFn(fn), init);
+      return singleMapReduce(list, rfn, fn, init);
     }
     public Object doubleReduction(IFn.ODO rfn, Object init) {
       return singleMapDoubleReduce(list, rfn, fn, init);

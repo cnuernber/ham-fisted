@@ -48,8 +48,6 @@ public class Ranges {
     public int size() { return RT.intCast(nElems); }
     public long lgetLong(long idx) {
       final long sz = nElems;
-      if(idx < 0)
-	idx += sz;
       if(idx < 0 || idx >= sz)
 	throw new IndexOutOfBoundsException("Index out of range: " + String.valueOf(idx) +
 					    " size: " + String.valueOf(sz));

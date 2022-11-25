@@ -137,6 +137,14 @@
   (cardinality [l] (.cardinality l)))
 
 
+(extend-protocol hamf-proto/BulkSetOps
+  Object
+  (reduce-union [l data]
+    (reduce hamf-proto/union l data))
+  (reduce-intersection [l data]
+    (reduce hamf-proto/intersection l data)))
+
+
 (extend-protocol hamf-proto/PAdd
   BitSet
   (add-fn [c] (api/long-accumulator b v (.set ^BitSet b (unchecked-int v)) b)))
@@ -177,12 +185,25 @@
     r))
 
 
+(defn reduce-union
+  "Reduce a number of objects into one object via union"
+  ([l] l)
+  ([l & data]
+   (hamf-proto/reduce-union l data)))
+
+
 (defn intersection
   "set intersection"
   [l r]
   (if l
     (hamf-proto/intersection l r)
     r))
+
+
+(defn reduce-intersection
+  ([l] l)
+  ([l & data]
+   (hamf-proto/reduce-intersection l data)))
 
 
 (defn difference

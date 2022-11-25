@@ -15,13 +15,10 @@
                                                             (+ v 2.0)))
                                                 (lznc/filter (fn [^long v]
                                                                (not (== 0 (rem v 3)))))))))
-  (is (thrown? Exception (vec (lznc/map (fn ^long [^long v]
-                                          (+ v 2))
+  (is (thrown? Exception (vec (lznc/map (api/long-unary-operator v (+ v 2))
                                         [0.0 ##NaN 0.0]))))
   (is (thrown? Exception (vec (->> [0.0 ##NaN 0.0]
-                                   (lznc/map (fn ^double [^double v]
-                                               (+ v 2.0)))
-                                   (lznc/filter (fn [^long v]
-                                                  (not (== 0 (rem v 3)))))))))
+                                   (api/double-unary-operator v (+ v 2.0))
+                                   (lznc/filter (api/long-predicate v (not (== 0 (rem v 3)))))))))
   (is (= [false false false] (api/->random-access (api/boolean-array [nil ##NaN nil]))))
   (is (= [false false] (api/->random-access (api/boolean-array [nil nil])))))

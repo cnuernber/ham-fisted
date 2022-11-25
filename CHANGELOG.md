@@ -1,3 +1,7 @@
+# 1.000-beta-52
+ * bulk union, intersection operations.
+ * Faster for longs and doubles but equivalent `equiv` operation.
+ 
 # 1.000-beta-51
  * additional set operation - parallelized `unique`.
  * exposed indexed accumulator macros in api for use outside library.

@@ -533,16 +533,16 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
   "Perform a reduction to put values as if by assoc into a mutable map."
   ^Map [^Map m data]
   (reduce (fn [^Map m d]
-                 (cond
-                   (instance? Map$Entry d)
-                   (.put m (.getKey ^Map$Entry d) (.getValue ^Map$Entry d))
-                   (instance? Indexed d)
-                   (.put m (.nth ^Indexed d 0) (.nth ^Indexed d 1))
-                   :else
-                   (throw (Exception. "Unrecognized map input")))
-                 m)
-               m
-               data))
+            (cond
+              (instance? Map$Entry d)
+              (.put m (.getKey ^Map$Entry d) (.getValue ^Map$Entry d))
+              (instance? Indexed d)
+              (.put m (.nth ^Indexed d 0) (.nth ^Indexed d 1))
+              :else
+              (throw (Exception. "Unrecognized map input")))
+            m)
+          m
+          data))
 
 
 (defn mut-map
@@ -2179,10 +2179,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
   "Sort a collection of data returning an array of indexes.  The collection must be
   random access and the return value is an integer array of indexes which will read the
   input data in sorted order.  Faster implementations are provided when the collection
-  is an integer, long, or double array.  See also [[reindex]].
-
-  Note this sort is not nan, null aware.  dtype-next provides a somewhat slower version
-  in the argops namespace which will correctly handle null and nan values."
+  is an integer, long, or double array.  See also [[reindex]]."
   ([comp coll]
    (let [^List coll (if (instance? RandomAccess coll)
                       coll

@@ -13,6 +13,8 @@ import clojure.lang.Murmur3;
 import clojure.lang.APersistentMap;
 import clojure.lang.Util;
 import clojure.lang.RT;
+import clojure.lang.Numbers;
+import clojure.lang.IPersistentCollection;
 
 
 public class CljHash {
@@ -30,6 +32,29 @@ public class CljHash {
     return Murmur3.hashUnordered(data.keySet((Object)null, false));
   }
 
+  public static boolean equiv(Object k1, Object k2) {
+    if(k1 == k2)
+      return true;
+    //Somewhat faster version of equiv *if* both are longs or both are doubles.
+    //which happens to be a very common case in Clojure.
+    if(k1 != null) {
+      if( k1 instanceof Long && k2 instanceof Long)
+	return (long)k1 == (long)k2;
+
+      if ( k1 instanceof Double && k2 instanceof Double)
+	return (double)k1 == (double)k2;
+
+      if(k1 instanceof Number && k2 instanceof Number)
+	return Numbers.equal((Number)k1, (Number)k2);
+
+      if(k1 instanceof IPersistentCollection || k2 instanceof IPersistentCollection)
+	return Util.pcequiv(k1,k2);
+
+      return k1.equals(k2);
+    }
+    return false;
+  }
+
   public static boolean mapEquiv(BitmapTrie data, Object rhs) {
     BitmapTrie rhsBm = null;
     if (rhs instanceof BitmapTrieOwner) {
@@ -45,7 +70,7 @@ public class CljHash {
       while(iter.hasNext()) {
 	ILeaf rlf = iter.nextLeaf();
 	LeafNode llf = data.getNode(rlf.key());
-	if (llf == null || Util.equiv(llf.v, rlf.val()) == false)
+	if (llf == null || equiv(llf.v, rlf.val()) == false)
 	  return false;
       }
       return true;
@@ -55,7 +80,7 @@ public class CljHash {
       for(Object obj: rhsMap.entrySet()) {
 	Map.Entry me = (Map.Entry)obj;
 	LeafNode llf = data.getNode(me.getKey());
-	if (llf == null || Util.equiv(llf.val(), me.getValue()) == false)
+	if (llf == null || equiv(llf.val(), me.getValue()) == false)
 	  return false;
       }
       return true;
@@ -113,7 +138,7 @@ public class CljHash {
       final int sz = l.size();
       if(sz != r.size()) return false;
       for(int idx = 0; idx < sz; ++idx) {
-	if(!Util.equiv(l.get(idx), r.get(idx)))
+	if(!equiv(l.get(idx), r.get(idx)))
 	  return false;
       }
       return true;
@@ -123,7 +148,7 @@ public class CljHash {
       final int sz = l.size();
       int idx;
       for(idx = 0; idx < sz && iter.hasNext(); ++idx) {
-	if(!Util.equiv(l.get(idx), iter.next()))
+	if(!equiv(l.get(idx), iter.next()))
 	  return false;
       }
       return idx != sz || iter.hasNext() ? false : true;

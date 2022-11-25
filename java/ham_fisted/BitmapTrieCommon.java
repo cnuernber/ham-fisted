@@ -44,7 +44,7 @@ public class BitmapTrieCommon {
 	return Util.hasheq(obj);
       }
       public boolean equals(Object lhs, Object rhs) {
-	return Util.equiv(lhs,rhs);
+	return CljHash.equiv(lhs,rhs);
       }
     };
 
@@ -58,7 +58,7 @@ public class BitmapTrieCommon {
 	  return mixhash(obj.hashCode());
       }
       public boolean equals(Object lhs, Object rhs) {
-	return Util.equiv(lhs,rhs);
+	return CljHash.equiv(lhs,rhs);
       }
     };
 

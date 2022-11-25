@@ -106,6 +106,11 @@ two accumulators  and returns a or modified accumulator."))
    "Some sets don't work with clojure's count function."))
 
 
+(defprotocol BulkSetOps
+  (reduce-union [l data])
+  (reduce-intersection [l data]))
+
+
 (defprotocol BitSet
   "Protocol for efficiently dealing with bitsets"
   (bitset? [item])
