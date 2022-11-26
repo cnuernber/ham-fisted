@@ -51,7 +51,11 @@ public class Reductions {
     return Clojure.var("ham-fisted.protocols", "reduce").invoke(coll, rfn, init);
   }
 
-  public static Object iterableMerge(IFn mergeFn, final Iterable groups) {
+  public static Object iterableMerge(ParallelOptions options, IFn mergeFn,
+				     final Iterable groups) {
+    if(options.unmergedResult)
+      return groups;
+
     final Iterator giter = groups.iterator();
     Object initObj = giter.hasNext() ? giter.next() : null;
     while(giter.hasNext())
@@ -61,7 +65,7 @@ public class Reductions {
 
   public static Object parallelIndexGroupReduce(IFn groupFn, long nElems, IFn mergeFn,
 						ParallelOptions options) {
-    return iterableMerge(mergeFn,
+    return iterableMerge(options, mergeFn,
 			 ForkJoinPatterns.parallelIndexGroups(nElems, groupFn, options));
   }
 
@@ -139,15 +143,28 @@ public class Reductions {
 
   public static Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
 					 Object coll, ParallelOptions options) {
-    if(coll == null) return initValFn.invoke();
+    if(coll == null)
+      return options.unmergedResult ?
+	ArrayImmutList.create( true, null, initValFn.invoke() ) :
+	initValFn.invoke();
 
-    if(options.parallelism < 2)
-      return serialReduction(rfn, initValFn.invoke(), coll);
+    if(options.parallelism < 2) {
+      return serialParallelReduction(initValFn, rfn, options, coll);
+    }
 
     //Delegate back to clojure here so we can use a protocol to dispatch the
     //parallel reduction.
     return Clojure.var("ham-fisted.protocols", "preduce").invoke(coll, initValFn,
 								 rfn, mergeFn, options);
+  }
+
+  public static Object serialParallelReduction(IFn initValFn, IFn rfn,
+					       ParallelOptions options,
+					       Object coll) {
+    final Object retval = serialReduction(rfn, initValFn.invoke(), coll);
+    return options.unmergedResult ?
+      ArrayImmutList.create( true, null, retval ) :
+      retval;
   }
 
   public static class IndexedDoubleAccum implements IFnDef.ODO {

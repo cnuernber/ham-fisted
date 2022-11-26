@@ -301,6 +301,54 @@ public class Transformables {
       };
     }
   }
+
+  public static IFn typedMapReducer(IFn rfn, IFn mapFn) {
+    if(mapFn instanceof IFn.LD ||
+       mapFn instanceof IFn.OD ||
+       mapFn instanceof IFn.DD ) {
+      final IFn.ODO rrfn;
+      if(rfn instanceof IFn.ODO)
+	rrfn = (IFn.ODO)rfn;
+      else if (rfn instanceof IFn.OLO) {
+	final IFn.OLO rr = (IFn.OLO)rfn;
+	rrfn = new IFnDef.ODO() {
+	    public Object invokePrim(Object acc, double v) {
+	      return rr.invokePrim(acc, Casts.longCast(v));
+	    }
+	  };
+      } else {
+	rrfn = new IFnDef.ODO() {
+	    public Object invokePrim(Object acc, double v) {
+	      return rfn.invoke(acc, v);
+	    }
+	  };
+      }
+      return (IFn)doubleMapReducer(rrfn, mapFn);
+    } else if ( mapFn instanceof IFn.DL ||
+		mapFn instanceof IFn.OL ||
+		mapFn instanceof IFn.LL ) {
+      final IFn.OLO rrfn;
+      if(rfn instanceof IFn.OLO)
+	rrfn = (IFn.OLO)rfn;
+      else if (rfn instanceof IFn.ODO) {
+	final IFn.ODO rr = (IFn.ODO)rfn;
+	rrfn = new IFnDef.OLO() {
+	    public Object invokePrim(Object acc, long v) {
+	      return rr.invokePrim(acc, (double)v);
+	    }
+	  };
+      } else {
+	rrfn = new IFnDef.OLO() {
+	    public Object invokePrim(Object acc, long v) {
+	      return rfn.invoke(acc, v);
+	    }
+	  };
+      }
+      return (IFn)longMapReducer(rrfn, mapFn);
+    } else {
+      return mapReducer(rfn, mapFn);
+    }
+  }
   public static Object singleMapReduce(final Object item, final IFn rfn,
 				       final IFn mapFn, Object init) {
     return Reductions.serialReduction(mapReducer(rfn, mapFn), init, item);
@@ -472,6 +520,15 @@ public class Transformables {
 	return singleMapLongReduce(iterables[0], rfn, fn, init);
       } else {
 	return IterableSeq.super.longReduction(rfn, init);
+      }
+    }
+    public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
+				    ParallelOptions options) {
+      if(iterables.length == 1) {
+	return Reductions.parallelReduction(initValFn, typedMapReducer(rfn, fn), mergeFn,
+					    iterables[0], options);
+      } else {
+	return Reductions.serialParallelReduction(initValFn, rfn, options, this);
       }
     }
     public Object[] toArray() {
@@ -879,6 +936,8 @@ public class Transformables {
 	    return Reductions.serialReduction(rfn, initValFn.invoke(), arg);
 	  }
 	}, ArrayLists.toList(new Object[] { initSequence }));
+      if(options.unmergedResult)
+	return partiallyReduced;
       return Reductions.serialReduction(mergeFn, init, partiallyReduced);
     }
     public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
@@ -888,11 +947,24 @@ public class Transformables {
       Object init = initValFn.invoke();
       switch (options.catParallelism) {
       case ELEMWISE: {
-	for(int idx = 0; idx < nData && !RT.isReduced(init); ++idx) {
-	  final Iterable item = d[idx];
-	  for(Iterator iter = item.iterator(); iter.hasNext() && !RT.isReduced(init);)
-	    init = mergeFn.invoke(init, Reductions.parallelReduction(initValFn, rfn, mergeFn,
-								     iter.next(), options));
+	final Iterable initSequence = new Iterable() {
+	    public Iterator iterator() {
+	      return new CatIterIter(ArrayLists.toList(data).iterator());
+	    }
+	  };
+	final Iterable mapped = new MapIterable(new IFnDef() {
+	    public Object invoke(Object data) {
+	      return Reductions.parallelReduction(initValFn, rfn, mergeFn, data, options);
+	    }
+	  }, null, initSequence);
+
+	if(options.unmergedResult) {
+	  init = new CatIterable(mapped);
+	} else {
+	  final Iterator miter = mapped.iterator();
+	  init = miter.hasNext() ? initValFn.invoke() : miter;
+	  while(miter.hasNext() && !RT.isReduced(init))
+	    init = mergeFn.invoke(init, miter.next());
 	}
 	break;
       }

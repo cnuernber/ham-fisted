@@ -12,6 +12,9 @@ public class ParallelOptions {
   public final int parallelism;
   public final CatParallelism catParallelism;
   public final int putTimeoutMs;
+  //In some cases users may want a sequence of unmerged results to do some
+  //other form of merge.
+  public final boolean unmergedResult;
 
   public enum CatParallelism {
     //Parallelize assuming catenation of large-N containers
@@ -23,7 +26,8 @@ public class ParallelOptions {
 
   public ParallelOptions(long _minN, int batchSize, boolean _ordered,
 			 ForkJoinPool _pool, int _parallelism,
-			 CatParallelism _catParallelism, int _putTimeoutMs) {
+			 CatParallelism _catParallelism, int _putTimeoutMs,
+			 boolean unmergedResult) {
     minN = _minN;
     maxBatchSize = batchSize;
     ordered = _ordered;
@@ -31,14 +35,15 @@ public class ParallelOptions {
     parallelism = _parallelism;
     catParallelism = _catParallelism;
     putTimeoutMs = _putTimeoutMs;
+    this.unmergedResult = unmergedResult;
   }
   public ParallelOptions(long minN, int batchSize, boolean ordered) {
     this(minN, batchSize, ordered,
 	 ForkJoinPool.commonPool(), ForkJoinPool.getCommonPoolParallelism(),
-	 CatParallelism.SEQWISE, 5000);
+	 CatParallelism.SEQWISE, 5000, false);
   }
   public ParallelOptions minN(long newMinN) {
     return new ParallelOptions(newMinN, maxBatchSize, ordered, pool, parallelism,
-			       catParallelism, putTimeoutMs);
+			       catParallelism, putTimeoutMs, false);
   }
 }

@@ -276,7 +276,8 @@ ham-fisted.api> @*1
                       (case (get options :cat-parallelism :seq-wise)
                         :seq-wise ParallelOptions$CatParallelism/SEQWISE
                         :elem-wise ParallelOptions$CatParallelism/ELEMWISE)
-                      (get options :put-timeout-ms 5000))))
+                      (get options :put-timeout-ms 5000)
+                      (get options :unmerged-result? false))))
 
 
 (defn preduce
@@ -301,14 +302,17 @@ ham-fisted.api> @*1
      Defaults to 1000 but you should customize this particular to your specific reduction.
   * `:ordered?` - True if results should be in order.  Unordered results sometimes are
     slightly faster but again you should test for your specific situation..
-  * `:cat-parallelism` - Either `:seq-wise` or `:elem-wise`, defaults to `:seq-wise`.  Test
-     for your specific situation, this really is data-dependent.
+  * `:cat-parallelism` - Either `:seq-wise` or `:elem-wise`, defaults to `:seq-wise`.
+     Test for your specific situation, this really is data-dependent. This contols how a
+     concat primitive parallelizes the reduction across its contains.  Elemwise means each
+     container's reduction is individually parallelized while seqwise indicates to do a
+     pmap style initial reduction across containers then merge the results.
   * `:put-timeout-ms` - Number of milliseconds to wait for queue space before throwing
      an exception in unordered reductions.  Defaults to 50000.
-  This contols how a concat primitive parallelizes the reduction across its contains.
-  Elemwise means each container's reduction is individually parallelized while seqwise
-  indicates to do a pmap style initial reduction across containers then merge the
-  results."
+  * `:unmerged-result?` - Defaults to false.  When true, the sequence of results map
+     be returned directly without any merge steps in a lazy-noncaching container.  Beware
+     the noncaching aspect -- repeatedly evaluating this result may kick off the parallelized
+     reduction multiple times.  To ensure caching if unsure call `seq` on the result ...)."
   ([init-val-fn rfn merge-fn coll] (preduce init-val-fn rfn merge-fn nil coll))
   ([init-val-fn rfn merge-fn options coll]
    (unpack-reduced
@@ -320,18 +324,30 @@ ham-fisted.api> @*1
   "Given an instance of [[ham-fisted.protocols/ParallelReducer]], perform a parallel
   reduction.
 
+  In the case where the result is requested unmerged then finalize will
+  be called on each result in a lazy noncaching way.  In this case you can use a
+  non-parallelized reducer and simply get a sequence of results as opposed to one.
+
   * reducer - instance of ParallelReducer
   * options - Same options as preduce.
   * coll - something potentially with a parallelizable reduction.
 
-  See options for [[preduce]]."
+  See options for [[preduce]].
+
+  Additional Options:
+
+  `:skip-finalize?` - when true, the reducer's finalize method is not called on the result."
   ([reducer options coll]
-   (->> (preduce (protocols/->init-val-fn reducer)
-                 (protocols/->rfn reducer)
-                 (protocols/->merge-fn reducer)
-                 options
-                 coll)
-        (protocols/finalize reducer)))
+   (let [retval (preduce (protocols/->init-val-fn reducer)
+                      (protocols/->rfn reducer)
+                      (protocols/->merge-fn reducer)
+                      options
+                      coll)]
+     (if (get options :skip-finalize?)
+       retval
+       (if (get options :unmerged-result?)
+         (lznc/map #(protocols/finalize reducer %) retval)
+         (protocols/finalize reducer retval)))))
   ([reducer coll]
    (preduce-reducer reducer nil coll)))
 

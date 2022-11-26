@@ -1,5 +1,5 @@
 (ns ham-fisted.impl
-  (:require [ham-fisted.lazy-noncaching :refer [map concat]]
+  (:require [ham-fisted.lazy-noncaching :refer [map concat] :as lznc]
             [ham-fisted.protocols :as protocols])
   (:import [java.util.concurrent ForkJoinPool ForkJoinTask ArrayBlockingQueue Future
             TimeUnit]
@@ -228,7 +228,7 @@
     (->> (if (.-ordered options)
            (map (fn [l r] (.get ^Future l)) submissions lookahead)
            (map (fn [l] (queue-take queue)) lookahead))
-         (Reductions/iterableMerge mergeFn))))
+         (Reductions/iterableMerge options mergeFn))))
 
 
 (defn- bitset-reduce
@@ -365,19 +365,21 @@
       (instance? RandomAccess coll)
       (Reductions/parallelRandAccessReduction init-val-fn rfn merge-fn coll options)
       (instance? IReduceInit coll)
-      (.reduce ^IReduceInit coll rfn (init-val-fn))
+      (Reductions/serialParallelReduction init-val-fn rfn options coll)
       (instance? Set coll)
       (Reductions/parallelCollectionReduction init-val-fn rfn merge-fn coll options)
       (instance? Map coll)
       (Reductions/parallelCollectionReduction init-val-fn rfn merge-fn
                                               (.entrySet ^Map coll) options)
       :else
-      (Reductions/serialReduction rfn (init-val-fn) coll)))
+      (Reductions/serialParallelReduction init-val-fn rfn options coll)))
   PersistentHashMap
   (preduce [coll init-val-fn rfn merge-fn options]
     (let [options ^ParallelOptions options
           pool (.-pool options)
           n (.-minN options)
+          _ (when (.-unmergedResult options)
+              (throw (RuntimeException. "Persistent hash maps do not support unmerged results")))
           combinef (fn
                      ([] (init-val-fn))
                      ([lhs rhs] (merge-fn lhs rhs)))

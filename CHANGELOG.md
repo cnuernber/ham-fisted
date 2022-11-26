@@ -1,7 +1,16 @@
+# 1.000-beta-53
+ * `:unmerged-result?`, `:skip-finalize?` options for `preduce` and `preduce-reducer`.  This
+   allows you to use the parallelized reductions pathway but get a sequence of results back
+   as opposed to a single result.  It also allows you to used reducers or
+   transducing-compatible rfn's that have no parallel merge pathway and handle the parallel
+   merge yourself after the parallelized reduction.
+ * Fixed issue with single-map parallel reductions to ensure that it passes the parallel
+   reduction request to its source data.
+
 # 1.000-beta-52
  * bulk union, intersection operations.
- * Faster for longs and doubles but equivalent `equiv` operation.
- 
+ * Faster `equiv` for longs and doubles but equivalent for everything else.
+
 # 1.000-beta-51
  * additional set operation - parallelized `unique`.
  * exposed indexed accumulator macros in api for use outside library.
