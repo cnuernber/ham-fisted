@@ -17,9 +17,8 @@
 
 
 (defprotocol Reduction
-  "Reduce a collection to an accumulator."
-  (reducible? [coll])
-  (reduce [coll rfn acc]))
+  "Faster check than satisfies? to see if something is reducible"
+  (reducible? [coll]))
 
 
 (defprotocol ParallelReduction

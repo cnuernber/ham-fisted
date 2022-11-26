@@ -203,20 +203,6 @@ public interface IMutList<E>
 	init = rfn.invoke(init, l.get(idx));
       return init;
     }
-    public Object longReduction(IFn.OLO rfn, Object init) {
-      final int ee = eidx;
-      final IMutList l = list;
-      for(int idx = sidx; idx < ee && !RT.isReduced(init); ++idx)
-	init = rfn.invokePrim(init, l.getLong(idx));
-      return init;
-    }
-    public Object doubleReduction(IFn.ODO rfn, Object init) {
-      final int ee = eidx;
-      final IMutList l = list;
-      for(int idx = sidx; idx < ee && !RT.isReduced(init); ++idx)
-	init = rfn.invokePrim(init, l.getDouble(idx));
-      return init;
-    }
     @SuppressWarnings("unchecked")
     public IMutList<E> subList(int ssidx, int seidx) {
       ChunkedList.sublistCheck(ssidx, seidx, nElems);
@@ -627,18 +613,6 @@ public interface IMutList<E>
   default ISeq rseq() { if(isEmpty()) return null; return new RIndexSeq(this, 0, meta()); }
   default IPersistentMap meta() { return null; }
   default IObj withMeta(IPersistentMap meta ) { throw new UnsupportedOperationException("Unimplemented"); }
-  default Object doubleReduction(IFn.ODO op, Object init) {
-    final int sz = size();
-    for(int idx = 0; idx < sz && !RT.isReduced(init); ++idx)
-      init = op.invokePrim(init, getDouble(idx));
-    return init;
-  }
-  default Object longReduction(IFn.OLO op, Object init) {
-    final int sz = size();
-    for(int idx = 0; idx < sz && !RT.isReduced(init); ++idx)
-      init = op.invokePrim(init, getLong(idx));
-    return init;
-  }
 
   @SuppressWarnings("unchecked")
   default void sort(Comparator<? super E> c) {

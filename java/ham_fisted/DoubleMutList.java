@@ -8,6 +8,7 @@ import it.unimi.dsi.fastutil.doubles.DoubleComparator;
 import it.unimi.dsi.fastutil.ints.IntComparator;
 import java.util.function.DoubleConsumer;
 import clojure.lang.IFn;
+import clojure.lang.RT;
 
 
 public interface DoubleMutList extends IMutList<Object> {
@@ -25,9 +26,6 @@ public interface DoubleMutList extends IMutList<Object> {
       super(l, ss, ee);
     }
     public Object reduce(IFn rfn, Object init) { return DoubleMutList.super.reduce(rfn, init); }
-    public Object longReduction(IFn.OLO rfn, Object init) {
-      return DoubleMutList.super.longReduction(rfn, init);
-    }
   }
   default IMutList<Object> subList(int sidx, int eidx) {
     ChunkedList.sublistCheck(sidx, eidx, size());
@@ -97,19 +95,13 @@ public interface DoubleMutList extends IMutList<Object> {
     return ArrayLists.toList(bdata);
   }
 
-  default Object reduce(final IFn fn, Object init) {
-    final IFn.ODO rrfn = fn instanceof IFn.ODO ? (IFn.ODO)fn : new IFn.ODO() {
-	public Object invokePrim(Object lhs, double v) {
-	  return fn.invoke(lhs, v);
-	}
-      };
-    return doubleReduction(rrfn, init);
+  default Object reduce(final IFn rfn, Object init) {
+    return doubleReduction(Transformables.toDoubleReductionFn(rfn), init);
   }
-  default Object longReduction(IFn.OLO fn, Object init) {
-    return doubleReduction(new IFn.ODO() {
-	public Object invokePrim(Object lhs, double v) {
-	  return fn.invokePrim(lhs, Casts.longCast(v));
-	}
-      }, init);
+  default Object doubleReduction(IFn.ODO rfn, Object init) {
+    final int sz = size();
+    for (int idx = 0; idx < sz && !RT.isReduced(init); ++idx)
+      init = rfn.invokePrim(init, getDouble(idx));
+    return init;
   }
 }

@@ -21,6 +21,7 @@ import clojure.lang.ITransientCollection;
 import clojure.lang.IMapIterable;
 import clojure.lang.IKVReduce;
 import clojure.lang.IReduceInit;
+import clojure.lang.IReduce;
 import clojure.lang.IHashEq;
 import clojure.lang.IFn;
 import clojure.lang.IDeref;
@@ -42,7 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class PersistentArrayMap
   implements IPersistentMap, Map, IObj, IEditableCollection, MapSet, BitmapTrieOwner,
 	     IMapIterable, IKVReduce, IHashEq, ImmutValues, MapEquivalence, IFnDef,
-	     IReduceInit {
+	     IReduceInit, IReduce {
   final HashProvider hp;
   final Object[] kvs;
   final int nElems;
@@ -361,6 +362,21 @@ public class PersistentArrayMap
     final int nne = ne *2;
     for (int idx = 0; idx < nne && !RT.isReduced(init); idx += 2) {
       init = f.invoke(init, data[idx], data[idx+1]);
+    }
+    return init;
+  }
+
+  public final Object reduce(IFn rfn) {
+    final int ne = nElems;
+    if(ne == 0) return rfn.invoke();
+    final Object[] data = kvs;
+    final int nne = ne *2;
+    Object init = null;
+    for (int idx = 0; idx < nne && !RT.isReduced(init); idx += 2) {
+      if(idx == 0)
+	init = MapEntry.create(data[idx], data[idx+1]);
+      else
+	init = rfn.invoke(init, MapEntry.create(data[idx], data[idx+1]));
     }
     return init;
   }

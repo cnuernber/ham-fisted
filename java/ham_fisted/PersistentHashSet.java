@@ -15,6 +15,7 @@ import clojure.lang.ISeq;
 import clojure.lang.IFn;
 import clojure.lang.ILookup;
 import clojure.lang.IEditableCollection;
+import clojure.lang.IReduce;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Iterator;
@@ -29,7 +30,7 @@ import java.util.function.Consumer;
 public class PersistentHashSet
   implements IPersistentSet, Collection, Set, Serializable, IHashEq, IObj,
 	     MapSet, BitmapTrieOwner, ILookup, IEditableCollection, IFnDef,
-	     ITypedReduce {
+	     ITypedReduce, IReduce {
   final BitmapTrie hb;
   int cachedHash = 0;
 
@@ -170,8 +171,11 @@ public class PersistentHashSet
       return new HashSet(equalHashProvider);
     return new TransientHashSet(hb);
   }
+  public Object reduce(IFn rfn) {
+    return Reductions.iterReduce(this, rfn);
+  }
   public Object reduce(IFn rfn, Object init) {
-    return Transformables.iterReduce(this, init, rfn);
+    return Reductions.iterReduce(this, init, rfn);
   }
 
   public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,

@@ -18,11 +18,11 @@
 
 (defn- set-add-all
   [^Set s data]
-  (api/reduce (fn [^Set acc v]
-                 (.add acc v)
-                 acc)
-               s
-               data))
+  (reduce (fn [^Set acc v]
+            (.add acc v)
+            acc)
+          s
+          data))
 
 (defn mut-set
   "Return a mutable set."
@@ -156,21 +156,21 @@
   BitSet
   (bitset? [item] true)
   (contains-range? [item sidx eidx]
-    (api/reduce (api/long-accumulator
-                 acc v
-                 (if (and (>= v 0) (.get item (unchecked-int v)))
-                   true
-                   (reduced false)))
-                true
-                (api/range sidx eidx)))
+    (reduce (api/long-accumulator
+             acc v
+             (if (and (>= v 0) (.get item (unchecked-int v)))
+               true
+               (reduced false)))
+            true
+            (api/range sidx eidx)))
   (intersects-range? [item ^long sidx ^long eidx]
-    (api/reduce (api/long-accumulator
-                 acc v
-                 (if (and (>= v 0) (.get item (unchecked-int v)))
-                   (reduced true)
-                   false))
-                false
-                (api/range sidx eidx)))
+    (reduce (api/long-accumulator
+             acc v
+             (if (and (>= v 0) (.get item (unchecked-int v)))
+               (reduced true)
+               false))
+            false
+            (api/range sidx eidx)))
   (min-set-value [item]
     (.nextSetBit item 0))
   (max-set-value [item]
@@ -225,11 +225,11 @@
   "invert a map such that the keys are the vals and the vals are the keys"
   [m]
   (when m
-    (-> (api/reduce (fn [^Map acc e]
-                      (.put acc (val e) (key e))
-                      acc)
-                    (api/mut-map)
-                    m)
+    (-> (reduce (fn [^Map acc e]
+                  (.put acc (val e) (key e))
+                  acc)
+                (api/mut-map)
+                m)
         (persistent!))))
 
 

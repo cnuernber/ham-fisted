@@ -984,7 +984,7 @@ public class ArrayLists {
     public Object reduce(IFn fn) { return ((IReduce)subList(0, nElems)).reduce(fn); }
     public Object reduce(IFn fn, Object init) { return ((IReduceInit)subList(0, nElems)).reduce(fn,init); }
     public Object longReduction(IFn.OLO op, long init) {
-      return ((IMutList)subList(0, nElems)).longReduction(op, init);
+      return ((LongMutList)subList(0, nElems)).longReduction(op, init);
     }
     public void sort(Comparator<? super Object> c) {
       subList(0, nElems).sort(c);
@@ -1385,7 +1385,7 @@ public class ArrayLists {
     public Object reduce(IFn fn) { return ((IReduce)subList(0, nElems)).reduce(fn); }
     public Object reduce(IFn fn, Object init) { return ((IReduceInit)subList(0, nElems)).reduce(fn,init); }
     public Object longReduction(IFn.OLO op, Object init) {
-      return ((IMutList)subList(0, nElems)).longReduction(op, init);
+      return ((LongMutList)subList(0, nElems)).longReduction(op, init);
     }
     public IntComparator indexComparator() {
       return LongArraySubList.indexComparator(data, 0, null);
@@ -1893,7 +1893,12 @@ public class ArrayLists {
       nElems -= endidx - startidx;
     }
     public Object reduce(IFn fn) { return ((IReduce)subList(0, nElems)).reduce(fn); }
-    public Object reduce(IFn fn, Object init) { return ((IReduceInit)subList(0, nElems)).reduce(fn,init); }
+    public Object reduce(IFn fn, Object init) {
+      return ((IReduceInit)subList(0, nElems)).reduce(fn,init);
+    }
+    public Object doubleReduction(IFn.ODO fn, Object init) {
+      return ((DoubleMutList)subList(0, nElems)).doubleReduction(fn, init);
+    }
     public IntComparator indexComparator() {
       return DoubleArraySubList.indexComparator(data, 0, null);
     }

@@ -15,22 +15,6 @@ import clojure.lang.IFn;
  *  Typed reductions - a typed extension of clojure.lang.IReduceInit and java.util.Iterable.forEach.
  */
 public interface ITypedReduce<E> extends IReduceInit {
-  default Object doubleReduction(IFn.ODO op, Object init) {
-    final IFn rop = op instanceof IFn ? (IFn)op : new Reductions.DoubleAccum() {
-	public Object invokePrim(Object lhs, double rhs) {
-	  return op.invokePrim(lhs, rhs);
-	}
-      };
-    return reduce(rop, init);
-  }
-  default Object longReduction(IFn.OLO op, Object init) {
-    final IFn rop = op instanceof IFn ? (IFn)op : new Reductions.LongAccum() {
-	public Object invokePrim(Object lhs, long rhs) {
-	  return op.invokePrim(lhs, rhs);
-	}
-      };
-    return reduce(rop, init);
-  }
   default Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
 				   ParallelOptions options) {
     return Reductions.serialParallelReduction(initValFn, rfn, options, this);

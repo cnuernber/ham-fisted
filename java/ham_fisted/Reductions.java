@@ -29,6 +29,36 @@ public class Reductions {
 
   public interface LongAccum extends IFnDef.OLO {}
 
+  public static Iterable toIterable(Object obj) {
+    if( obj == null) return null;
+    if( obj instanceof Iterable) return (Iterable)obj;
+    if( obj instanceof Map) return ((Map)obj).entrySet();
+    if( obj.getClass().isArray()) return ArrayLists.toList(obj);
+    if( obj instanceof String) return new StringCollection((String)obj);
+    return (Iterable)RT.seq(obj);
+  }
+
+  public static Object iterReduce(Object obj, IFn fn) {
+    if(obj == null) return fn.invoke();
+
+    final Iterator it = toIterable(obj).iterator();
+    Object init = it.hasNext() ? it.next() : null;
+    while(it.hasNext() && !RT.isReduced(init)) {
+      init = fn.invoke(init, it.next());
+    }
+    return init;
+  }
+
+  public static Object iterReduce(Object obj, Object init, IFn fn) {
+    if(obj == null) return init;
+
+    final Iterator it = toIterable(obj).iterator();
+    while(it.hasNext() && !RT.isReduced(init)) {
+      init = fn.invoke(init, it.next());
+    }
+    return init;
+  }
+
   public static Reducible reduceReducibles(Iterable<Reducible> data) {
     Iterator<Reducible> iter = data.iterator();
     Reducible initial = iter.hasNext() ? iter.next() : null;
@@ -36,19 +66,11 @@ public class Reductions {
   }
 
   public static Object serialReduction(IFn rfn, Object init, Object coll) {
-
     if( coll == null) return init;
-    if( coll instanceof ITypedReduce) {
-      if( rfn instanceof IFn.ODO )
-	return ((ITypedReduce)coll).doubleReduction((IFn.ODO)rfn, init);
-      if( rfn instanceof IFn.OLO )
-	return ((ITypedReduce)coll).longReduction((IFn.OLO)rfn, init);
-      return ((ITypedReduce)coll).reduce(rfn, init);
-    }
     if( coll instanceof IReduceInit) {
       return ((IReduceInit)coll).reduce(rfn, init);
     }
-    return Clojure.var("ham-fisted.protocols", "reduce").invoke(coll, rfn, init);
+    return Clojure.var("clojure.core.protocols", "coll-reduce").invoke(coll, rfn, init);
   }
 
   public static Object iterableMerge(ParallelOptions options, IFn mergeFn,

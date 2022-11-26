@@ -21,12 +21,13 @@ import clojure.lang.ILookup;
 import clojure.lang.IHashEq;
 import clojure.lang.IPersistentCollection;
 import clojure.lang.IFn;
+import clojure.lang.IReduce;
 
 
 public class HashSet<E>
   extends AbstractSet<E>
   implements MapSet, BitmapTrieOwner, IObj, ITransientSet, Seqable,
-	     ILookup, IFnDef, IHashEq, ITypedReduce {
+	     ILookup, IFnDef, IHashEq, ITypedReduce, IReduce {
   BitmapTrie hb;
 
   public static final Object PRESENT = new Object();
@@ -148,8 +149,11 @@ public class HashSet<E>
   public final Object invoke(Object key, Object notFound) {
     return contains(key) ? key : notFound;
   }
+  public Object reduce(IFn rfn) {
+    return Reductions.iterReduce(this, rfn);
+  }
   public Object reduce(IFn rfn, Object init) {
-    return Transformables.iterReduce(this, init, rfn);
+    return Reductions.iterReduce(this, init, rfn);
   }
 
   public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,

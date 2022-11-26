@@ -22,6 +22,7 @@ import clojure.lang.IFn;
 import clojure.lang.IHashEq;
 import clojure.lang.Numbers;
 import clojure.lang.MapEquivalence;
+import clojure.lang.IReduce;
 import java.util.Iterator;
 import java.util.Collection;
 import java.util.Set;
@@ -44,7 +45,7 @@ public final class PersistentHashMap
   extends APersistentMap
   implements IObj, IMapIterable, IKVReduce, IEditableCollection,
 	     MapSet, BitmapTrieOwner, IHashEq, ImmutValues, MapEquivalence,
-	     ITypedReduce {
+	     ITypedReduce, IReduce {
 
   final BitmapTrie hb;
   int cachedHash = 0;
@@ -225,9 +226,12 @@ public final class PersistentHashMap
 
   public void printNodes() { hb.printNodes(); }
 
+  public Object reduce(IFn rfn) {
+    return Reductions.iterReduce(entrySet(), rfn);
+  }
 
   public Object reduce(IFn rfn, Object init) {
-    return Transformables.iterReduce(entrySet(), init, rfn);
+    return Reductions.iterReduce(entrySet(), init, rfn);
   }
 
   public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,

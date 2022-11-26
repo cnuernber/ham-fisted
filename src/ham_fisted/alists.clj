@@ -6,7 +6,7 @@
             [ham-fisted.protocols :as protocols]
             [ham-fisted.print :as pp])
   (:import [ham_fisted ArrayLists ArrayLists$ILongArrayList ArrayLists$IDoubleArrayList
-            Transformables ArrayHelpers Casts IMutList
+            Transformables ArrayHelpers Casts IMutList IFnDef$OLO IFnDef$ODO
             ArraySection
             ArrayLists$ObjectArrayList ArrayLists$ObjectArraySubList
             ArrayLists$ByteArraySubList ArrayLists$ShortArraySubList ArrayLists$CharArraySubList
@@ -26,19 +26,23 @@
 
 (defn- add-long-reduce
   [list c]
-  (Transformables/longReduce (fn [^IMutList lhs ^long v]
-                               (.addLong lhs v)
-                               lhs)
-                             list
-                             c))
+  (Reductions/serialReduction
+   (reify IFnDef$OLO
+     (invokePrim [this acc v]
+       (.addLong ^IMutList acc v)
+       acc))
+   list
+   c))
 
 (defn- add-double-reduce
   [list c]
-  (Transformables/doubleReduce (fn [^IMutList lhs ^double v]
-                                 (.addDouble lhs v)
-                                 lhs)
-                               list
-                               c))
+  (Reductions/serialReduction
+   (reify IFnDef$ODO
+     (invokePrim [this acc v]
+       (.addDouble ^IMutList acc v)
+       acc))
+   list
+   c))
 
 (defmacro make-prim-array-list
   [lname ary-tag iface getname setname addname set-cast-fn get-cast-fn obj-cast-fn

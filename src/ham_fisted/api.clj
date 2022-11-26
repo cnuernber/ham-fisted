@@ -88,15 +88,15 @@
                             range map concat filter filterv first last pmap take take-last drop
                             drop-last sort-by repeat repeatedly shuffle into-array
                             empty? reverse byte-array short-array char-array boolean-array
-                            keys vals persistent! rest reduce]))
+                            keys vals persistent! rest]))
 
 
 (set! *warn-on-reflection* true)
 
 (declare assoc! conj! vec mapv vector object-array range first take drop into-array shuffle
-         object-array-list reduce int-array-list long-array-list double-array-list
+         object-array-list int-array-list long-array-list double-array-list
          int-array argsort byte-array short-array char-array boolean-array repeat
-         persistent! rest immut-map keys vals reduce group-by-reduce consumer-accumulator
+         persistent! rest immut-map keys vals group-by-reduce consumer-accumulator
          reducible-merge)
 
 
@@ -239,30 +239,6 @@ This is currently the default hash provider for the library."}
   (if (reduced? item)
     (deref item)
     item))
-
-
-(defn reduce
-  "Version of reduce that is a bit faster for things that aren't sequences and do not
-  implement IReduceInit.  If input collection implements ITypedReduce and input
-  rfn is one of IFn.ODO, IFn.OLO, then a primtiive type-specific reduction is used.
-  Note that the accumulator must be of type Object while the next element is of type
-  primitive type long or double.  This is to allow complex accumulators that may have
-  a type specific add method but themselves are objects:
-
-```clojure
-  ham-fisted.api> (reduce double-consumer-accumulator
-                             (Sum$SimpleSum.)
-                             (range 1000))
-#<SimpleSum@69033843: 499500.0>
-ham-fisted.api> @*1
-499500.0
-```"
-  ([rfn init coll]
-   (->> (->reducible coll)
-        (Reductions/serialReduction rfn init)
-        (unpack-reduced)))
-  ([rfn coll]
-   (reduce rfn (rfn) coll)))
 
 
 (defn- options->parallel-options

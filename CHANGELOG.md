@@ -1,3 +1,18 @@
+# 1.000-beta-56 
+ * Switched completely to clojure.core.protocols/CollReduce.
+ * Removed a solid amount of cruft and simplified reduction architecture.
+ * Now loading hamf transparently makes reductions on all arrays and many
+   java such as hashmaps datastructures faster.
+   
+ 
+# 1.000-beta-55
+ * Removed lots of old cruft.
+ * Added IFnDef predicates so you can use IFn-based predicates from java.
+ 
+# 1.000-beta-54
+ * Removed lots of old cruft.
+ * Added IFnDef predicates so you can use IFn-based predicates from java.
+ 
 # 1.000-beta-53
  * `:unmerged-result?`, `:skip-finalize?` options for `preduce` and `preduce-reducer`.  This
    allows you to use the parallelized reductions pathway but get a sequence of results back

@@ -84,9 +84,9 @@
 (deftest char-array-reduction
   (let [cv (hamf/char-array [20 30])]
     (is (= [(char 20) (char 30)]
-           (hamf/reduce conj [] cv))))
+           (reduce conj [] cv))))
   (let [cv (hamf/char-array "hey")]
-    (is (= [\h \e \y] (hamf/reduce conj [] cv)))))
+    (is (= [\h \e \y] (reduce conj [] cv)))))
 
 
 (deftest java-maps-are-iterable

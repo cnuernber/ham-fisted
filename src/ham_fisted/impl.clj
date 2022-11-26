@@ -1,6 +1,7 @@
 (ns ham-fisted.impl
   (:require [ham-fisted.lazy-noncaching :refer [map concat] :as lznc]
-            [ham-fisted.protocols :as protocols])
+            [ham-fisted.protocols :as protocols]
+            [clojure.core.protocols :as cl-proto])
   (:import [java.util.concurrent ForkJoinPool ForkJoinTask ArrayBlockingQueue Future
             TimeUnit]
            [java.util Iterator Set Map RandomAccess]
@@ -8,7 +9,8 @@
            [ham_fisted ParallelOptions BitmapTrieCommon$Box ITypedReduce IFnDef
             ICollectionDef ArrayLists$ObjectArrayList Reductions$ReduceConsumer
             Reductions Transformables IFnDef$OLO ArrayLists StringCollection]
-           [clojure.lang IteratorSeq IReduceInit PersistentHashMap IFn$OLO IFn$ODO Seqable]
+           [clojure.lang IteratorSeq IReduceInit PersistentHashMap IFn$OLO IFn$ODO Seqable
+            IReduce]
            [java.util Spliterator BitSet Collection Iterator]
            [java.util.logging Logger Level])
   (:refer-clojure :exclude [map pmap concat]))
@@ -232,18 +234,27 @@
 
 
 (defn- bitset-reduce
-  [^BitSet coll rfn init]
-  (let [^IFn$OLO rfn (if (instance? IFn$OLO rfn)
-                       rfn
-                       (reify IFnDef$OLO
-                         (invokePrim [f acc v]
-                           (rfn acc v))))]
-    (loop [bit (.nextSetBit coll 0)
-           acc init]
-      (if (and (>= bit 0) (not (reduced? init)))
-        (recur (.nextSetBit coll (unchecked-inc bit))
-               (.invokePrim rfn acc (Integer/toUnsignedLong bit)))
-        init))))
+  ([^BitSet coll rfn acc]
+   (let [^IFn$OLO rfn (Transformables/toLongReductionFn rfn)]
+     (loop [bit (.nextSetBit coll 0)
+            acc acc]
+       (if (and (>= bit 0) (not (reduced? acc)))
+         (recur (.nextSetBit coll (unchecked-inc bit))
+                (.invokePrim rfn acc (Integer/toUnsignedLong bit)))
+         acc))))
+  ([^BitSet coll rfn]
+   (if (.isEmpty coll)
+     (rfn)
+     (loop [bit (.nextSetBit coll 0)
+            first true
+            acc nil]
+       (if (and (>= bit 0) (not (reduced? acc)))
+         (recur (.nextSetBit coll (unchecked-inc bit))
+                false
+                (if first
+                  bit
+                  (rfn acc (Integer/toUnsignedLong bit))))
+         acc)))))
 
 
 (deftype ^:private BitSetIterator [^{:unsynchronized-mutable true
@@ -312,6 +323,8 @@
       (toArray [c] (let [alist (ArrayLists$ObjectArrayList. (.cardinality item))]
                      (.addAllReducible alist c)
                      (.toArray alist)))
+      IReduce
+      (reduce [c rfn] (bitset-reduce item rfn))
       IReduceInit
       (reduce [c rfn init] (bitset-reduce item rfn init)))))
 
@@ -323,32 +336,21 @@
 
 (extend-protocol protocols/Reduction
   nil
-  (reducible? [coll] true)
-  (reduce [coll rfn init]
-    init)
+  (reducible? [this] true)
   Object
-  (reducible? [coll] (instance? Iterable coll))
-  (reduce [coll rfn init]
-    (cond
-      (instance? ITypedReduce coll)
-      (cond
-        (instance? IFn$ODO rfn)
-        (.doubleReduction ^ITypedReduce coll rfn init)
-        (instance? IFn$OLO rfn)
-        (.longReduction ^ITypedReduce coll rfn init)
-        :else
-        (.reduce ^ITypedReduce coll rfn init))
-      (instance? IReduceInit coll)
-      (.reduce ^IReduceInit coll rfn init)
-      (instance? Map coll)
-      (Transformables/iterReduce (.entrySet ^Map coll) init rfn)
-      :else
-      (Transformables/iterReduce coll init rfn)))
-  ;;These aren't iterable but still quite useful
-  BitSet
-  (reducible? [coll] true)
-  (reduce [coll rfn init]
-    (bitset-reduce coll rfn init)))
+  (reducible? [this]
+    (or (instance? IReduceInit this)
+        (instance? Iterable this)
+        (instance? Map this)
+        ;;This check is dog slow
+        (satisfies? cl-proto/CollReduce this))))
+
+
+(extend BitSet
+  protocols/Reduction
+  {:reducible? (constantly true)}
+  cl-proto/CollReduce
+  {:coll-reduce bitset-reduce})
 
 
 (defn- fjfork [task] (.fork ^ForkJoinTask task))
@@ -388,3 +390,60 @@
                        (f)
                        (.invoke pool ^ForkJoinTask (fjtask f))))]
       (.fold coll n combinef rfn fjinvoke fjtask fjfork fjjoin))))
+
+
+
+(defmacro array-fast-reduce
+  [ary-cls]
+  `(extend ~ary-cls
+     protocols/Reduction
+     {:reducible? (constantly true)}
+     cl-proto/CollReduce
+     {:coll-reduce (fn
+                     ([coll# f#]
+                      (.reduce (ArrayLists/toList coll#) f#))
+                     ([coll# f# acc#]
+                      (.reduce (ArrayLists/toList coll#) f# acc#)))}))
+
+
+(array-fast-reduce (Class/forName "[B"))
+(array-fast-reduce (Class/forName "[S"))
+(array-fast-reduce (Class/forName "[C"))
+(array-fast-reduce (Class/forName "[I"))
+(array-fast-reduce (Class/forName "[J"))
+(array-fast-reduce (Class/forName "[F"))
+(array-fast-reduce (Class/forName "[D"))
+(array-fast-reduce (Class/forName "[Z"))
+(array-fast-reduce (Class/forName "[Ljava.lang.Object;"))
+
+
+(defn map-fast-reduce
+  [map-cls]
+  (extend map-cls
+    cl-proto/CollReduce
+    {:coll-reduce (fn map-reducer
+                    ([coll f]
+                     (Reductions/iterReduce (.entrySet ^Map coll) f))
+                    ([coll f init]
+                     (Reductions/iterReduce (.entrySet ^Map coll) init f)))}))
+
+(map-fast-reduce java.util.HashMap)
+(map-fast-reduce java.util.LinkedHashMap)
+(map-fast-reduce java.util.SortedMap)
+(map-fast-reduce java.util.concurrent.ConcurrentHashMap)
+
+
+(defn iterable-fast-reduce
+  [coll-cls]
+  (extend coll-cls
+    cl-proto/CollReduce
+    {:coll-reduce (fn map-reducer
+                    ([coll f]
+                     (Reductions/iterReduce coll f))
+                    ([coll f init]
+                     (Reductions/iterReduce coll init f)))}))
+
+
+(iterable-fast-reduce java.util.HashSet)
+(iterable-fast-reduce java.util.LinkedHashSet)
+(iterable-fast-reduce java.util.SortedSet)

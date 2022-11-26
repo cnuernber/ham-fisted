@@ -5,11 +5,13 @@
             Transformables$CatIterable Transformables$MapList Transformables$IMapable
             Transformables$SingleMapList Transformables StringCollection ArrayLists
             ArrayImmutList ArrayLists$ObjectArrayList IMutList TypedList LongMutList
-            DoubleMutList ReindexList Transformables$IndexedMapper]
+            DoubleMutList ReindexList Transformables$IndexedMapper
+            IFnDef$OLO IFnDef$ODO Reductions]
            [java.lang.reflect Array]
            [it.unimi.dsi.fastutil.ints IntArrays]
            [java.util RandomAccess Collection Map List Random]
-           [clojure.lang RT IPersistentMap IReduceInit IReduce PersistentList])
+           [clojure.lang RT IPersistentMap IReduceInit IReduce PersistentList
+            IFn$OLO IFn$ODO])
   (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle object-array
                             remove map-indexed]))
 
@@ -117,6 +119,32 @@
 
 
 (defn map
+  ([f]
+   (fn [rf]
+     (let [rf (Transformables/typedMapReducer rf f)]
+       (cond
+         (instance? rf IFn$OLO)
+         (reify IFnDef$OLO
+           (invoke [this] (rf))
+           (invoke [this result] (rf result))
+           (applyTo [this args]
+             (rf (first args) (apply f (rest args))))
+           (invokePrim [this acc v] (.invokePrim ^IFn$OLO rf acc v)))
+         (instance? rf IFn$ODO)
+         (reify IFnDef$ODO
+           (invoke [this] (rf))
+           (invoke [this result] (rf result))
+           (applyTo [this args]
+             (rf (first args) (apply f (rest args))))
+           (invokePrim [this acc v] (.invokePrim ^IFn$ODO rf acc v)))
+         :else
+         (fn
+           ([] (rf))
+           ([result] (rf result))
+           ([result input]
+            (rf result (f input)))
+           ([result input & inputs]
+            (rf result (apply f input inputs))))))))
   ([f arg]
    (cond
      (nil? arg) PersistentList/EMPTY
@@ -167,13 +195,16 @@
 
 
 (defn filter
-  [pred coll]
-  (cond
-    (nil? coll) PersistentList/EMPTY
-    (instance? Transformables$IMapable coll)
-    (.filter ^Transformables$IMapable coll pred)
-    :else
-    (Transformables$FilterIterable. pred nil (protocols/->iterable coll))))
+  ([pred]
+   (fn [rf]
+     (Transformables$FilterIterable/typedReducer rf pred)))
+  ([pred coll]
+   (cond
+     (nil? coll) PersistentList/EMPTY
+     (instance? Transformables$IMapable coll)
+     (.filter ^Transformables$IMapable coll pred)
+     :else
+     (Transformables$FilterIterable. pred nil (protocols/->iterable coll)))))
 
 
 (defn remove
@@ -182,8 +213,9 @@
   Returns a transducer when no collection is provided."
   {:added "1.0"
    :static true}
-  [pred coll]
-  (filter (complement pred) coll))
+  ([pred coll]
+   (filter (complement pred) coll))
+  ([pred] (filter (complement pred))))
 
 
 (defmacro make-readonly-list

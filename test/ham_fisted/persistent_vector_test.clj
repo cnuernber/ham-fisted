@@ -229,8 +229,8 @@
 
 
 (deftest test-reduce-arrays
-  (is (= 22 (api/reduce + 10 (api/int-array [2 4 6]))))
-  (is (= 22 (api/reduce + 10 (api/subvec (api/int-array [0 2 4 6]) 1)))))
+  (is (= 22 (reduce + 10 (api/int-array [2 4 6]))))
+  (is (= 22 (reduce + 10 (api/subvec (api/int-array [0 2 4 6]) 1)))))
 
 
 (defn tryc

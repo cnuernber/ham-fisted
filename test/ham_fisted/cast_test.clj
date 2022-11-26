@@ -13,8 +13,8 @@
   (is (thrown? Exception (api/double-array (->> [0.0 ##NaN 0.0]
                                                 (lznc/map (fn ^double [^double v]
                                                             (+ v 2.0)))
-                                                (lznc/filter (fn [^long v]
-                                                               (not (== 0 (rem v 3)))))))))
+                                                (lznc/filter (api/long-predicate
+                                                              v (not (== 0 (rem v 3)))))))))
   (is (thrown? Exception (vec (lznc/map (api/long-unary-operator v (+ v 2))
                                         [0.0 ##NaN 0.0]))))
   (is (thrown? Exception (vec (->> [0.0 ##NaN 0.0]

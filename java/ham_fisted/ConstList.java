@@ -89,9 +89,6 @@ public class ConstList implements IMutList<Object>, TypedList {
     public Class containedType() { return Long.TYPE; }
     public long getLong(int idx) { return lval; }
     public Object reduce(IFn rfn, Object init) { return LongMutList.super.reduce(rfn, init); }
-    public Object doubleReduction(IFn.ODO rfn, Object init) {
-      return LongMutList.super.doubleReduction(rfn, init);
-    }
   }
   public static class DoubleConstList extends ConstList implements DoubleMutList {
     public final double lval;
@@ -102,8 +99,5 @@ public class ConstList implements IMutList<Object>, TypedList {
     public Class containedType() { return Double.TYPE; }
     public double getDouble(int idx) { return lval; }
     public Object reduce(IFn rfn, Object init) { return DoubleMutList.super.reduce(rfn, init); }
-    public Object longReduction(IFn.OLO rfn, Object init) {
-      return DoubleMutList.super.longReduction(rfn, init);
-    }
   }
 }

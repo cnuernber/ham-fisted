@@ -16,6 +16,7 @@ import clojure.lang.ISeq;
 import clojure.lang.ILookup;
 import clojure.lang.IHashEq;
 import clojure.lang.IFn;
+import clojure.lang.IReduce;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -35,7 +36,7 @@ import java.util.concurrent.ExecutorService;
 public final class HashMap<K,V>
   implements Map<K,V>, ITransientMap, ITransientAssociative2, IObj,
 	     MapSet, BitmapTrieOwner, ILookup, IFnDef, IHashEq,
-	     ImmutValues, ITypedReduce
+	     ImmutValues, ITypedReduce, IReduce
 {
 
   final BitmapTrie hb;
@@ -390,8 +391,12 @@ public final class HashMap<K,V>
     };
   }
 
+  public Object reduce(IFn rfn) {
+    return Reductions.iterReduce(entrySet(), rfn);
+  }
+
   public Object reduce(IFn rfn, Object init) {
-    return Transformables.iterReduce(entrySet(), init, rfn);
+    return Reductions.iterReduce(entrySet(), init, rfn);
   }
 
   public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,

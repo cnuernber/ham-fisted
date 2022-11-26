@@ -1045,9 +1045,11 @@ class BitmapTrie implements IObj, TrieBase {
 	Objects.equals(candidate.key(), key) &&
 	Objects.equals(candidate.val(), e.getValue());
     }
-
+    public Object reduce(IFn rfn) {
+      return Reductions.iterReduce(this, rfn);
+    }
     public Object reduce(IFn rfn, Object init) {
-      return Transformables.iterReduce(this, init, rfn);
+      return Reductions.iterReduce(this, init, rfn);
     }
 
     public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
@@ -1101,7 +1103,7 @@ class BitmapTrie implements IObj, TrieBase {
     }
 
     public Object reduce(IFn rfn, Object init) {
-      return Transformables.iterReduce(this, init, rfn);
+      return Reductions.iterReduce(this, init, rfn);
     }
 
     public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
@@ -1144,7 +1146,7 @@ class BitmapTrie implements IObj, TrieBase {
       return (Spliterator<V>)BitmapTrie.this.spliterator(valIterFn);
     }
     public Object reduce(IFn rfn, Object init) {
-      return Transformables.iterReduce(this, init, rfn);
+      return Reductions.iterReduce(this, init, rfn);
     }
 
     public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
