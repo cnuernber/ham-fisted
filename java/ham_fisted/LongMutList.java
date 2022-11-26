@@ -42,21 +42,18 @@ public interface LongMutList extends IMutList<Object> {
     ChunkedList.sublistCheck(ssidx, seidx, size());
     return new LongSubList(this, ssidx, seidx);
   }
-  default void fillRange(int startidx, List l) {
+  default void fillRange(final int startidx, List l) {
     if (l.isEmpty())
       return;
     final int sz = size();
     final int endidx = startidx + l.size();
     ArrayLists.checkIndexRange(size(), startidx, endidx);
-    if(l instanceof ITypedReduce) {
-      ((ITypedReduce)l).genericIndexedForEach(startidx, new IndexedLongConsumer() {
-	  public void accept(long idx, long v) {
-	    setLong((int)idx, v);
-	  }
-	});
-    } else {
-      IMutList.super.fillRange(startidx, l);
-    }
+    Reductions.serialReduction(new Reductions.IndexedLongAccum(new IFnDef.OLLO() {
+	public Object invokePrim(Object acc, long idx, long v) {
+	  ((IMutList)acc).setLong((int)idx+startidx, v);
+	  return acc;
+	}
+      }), this, l);
   }
   default void addRange(int startidx, int endidx, Object v) {
     Long l = Long.valueOf(Casts.longCast(v));

@@ -54,8 +54,8 @@
             IFnDef$LO IFnDef$LL IFnDef$DO IFnDef$DD IFnDef$DDD
             IFnDef$LLL ParallelOptions$CatParallelism IFnDef$OO IFnDef$OOO IFnDef$ODO
             IFnDef$OLO IFnDef$OD IFnDef$OL IFnDef$LD IFnDef$DL IFnDef$OLOO IFnDef$OLDO
-            IFnDef$OLLO Consumers$IncConsumer
-            Reductions$IndexedDoubleAccum Reductions$IndexedLongAccum
+            IFnDef$OLLO IFnDef$LongPredicate IFnDef$DoublePredicate IFnDef$Predicate
+            Consumers$IncConsumer Reductions$IndexedDoubleAccum Reductions$IndexedLongAccum
             Reductions$IndexedAccum]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
@@ -309,7 +309,7 @@ ham-fisted.api> @*1
      pmap style initial reduction across containers then merge the results.
   * `:put-timeout-ms` - Number of milliseconds to wait for queue space before throwing
      an exception in unordered reductions.  Defaults to 50000.
-  * `:unmerged-result?` - Defaults to false.  When true, the sequence of results map
+  * `:unmerged-result?` - Defaults to false.  When true, the sequence of results
      be returned directly without any merge steps in a lazy-noncaching container.  Beware
      the noncaching aspect -- repeatedly evaluating this result may kick off the parallelized
      reduction multiple times.  To ensure caching if unsure call `seq` on the result ...)."
@@ -2740,14 +2740,11 @@ nil
 
 (defmacro double-predicate
   "Create an implementation of java.util.Function.DoublePredicate"
-  [varname code]
+  [varname & code]
   `(reify
-     DoublePredicate
+     IFnDef$DoublePredicate
      (test [this ~varname]
-       ~code)
-     IFnDef$DO
-     (invokePrim [this# d#]
-       (.test this# d#))))
+       ~@code)))
 
 
 (defmacro double-unary-operator
@@ -2761,14 +2758,11 @@ nil
 
 (defmacro long-predicate
   "Create an implementation of java.util.Function.LongPredicate"
-  [varname code]
+  [varname & code]
   `(reify
-     LongPredicate
+     IFnDef$LongPredicate
      (test [this ~varname]
-       ~code)
-     IFnDef$LO
-     (invokePrim [this# d#]
-       (.test this# d#))))
+       ~@code)))
 
 
 (defmacro long-unary-operator
@@ -2782,14 +2776,11 @@ nil
 
 (defmacro predicate
   "Create an implementation of java.util.Function.Predicate"
-  [varname code]
+  [varname & code]
   `(reify
-     Predicate
+     IFnDef$Predicate
      (test [this ~varname]
-       ~code)
-     IFnDef$OO
-     (invoke [this# d#]
-       (.test this# d#))))
+       ~code)))
 
 
 (defmacro unary-operator

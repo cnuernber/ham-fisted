@@ -451,6 +451,16 @@ public interface IFnDef extends IFn
     }
     default Object apply(long v) { return invokePrim(v); }
   }
+  public interface LongPredicate extends IFnDef, IFn.LO, LongFunction,
+					 java.util.function.LongPredicate {
+    default Object invokePrim(long arg) {
+      return test(arg);
+    }
+    default Object invoke(Object arg) {
+      return test(Casts.longCast(arg));
+    }
+    default Object apply(long v) { return test(v); }
+  }
   public interface LL extends IFnDef, IFn.LL, LongUnaryOperator {
     default Object invoke(Object arg) {
       return invokePrim(Casts.longCast(arg));
@@ -470,6 +480,16 @@ public interface IFnDef extends IFn
       return invokePrim(Casts.doubleCast(arg));
     }
     default Object apply(double v) { return invokePrim(v); }
+  }
+  public interface DoublePredicate extends IFnDef, IFn.DO, DoubleFunction,
+					   java.util.function.DoublePredicate {
+    default Object invoke(Object arg) {
+      return test(Casts.doubleCast(arg));
+    }
+    default Object invokePrim(double arg) {
+      return test(arg);
+    }
+    default Object apply(double v) { return test(v); }
   }
   public interface DD extends IFnDef, IFn.DD, DoubleUnaryOperator {
     default Object invoke(Object arg) {
@@ -494,6 +514,11 @@ public interface IFnDef extends IFn
     default Object invoke(Object arg) {
       return invokePrim(Casts.doubleCast(arg));
     }
+  }
+  @SuppressWarnings("unchecked")
+  public interface Predicate extends IFnDef, UnaryOperator, java.util.function.Predicate {
+    default Object invoke(Object v) { return test(v); }
+    default Object apply(Object arg) { return test(arg); }
   }
   public interface DDD extends IFnDef, IFn.DDD, DoubleBinaryOperator {
     default Object invoke(Object lhs, Object rhs) {

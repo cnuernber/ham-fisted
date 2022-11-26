@@ -168,7 +168,7 @@ public class Reductions {
   }
 
   public static class IndexedDoubleAccum implements IFnDef.ODO {
-    int idx;
+    long idx;
     final IFn.OLDO rfn;
     public IndexedDoubleAccum(IFn.OLDO rfn) {
       this.rfn = rfn;
@@ -179,7 +179,7 @@ public class Reductions {
     }
   }
   public static class IndexedLongAccum implements IFnDef.OLO {
-    int idx;
+    long idx;
     final IFn.OLLO rfn;
     public IndexedLongAccum(IFn.OLLO rfn) {
       this.rfn = rfn;
@@ -190,7 +190,7 @@ public class Reductions {
     }
   }
   public static class IndexedAccum implements IFnDef {
-    int idx;
+    long idx;
     final IFn.OLOO rfn;
     public IndexedAccum(IFn.OLOO rfn) {
       this.rfn = rfn;

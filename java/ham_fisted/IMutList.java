@@ -82,22 +82,17 @@ public interface IMutList<E>
     }
   }
   @SuppressWarnings("unchecked")
-  default void fillRange(int startidx, List v) {
+  default void fillRange(final int startidx, List v) {
     final int sz = size();
     final int osz = v.size();
     ChunkedList.checkIndexRange(0, sz, startidx, startidx+osz);
-    if(v instanceof ITypedReduce) {
-      ((ITypedReduce)v).genericIndexedForEach(startidx, new IndexedConsumer() {
-	  public void accept(long idx, Object v) {
-	    set((int)idx, (E)v);
-	  }
-	});
-    } else {
-      final int endidx = osz + startidx;
-      int idx = 0;
-      for(; startidx < endidx; ++startidx, ++idx)
-	set(startidx, (E)v.get(idx));
-    }
+    final int ss = sz + startidx;
+    Reductions.serialReduction(new Reductions.IndexedAccum(new IFnDef.OLOO() {
+	public Object invokePrim(Object acc, long idx, Object v) {
+	  ((List)acc).set((int)idx+startidx, v);
+	  return acc;
+	}
+      }), this, v);
   }
   default E remove(int idx) {
     final E retval = get(idx);

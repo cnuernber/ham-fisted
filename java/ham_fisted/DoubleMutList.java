@@ -49,21 +49,18 @@ public interface DoubleMutList extends IMutList<Object> {
       setDouble(startidx, l);
     }
   }
-  default void fillRange(int startidx, List l) {
+  default void fillRange(final int startidx, List l) {
     if (l.isEmpty())
       return;
     final int sz = size();
     final int endidx = startidx + l.size();
     ArrayLists.checkIndexRange(size(), startidx, endidx);
-    if(l instanceof ITypedReduce) {
-      ((ITypedReduce)l).genericIndexedForEach(startidx, new IndexedDoubleConsumer() {
-	  public void accept(long idx, double v) {
-	    setDouble((int)idx, v);
-	  }
-	});
-    } else {
-      IMutList.super.fillRange(startidx, l);
-    }
+    Reductions.serialReduction(new Reductions.IndexedDoubleAccum(new IFnDef.OLDO() {
+	public Object invokePrim(Object acc, long idx, double v) {
+	  ((IMutList)acc).setDouble((int)idx+startidx, v);
+	  return acc;
+	}
+      }), this, l);
   }
   default void addRange(int startidx, int endidx, Object v) {
     Double l = Double.valueOf(Casts.doubleCast(v));
