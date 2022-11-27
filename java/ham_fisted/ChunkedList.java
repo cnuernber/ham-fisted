@@ -395,12 +395,15 @@ public final class ChunkedList {
       mdata[startidx/32][startidx%32] = v;
   }
 
-  final void fillRange(int startidx, List v) {
+  final void fillRangeReduce(final int startidx, Object v) {
     final Object[][] mdata = data;
-    final int endidx = startidx + v.size();
-    int idx = 0;
-    for(; startidx < endidx; ++startidx, ++idx)
-      mdata[startidx/32][startidx%32] = v.get(idx);
+    Reductions.serialReduction(new Reductions.IndexedAccum(new IFnDef.OLOO() {
+	public Object invokePrim(Object acc, long idx, Object v) {
+	  final int ss = (int)idx+startidx;
+	  ((Object[][])acc)[ss/32][ss%32] = v;
+	  return acc;
+	}
+      }), mdata, v);
   }
 
   final void addRange(int startidx, int endidx, Object v) {

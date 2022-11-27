@@ -107,6 +107,8 @@
      (sort [~'this c#] (.sort ~(with-meta '(.subList this 0 n-elems)  {:tag 'IMutList}) c#))
      (sortIndirect [~'this c#] (.sortIndirect ~(with-meta '(.subList this 0 n-elems) {:tag 'IMutList}) c#))
      (shuffle [~'this r#] (.shuffle ~(with-meta '(.subList this 0 n-elems) {:tag 'IMutList}) r#))
+     (reduce [this# rfn# init#]
+       (reduce rfn# init# (.subList this# 0 ~'n-elems)))
      (binarySearch [~'this v# c#] (.binarySearch ~(with-meta '(.subList this 0 n-elems) {:tag 'IMutList}) v# c#))
      (fill [this# sidx# eidx# v#]
        (ArrayLists/checkIndexRange ~'n-elems sidx# eidx#)

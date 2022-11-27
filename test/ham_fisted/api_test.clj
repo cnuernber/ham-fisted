@@ -76,7 +76,7 @@
              (.set 10))]
     (is (= [1 10] (hamf/->random-access (hamf/int-array bs))))
     (is (= [1.0 10.0] (->> bs
-                           (lznc/map (hamf/long-to-double-function v (double v)))
+                           (lznc/map (hamf/long->double v (double v)))
                            (hamf/vec))))
     (is (not (nil? (hamf/->collection bs))))))
 

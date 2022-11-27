@@ -6,12 +6,13 @@
             Transformables$SingleMapList Transformables StringCollection ArrayLists
             ArrayImmutList ArrayLists$ObjectArrayList IMutList TypedList LongMutList
             DoubleMutList ReindexList Transformables$IndexedMapper
-            IFnDef$OLO IFnDef$ODO Reductions]
+            IFnDef$OLO IFnDef$ODO Reductions Reductions$IndexedAccum
+            IFnDef$OLOO ArrayHelpers]
            [java.lang.reflect Array]
            [it.unimi.dsi.fastutil.ints IntArrays]
            [java.util RandomAccess Collection Map List Random]
            [clojure.lang RT IPersistentMap IReduceInit IReduce PersistentList
-            IFn$OLO IFn$ODO])
+            IFn$OLO IFn$ODO Counted])
   (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle object-array
                             remove map-indexed]))
 
@@ -49,36 +50,40 @@
 (defn object-array
   "Faster version of object-array for eductions, java collections and strings."
   ^objects [item]
-  (cond
-    (or (nil? item) (number? item))
-    (clojure.core/object-array item)
-    (instance? obj-ary-cls item)
-    item
-    (instance? Collection item)
-    (.toArray ^Collection item)
-    ;;Results of eduction aren't collections but do implement IReduceInit
-    (instance? IReduceInit item)
-    (let [l (reduce (fn [l v]
-                      (.add ^List l v)
-                      l)
-                    (ArrayLists$ObjectArrayList.)
-                    item)]
-      (.toArray ^List l))
-    (instance? Map item)
-    (.toArray (.entrySet ^Map item))
-    (instance? String item)
-    (.toArray (StringCollection. item))
-    (.isArray (.getClass ^Object item))
-    (.toArray (ArrayLists/toList item))
-    (instance? Iterable item)
-    (let [alist (ArrayLists$ObjectArrayList.)]
-      (iterator/doiter
-       v item
-       (.add alist item))
-      (.toArray alist))
-    :else
-    (throw (Exception. (str "Unable to coerce item of type: " (type item)
-                            " to an object array")))))
+  (let [item (if (instance? Map item) (.entrySet ^Map item) item)]
+    (cond
+      (or (nil? item) (number? item))
+      (clojure.core/object-array item)
+      (instance? obj-ary-cls item)
+      item
+      ;;Results of eduction aren't collections but do implement IReduceInit
+      (instance? IReduceInit item)
+      (if (or (instance? RandomAccess item) (instance? Counted item))
+        (let [item-size (if (instance? RandomAccess item) (.size ^List item) (count item))
+              retval (clojure.core/object-array item-size)]
+          (reduce (Reductions$IndexedAccum.
+                   (reify IFnDef$OLOO
+                     (invokePrim [this acc idx v]
+                       (ArrayHelpers/aset ^objects acc (unchecked-int idx) v)
+                       acc)))
+                  retval
+                  item))
+        (let [retval (ArrayLists$ObjectArrayList.)]
+          (.addAllReducible retval item)
+          (.toArray retval)))
+      (instance? Collection item)
+      (.toArray ^Collection item)
+      (instance? String item)
+      (.toArray (StringCollection. item))
+      (.isArray (.getClass ^Object item))
+      (.toArray (ArrayLists/toList item))
+      (instance? Iterable item)
+      (let [alist (ArrayLists$ObjectArrayList.)]
+        (.addAllReducible alist item)
+        (.toArray alist))
+      :else
+      (throw (Exception. (str "Unable to coerce item of type: " (type item)
+                              " to an object array"))))))
 
 
 (defn ->random-access

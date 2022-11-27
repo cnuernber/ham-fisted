@@ -12,6 +12,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.BiFunction;
 import clojure.lang.Indexed;
@@ -64,6 +65,8 @@ public class MutList<E>
 
   @SuppressWarnings("unchecked")
   public final boolean addAllReducible(Object c) {
+    if( c instanceof Map)
+      c = ((Map)c).entrySet();
     final int ssz = size();
     if (c instanceof ChunkedListOwner) {
       final ChunkedListSection section = ((ChunkedListOwner)c).getChunkedList();
@@ -89,17 +92,21 @@ public class MutList<E>
     }
     else if (c instanceof IReduceInit) {
       final ChunkedList d = data;
-      if( c instanceof RandomAccess) {
-	final List cl = (List) c;
-	if (cl.isEmpty()) return false;
-	d.enlarge(ssz + cl.size());
+      if( c instanceof RandomAccess || c instanceof Counted) {
+	final int cz = c instanceof RandomAccess ? ((List)c).size() : ((Counted)c).count();
+	if (cz == 0) return false;
+	d.enlarge(ssz + cz);
+	d.nElems = ssz + cz;
+	d.fillRangeReduce(ssz, c);
       }
-      ((IReduceInit)c).reduce(new IFnDef() {
-	  public Object invoke(Object lhs, Object rhs) {
-	    d.add(rhs);
-	    return this;
-	  }
-	}, this);
+      else {
+	((IReduceInit)c).reduce(new IFnDef() {
+	    public Object invoke(Object lhs, Object rhs) {
+	      d.add(rhs);
+	      return this;
+	    }
+	  }, this);
+      }
     }
     else if (c instanceof RandomAccess) {
       final List l = (List)c;
@@ -119,9 +126,9 @@ public class MutList<E>
 	idx += groupLen;
       }
     } else {
-      if(! (c instanceof Collection))
-	throw new RuntimeException("Object must either be instance of IReduceInit or java.util.Collection");
-      for (E e: (Collection<E>)c) add(e);
+      if(! (c instanceof Iterable))
+	throw new RuntimeException("Object must either be instance of IReduceInit or java.util.Iterable");
+      ((Iterable)c).forEach((v)->add((E)v));
     }
     return ssz != size();
   }
@@ -295,7 +302,7 @@ public class MutList<E>
       final int eidx = sidx + v.size();
       if (eidx > nElems)
 	throw new RuntimeException("End index out of range: " + String.valueOf(eidx));
-      data.fillRange(ssidx, v);
+      data.fillRangeReduce(ssidx, v);
     }
     public final int hashCode() {
       return data.hasheq(startidx, startidx + nElems);
@@ -353,7 +360,7 @@ public class MutList<E>
     final int endidx = v.size();
     if(endidx < startidx || endidx > data.nElems)
       throw new RuntimeException("End index out of range: " + String.valueOf(endidx));
-    data.fillRange(startidx, v);
+    data.fillRangeReduce(startidx, v);
   }
 
   public void addRange(int startidx, int endidx, Object v) {

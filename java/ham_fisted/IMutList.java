@@ -317,9 +317,12 @@ public interface IMutList<E>
     return new RandomAccessSpliterator<E>(this);
   }
   default Object[] fillArray(Object[] data) {
-    final int sz = size();
-    for (int idx = 0; idx < sz; ++idx)
-      data[idx] = get(idx);
+    Reductions.serialReduction(new Reductions.IndexedAccum(new IFnDef.OLOO() {
+	public Object invokePrim(Object acc, long idx, Object v) {
+	  ((Object[])acc)[(int)idx] = v;
+	  return acc;
+	}
+      }), data, this);
     return data;
   }
   default Object[] toArray() {

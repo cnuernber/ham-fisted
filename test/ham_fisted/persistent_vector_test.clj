@@ -282,7 +282,7 @@
             subv (api/subvec vdata 50)]
         ;;Ensure that non-accelerated sort results are identical to
         ;;accelerated sort results
-        (is (= vdata (api/sort compare init-data)))
+        (is (= vdata (api/sort compare init-data)) k)
         (is (= 50 (api/binary-search vdata (convert-fn 50))) k)
         (when-not (#{:char-vec :char-vec-list} k)
           (is (= 51 (api/binary-search vdata 50.1 compare)) k))

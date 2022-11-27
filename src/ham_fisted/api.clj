@@ -732,7 +732,7 @@ ham_fisted.PersistentHashMap
      (instance? obj-ary-cls data)
      (MutList/create false nil ^objects data)
      (or (instance? IReduceInit data) (instance? Collection data))
-     (doto (MutList/create true (meta data) (object-array data)))
+     (doto (MutList.) (.addAllReducible data))
      (string? data)
      (doto (MutList.) (.addAll (StringCollection. data)))
      (.isArray (.getClass ^Object data))
@@ -745,12 +745,8 @@ ham_fisted.PersistentHashMap
   "Create a persistent list.  Object arrays will be treated as if this new object owns them."
   (^ImmutList [] empty-vec)
   (^ImmutList [data]
-   (cond
-     (instance? obj-ary-cls data)
+   (if (instance? obj-ary-cls data)
      (ArrayImmutList/create true nil data)
-     (or (instance? IReduceInit data) (instance? Collection data))
-     (ArrayImmutList/create true (meta data) (object-array data))
-     :else
      (persistent! (mut-list data)))))
 
 
@@ -824,31 +820,46 @@ ham_fisted.PersistentHashMap
   `(reify IFnDef$OO (invoke [this# ~arg] ~@code)))
 
 
-(defmacro to-long-function
-  "Create an instance of a function that converts objects to longs"
+(defmacro obj->long
+  "Create a function that converts objects to longs"
   [varname & code]
   `(reify IFnDef$OL
      (invokePrim [this ~varname]
        ~@code)))
 
 
-(defmacro to-double-function
-  "Create an instance of a function that converts objects to longs"
+(defmacro obj->double
+  "Create a function that converts objects to doubles"
   [varname & code]
   `(reify IFnDef$OD
      (invokePrim [this ~varname]
        ~@code)))
 
 
-(defmacro long-to-double-function
+(defmacro long->double
+  "Create a function that receives a long and returns a double"
   [varname & code]
   `(reify IFnDef$LD
      (invokePrim [this ~varname] ~@code)))
 
 
-(defmacro double-to-long-function
+(defmacro double->long
+  "Create a function that receives a double and returns a long"
   [varname & code]
   `(reify IFnDef$DL
+     (invokePrim [this ~varname] ~@code)))
+
+
+(defmacro long->obj
+  "Create a function that receives a primitive long and returns an object."
+  [varname & code]
+  `(reify IFnDef$LO
+     (invokePrim [this ~varname] ~@code)))
+
+
+(defmacro double->obj
+  [varname & code]
+  `(reify IFnDef$DO
      (invokePrim [this ~varname] ~@code)))
 
 
@@ -940,9 +951,7 @@ ham_fisted.PersistentHashMap
 
 (defn map-values
   "Return the values collection of the map.  This may not be in the same order as (keys m)
-  or (vals m).  For hamf hashmaps, this does have the same order as (vals m).  For both
-  hamf hashmaps and java hashmaps, this has better performance for reductions especially
-  using `reduce` than (vals m)."
+  or (vals m).  For hamf hashmaps, this does have the same order as (vals m)."
   ^Collection [^Map m] (.values m))
 
 
