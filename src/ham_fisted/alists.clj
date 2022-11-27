@@ -59,6 +59,9 @@
      ~iface
      (meta [this#] ~'m)
      (withMeta [this# newm#] (with-meta (.subList this# 0 ~'n-elems) newm#))
+     (cloneList [this#] (~(symbol (str (name lname) ".")) (.copyOf this# ~'n-elems)
+                         ~'n-elems ~'m))
+     (clone [this#] (.cloneList this#))
      (size [this#] (unchecked-int ~'n-elems))
      (~getname [this# idx#] (~get-cast-fn (aget ~'data (ArrayLists/checkIndex idx# ~'n-elems))))
      (get [this# idx#] (aget ~'data (ArrayLists/checkIndex idx# ~'n-elems)))
@@ -141,6 +144,7 @@
      (equals [this other] (.equiv this other))
      (toString [this] (Transformables/sequenceToString this))
      ArrayLists$IArrayList
+     (cloneList [this] (BooleanArrayList. (.copyOf this n-elems) n-elems m))
      (meta [this] m)
      (withMeta [this newm] (with-meta (.subList this 0 n-elems) newm))
      (size [this] (unchecked-int n-elems))

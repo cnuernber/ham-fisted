@@ -325,6 +325,8 @@ public class ArrayLists {
       return equiv(other);
     }
     public int hashCode() { return hasheq(); }
+    public IMutList cloneList() { return new ObjectArrayList((Object[])copyOf(nElems),
+							     nElems, meta); }
     public ArraySection getArraySection() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
@@ -876,7 +878,8 @@ public class ArrayLists {
       return equiv(other);
     }
     public int hashCode() { return hasheq(); }
-    public IMutList cloneList() { return (IMutList)toList(Arrays.copyOf(data, nElems)); }
+    public IMutList cloneList() { return new IntArrayList((int[])copyOf(nElems),
+							  nElems, meta); }
     public ArraySection getArraySection() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
@@ -1265,7 +1268,8 @@ public class ArrayLists {
       return equiv(other);
     }
     public int hashCode() { return hasheq(); }
-    public IMutList cloneList() { return (IMutList)toList(Arrays.copyOf(data, nElems)); }
+    public IMutList cloneList() { return new LongArrayList((long[])copyOf(nElems),
+							   nElems, meta); }
     public ArraySection getArraySection() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
@@ -1786,7 +1790,8 @@ public class ArrayLists {
       return equiv(other);
     }
     public int hashCode() { return hasheq(); }
-    public IMutList cloneList() { return (IMutList)toList(Arrays.copyOf(data, nElems)); }
+    public IMutList cloneList() { return new DoubleArrayList((double[])copyOf(nElems),
+							     nElems, meta); }
     public ArraySection getArraySection() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }

@@ -14,6 +14,7 @@ import clojure.lang.RT;
 public interface DoubleMutList extends IMutList<Object> {
   default boolean add(Object obj) { addDouble(Casts.doubleCast(obj)); return true; }
   default void addLong(long obj) { addDouble(Casts.doubleCast(obj)); }
+  default void addDouble(double v) { throw new RuntimeException("Object " + String.valueOf(getClass()) + " failed to define addLong method"); }
   @SuppressWarnings("unchecked")
   default Object set(int idx, Object obj) { double v = getDouble(idx); setDouble(idx, Casts.doubleCast(obj)); return v; }
   default void setBoolean(int idx, boolean obj) { setDouble(idx, obj ? 1.0 : 0.0); }
