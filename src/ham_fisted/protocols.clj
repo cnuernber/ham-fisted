@@ -66,24 +66,12 @@ two accumulators  and returns a or modified accumulator."))
   IFn
   (->init-val-fn [this] this)
   (->rfn [this] this)
-  (finalize [this v] (this v)) ;;single-arity overload
-  Sum
-  (->init-val-fn [s] #(Sum.))
-  (->rfn [s] double-consumer-accumulator)
-  (finalize [s v] (deref v))
-  Sum$SimpleSum
-  (->init-val-fn [s] #(Sum$SimpleSum.))
-  (->rfn [s] double-consumer-accumulator)
-  (finalize [s v] (deref v)))
+  (finalize [this v] (this v)))
 
 
 (extend-protocol ParallelReducer
   IFn
-  (->merge-fn [this] this)
-  Sum
-  (->merge-fn [s] reducible-merge)
-  Sum$SimpleSum
-  (->merge-fn [s] reducible-merge))
+  (->merge-fn [this] this))
 
 
 (defprotocol PAdd

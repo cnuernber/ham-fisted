@@ -804,6 +804,13 @@ ham_fisted.PersistentHashMap
   `(reify IFnDef$OOO (invoke [this# ~arg1 ~arg2] ~@code)))
 
 
+(defmacro bi-consumer
+  [arg1 arg2 & code]
+  `(reify BiConsumer
+     (accept [this ~arg1 ~arg2]
+       ~@code)))
+
+
 (defn ->bi-function
   "Convert an object to a java.util.BiFunction. Object can either already be a
   bi-function or an IFn to be invoked with 2 arguments."
@@ -1643,6 +1650,42 @@ ham_fisted.PersistentHashMap
   ([m sidx] (subvec m sidx (count m))))
 
 
+(defmacro double-accumulator
+  "Type-hinted double reduction accumulator.
+  consumer:
+
+```clojure
+  ham-fisted.api> (reduce (double-accumulator acc v (+ (double acc) v))
+                             0.0
+                             (range 1000))
+#<SimpleSum@2fbcf20: 499500.0>
+ham-fisted.api> @*1
+499500.0
+```"
+  [accvar varvar & code]
+  `(reify IFnDef$ODO
+     (invokePrim [this ~accvar ~varvar]
+       ~@code)))
+
+
+(defmacro long-accumulator
+  "Type-hinted double reduction accumulator.
+  consumer:
+
+```clojure
+  ham-fisted.api> (reduce (double-accumulator acc v (+ (double acc) v))
+                             0.0
+                             (range 1000))
+#<SimpleSum@2fbcf20: 499500.0>
+ham-fisted.api> @*1
+499500.0
+```"
+  [accvar varvar & code]
+  `(reify IFnDef$OLO
+     (invokePrim [this ~accvar ~varvar]
+       ~@code)))
+
+
 (defn group-by-reduce
   "Group by key. Apply the reduce-fn with the new value an the return of init-val-fn.
   Merged maps due to multithreading will be merged with merge-fn in a similar way
@@ -1682,28 +1725,39 @@ ham_fisted.PersistentHashMap
                ;;These formulations can trigger more efficient primitive reductions when,
                ;;for instance, you are reducing over a stream of integer indexes.
                (and (instance? IFn$LO key-fn) (instance? IFn$OLO rfn))
-               (reify IFnDef$OLO
-                 (invokePrim [this l v]
-                   (compute! ^Map l (.invokePrim ^IFn$LO key-fn v)
-                             (bi-function
-                              k acc (.invokePrim ^IFn$OLO rfn (or acc (init-val-fn)) v)))
-                   l))
+               (long-accumulator
+                l v
+                 (compute! ^Map l (.invokePrim ^IFn$LO key-fn v)
+                           (bi-function
+                            k acc (.invokePrim ^IFn$OLO rfn (or acc (init-val-fn)) v)))
+                 l)
                (and (instance? IFn$DO key-fn) (instance? IFn$ODO rfn))
-               (reify IFnDef$ODO
-                 (invokePrim [this l v]
-                   (compute! ^Map l (.invokePrim ^IFn$DO key-fn v)
-                             (bi-function
-                              k acc (.invokePrim ^IFn$ODO rfn (or acc (init-val-fn)) v)))
-                   l))
+               (double-accumulator
+                 l v
+                 (compute! ^Map l (.invokePrim ^IFn$DO key-fn v)
+                           (bi-function
+                            k acc (.invokePrim ^IFn$ODO rfn (or acc (init-val-fn)) v)))
+                 l)
                :else
                (fn [^Map l v]
                  ;;It annoys the hell out of me that I have to create a new
                  ;;bifunction here but there is no threadsafe way to pass in the
                  ;;new value to the reducer otherwise.
                  (compute! l (key-fn v) (bi-function k acc (rfn (or acc (init-val-fn)) v)))
-                 l)
-               )]
-     (cond-> (preduce map-fn rfn  #(map-union merge-bifn %1 %2)
+                 l))]
+     (cond-> (preduce map-fn rfn
+                      (fn [^Map l ^Map r]
+                        (cond
+                          (identical? l r) l
+                          (map-set? l) (map-union merge-bifn l r)
+                          :else
+                          (let [[^Map minm ^Map maxm] (if (< (.size l) (.size r))
+                                                        [l r]
+                                                        [r l])]
+                            (.forEach minm (bi-consumer
+                                            k v
+                                            (.merge maxm k v merge-bifn)))
+                            maxm)))
                       (merge {:min-n 1000} options)
                       coll)
        ;;In the case where no map-fn was passed in we return a persistent hash map.
@@ -2524,42 +2578,6 @@ ham-fisted.api> @*1
   c)
 
 
-(defmacro double-accumulator
-  "Type-hinted double reduction accumulator.
-  consumer:
-
-```clojure
-  ham-fisted.api> (reduce (double-accumulator acc v (+ (double acc) v))
-                             0.0
-                             (range 1000))
-#<SimpleSum@2fbcf20: 499500.0>
-ham-fisted.api> @*1
-499500.0
-```"
-  [accvar varvar & code]
-  `(reify IFnDef$ODO
-     (invokePrim [this ~accvar ~varvar]
-       ~@code)))
-
-
-(defmacro long-accumulator
-  "Type-hinted double reduction accumulator.
-  consumer:
-
-```clojure
-  ham-fisted.api> (reduce (double-accumulator acc v (+ (double acc) v))
-                             0.0
-                             (range 1000))
-#<SimpleSum@2fbcf20: 499500.0>
-ham-fisted.api> @*1
-499500.0
-```"
-  [accvar varvar & code]
-  `(reify IFnDef$OLO
-     (invokePrim [this ~accvar ~varvar]
-       ~@code)))
-
-
 (defmacro indexed-double-accum
   "Create an indexed double accumulator that recieves and additional long index
   during a reduction:
@@ -2806,6 +2824,38 @@ nil
        ~@code)))
 
 
+(defn bind-double-consumer-reducer!
+  "Bind a classtype as a double consumer parallel reducer - the consumer must implement
+  DoubleConsumer, ham_fisted.Reducible, and IDeref."
+  ([cls-type ctor]
+   (extend cls-type
+     protocols/Reducer
+     {:->init-val-fn (fn [r] ctor)
+      :->rfn (fn [r] double-consumer-accumulator)
+      :finalize (fn [r b] (deref b))}
+     protocols/ParallelReducer
+     {:->merge-fn (fn [r] reducible-merge)}))
+  ([ctor]
+   (bind-double-consumer-reducer! (type (ctor)) ctor)))
+
+
+(bind-double-consumer-reducer! #(Sum.))
+(bind-double-consumer-reducer! #(Sum$SimpleSum.))
+
+
+(defn double-consumer-reducer
+  "Make a parallel double consumer reducer given a function that takes no arguments and is
+  guaranteed to produce a double consumer which also implements Reducible and IDeref"
+  [ctor]
+  (reify
+    protocols/Reducer
+    (->init-val-fn [this] ctor)
+    (->rfn [this] double-consumer-accumulator)
+    (finalize [this v] (deref v))
+    protocols/ParallelReducer
+    (->merge-fn [this] reducible-merge)))
+
+
 (defn ^:no-doc apply-nan-strategy
   [options coll]
   (case (get options :nan-strategy :remove)
@@ -2820,8 +2870,8 @@ nil
 
 (defn sum-stable-nelems
   "Stable sum returning map of {:sum :n-elems}. See options for [[sum]]."
-  ([coll] (sum-stable-nelems coll nil))
-  ([coll options]
+  ([coll] (sum-stable-nelems nil coll))
+  ([options coll]
    (->> (->reducible coll)
         (apply-nan-strategy options)
         (preduce-reducer (Sum.) options))))
@@ -2835,17 +2885,17 @@ nil
 
   * `nan-strategy` - defaults to `:remove`.  Options are `:keep`, `:remove` and
   `:exception`."
-  (^double [coll] (sum coll nil))
-  (^double [coll options]
-   (:sum (sum-stable-nelems coll options))))
+  (^double [coll] (sum nil coll))
+  (^double [options coll]
+   (get (sum-stable-nelems options coll) :sum)))
 
 
 (defn mean
   "Return the mean of the collection.  Returns double/NaN for empty collections.
   See options for [[sum]]."
-  (^double [coll] (mean coll nil))
-  (^double [coll options]
-   (let [vals (sum-stable-nelems coll options)]
+  (^double [coll] (mean nil coll))
+  (^double [options coll]
+   (let [vals (sum-stable-nelems options coll)]
      (/ (double (vals :sum))
         (long (vals :n-elems))))))
 

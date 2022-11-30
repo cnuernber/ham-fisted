@@ -60,6 +60,9 @@ public class ArrayLists {
   public static void checkIndexRange(int dlen, int ssidx, int seidx) {
     ChunkedList.checkIndexRange(0, dlen, ssidx, seidx);
   }
+  public static void checkIndexRange(long dlen, long ssidx, long seidx) {
+    ChunkedList.checkIndexRange(0, dlen, ssidx, seidx);
+  }
   public static DoubleConsumer asDoubleConsumer(Object c) {
     if (c instanceof DoubleConsumer)
       return (DoubleConsumer) c;
@@ -108,23 +111,24 @@ public class ArrayLists {
     }
   }
   @SuppressWarnings("unchecked")
-  static boolean fillRangeArrayCopy(Object dest, int sidx, int eidx, Class aryCls,
-				    int startidx, List l) {
+  static boolean fillRangeArrayCopy(Object dest, long sidx, long eidx, Class aryCls,
+				    long startidx, List l) {
     //True means this function took care of the transfer, false means
     //fallback to a more generalized transfer
     if (l.isEmpty()) return true;
     final int sz = l.size();
-    final int endidx = startidx + sz;
+    final long endidx = startidx + sz;
     checkIndexRange(eidx-sidx, startidx, endidx);
     if(l instanceof ArrayOwner) {
       final ArraySection as = ((ArrayOwner)l).getArraySection();
       if(aryCls.isAssignableFrom(as.array.getClass())) {
-	System.arraycopy(as.array, as.sidx, dest, sidx+startidx, sz);
+	System.arraycopy(as.array, as.sidx, dest, (int)(sidx+startidx), sz);
 	return true;
       }
     }
     return false;
   }
+
   static List immutShuffleDefault(IMutList m, Random r) {
     final IMutList retval = m.cloneList();
     retval.shuffle(r);
@@ -142,17 +146,19 @@ public class ArrayLists {
     default IPersistentVector unsafeImmut() { return ImmutList.create(true, meta(), (Object[])getArraySection().array); }
     default List immutShuffle(Random r) { return immutShuffleDefault(this, r); }
     default List immutSort(Comparator c) { return immutSortDefault(this, c); }
-    default void fillRange(int startidx, int endidx, Object v) {
+    default void fillRange(long startidx, long endidx, Object v) {
       checkIndexRange(size(), startidx, endidx);
-      fill(startidx, endidx, v);
+      fill((int)startidx, (int)endidx, v);
     }
     default void fillRange(int startidx, List v) {
       final ArraySection as = getArraySection();
       if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
-	final int endidx = v.size() + startidx;
+	int ss = (int)startidx;
+	final int endidx = v.size() + ss;
+	final int ee = (int)endidx;
 	int idx = 0;
-	for(; startidx < endidx; ++startidx, ++idx) {
-	  set(startidx, v.get(idx));
+	for(; ss < ee; ++ss, ++idx) {
+	  set(ss, v.get(idx));
 	}
       }
     }
@@ -167,13 +173,13 @@ public class ArrayLists {
     default IPersistentVector unsafeImmut() { return ImmutList.create(true, meta(), (Object[])getArraySection().array); }
     default List immutShuffle(Random r) { return immutShuffleDefault(this, r); }
     default List immutSort(Comparator c) { return immutSortDefault(this, c); }
-    default void fillRange(int startidx, int endidx, Object v) {
+    default void fillRange(long startidx, long endidx, Object v) {
       checkIndexRange(size(), startidx, endidx);
-      fill(startidx, endidx, v);
+      fill((int)startidx, (int)endidx, v);
     }
-    default void fillRange(int startidx, List v) {
+    default void fillRange(long startidx, List v) {
       final ArraySection as = getArraySection();
-      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v))
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), (int)startidx, v))
 	LongMutList.super.fillRange(startidx, v);
     }
     default Object reduce(IFn rfn, Object init) {
@@ -191,11 +197,11 @@ public class ArrayLists {
     default IPersistentVector unsafeImmut() { return ImmutList.create(true, meta(), (Object[])getArraySection().array); }
     default List immutShuffle(Random r) { return immutShuffleDefault(this, r); }
     default List immutSort(Comparator c) { return immutSortDefault(this, c); }
-    default void fillRange(int startidx, int endidx, Object v) {
+    default void fillRange(long startidx, long endidx, Object v) {
       checkIndexRange(size(), startidx, endidx);
-      fill(startidx, endidx, v);
+      fill((int)startidx, (int)endidx, v);
     }
-    default void fillRange(int startidx, List v) {
+    default void fillRange(long startidx, List v) {
       final ArraySection as = getArraySection();
       if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v))
 	DoubleMutList.super.fillRange(startidx, v);
@@ -275,10 +281,10 @@ public class ArrayLists {
       for(int ss = sidx; ss < es; ++ss)
 	c.accept(d[ss]);
     }
-    public void fillRange(int startidx, List v) {
+    public void fillRange(long startidx, List v) {
       final ArraySection as = getArraySection();
       if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
-	final int ss = startidx + sidx;
+	final int ss = (int)startidx + sidx;
 	Reductions.serialReduction(new Reductions.IndexedAccum( new IFn.OLOO() {
 	    public Object invokePrim(Object acc, long idx, Object v) {
 	      ((Object[])acc)[(int)idx+ss] = v;
@@ -835,10 +841,10 @@ public class ArrayLists {
 	init = rfn.invokePrim(init, d[ss]);
       return init;
     }
-    public void fillRange(int startidx, List v) {
+    public void fillRange(long startidx, List v) {
       final ArraySection as = getArraySection();
       if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
-	final int ss = startidx + sidx;
+	final int ss = (int)startidx + sidx;
 	Reductions.serialReduction(new Reductions.IndexedLongAccum( new IFn.OLLO() {
 	    public Object invokePrim(Object acc, long idx, long v) {
 	      ((int[])acc)[(int)idx+ss] = RT.intCast(v);
@@ -964,10 +970,10 @@ public class ArrayLists {
     public int[] toIntArray() {
       return Arrays.copyOf(data, nElems);
     }
-    public void fillRange(int startidx, int endidx, Object v) {
+    public void fillRange(long startidx, long endidx, Object v) {
       ((RangeList)subList(0, nElems)).fillRange(startidx, endidx, v);
     }
-    public void fillRange(int startidx, List v) {
+    public void fillRange(long startidx, List v) {
       ((RangeList)subList(0, nElems)).fillRange(startidx, v);
     }
     public void addRange(final int startidx, final int endidx, final Object v) {
@@ -1226,10 +1232,10 @@ public class ArrayLists {
       for(int ss = sidx; ss < es; ++ss)
 	c.accept(d[ss]);
     }
-    public void fillRange(int startidx, List v) {
+    public void fillRange(long startidx, List v) {
       final ArraySection as = getArraySection();
       if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
-	final int ss = startidx + sidx;
+	final int ss = (int)startidx + sidx;
 	Reductions.serialReduction(new Reductions.IndexedLongAccum( new IFn.OLLO() {
 	    public Object invokePrim(Object acc, long idx, long v) {
 	      ((long[])acc)[(int)idx+ss] = v;
@@ -1367,10 +1373,10 @@ public class ArrayLists {
     public long[] toLongArray() {
       return Arrays.copyOf(data, nElems);
     }
-    public void fillRange(int startidx, int endidx, Object v) {
+    public void fillRange(long startidx, long endidx, Object v) {
       ((RangeList)subList(0, nElems)).fillRange(startidx, endidx, v);
     }
-    public void fillRange(int startidx, List v) {
+    public void fillRange(long startidx, List v) {
       ((RangeList)subList(0, nElems)).fillRange(startidx, v);
     }
     public void addRange(final int startidx, final int endidx, final Object v) {
@@ -1561,10 +1567,10 @@ public class ArrayLists {
 	init = rfn.invokePrim(init, d[ss]);
       return init;
     }
-    public void fillRange(int startidx, List v) {
+    public void fillRange(long startidx, List v) {
       final ArraySection as = getArraySection();
       if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
-	final int ss = sidx + startidx;
+	final int ss = sidx + (int)startidx;
 	Reductions.serialReduction(new Reductions.IndexedDoubleAccum( new IFn.OLDO() {
 	    public Object invokePrim(Object acc, long idx, double v) {
 	      ((float[])acc)[(int)idx+ss] = (float)v;
@@ -1747,10 +1753,10 @@ public class ArrayLists {
 	init = rfn.invokePrim(init, d[ss]);
       return init;
     }
-    public void fillRange(int startidx, List v) {
+    public void fillRange(long startidx, List v) {
       final ArraySection as = getArraySection();
       if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
-	final int ss = sidx + startidx;
+	final int ss = sidx + (int)startidx;
 	Reductions.serialReduction(new Reductions.IndexedDoubleAccum( new IFn.OLDO() {
 	    public Object invokePrim(Object acc, long idx, double v) {
 	      ((double[])acc)[(int)idx+ss] = v;
@@ -1878,7 +1884,7 @@ public class ArrayLists {
       ChunkedList.sublistCheck(ssidx, seidx, size());
       return toList(data, ssidx, seidx, meta());
     }
-    public void fillRange(int startidx, List v) {
+    public void fillRange(long startidx, List v) {
       ((IMutList)subList(0, nElems)).fillRange(startidx, v);
     }
     public IPersistentMap meta() { return meta; }

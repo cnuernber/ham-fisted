@@ -167,6 +167,10 @@ public class MutList<E>
     return ChunkedList.indexCheck(0, data.nElems, idx);
   }
 
+  final int indexCheck(long idx) {
+    return ChunkedList.indexCheck(0, data.nElems, (int)idx);
+  }
+
   final int wrapIndexCheck(int idx) {
     return ChunkedList.wrapIndexCheck(0, data.nElems, idx);
   }
@@ -291,15 +295,15 @@ public class MutList<E>
     public final Object kvreduce(IFn f, Object init) {
       return data.kvreduce(startidx, startidx+nElems, f, init);
     }
-    public void fillRange(int sidx, int eidx, Object v) {
-      final int ssidx = indexCheck(sidx);
+    public void fillRange(long sidx, long eidx, Object v) {
+      final int ssidx = indexCheck((int)sidx);
       if (eidx < sidx || eidx > nElems)
 	throw new RuntimeException("End index out of range: " + String.valueOf(eidx));
-      data.fillRange(ssidx, eidx + startidx, v);
+      data.fillRange((int)ssidx, (int)(eidx + startidx), v);
     }
-    public void fillRange(int sidx, List v) {
-      final int ssidx = indexCheck(sidx);
-      final int eidx = sidx + v.size();
+    public void fillRange(long sidx, List v) {
+      final int ssidx = indexCheck((int)sidx);
+      final int eidx = (int)sidx + v.size();
       if (eidx > nElems)
 	throw new RuntimeException("End index out of range: " + String.valueOf(eidx));
       data.fillRangeReduce(ssidx, v);

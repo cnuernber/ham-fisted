@@ -67,29 +67,32 @@ public interface IMutList<E>
   default void addLong(long v) { add((E)Long.valueOf(v)); }
   @SuppressWarnings("unchecked")
   default void addDouble(double v) { add((E)Double.valueOf(v)); }
-  default void removeRange(int startidx, int endidx) {
-    final int sidx = startidx;
+  default void removeRange(long startidx, long endidx) {
+    ChunkedList.checkIndexRange(0, size(), startidx, endidx);
+    final int sidx = (int)startidx;
     for(; startidx < endidx; ++startidx) {
       remove(sidx);
     }
   }
   @SuppressWarnings("unchecked")
-  default void fillRange(int startidx, final int endidx, Object v) {
+  default void fillRange(long startidx, final long endidx, Object v) {
     final int sz = size();
-    ChunkedList.checkIndexRange(0, sz, startidx, endidx);
-    for(; startidx < endidx; ++startidx) {
-      set(startidx, (E)v);
+    ChunkedList.checkIndexRange(0, (long)sz, startidx, endidx);
+    int ss = (int)startidx;
+    final int ee = (int)endidx;
+    for(; ss < ee; ++ss) {
+      set(ss, (E)v);
     }
   }
   @SuppressWarnings("unchecked")
-  default void fillRange(final int startidx, List v) {
+  default void fillRange(final long startidx, List v) {
     final int sz = size();
     final int osz = v.size();
     ChunkedList.checkIndexRange(0, sz, startidx, startidx+osz);
-    final int ss = sz + startidx;
+    final int ss = (int)startidx;
     Reductions.serialReduction(new Reductions.IndexedAccum(new IFnDef.OLOO() {
 	public Object invokePrim(Object acc, long idx, Object v) {
-	  ((List)acc).set((int)idx+startidx, v);
+	  ((List)acc).set((int)idx+ss, v);
 	  return acc;
 	}
       }), this, v);

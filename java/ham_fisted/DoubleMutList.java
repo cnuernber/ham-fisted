@@ -42,15 +42,17 @@ public interface DoubleMutList extends IMutList<Object> {
       }, this, obj);
     return sz != size();
   }
-  default void fillRange(int startidx, final int endidx, Object v) {
+  default void fillRange(long startidx, final long endidx, Object v) {
+    ChunkedList.checkIndexRange(0, size(), startidx, endidx);
     double l = Casts.doubleCast(v);
     for(; startidx < endidx; ++startidx) {
-      setDouble(startidx, l);
+      setDouble((int)startidx, l);
     }
   }
-  default void fillRange(final int startidx, List l) {
+  default void fillRange(final long ss, List l) {
     if (l.isEmpty())
       return;
+    final int startidx = (int)ss;
     final int sz = size();
     final int endidx = startidx + l.size();
     ArrayLists.checkIndexRange(size(), startidx, endidx);

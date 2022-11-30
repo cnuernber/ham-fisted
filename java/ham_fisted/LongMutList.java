@@ -24,10 +24,13 @@ public interface LongMutList extends IMutList<Object> {
   default void setDouble(int idx, double obj) { setLong(idx, Casts.longCast(obj)); }
   default Object get(int idx) { return getLong(idx); }
   default double getDouble(int idx) { return getLong(idx); }
-  default void fillRange(int startidx, final int endidx, Object v) {
+  default void fillRange(long startidx, final long endidx, Object v) {
+    ChunkedList.checkIndexRange(0, size(), startidx, endidx);
     long l = Casts.longCast(v);
-    for(; startidx < endidx; ++startidx) {
-      setLong(startidx, l);
+    final int ee = (int)endidx;
+    int ss = (int)startidx;
+    for(; ss < ee; ++ss) {
+      setLong(ss, l);
     }
   }
   static class LongSubList extends IMutList.MutSubList<Object> implements LongMutList {

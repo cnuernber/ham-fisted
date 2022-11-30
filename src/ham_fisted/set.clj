@@ -187,6 +187,7 @@
 
 (defn reduce-union
   "Reduce a number of objects into one object via union"
+  ([] (api/immut-set))
   ([l] l)
   ([l & data]
    (hamf-proto/reduce-union l data)))
@@ -194,13 +195,13 @@
 
 (defn intersection
   "set intersection"
-  [l r]
-  (if l
-    (hamf-proto/intersection l r)
-    r))
+  ([] (api/immut-set))
+  ([l] l)
+  ([l r] (if l (hamf-proto/intersection l r) r)))
 
 
 (defn reduce-intersection
+  ([] (api/immut-set))
   ([l] l)
   ([l & data]
    (hamf-proto/reduce-intersection l data)))

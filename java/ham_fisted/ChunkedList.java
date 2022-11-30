@@ -229,6 +229,15 @@ public final class ChunkedList {
     return idx + startidx;
   }
 
+  public static final long indexCheck(long startidx, long nElems, long idx) {
+    if (idx < 0)
+      throw new IndexOutOfBoundsException("Index underflow: " + String.valueOf(idx));
+    if(idx >= nElems)
+      throw new IndexOutOfBoundsException("Index out of range: " + String.valueOf(idx) + " : "
+					  + String.valueOf(nElems));
+    return idx + startidx;
+  }
+
   static final int wrapIndexCheck(int startidx, int nElems, int idx) {
     if (idx < 0)
       idx = nElems + idx;
@@ -246,6 +255,20 @@ public final class ChunkedList {
 				 + " is less than start: " + String.valueOf(sidx));
     if(eidx > nElems)
       throw new RuntimeException("Range end point: " + String.valueOf(eidx)
+				 + " is past end of valid range: " +
+				 String.valueOf(nElems));
+  }
+
+  static final void checkIndexRange(long startidx, long nElems, long sidx, long eidx) {
+    final long rne = eidx - sidx;
+    if(rne == 0 )
+      return;
+    indexCheck(startidx, nElems, sidx);
+    if (rne < 0)
+      throw new RuntimeException("Range end polong: " + String.valueOf(eidx)
+				 + " is less than start: " + String.valueOf(sidx));
+    if(eidx > nElems)
+      throw new RuntimeException("Range end polong: " + String.valueOf(eidx)
 				 + " is past end of valid range: " +
 				 String.valueOf(nElems));
   }

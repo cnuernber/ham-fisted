@@ -104,7 +104,7 @@
            (~add-all-reduce this# c#))
          (not (== sz# ~'n-elems))))
      (removeRange [this# sidx# eidx#]
-       (ArrayLists/checkIndexRange ~'n-elems sidx# eidx#)
+       (ArrayLists/checkIndexRange ~'n-elems (long sidx#) (long eidx#))
        (System/arraycopy ~'data sidx# ~'data eidx# (- ~'n-elems eidx#))
        (set! ~'n-elems (- ~'n-elems (- eidx# sidx#))))
      (sort [~'this c#] (.sort ~(with-meta '(.subList this 0 n-elems)  {:tag 'IMutList}) c#))
@@ -114,7 +114,7 @@
        (reduce rfn# init# (.subList this# 0 ~'n-elems)))
      (binarySearch [~'this v# c#] (.binarySearch ~(with-meta '(.subList this 0 n-elems) {:tag 'IMutList}) v# c#))
      (fill [this# sidx# eidx# v#]
-       (ArrayLists/checkIndexRange ~'n-elems sidx# eidx#)
+       (ArrayLists/checkIndexRange ~'n-elems (long sidx#) (long eidx#))
        (Arrays/fill ~'data sidx# eidx# (~set-cast-fn (~obj-cast-fn v#))))
      (copyOfRange [this# sidx# eidx#]
        (Arrays/copyOfRange ~'data sidx# eidx#))
@@ -204,7 +204,7 @@
      (shuffle [this r] (.shuffle ^IMutList (.subList this 0 n-elems) r))
      (binarySearch [this v c] (.binarySearch ^IMutList (.subList this 0 n-elems) v c))
      (fill [this sidx eidx v]
-       (ArrayLists/checkIndexRange n-elems sidx eidx)
+       (ArrayLists/checkIndexRange n-elems (long sidx) (long eidx))
        (Arrays/fill data sidx eidx (Casts/booleanCast v)))
      (copyOfRange [this sidx eidx]
        (Arrays/copyOfRange data sidx eidx))
