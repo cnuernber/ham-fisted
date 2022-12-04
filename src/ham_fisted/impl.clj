@@ -334,18 +334,6 @@
   (add-fn [c] #(do (.add ^Collection %1 %2) %1)))
 
 
-(extend-protocol protocols/Reduction
-  nil
-  (reducible? [this] true)
-  Object
-  (reducible? [this]
-    (or (instance? IReduceInit this)
-        (instance? Iterable this)
-        (instance? Map this)
-        ;;This check is dog slow
-        (satisfies? cl-proto/CollReduce this))))
-
-
 (extend BitSet
   protocols/Reduction
   {:reducible? (constantly true)}

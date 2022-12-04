@@ -245,13 +245,13 @@ public final class ChunkedList {
   }
 
 
-  static final void checkIndexRange(int startidx, int nElems, int sidx, int eidx) {
+  static public final void checkIndexRange(int startidx, int nElems, int sidx, int eidx) {
     final int rne = eidx - sidx;
     if(rne == 0 )
       return;
     indexCheck(startidx, nElems, sidx);
     if (rne < 0)
-      throw new RuntimeException("Range end point: " + String.valueOf(eidx)
+      throw new RuntimeException("Range end: " + String.valueOf(eidx)
 				 + " is less than start: " + String.valueOf(sidx));
     if(eidx > nElems)
       throw new RuntimeException("Range end point: " + String.valueOf(eidx)
@@ -259,13 +259,13 @@ public final class ChunkedList {
 				 String.valueOf(nElems));
   }
 
-  static final void checkIndexRange(long startidx, long nElems, long sidx, long eidx) {
+  static public final void checkIndexRange(long startidx, long nElems, long sidx, long eidx) {
     final long rne = eidx - sidx;
     if(rne == 0 )
       return;
     indexCheck(startidx, nElems, sidx);
     if (rne < 0)
-      throw new RuntimeException("Range end polong: " + String.valueOf(eidx)
+      throw new RuntimeException("Range end: " + String.valueOf(eidx)
 				 + " is less than start: " + String.valueOf(sidx));
     if(eidx > nElems)
       throw new RuntimeException("Range end polong: " + String.valueOf(eidx)

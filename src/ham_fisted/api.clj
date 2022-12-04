@@ -97,7 +97,7 @@
          object-array-list int-array-list long-array-list double-array-list
          int-array argsort byte-array short-array char-array boolean-array repeat
          persistent! rest immut-map keys vals group-by-reduce consumer-accumulator
-         reducible-merge)
+         reducible-merge reindex)
 
 
 (defn ->collection
@@ -120,12 +120,6 @@
   [item]
   (lznc/->reducible item))
 
-
-(defn reindex
-  "Permut coll by the given indexes.  Result is random-access and the same length as
-  the index collection.  Indexes are expected to be in the range of [0->count(coll))."
-  [coll indexes]
-  (lznc/reindex (->random-access coll) (int-array indexes)))
 
 
 (def ^{:tag BitmapTrieCommon$HashProvider
@@ -328,39 +322,113 @@ This is currently the default hash provider for the library."}
    (preduce-reducer reducer nil coll)))
 
 
+(defmacro double-accumulator
+  "Type-hinted double reduction accumulator.
+  consumer:
+
+```clojure
+  ham-fisted.api> (reduce (double-accumulator acc v (+ (double acc) v))
+                             0.0
+                             (range 1000))
+#<SimpleSum@2fbcf20: 499500.0>
+ham-fisted.api> @*1
+499500.0
+```"
+  [accvar varvar & code]
+  `(reify IFnDef$ODO
+     (invokePrim [this ~accvar ~varvar]
+       ~@code)))
+
+
+(defmacro long-accumulator
+  "Type-hinted double reduction accumulator.
+  consumer:
+
+```clojure
+  ham-fisted.api> (reduce (double-accumulator acc v (+ (double acc) v))
+                             0.0
+                             (range 1000))
+#<SimpleSum@2fbcf20: 499500.0>
+ham-fisted.api> @*1
+499500.0
+```"
+  [accvar varvar & code]
+  `(reify IFnDef$OLO
+     (invokePrim [this ~accvar ~varvar]
+       ~@code)))
+
+
 (defn compose-reducers
   "Given a map or sequence of reducers return a new reducer that produces a map or
-  vector of results."
-  [reducers]
-  (if (instance? Map reducers)
-    (let [reducer (compose-reducers (vals reducers))]
-      (reify
-        ham_fisted.protocols.Reducer
-        (->init-val-fn [_] (protocols/->init-val-fn reducer))
-        (->rfn [_] (protocols/->rfn reducer))
-        (finalize [_ v] (immut-map (map vector (keys reducers)
-                                        (protocols/finalize reducer v))))
-        ham_fisted.protocols.ParallelReducer
-        (->merge-fn [_] (protocols/->merge-fn reducer))))
-    (let [init-fns (mapv protocols/->init-val-fn reducers)
-          ^objects rfns (object-array (map protocols/->rfn reducers))
-          ^objects mergefns (object-array (map protocols/->merge-fn reducers))
-          n-vals (count rfns)]
-      (reify
-        ham_fisted.protocols.Reducer
-        (->init-val-fn [_] (fn [] (object-array (map #(%) init-fns))))
-        (->rfn [_]
-          (fn [^objects acc v]
-            (dotimes [idx n-vals]
-              (ArrayHelpers/aset acc idx ((aget rfns idx) (aget acc idx) v)))
-            acc))
-        (finalize [_ v] (mapv #(protocols/finalize %1 %2) reducers v))
-        ham_fisted.protocols.ParallelReducer
-        (->merge-fn [_]
-          (fn [^objects lhs ^objects rhs]
-            (dotimes [idx n-vals]
-              (ArrayHelpers/aset lhs idx ((aget mergefns idx) (aget lhs idx) (aget rhs idx))))
-            lhs))))))
+  vector of results.
+
+  If data is a sequence then context is guaranteed to be an object array.
+
+  Options:
+
+  * `:rfn-datatype` - One of nil, :int64, or :float64.  This indicates that the rfn's
+  should all be uniform as accepting longs, doubles, or generically objects.  Defaults
+  to nil."
+  ([reducers] (compose-reducers nil reducers))
+  ([options reducers]
+   (if (instance? Map reducers)
+     (let [reducer (compose-reducers (vals reducers))]
+       (reify
+         protocols/Reducer
+         (->init-val-fn [_] (protocols/->init-val-fn reducer))
+         (->rfn [_] (protocols/->rfn reducer))
+         protocols/Finalize
+         (finalize [_ v] (immut-map (map vector (keys reducers)
+                                         (protocols/finalize reducer v))))
+         protocols/ParallelReducer
+         (->merge-fn [_] (protocols/->merge-fn reducer))))
+     (let [init-fns (mapv protocols/->init-val-fn reducers)
+           rfn-dt (get options :rfn-datatype)
+           ^objects rfns (object-array
+                          (case rfn-dt
+                            :int64
+                            (->> (map protocols/->rfn reducers)
+                                 (map #(Transformables/toLongReductionFn %)))
+                            :float64
+                            (->> (map protocols/->rfn reducers)
+                                 (map #(Transformables/toDoubleReductionFn %)))
+                            ;;else branch
+                            (map protocols/->rfn reducers)))
+           ^objects mergefns (object-array (map protocols/->merge-fn reducers))
+           n-vals (count rfns)]
+       (reify
+         protocols/Reducer
+         (->init-val-fn [_] (fn [] (object-array (map #(%) init-fns))))
+         (->rfn [_]
+           (case rfn-dt
+             :int64
+             (long-accumulator
+              acc v
+              (dotimes [idx n-vals]
+                (let [^objects acc acc]
+                  (ArrayHelpers/aset acc idx (.invokePrim ^IFn$OLO (aget rfns idx)
+                                                          (aget acc idx) v))))
+              acc)
+             :float64
+             (double-accumulator
+              acc v
+              (let [^objects acc acc]
+                (dotimes [idx n-vals]
+                  (ArrayHelpers/aset acc idx (.invokePrim ^IFn$ODO (aget rfns idx)
+                                                          (aget acc idx) v))))
+              acc)
+             (fn [^objects acc v]
+              (dotimes [idx n-vals]
+                (ArrayHelpers/aset acc idx ((aget rfns idx) (aget acc idx) v)))
+               acc)))
+         protocols/Finalize
+         (finalize [_ v] (mapv #(protocols/finalize %1 %2) reducers v))
+         protocols/ParallelReducer
+         (->merge-fn [_]
+           (fn [^objects lhs ^objects rhs]
+             (dotimes [idx n-vals]
+               (ArrayHelpers/aset lhs idx ((aget mergefns idx) (aget lhs idx) (aget rhs idx))))
+             lhs)))))))
 
 
 (defn preduce-reducers
@@ -396,11 +464,12 @@ ham-fisted.api> (reduce-reducer (reducer-xform->reducer (Sum.) (clojure.core/fil
                      ([v] (protocols/finalize reducer v))
                      ([acc v] (rfn acc v))))]
     (reify
-      ham_fisted.protocols.Reducer
+      protocols/Reducer
       (->init-val-fn [this] init-val-fn)
       (->rfn [this] xfn)
+      protocols/Finalize
       (finalize [this v] (xfn v))
-      ham_fisted.protocols.ParallelReducer
+      protocols/ParallelReducer
       (->merge-fn [this] (protocols/->merge-fn reducer)))))
 
 
@@ -438,6 +507,18 @@ ham-fisted.api> (r/fold (reducer->completef (Sum.)) (reducer->rfn (Sum.)) data)
       ([] (init-val-fn))
       ([l r] (merge-fn l r))
       ([v] (protocols/finalize reducer v)))))
+
+
+(defn reducer-with-finalize
+  [reducer fin-fn]
+  (reify
+    protocols/Reducer
+    (->init-val-fn [r] (protocols/->init-val-fn reducer))
+    (->rfn [r] (protocols/->rfn reducer))
+    protocols/Finalize
+    (finalize [r v] (fin-fn v))
+    protocols/ParallelReducer
+    (->merge-fn [r] (protocols/->merge-fn reducer))))
 
 
 (defn reduce-reducer
@@ -1650,42 +1731,6 @@ ham_fisted.PersistentHashMap
   ([m sidx] (subvec m sidx (count m))))
 
 
-(defmacro double-accumulator
-  "Type-hinted double reduction accumulator.
-  consumer:
-
-```clojure
-  ham-fisted.api> (reduce (double-accumulator acc v (+ (double acc) v))
-                             0.0
-                             (range 1000))
-#<SimpleSum@2fbcf20: 499500.0>
-ham-fisted.api> @*1
-499500.0
-```"
-  [accvar varvar & code]
-  `(reify IFnDef$ODO
-     (invokePrim [this ~accvar ~varvar]
-       ~@code)))
-
-
-(defmacro long-accumulator
-  "Type-hinted double reduction accumulator.
-  consumer:
-
-```clojure
-  ham-fisted.api> (reduce (double-accumulator acc v (+ (double acc) v))
-                             0.0
-                             (range 1000))
-#<SimpleSum@2fbcf20: 499500.0>
-ham-fisted.api> @*1
-499500.0
-```"
-  [accvar varvar & code]
-  `(reify IFnDef$OLO
-     (invokePrim [this ~accvar ~varvar]
-       ~@code)))
-
-
 (defn group-by-reduce
   "Group by key. Apply the reduce-fn with the new value an the return of init-val-fn.
   Merged maps due to multithreading will be merged with merge-fn in a similar way
@@ -2387,6 +2432,13 @@ ham-fisted.api> (binary-search data 1.1 nil)
    `(impl-array-macro ~data ArrayLists/intArray Casts/longCast int-array-v)))
 
 
+(defn reindex
+  "Permut coll by the given indexes.  Result is random-access and the same length as
+  the index collection.  Indexes are expected to be in the range of [0->count(coll))."
+  [coll indexes]
+  (lznc/reindex (->random-access coll) (int-array indexes)))
+
+
 (defmacro ivec
   "Create a persistent-vector-compatible list backed by an int array."
   ([] `(ArrayLists/toList (int-array)))
@@ -2701,6 +2753,7 @@ nil
     protocols/Reducer
     (->init-val-fn [r] constructor)
     (->rfn [r] double-consumer-accumulator)
+    protocols/Finalize
     (finalize [r v] @v)
     protocols/ParallelReducer
     (->merge-fn [r] reducible-merge)))
@@ -2721,6 +2774,7 @@ nil
     protocols/Reducer
     (->init-val-fn [r] constructor)
     (->rfn [r] consumer-accumulator)
+    protocols/Finalize
     (finalize [r v] @v)
     protocols/ParallelReducer
     (->merge-fn [r] reducible-merge)))
@@ -2851,6 +2905,35 @@ nil
     protocols/Reducer
     (->init-val-fn [this] ctor)
     (->rfn [this] double-consumer-accumulator)
+    protocols/Finalize
+    (finalize [this v] (deref v))
+    protocols/ParallelReducer
+    (->merge-fn [this] reducible-merge)))
+
+
+(defn long-consumer-reducer
+  "Make a parallel double consumer reducer given a function that takes no arguments and is
+  guaranteed to produce a double consumer which also implements Reducible and IDeref"
+  [ctor]
+  (reify
+    protocols/Reducer
+    (->init-val-fn [this] ctor)
+    (->rfn [this] long-consumer-accumulator)
+    protocols/Finalize
+    (finalize [this v] (deref v))
+    protocols/ParallelReducer
+    (->merge-fn [this] reducible-merge)))
+
+
+(defn consumer-reducer
+  "Make a parallel double consumer reducer given a function that takes no arguments and is
+  guaranteed to produce a double consumer which also implements Reducible and IDeref"
+  [ctor]
+  (reify
+    protocols/Reducer
+    (->init-val-fn [this] ctor)
+    (->rfn [this] consumer-accumulator)
+    protocols/Finalize
     (finalize [this v] (deref v))
     protocols/ParallelReducer
     (->merge-fn [this] reducible-merge)))

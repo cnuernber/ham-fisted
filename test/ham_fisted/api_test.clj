@@ -1,7 +1,8 @@
 (ns ham-fisted.api-test
   (:require [clojure.test :refer [deftest is]]
             [ham-fisted.api :as hamf]
-            [ham-fisted.lazy-noncaching :as lznc])
+            [ham-fisted.lazy-noncaching :as lznc]
+            [ham-fisted.set])
   (:import [java.util BitSet]))
 
 

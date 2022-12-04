@@ -321,6 +321,7 @@
       hamf-proto/Reducer
       (->init-val-fn [r] ctor)
       (->rfn [r] add-fn)
+      hamf-proto/Finalize
       (finalize [r v] (api/persistent! v))
       hamf-proto/ParallelReducer
       (->merge-fn [r] union))))

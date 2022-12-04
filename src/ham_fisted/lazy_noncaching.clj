@@ -181,6 +181,12 @@
         (get [this idx] (map-fn idx (.get coll idx)))
         (subList [this sidx eidx]
           (map-indexed map-fn (.subList coll sidx eidx)))
+        (reduce [this rfn acc]
+          (reduce (Reductions$IndexedAccum.
+                   (reify IFnDef$OLOO
+                     (invokePrim [this acc idx v]
+                       (rfn acc (map-fn idx v)))))
+                  acc coll))
         Transformables$IMapable
         (map [this mfn] (map-indexed (fn [idx v]
                                        (-> (map-fn idx v)
@@ -188,6 +194,7 @@
                                      coll))))
     :else
     (Transformables$IndexedMapper. map-fn (protocols/->iterable coll) nil)))
+
 
 
 (defn concat

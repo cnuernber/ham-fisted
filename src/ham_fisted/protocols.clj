@@ -1,6 +1,8 @@
 (ns ham-fisted.protocols
-  (:import [clojure.lang IFn]
+  (:require [clojure.core.protocols :as cl-proto])
+  (:import [clojure.lang IFn IReduceInit IDeref]
            [java.util.function DoubleConsumer]
+           [java.util Map]
            [ham_fisted Sum Sum$SimpleSum Reducible IFnDef$ODO ParallelOptions
             Reductions])
   (:refer-clojure :exclude [reduce set?]))
@@ -21,12 +23,42 @@
   (reducible? [coll]))
 
 
+(extend-protocol Reduction
+  nil
+  (reducible? [this] true)
+  Object
+  (reducible? [this]
+    (or (instance? IReduceInit this)
+        (instance? Iterable this)
+        (instance? Map this)
+        ;;This check is dog slow
+        (satisfies? cl-proto/CollReduce this))))
+
+
 (defprotocol ParallelReduction
   "Protocol to define a parallel reduction in a collection-specific pathway.  Specializations
   are in impl as that is where the parallelization routines are found."
   (preduce [coll init-val-fn rfn merge-fn ^ParallelOptions options]
     "Container-specific parallelized reduction.  Reductions must respect the pool passed in via
 the options."))
+
+
+(defprotocol Finalize
+  "Generic protocol for things that finalize results of reductions.  Defaults to deref of
+  instance of IDeref or identity."
+  (finalize [this val]))
+
+
+(extend-protocol Finalize
+  Object
+  (finalize [this val]
+    (if (instance? IDeref val)
+      (.deref ^IDeref val)
+      val))
+  ;;clojure rfn equivalence
+  IFn
+  (finalize [this val]
+    (this val)))
 
 
 (defprotocol Reducer
@@ -37,10 +69,13 @@ takes no arguments and returns the initial accumulator.")
     (->rfn [item]
       "Returns the reduction function for a parallel reduction. This function takes
 two arguments, the accumulator and a value from the collection and returns a new
-or modified accumulator.")
-    (finalize [item v]
-    "A finalize function called on the result of the reduction after it is
-reduced but before it is returned to the user.  Returning v is a reasonable default."))
+or modified accumulator."))
+
+
+(extend-protocol Reducer
+  IFn
+  (->init-val-fn [this] this)
+  (->rfn [this] this))
 
 
 (defprotocol ParallelReducer
@@ -49,6 +84,11 @@ reduced but before it is returned to the user.  Returning v is a reasonable defa
   (->merge-fn [item]
     "Returns the merge function for a parallel reduction.  This function takes
 two accumulators  and returns a or modified accumulator."))
+
+
+(extend-protocol ParallelReducer
+  IFn
+  (->merge-fn [this] this))
 
 
 (def ^:no-doc double-consumer-accumulator
@@ -60,18 +100,6 @@ two accumulators  and returns a or modified accumulator."))
 (defn- reducible-merge
   [^Reducible lhs rhs]
   (.reduce lhs rhs))
-
-
-(extend-protocol Reducer
-  IFn
-  (->init-val-fn [this] this)
-  (->rfn [this] this)
-  (finalize [this v] (this v)))
-
-
-(extend-protocol ParallelReducer
-  IFn
-  (->merge-fn [this] this))
 
 
 (defprotocol PAdd
