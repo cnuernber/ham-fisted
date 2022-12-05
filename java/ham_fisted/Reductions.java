@@ -7,6 +7,7 @@ import clojure.lang.IReduceInit;
 import clojure.lang.IDeref;
 import clojure.lang.Seqable;
 import clojure.java.api.Clojure;
+import clojure.lang.Delay;
 import java.util.RandomAccess;
 import java.util.List;
 import java.util.Iterator;
@@ -65,12 +66,18 @@ public class Reductions {
     return initial.reduceIter(iter);
   }
 
+  static final Delay collReducePtr = new Delay(new IFnDef() {
+      public Object invoke() {
+	return ((IDeref)Clojure.var("clojure.core.protocols", "coll-reduce")).deref();
+      }
+    });
+
   public static Object serialReduction(IFn rfn, Object init, Object coll) {
     if( coll == null) return init;
     if( coll instanceof IReduceInit) {
       return ((IReduceInit)coll).reduce(rfn, init);
     }
-    return Clojure.var("clojure.core.protocols", "coll-reduce").invoke(coll, rfn, init);
+    return ((IFn)(collReducePtr.deref())).invoke(coll, rfn, init);
   }
 
   public static Object iterableMerge(ParallelOptions options, IFn mergeFn,

@@ -157,8 +157,6 @@
      (.map ^Transformables$IMapable arg f)
      (instance? RandomAccess arg)
      (Transformables$SingleMapList. f nil arg)
-     (.isArray (.getClass ^Object arg))
-     (Transformables$SingleMapList. f nil (ArrayLists/toList arg))
      :else
      (Transformables$MapIterable/createSingle f nil (protocols/->iterable arg))))
   ([f arg & args]
@@ -204,6 +202,12 @@
    (if (instance? Transformables$IMapable a)
     (.cat ^Transformables$IMapable a args)
     (Transformables$CatIterable. (cons a args)))))
+
+
+(defn apply-concat
+  ([] PersistentList/EMPTY)
+  ([data]
+   (Transformables$CatIterable. data)))
 
 
 (defn filter

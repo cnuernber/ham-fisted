@@ -294,8 +294,6 @@
       item
       (.isArray (.getClass item))
       (ArrayLists/toList item)
-      (instance? Map item)
-      (.entrySet ^Map item)
       (instance? Seqable item)
       (seq item)
       :else
@@ -413,7 +411,27 @@
                     ([coll f]
                      (Reductions/iterReduce (.entrySet ^Map coll) f))
                     ([coll f init]
-                     (Reductions/iterReduce (.entrySet ^Map coll) init f)))}))
+                     (Reductions/iterReduce (.entrySet ^Map coll) init f)))}
+    protocols/ToCollection
+    {:convertible-to-collection? (constantly true)
+     :->collection (fn [^Map m]
+                     (reify
+                       ICollectionDef
+                       (size [this] (.size m))
+                       (iterator [this] (.iterator (.entrySet m)))
+                       IReduce
+                       (reduce [this rfn]
+                         (if (instance? IReduce m)
+                           (.reduce ^IReduce m rfn)
+                           (Reductions/iterReduce (.entrySet m) rfn)))
+                       IReduceInit
+                       (reduce [this rfn init]
+                         (if (instance? IReduceInit m)
+                           (.reduce ^IReduceInit m rfn init)
+                           (Reductions/iterReduce (.entrySet m) init rfn)))))}
+    protocols/ToIterable
+    {:convertible-to-iterable? (constantly true)
+     :->iterable (fn [m] (protocols/->collection m))}))
 
 (map-fast-reduce java.util.HashMap)
 (map-fast-reduce java.util.LinkedHashMap)

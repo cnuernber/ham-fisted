@@ -404,8 +404,8 @@ ham-fisted.api> @*1
              :int64
              (long-accumulator
               acc v
-              (dotimes [idx n-vals]
-                (let [^objects acc acc]
+              (let [^objects acc acc]
+                (dotimes [idx n-vals]
                   (ArrayHelpers/aset acc idx (.invokePrim ^IFn$OLO (aget rfns idx)
                                                           (aget acc idx) v))))
               acc)
@@ -1765,21 +1765,21 @@ ham_fisted.PersistentHashMap
                (or (= identity key-fn) (nil? key-fn))
                (let [bifn (bi-function k acc (rfn (or acc (init-val-fn)) k))]
                  (fn [^Map l v]
-                   (compute! l v bifn)
+                   (.compute l v bifn)
                    l))
                ;;These formulations can trigger more efficient primitive reductions when,
                ;;for instance, you are reducing over a stream of integer indexes.
                (and (instance? IFn$LO key-fn) (instance? IFn$OLO rfn))
                (long-accumulator
                 l v
-                 (compute! ^Map l (.invokePrim ^IFn$LO key-fn v)
+                 (.compute ^Map l (.invokePrim ^IFn$LO key-fn v)
                            (bi-function
                             k acc (.invokePrim ^IFn$OLO rfn (or acc (init-val-fn)) v)))
                  l)
                (and (instance? IFn$DO key-fn) (instance? IFn$ODO rfn))
                (double-accumulator
                  l v
-                 (compute! ^Map l (.invokePrim ^IFn$DO key-fn v)
+                 (.compute ^Map l (.invokePrim ^IFn$DO key-fn v)
                            (bi-function
                             k acc (.invokePrim ^IFn$ODO rfn (or acc (init-val-fn)) v)))
                  l)
@@ -1788,7 +1788,7 @@ ham_fisted.PersistentHashMap
                  ;;It annoys the hell out of me that I have to create a new
                  ;;bifunction here but there is no threadsafe way to pass in the
                  ;;new value to the reducer otherwise.
-                 (compute! l (key-fn v) (bi-function k acc (rfn (or acc (init-val-fn)) v)))
+                 (.compute l (key-fn v) (bi-function k acc (rfn (or acc (init-val-fn)) v)))
                  l))]
      (cond-> (preduce map-fn rfn
                       (fn [^Map l ^Map r]
