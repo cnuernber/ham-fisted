@@ -401,34 +401,13 @@ ham-fisted.api> @*1
          (->init-val-fn [_] (fn [] (object-array (map #(%) init-fns))))
          (->rfn [_]
            (case rfn-dt
-             :int64
-             (long-accumulator
-              acc v
-              (let [^objects acc acc]
-                (dotimes [idx n-vals]
-                  (ArrayHelpers/aset acc idx (.invokePrim ^IFn$OLO (aget rfns idx)
-                                                          (aget acc idx) v))))
-              acc)
-             :float64
-             (double-accumulator
-              acc v
-              (let [^objects acc acc]
-                (dotimes [idx n-vals]
-                  (ArrayHelpers/aset acc idx (.invokePrim ^IFn$ODO (aget rfns idx)
-                                                          (aget acc idx) v))))
-              acc)
-             (fn [^objects acc v]
-              (dotimes [idx n-vals]
-                (ArrayHelpers/aset acc idx ((aget rfns idx) (aget acc idx) v)))
-               acc)))
+             :int64 (Reductions/longCompose n-vals rfns)
+             :float64 (Reductions/doubleCompose n-vals rfns)
+             (Reductions/objCompose n-vals rfns)))
          protocols/Finalize
          (finalize [_ v] (mapv #(protocols/finalize %1 %2) reducers v))
          protocols/ParallelReducer
-         (->merge-fn [_]
-           (fn [^objects lhs ^objects rhs]
-             (dotimes [idx n-vals]
-               (ArrayHelpers/aset lhs idx ((aget mergefns idx) (aget lhs idx) (aget rhs idx))))
-             lhs)))))))
+         (->merge-fn [_] (Reductions/mergeCompose n-vals, mergefns)))))))
 
 
 (defn preduce-reducers

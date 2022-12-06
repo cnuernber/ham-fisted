@@ -229,4 +229,52 @@ public class Reductions {
       return rfn.invokePrim(acc, idx++, v);
     }
   }
+  public static IFn longCompose(final int nVals, final Object[] rfns) {
+    return new IFnDef.OLO() {
+      public Object invokePrim(Object acc, long val) {
+	final Object[] objs = (Object[])acc;
+	for(int idx = 0; idx < nVals; ++idx ) {
+	  objs[idx] = ((IFn.OLO)rfns[idx]).invokePrim(objs[idx], val);
+	}
+	return objs;
+      }
+    };
+  }
+
+  public static IFn doubleCompose(final int nVals, final Object[] rfns) {
+    return new IFnDef.ODO() {
+      public Object invokePrim(Object acc, double val) {
+	final Object[] objs = (Object[])acc;
+	for(int idx = 0; idx < nVals; ++idx ) {
+	  objs[idx] = ((IFn.ODO)rfns[idx]).invokePrim(objs[idx], val);
+	}
+	return objs;
+      }
+    };
+  }
+
+  public static IFn objCompose(final int nVals, final Object[] rfns) {
+    return new IFnDef() {
+      public Object invoke(Object acc, Object val) {
+	final Object[] objs = (Object[])acc;
+	for(int idx = 0; idx < nVals; ++idx ) {
+	  objs[idx] = ((IFn)rfns[idx]).invoke(objs[idx], val);
+	}
+	return objs;
+      }
+    };
+  }
+
+  public static IFn mergeCompose(final int nVals, final Object[] mergeFns) {
+    return new IFnDef() {
+      public Object invoke(Object lhs, Object rhs) {
+	final Object[] l = (Object[])lhs;
+	final Object[] r = (Object[])rhs;
+	for(int idx = 0; idx < nVals; ++idx) {
+	  l[idx] = ((IFn)mergeFns[idx]).invoke(l[idx], r[idx]);
+	}
+	return l;
+      }
+    };
+  }
 }

@@ -59,6 +59,10 @@ public class Casts {
     return RT.charCast(obj);
   }
   public static long longCast(Object obj) {
+    if (obj instanceof Long)
+      return (long)obj;
+    if(obj instanceof Integer)
+      return (int)obj;
     if (obj instanceof Boolean)
       return ((Boolean)obj) ? 1 : 0;
     else if (obj instanceof Double)
