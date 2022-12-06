@@ -44,15 +44,16 @@ public interface LongMutList extends IMutList<Object> {
     ChunkedList.sublistCheck(ssidx, seidx, size());
     return new LongSubList(this, ssidx, seidx);
   }
-  default void fillRange(final int startidx, List l) {
+  default void fillRange(final long startidx, List l) {
     if (l.isEmpty())
       return;
+    final int ss = (int)startidx;
     final int sz = size();
-    final int endidx = startidx + l.size();
-    ArrayLists.checkIndexRange(size(), startidx, endidx);
+    final int endidx = ss + l.size();
+    ArrayLists.checkIndexRange(size(), ss, endidx);
     Reductions.serialReduction(new Reductions.IndexedLongAccum(new IFnDef.OLLO() {
 	public Object invokePrim(Object acc, long idx, long v) {
-	  ((IMutList)acc).setLong((int)idx+startidx, v);
+	  ((IMutList)acc).setLong((int)idx+ss, v);
 	  return acc;
 	}
       }), this, l);
