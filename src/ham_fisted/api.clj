@@ -2130,7 +2130,7 @@ ham_fisted.PersistentHashMap
                 :int64
                 (.toLongArray data)
                 (.toArray data))
-         indexes (argsort data)]
+         indexes (argsort comp data)]
      (reindex coll indexes))))
 
 
