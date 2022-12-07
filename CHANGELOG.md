@@ -1,3 +1,6 @@
+# 1.000-beta-58
+ * Perf tweaks and small fixes from TMD.
+
 # 1.000-beta-57
  * Additional round of optimizations around creation of persistent vector objects.
  * renamed a few of the functor-creation macros.
