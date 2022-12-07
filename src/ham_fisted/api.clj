@@ -744,11 +744,30 @@ ham_fisted.PersistentHashMap
      (reduce-put-map (java.util.HashMap.) data))))
 
 
+(defn java-linked-hashmap
+  "Linked hash maps perform identically or very nearly so to java.util.HashMaps
+  but they retain the order of insertion and modification."
+  (^java.util.LinkedHashMap [] (java.util.LinkedHashMap.))
+  (^java.util.LinkedHashMap [data]
+   (cond
+     (instance? java.util.LinkedHashMap data) data
+     (instance? Map data)
+     (java.util.LinkedHashMap. ^Map data)
+     :else
+     (reduce-put-map (java.util.LinkedHashMap.) data))))
+
+
 (defn java-concurrent-hashmap
   "Create a java concurrent hashmap which is still the fastest possible way to solve a
   few concurrent problems."
   (^ConcurrentHashMap [] (ConcurrentHashMap.))
-  (^ConcurrentHashMap [data] (reduce-put-map (ConcurrentHashMap.) data)))
+  (^ConcurrentHashMap [data]
+   (cond
+     (instance? ConcurrentHashMap data) data
+     (instance? Map data)
+     (ConcurrentHashMap. ^Map data)
+     :else
+     (reduce-put-map (ConcurrentHashMap.) data))))
 
 
 (defn mut-set
