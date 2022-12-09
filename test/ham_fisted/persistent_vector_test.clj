@@ -216,6 +216,19 @@
             k)))))
 
 
+(deftest test-reduced?-in-container
+  (doseq [[k v] vec-fns]
+    (when-not (#{:byte-vec :byte-vec-list} k)
+      (let [{:keys [convert-fn vec-fn]} v]
+        (is (= 4 (reduce (fn [acc v]
+                           (let [v (long v)]
+                             (if (< v 4)
+                               v
+                               (reduced v))))
+                         0 (vec-fn (api/range 1 100))))
+            k)))))
+
+
 (deftest test-reduce-kv-array
   (is (= 25 (reduce-kv + 10 (api/->random-access (api/int-array [2 4 6])))))
   (is (= 25 (reduce-kv + 10 (api/subvec (api/->random-access (api/int-array [0 2 4 6])) 1)))))

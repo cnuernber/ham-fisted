@@ -96,7 +96,7 @@ public class Ranges {
       long st = start;
       for(long idx = 0; idx < sz && !RT.isReduced(init); ++idx, st += se)
 	init = op.invokePrim(init, st);
-      return init;
+      return Reductions.unreduce(init);
     }
     public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
 				     ParallelOptions options) {
@@ -213,7 +213,7 @@ public class Ranges {
       final double st = start;
       for(long idx = 0; idx < sz && !RT.isReduced(init); ++idx)
 	init = op.invokePrim(init, st + (se*idx));
-      return init;
+      return Reductions.unreduce(init);
     }
     public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
 				     ParallelOptions options) {

@@ -544,7 +544,7 @@ public class ArrayLists {
       final byte[] d = data;
       for(int ss = sidx; ss < es && !RT.isReduced(init); ++ss)
 	init = rfn.invokePrim(init, d[ss]);
-      return init;
+      return Reductions.unreduce(init);
     }
 
     public void fill(int ssidx, int seidx, Object v) {
@@ -657,7 +657,7 @@ public class ArrayLists {
       final short[] d = data;
       for(int ss = sidx; ss < es && !RT.isReduced(init); ++ss)
 	init = rfn.invokePrim(init, d[ss]);
-      return init;
+      return Reductions.unreduce(init);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -839,7 +839,7 @@ public class ArrayLists {
       final int[] d = data;
       for(int ss = sidx; ss < es && !RT.isReduced(init); ++ss)
 	init = rfn.invokePrim(init, d[ss]);
-      return init;
+      return Reductions.unreduce(init);
     }
     public void fillRange(long startidx, List v) {
       final ArraySection as = getArraySection();
@@ -1019,7 +1019,7 @@ public class ArrayLists {
       final int[] d = data;
       for(int ss = 0; ss < es && !RT.isReduced(init); ++ss)
 	init = rfn.invokePrim(init, d[ss]);
-      return init;
+      return Reductions.unreduce(init);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1224,7 +1224,7 @@ public class ArrayLists {
       final long[] d = data;
       for(int idx = 0; idx < ee && !RT.isReduced(init); ++idx)
 	init = rfn.invokePrim(init, data[idx+sidx]);
-      return init;
+      return Reductions.unreduce(init);
     }
     public void longForEach(LongConsumer c) {
       final int es = eidx;
@@ -1565,7 +1565,7 @@ public class ArrayLists {
       final float[] d = data;
       for(int ss = sidx; ss < es && !RT.isReduced(init); ++ss)
 	init = rfn.invokePrim(init, d[ss]);
-      return init;
+      return Reductions.unreduce(init);
     }
     public void fillRange(long startidx, List v) {
       final ArraySection as = getArraySection();
@@ -1749,9 +1749,9 @@ public class ArrayLists {
     public Object doubleReduction(IFn.ODO rfn, Object init) {
       final int es = eidx;
       final double[] d = data;
-      for(int ss = sidx; ss < es && !RT.isReduced(rfn); ++ss)
+      for(int ss = sidx; ss < es && !RT.isReduced(init); ++ss)
 	init = rfn.invokePrim(init, d[ss]);
-      return init;
+      return Reductions.unreduce(init);
     }
     public void fillRange(long startidx, List v) {
       final ArraySection as = getArraySection();
@@ -2041,7 +2041,7 @@ public class ArrayLists {
       final int sz = size();
       for (int idx = 0; idx < sz && !RT.isReduced(init); ++idx)
 	init = rfn.invoke(init, data[idx+sidx]);
-      return init;
+      return Reductions.unreduce(init);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);

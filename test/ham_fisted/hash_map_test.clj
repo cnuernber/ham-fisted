@@ -99,6 +99,22 @@
         ))))
 
 
+(def map-constructors
+  {:mut-map api/mut-map
+   :immut-map api/immut-map
+   :java-hashmap api/java-hashmap})
+
+
+(deftest hash-map-reduce
+  (doseq [[k constructor] map-constructors]
+    (is (= 2 (reduce (fn [^long acc v]
+                       (if (> acc 0)
+                         (reduced (inc acc))
+                         (inc acc)))
+                     0
+                     (constructor {:a 1 :b 2 :c 3}))))))
+
+
 
 (defmacro benchmark-us
   [op]

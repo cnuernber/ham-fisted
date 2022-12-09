@@ -621,7 +621,7 @@ public final class ChunkedList {
 	ret = f.invoke(ret, cdata[idx]);
       sidx += clen;
     }
-    return ret;
+    return Reductions.unreduce(ret);
   }
 
   Object reduce(final int startidx, final int endidx, IFn f) {

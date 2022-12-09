@@ -204,7 +204,7 @@ public interface IMutList<E>
       final IMutList l = list;
       for(int idx = sidx; idx < ee && !RT.isReduced(init); ++idx)
 	init = rfn.invoke(init, l.get(idx));
-      return init;
+      return Reductions.unreduce(init);
     }
     @SuppressWarnings("unchecked")
     public IMutList<E> subList(int ssidx, int seidx) {
@@ -506,7 +506,7 @@ public interface IMutList<E>
     for(int idx = 1; idx < sz && (!RT.isReduced(init)); ++idx) {
       init = f.invoke(init, get(idx));
     }
-    return init;
+    return Reductions.unreduce(init);
   }
 
   default Object reduce(IFn f, Object init) {
@@ -514,7 +514,7 @@ public interface IMutList<E>
     for(int idx = 0; idx < sz && (!RT.isReduced(init)); ++idx) {
       init = f.invoke(init, get(idx));
     }
-    return init;
+    return Reductions.unreduce(init);
   }
 
   default Object kvreduce(IFn f, Object init) {
@@ -522,7 +522,7 @@ public interface IMutList<E>
     for(int idx = 0; idx < sz && (!RT.isReduced(init)); ++idx) {
       init = f.invoke(init, idx, get(idx));
     }
-    return init;
+    return Reductions.unreduce(init);
   }
   default Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
 				   ParallelOptions options) {

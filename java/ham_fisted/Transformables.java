@@ -41,6 +41,7 @@ import clojure.lang.Util;
 import clojure.lang.IHashEq;
 import clojure.lang.IPersistentCollection;
 import clojure.lang.PersistentList;
+import clojure.lang.Reduced;
 
 
 public class Transformables {
@@ -540,7 +541,7 @@ public class Transformables {
 	if(truthy(pred.invoke(nobj)))
 	  ret = fn.invoke(ret, nobj);
       }
-      return ret;
+      return Reductions.unreduce(ret);
     }
     @SuppressWarnings("unchecked")
     public static IFn typedReducer(final IFn rfn, final IFn pred) {
@@ -707,15 +708,42 @@ public class Transformables {
     public Object reduce(IFn fn) {
       return Reductions.iterReduce(this, fn);
     }
+    public static IFn catReducer(IFn rfn) {
+      if(rfn instanceof IFn.OLO) {
+	final IFn.OLO ff = (IFn.OLO)rfn;
+	return new IFnDef.OLO() {
+	  public Object invokePrim(Object acc, long v) {
+	    acc = ff.invokePrim(acc, v);
+	    return RT.isReduced(acc) ? new Reduced(acc) : acc;
+	  }
+	};
+      } else if (rfn instanceof IFn.ODO) {
+	final IFn.ODO ff = (IFn.ODO)rfn;
+	return new IFnDef.ODO() {
+	  public Object invokePrim(Object acc, double v) {
+	    acc = ff.invokePrim(acc, v);
+	    return RT.isReduced(acc) ? new Reduced(acc) : acc;
+	  }
+	};
+      } else {
+	return new IFnDef() {
+	  public Object invoke(Object acc, Object v) {
+	    acc = rfn.invoke(acc,v);
+	    return RT.isReduced(acc) ? new Reduced(acc) : acc;
+	  }
+	};
+      }
+    }
     public Object reduce(IFn rfn, Object init) {
       final int nData = data.length;
       final Iterable[] d = data;
+      final IFn rf = catReducer(rfn);
       for(int idx = 0; idx < nData && !RT.isReduced(init); ++idx) {
 	final Iterable item = d[idx];
 	for(Iterator iter = item.iterator(); iter.hasNext() && !RT.isReduced(init);)
-	  init = Reductions.serialReduction(rfn, init, iter.next());
+	  init = Reductions.serialReduction(rf, init, iter.next());
       }
-      return init;
+      return Reductions.unreduce(init);
     }
     static class CatIterIter implements Iterator {
       Iterator gpIter;
@@ -754,6 +782,7 @@ public class Transformables {
 	    return new CatIterIter(ArrayLists.toList(data).iterator());
 	  }
 	};
+
       final Iterable partiallyReduced = ForkJoinPatterns.pmap(options, new IFnDef() {
 	  public Object invoke(Object arg) {
 	    return Reductions.serialReduction(rfn, initValFn.invoke(), arg);
@@ -768,6 +797,7 @@ public class Transformables {
       final int nData = data.length;
       final Iterable[] d = data;
       Object init = initValFn.invoke();
+      final IFn rf = catReducer(rfn);
       switch (options.catParallelism) {
       case ELEMWISE: {
 	final Iterable initSequence = new Iterable() {
@@ -777,7 +807,7 @@ public class Transformables {
 	  };
 	final Iterable mapped = new MapIterable(new IFnDef() {
 	    public Object invoke(Object data) {
-	      return Reductions.parallelReduction(initValFn, rfn, mergeFn, data, options);
+	      return Reductions.parallelReduction(initValFn, rf, mergeFn, data, options);
 	    }
 	  }, null, initSequence);
 
@@ -789,11 +819,11 @@ public class Transformables {
 	break;
       }
       case SEQWISE: {
-	init = preduceSeqwise(initValFn, rfn, mergeFn, init, options);
+	init = preduceSeqwise(initValFn, rf, mergeFn, init, options);
 	break;
       }
       };
-      return init;
+      return Reductions.unreduce(init);
     }
     public Object[] toArray() {
       return ArrayLists.toArray(this);

@@ -113,6 +113,6 @@ public interface LongMutList extends IMutList<Object> {
     final int sz = size();
     for (int idx = 0; idx < sz && !RT.isReduced(init); ++idx)
       init = rfn.invokePrim(init, getLong(idx));
-    return init;
+    return Reductions.unreduce(init);
   }
 }

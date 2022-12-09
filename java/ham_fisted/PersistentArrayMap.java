@@ -363,7 +363,7 @@ public class PersistentArrayMap
     for (int idx = 0; idx < nne && !RT.isReduced(init); idx += 2) {
       init = f.invoke(init, data[idx], data[idx+1]);
     }
-    return init;
+    return Reductions.unreduce(init);
   }
 
   public final Object reduce(IFn rfn) {
@@ -378,7 +378,7 @@ public class PersistentArrayMap
       else
 	init = rfn.invoke(init, MapEntry.create(data[idx], data[idx+1]));
     }
-    return init;
+    return Reductions.unreduce(init);
   }
 
   public final Object reduce(IFn rfn, Object init) {
@@ -388,7 +388,7 @@ public class PersistentArrayMap
     for (int idx = 0; idx < nne && !RT.isReduced(init); idx += 2)
       init = rfn.invoke(init, MapEntry.create(data[idx], data[idx+1]));
 
-    return init;
+    return Reductions.unreduce(init);
   }
 
   public final ITransientCollection asTransient() {

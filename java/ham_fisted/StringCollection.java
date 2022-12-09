@@ -12,6 +12,7 @@ import clojure.lang.IReduce;
 import clojure.lang.IReduceInit;
 import clojure.lang.IFn;
 import clojure.lang.RT;
+import ham_fisted.Reductions;
 
 
 public class StringCollection implements IMutList<Character> {
@@ -39,13 +40,13 @@ public class StringCollection implements IMutList<Character> {
     Object acc = null;
     for( int idx = 0; idx < sz && !RT.isReduced(acc); ++idx)
       acc = idx == 0 ? cs.charAt(idx) : rfn.invoke(acc, cs.charAt(idx));
-    return acc;
+    return Reductions.unreduce(acc);
   }
 
   public Object reduce(IFn rfn, Object acc) {
     final int sz = size();
     for( int idx = 0; idx < sz && !RT.isReduced(acc); ++idx)
       rfn.invoke(acc, cs.charAt(idx));
-    return acc;
+    return Reductions.unreduce(acc);
   }
 }

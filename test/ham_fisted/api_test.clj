@@ -108,3 +108,11 @@
 (deftest tostring-empty-range
   (is (= "[]" (.toString (hamf/range 0))))
   (is (= "[]" (.toString (hamf/range 0.0)))))
+
+
+(deftest map-filter-concat-reduced
+  (let [rfn (hamf/long-accumulator acc v (if (< v 4) acc (reduced v)))]
+    (is (= 4 (reduce rfn 0 (lznc/map (hamf/long-unary-operator v (inc v)) (hamf/range 20)))))
+    (is (= 4 (reduce rfn 0 (lznc/filter even? (hamf/range 20)))))
+    (is (= 4 (reduce rfn 0 (lznc/concat  (hamf/range 20) (hamf/range 20 50)))))
+    ))

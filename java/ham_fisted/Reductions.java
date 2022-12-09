@@ -26,6 +26,10 @@ import java.util.concurrent.ArrayBlockingQueue;
 
 public class Reductions {
 
+  public static Object unreduce(Object obj) {
+    return RT.isReduced(obj) ? ((IDeref)obj).deref() : obj;
+  }
+
   public interface DoubleAccum extends IFnDef.ODO {}
 
   public interface LongAccum extends IFnDef.OLO {}
@@ -47,7 +51,7 @@ public class Reductions {
     while(it.hasNext() && !RT.isReduced(init)) {
       init = fn.invoke(init, it.next());
     }
-    return init;
+    return unreduce(init);
   }
 
   public static Object iterReduce(Object obj, Object init, IFn fn) {
@@ -57,7 +61,7 @@ public class Reductions {
     while(it.hasNext() && !RT.isReduced(init)) {
       init = fn.invoke(init, it.next());
     }
-    return init;
+    return unreduce(init);
   }
 
   public static Reducible reduceReducibles(Iterable<Reducible> data) {

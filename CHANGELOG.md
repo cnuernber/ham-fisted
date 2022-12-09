@@ -1,3 +1,7 @@
+# 1.000-beta-59
+ * Container reduction must respect reduced - I think this is a design flaw but not a
+ serious or impactful one aside from requiring more complex per-container reduction code.
+
 # 1.000-beta-58
  * Perf tweaks and small fixes from TMD.
 

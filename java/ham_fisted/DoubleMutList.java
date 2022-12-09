@@ -105,6 +105,6 @@ public interface DoubleMutList extends IMutList<Object> {
     final int sz = size();
     for (int idx = 0; idx < sz && !RT.isReduced(init); ++idx)
       init = rfn.invokePrim(init, getDouble(idx));
-    return init;
+    return Reductions.unreduce(init);
   }
 }
