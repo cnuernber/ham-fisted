@@ -116,3 +116,7 @@
     (is (= 4 (reduce rfn 0 (lznc/filter even? (hamf/range 20)))))
     (is (= 4 (reduce rfn 0 (lznc/concat  (hamf/range 20) (hamf/range 20 50)))))
     ))
+
+
+(deftest into-array-nil
+  (is (== 0 (count (hamf/into-array Double #(double %) nil)))))

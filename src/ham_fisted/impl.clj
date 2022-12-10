@@ -10,7 +10,7 @@
             ICollectionDef ArrayLists$ObjectArrayList Reductions$ReduceConsumer
             Reductions Transformables IFnDef$OLO ArrayLists StringCollection]
            [clojure.lang IteratorSeq IReduceInit PersistentHashMap IFn$OLO IFn$ODO Seqable
-            IReduce]
+            IReduce PersistentList]
            [java.util Spliterator BitSet Collection Iterator]
            [java.util.logging Logger Level])
   (:refer-clojure :exclude [map pmap concat]))
@@ -269,6 +269,9 @@
 
 
 (extend-protocol protocols/ToIterable
+  nil
+  (convertible-to-iterable? [item] true)
+  (->iterable [item] PersistentList/EMPTY)
   Object
   (convertible-to-iterable? [item] (or (instance? Iterable item)
                                        (protocols/convertible-to-collection? item)))
@@ -283,6 +286,10 @@
 
 
 (extend-protocol protocols/ToCollection
+  nil
+  (convertible-to-collection? [item] true)
+  (->collection [item] PersistentList/EMPTY)
+
   Object
   (convertible-to-collection? [item] (or (instance? Collection item)
                                          (instance? Map item)

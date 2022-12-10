@@ -1,3 +1,6 @@
+# 1.000-beta-60
+ * nil is convertible to iterable and collections without fail.
+
 # 1.000-beta-59
  * Container reduction must respect reduced - I think this is a design flaw but not a
  serious or impactful one aside from requiring more complex per-container reduction code.
