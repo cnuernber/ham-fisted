@@ -1,3 +1,6 @@
+# 1.000-beta-61
+ * All lists are comparable.
+
 # 1.000-beta-60
  * nil is convertible to iterable and collections without fail.
 

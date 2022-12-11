@@ -56,7 +56,7 @@ import clojure.lang.Associative;
 public interface IMutList<E>
   extends List<E>, RandomAccess, Indexed, IFnDef, ITypedReduce<E>, IKVReduce, IReduce,
 	  IHashEq, Seqable, Reversible, IObj, ImmutSort<E>, RangeList, Cloneable,
-	  Sequential, Associative
+	  Sequential, Associative, Comparable
 
 {
   default IMutList cloneList() { return (IMutList)ArrayLists.toList(toArray()); }
@@ -250,6 +250,22 @@ public interface IMutList<E>
     return indexOf(o) != -1;
   }
   default boolean isEmpty() { return size() == 0; }
+
+  default int compareTo(Object o) {
+    final List l = (List)o;
+    final int sz = size();
+    final int lsz = l.size();
+    if(sz < lsz)
+      return -1;
+    else if(sz > lsz)
+      return 1;
+    for(int i = 0; i < sz; i++) {
+      int c = Util.compare(get(i),l.get(i));
+      if(c != 0)
+	return c;
+    }
+    return 0;
+  }
 
   public static class ListIter<E> implements ListIterator<E> {
     List<E> list;
