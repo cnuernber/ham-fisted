@@ -1,3 +1,6 @@
+# 1.000-beta-62
+ * Faster dispatch for preduce
+ 
 # 1.000-beta-61
  * All lists are comparable.
 
