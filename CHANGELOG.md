@@ -1,5 +1,9 @@
+# 1.000-beta-64
+ * Fixed predicate, long-consumer, double-consumer and consumer pathways.
+ * Faster dispatch for preduce.
+ 
 # 1.000-beta-62
- * Faster dispatch for preduce
+ * Faster dispatch for preduce.
  
 # 1.000-beta-61
  * All lists are comparable.

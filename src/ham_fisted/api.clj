@@ -525,9 +525,6 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
   (reduce-reducer (compose-reducers reducers) coll))
 
 
-(def ^:private obj-ary-cls (Class/forName "[Ljava.lang.Object;"))
-
-
 (def ^:private empty-objs (clojure.core/object-array 0))
 
 
@@ -595,6 +592,9 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
             m)
           m
           data))
+
+
+(defonce ^:private obj-ary-cls (type (clojure.core/object-array 0)))
 
 
 (defn mut-map
@@ -2835,7 +2835,7 @@ nil
   `(reify
      IFnDef$Predicate
      (test [this ~varname]
-       ~code)))
+       ~@code)))
 
 
 (defmacro unary-operator
@@ -2856,7 +2856,9 @@ nil
   `(reify
      DoubleConsumer
      (accept [this# ~varname]
-       ~@code)))
+       ~@code)
+     IFnDef$DO
+     (invokePrim [this# v#] (.accept this# v#))))
 
 
 (defmacro long-consumer
@@ -2865,7 +2867,9 @@ nil
   `(reify
      LongConsumer
      (accept [this# ~varname]
-       ~@code)))
+       ~@code)
+     IFnDef$LO
+     (invokePrim [this# v#] (.accept this# v#))))
 
 
 (defmacro consumer
@@ -2873,7 +2877,9 @@ nil
   [varname & code]
   `(reify Consumer
      (accept [this# ~varname]
-       ~@code)))
+       ~@code)
+     IFnDef$OO
+     (invoke [this# arg#] (.accept this# arg#))))
 
 
 (defn bind-double-consumer-reducer!
