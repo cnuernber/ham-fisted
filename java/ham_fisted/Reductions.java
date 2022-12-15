@@ -174,6 +174,12 @@ public class Reductions {
 						      coll.spliterator(), options);
   }
 
+  public static Delay preducePtr = new Delay( new IFnDef() {
+      public Object invoke() {
+	return ((IDeref)Clojure.var("ham-fisted.protocols", "preduce")).deref();
+      }
+    });
+
   public static Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
 					 Object coll, ParallelOptions options) {
     if(coll == null)
@@ -187,8 +193,7 @@ public class Reductions {
 
     //Delegate back to clojure here so we can use a protocol to dispatch the
     //parallel reduction.
-    return Clojure.var("ham-fisted.protocols", "preduce").invoke(coll, initValFn,
-								 rfn, mergeFn, options);
+    return ((IFn)preducePtr.deref()).invoke(coll, initValFn, rfn, mergeFn, options);
   }
 
   public static Object serialParallelReduction(IFn initValFn, IFn rfn,
