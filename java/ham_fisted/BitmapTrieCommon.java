@@ -151,6 +151,8 @@ public class BitmapTrieCommon {
     public INode immutUpdate(TrieBase nowner, BiFunction bfn);
     /** Immutable update a single key returning a new node **/
     public INode immutUpdate(TrieBase nowner, Object key, int hashcode, IFn fn);
+    /** Reduce this node - does not call unreduce at end */
+    public Object reduce(IFn rfn, Object acc);
   }
 
   /**

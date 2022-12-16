@@ -24,6 +24,8 @@ import clojure.lang.MapEntry;
 import clojure.lang.IObj;
 import clojure.lang.IPersistentMap;
 import clojure.lang.IFn;
+import clojure.lang.RT;
+import clojure.lang.IReduceInit;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.Callable;
@@ -225,6 +227,13 @@ class BitmapTrie implements IObj, TrieBase {
       ++indent;
       if (nextNode != null)
 	nextNode.print(indent);
+    }
+    public Object reduce(IFn rfn, Object acc) {
+      for ( LeafNode curNode = this; curNode != null && !RT.isReduced(acc);
+	    curNode = curNode.nextNode ) {
+	acc = rfn.invoke(acc, curNode);
+      }
+      return acc;
     }
   }
   public static final class BitmapNode implements INode {
@@ -583,6 +592,13 @@ class BitmapTrie implements IObj, TrieBase {
 
     public final LeafNodeIterator iterator() { return new BitmapNodeIterator(data, bitmap); }
 
+    public Object reduce(IFn rfn, Object acc) {
+      final INode[] md = data;
+      final int nelems = Integer.bitCount(bitmap);
+      for(int idx = 0; idx < nelems && !RT.isReduced(acc); ++idx)
+	acc = md[idx].reduce(rfn, acc);
+      return acc;
+    }
 
     @SuppressWarnings("unchecked")
     static final Object mapValue(ILeaf lhs, ILeaf rhs, BiFunction valueMapper) {
@@ -954,7 +970,7 @@ class BitmapTrie implements IObj, TrieBase {
     return new HTIterator(fn, nullEntry, root.iterator());
   }
 
-  static class TrieSpliterator implements Spliterator {
+  static class TrieSpliterator implements Spliterator, IReduceInit {
     BitmapTrie root;
     BitmapTrie subtree;
     Iterator subtreeIter;
@@ -989,6 +1005,13 @@ class BitmapTrie implements IObj, TrieBase {
       final boolean retval = subtreeIter.hasNext();
       if(retval) c.accept(subtreeIter.next());
       return retval;
+    }
+    public Object reduce(IFn rfn, Object acc) {
+      return getSubtree().reduceLeaves(new IFnDef() {
+	  public Object invoke(Object acc, Object val) {
+	    return rfn.invoke(acc, fn.apply((ILeaf)val));
+	  }
+	}, acc);
     }
     public Spliterator trySplit() {
       final int partLen = (eidx - sidx)/2;
@@ -1049,14 +1072,12 @@ class BitmapTrie implements IObj, TrieBase {
       return Reductions.iterReduce(this, rfn);
     }
     public Object reduce(IFn rfn, Object init) {
-      return Reductions.iterReduce(this, init, rfn);
+      return BitmapTrie.this.reduceEntries(rfn, init);
     }
-
     public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
 				    ParallelOptions options ) {
       return Reductions.parallelCollectionReduction(initValFn, rfn, mergeFn, this, options);
     }
-
     @SuppressWarnings("unchecked")
     public void forEach(Consumer c) {
       reduce( new IFnDef() {
@@ -1103,7 +1124,7 @@ class BitmapTrie implements IObj, TrieBase {
     }
 
     public Object reduce(IFn rfn, Object init) {
-      return Reductions.iterReduce(this, init, rfn);
+      return BitmapTrie.this.reduceKeys(rfn, init);
     }
 
     public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
@@ -1146,9 +1167,8 @@ class BitmapTrie implements IObj, TrieBase {
       return (Spliterator<V>)BitmapTrie.this.spliterator(valIterFn);
     }
     public Object reduce(IFn rfn, Object init) {
-      return Reductions.iterReduce(this, init, rfn);
+      return BitmapTrie.this.reduceValues(rfn, init);
     }
-
     public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
 				    ParallelOptions options ) {
       return Reductions.parallelCollectionReduction(initValFn, rfn, mergeFn, this, options);
@@ -1166,6 +1186,39 @@ class BitmapTrie implements IObj, TrieBase {
   }
   final <V> Collection<V> values(V obj, boolean allowsClear) {
     return new ValueCollection<V>(allowsClear);
+  }
+
+  Object reduceLeaves(IFn rfn, Object acc) {
+    if(nullEntry != null && !RT.isReduced(acc))
+      acc = rfn.invoke(acc, nullEntry);
+    return Reductions.unreduce(root != null ? root.reduce(rfn, acc) : acc);
+  }
+
+  public Object reduceEntries(IFn rfn, Object acc) {
+    return reduceLeaves(new IFnDef() {
+	public Object invoke(Object acc, Object v) {
+	  final ILeaf il = (ILeaf)v;
+	  return rfn.invoke(acc, new FMapEntry(il.key(), il.val()));
+	}
+      }, acc);
+  }
+
+  public Object reduceKeys(IFn rfn, Object acc) {
+    return reduceLeaves(new IFnDef() {
+	public Object invoke(Object acc, Object v) {
+	  final ILeaf il = (ILeaf)v;
+	  return rfn.invoke(acc, il.key());
+	}
+      }, acc);
+  }
+
+  public Object reduceValues(IFn rfn, Object acc) {
+    return reduceLeaves(new IFnDef() {
+	public Object invoke(Object acc, Object v) {
+	  final ILeaf il = (ILeaf)v;
+	  return rfn.invoke(acc, il.val());
+	}
+      }, acc);
   }
 
   public boolean containsKey(Object key) {

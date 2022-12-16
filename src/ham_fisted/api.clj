@@ -97,7 +97,8 @@
          object-array-list int-array-list long-array-list double-array-list
          int-array argsort byte-array short-array char-array boolean-array repeat
          persistent! rest immut-map keys vals group-by-reduce consumer-accumulator
-         reducible-merge reindex)
+         reducible-merge reindex long-consumer-reducer double-consumer-reducer
+         consumer-reducer merge)
 
 
 (defn ->collection
@@ -1394,17 +1395,36 @@ ham_fisted.PersistentHashMap
       (update-values (bi-function k v (deref v)))))
 
 
+(defn mut-map-union!
+  "Very fast union that may simply update lhs and return it.  Both lhs and rhs *must* be
+  mutable maps.  See docs for [[map-union]]."
+  [merge-bifn ^Map l ^Map r]
+  (cond
+    (identical? l r) l
+    (map-set? l) (map-union merge-bifn l r)
+    :else
+    (let [[^Map minm ^Map maxm] (if (< (.size l) (.size r))
+                                  [l r]
+                                  [r l])
+          merge-bifn (->bi-function merge-bifn)]
+      (.forEach minm (bi-consumer
+                      k v
+                      (.merge maxm k v merge-bifn)))
+      maxm)))
+
+
 (defn frequencies
   "Faster implementation of clojure.core/frequencies."
-  [coll]
-  (-> (preduce mut-map
-               (fn [^Map l v]
-                 (.compute l v BitmapTrieCommon/incBiFn)
-                 l)
-               #(map-union BitmapTrieCommon/incBiFn %1 %2)
-               {:min-n 1000}
-               coll)
-      (persistent!)))
+  ([coll] (frequencies nil coll))
+  ([options coll]
+   (-> (preduce (get options :map-fn mut-map)
+                (fn [^Map l v]
+                  (.compute l v BitmapTrieCommon/incBiFn)
+                  l)
+                #(mut-map-union! BitmapTrieCommon/incBiFn %1 %2)
+                (merge {:min-n 1000 :ordered? true} options)
+                coll)
+       (persistent!))))
 
 
 (defn merge
@@ -1797,19 +1817,7 @@ ham_fisted.PersistentHashMap
                  ;;new value to the reducer otherwise.
                  (.compute l (key-fn v) (bi-function k acc (rfn (or acc (init-val-fn)) v)))
                  l))]
-     (cond-> (preduce map-fn rfn
-                      (fn [^Map l ^Map r]
-                        (cond
-                          (identical? l r) l
-                          (map-set? l) (map-union merge-bifn l r)
-                          :else
-                          (let [[^Map minm ^Map maxm] (if (< (.size l) (.size r))
-                                                        [l r]
-                                                        [r l])]
-                            (.forEach minm (bi-consumer
-                                            k v
-                                            (.merge maxm k v merge-bifn)))
-                            maxm)))
+     (cond-> (preduce map-fn rfn #(mut-map-union! merge-bifn %1 %2)
                       (merge {:min-n 1000} options)
                       coll)
        ;;In the case where no map-fn was passed in we return a persistent hash map.
@@ -3050,15 +3058,13 @@ nil
     (.accept this (deref o))
     this))
 
+(defn- ensure-obj->long ^IFn$OL [f] (if (instance? IFn$OL f) f (obj->long v (f v))))
+
 (defn mmax-key
   "Faster and nil-safe version of #(apply max-key %1 %2)"
   [f data]
-  @(reduce consumer-accumulator
-           (MaxKeyReducer. Long/MIN_VALUE nil
-                           (if (instance? IFn$OL f)
-                             f
-                             (obj->long v (f v))))
-           data))
+  (let [f (ensure-obj->long f)]
+    (preduce-reducer (consumer-reducer #(MaxKeyReducer. Long/MIN_VALUE nil f)) data)))
 
 (deftype ^:private MinKeyReducer [^{:unsynchronized-mutable true
                                     :tag 'long} data
@@ -3080,18 +3086,14 @@ nil
 (defn mmin-key
   "Faster and nil-safe version of #(apply min-key %1 %2)"
   [f data]
-  @(reduce consumer-accumulator
-           (MinKeyReducer. Long/MAX_VALUE nil
-                           (if (instance? IFn$OL f)
-                             f
-                             (obj->long v (f v))))
-           data))
+  (let [f (ensure-obj->long f)]
+    (preduce-reducer (consumer-reducer #(MinKeyReducer. Long/MAX_VALUE nil f)) data)))
 
 
 (defn mode
   "Return the most common occurance in the data."
   [data]
-  (->> (frequencies data)
+  (->> (frequencies {:map-fn java-hashmap} data)
        (mmax-key val)
        (key?)))
 

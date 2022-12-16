@@ -197,9 +197,12 @@
 
 
 (defn- consume-spliterator!
-  [^Reductions$ReduceConsumer c ^Spliterator s]
-  (.forEachRemaining s c)
-  @c)
+  [rfn acc ^Spliterator s]
+  (if (instance? IReduceInit s)
+    (.reduce ^IReduceInit s rfn acc)
+    (let [c (Reductions$ReduceConsumer/create acc rfn)]
+      (.forEachRemaining s c)
+      @c)))
 
 
 (defn parallel-spliterator-reduce
@@ -220,11 +223,11 @@
                     (.submit pool
                              ^Callable
                              (fn []
-                               (let [c (Reductions$ReduceConsumer. (initValFn) rfn)
+                               (let [acc (initValFn)
                                      ^Spliterator s spliterator]
                                  (if (.-ordered options)
-                                   (consume-spliterator! c s)
-                                   (queue-put! queue (consume-spliterator! c s)
+                                   (consume-spliterator! rfn acc s)
+                                   (queue-put! queue (consume-spliterator! rfn acc s)
                                                (.-putTimeoutMs options))))))))
              (seq->lookahead (n-lookahead options)))]
     (->> (if (.-ordered options)

@@ -396,7 +396,7 @@ public final class HashMap<K,V>
   }
 
   public Object reduce(IFn rfn, Object init) {
-    return Reductions.iterReduce(entrySet(), init, rfn);
+    return hb.reduceEntries(rfn, init);
   }
 
   public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
