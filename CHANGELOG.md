@@ -1,3 +1,8 @@
+# 1.000-beta-69
+ * Faster `mode`.
+ * Faster map iteration.
+ * Corrected clojure persistent hash map iteration.
+ 
 # 1.000-beta-67
  * Faster `mode`.
  * `mmax-key` - use `(mmax-key f data)` as opposed to `(apply max-key f data)`.  It is faster

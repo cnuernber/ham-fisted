@@ -4,6 +4,7 @@
             [clojure.core.protocols :as cl-proto])
   (:import [java.util.concurrent ForkJoinPool ForkJoinTask ArrayBlockingQueue Future
             TimeUnit]
+           [clojure.lang MapEntry]
            [java.util Iterator Set Map RandomAccess]
            [java.util.concurrent ConcurrentHashMap]
            [ham_fisted ParallelOptions BitmapTrieCommon$Box ITypedReduce IFnDef
@@ -386,9 +387,9 @@
           fjinvoke (fn [f]
                      (if (in-fork-join-task?)
                        (f)
-                       (.invoke pool ^ForkJoinTask (fjtask f))))]
-      (.fold coll n combinef rfn fjinvoke fjtask fjfork fjjoin))))
-
+                       (.invoke pool ^ForkJoinTask (fjtask f))))
+          rf (fn [acc k v] (rfn acc (MapEntry/create k v)))]
+      (.fold coll n combinef rf fjinvoke fjtask fjfork fjjoin))))
 
 
 (defmacro array-fast-reduce

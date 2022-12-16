@@ -120,3 +120,7 @@
 
 (deftest into-array-nil
   (is (== 0 (count (hamf/into-array Double #(double %) nil)))))
+
+
+(deftest mmax-key-clojure-map
+  (is (= 3 (key (hamf/mmax-key val (frequencies (map #(rem % 7) (hamf/range 10000))))))))
