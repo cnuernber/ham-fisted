@@ -1,3 +1,13 @@
+# 1.000-beta-67
+ * Faster `mode`.
+ * `mmax-key` - use `(mmax-key f data)` as opposed to `(apply max-key f data)`.  It is faster
+   and handles empty sequences.  Same goes for `mmin-key`.
+
+
+# 1.000-beta-66
+ * Fixed `make-comparator`.
+ * Added `mode`.
+
 # 1.000-beta-65
  * Better obj->long and obj->double pathways that will always apply the appropriate cast
    and thus have 0 arg variants.

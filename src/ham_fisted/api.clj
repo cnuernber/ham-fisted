@@ -2014,7 +2014,7 @@ ham_fisted.PersistentHashMap
 
 (defmacro make-comparator
   "Make a java comparator."
-  [lhsvar rhsvar code]
+  [lhsvar rhsvar & code]
   `(reify
      Comparator
      (compare [this# ~lhsvar ~rhsvar]
@@ -3030,6 +3030,72 @@ nil
         (clojure.core/last coll)))))
 
 
+(defn- key? [e] (when e (key e)))
+
+
+(deftype ^:private MaxKeyReducer [^{:unsynchronized-mutable true
+                                    :tag 'long} data
+                                  ^:unsynchronized-mutable value
+                                  ^IFn$OL mapper]
+  Consumer
+  (accept [this v]
+    (let [mval (.invokePrim mapper v)]
+      (when (>= mval data)
+        (set! data mval)
+        (set! value v))))
+  clojure.lang.IDeref
+  (deref [this] value)
+  Reducible
+  (reduce [this o]
+    (.accept this (deref o))
+    this))
+
+(defn mmax-key
+  "Faster and nil-safe version of #(apply max-key %1 %2)"
+  [f data]
+  @(reduce consumer-accumulator
+           (MaxKeyReducer. Long/MIN_VALUE nil
+                           (if (instance? IFn$OL f)
+                             f
+                             (obj->long v (f v))))
+           data))
+
+(deftype ^:private MinKeyReducer [^{:unsynchronized-mutable true
+                                    :tag 'long} data
+                                  ^:unsynchronized-mutable value
+                                  ^IFn$OL mapper]
+  Consumer
+  (accept [this v]
+    (let [mval (.invokePrim mapper v)]
+      (when (<= mval data)
+        (set! data mval)
+        (set! value v))))
+  clojure.lang.IDeref
+  (deref [this] value)
+  Reducible
+  (reduce [this o]
+    (.accept this (deref o))
+    this))
+
+(defn mmin-key
+  "Faster and nil-safe version of #(apply min-key %1 %2)"
+  [f data]
+  @(reduce consumer-accumulator
+           (MinKeyReducer. Long/MAX_VALUE nil
+                           (if (instance? IFn$OL f)
+                             f
+                             (obj->long v (f v))))
+           data))
+
+
+(defn mode
+  "Return the most common occurance in the data."
+  [data]
+  (->> (frequencies data)
+       (mmax-key val)
+       (key?)))
+
+
 (defn rest
   "Version of rest that does uses subvec if collection is random access.  This preserves the
   ability to reduce in parallel over the collection."
@@ -3096,7 +3162,7 @@ nil
                queue)
              queue
              values)
-     (->collection (object-array queue))))
+     (object-array-list queue)))
   ([n values]
    (take-min n nil values)))
 
