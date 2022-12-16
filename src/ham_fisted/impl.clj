@@ -301,6 +301,8 @@
       item
       (.isArray (.getClass item))
       (ArrayLists/toList item)
+      (instance? Map item)
+      (.entrySet ^Map item)
       (instance? Seqable item)
       (seq item)
       :else

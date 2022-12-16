@@ -908,18 +908,27 @@ ham_fisted.PersistentHashMap
 
 (defmacro obj->long
   "Create a function that converts objects to longs"
-  [varname & code]
-  `(reify IFnDef$OL
-     (invokePrim [this ~varname]
-       ~@code)))
+  ([]
+   `(reify IFnDef$OL
+        (invokePrim [this v#]
+          (Casts/longCast v#))))
+  ([varname & code]
+   `(reify IFnDef$OL
+      (invokePrim [this ~varname]
+        (Casts/longCast ~@code)))))
+
 
 
 (defmacro obj->double
   "Create a function that converts objects to doubles"
-  [varname & code]
-  `(reify IFnDef$OD
-     (invokePrim [this ~varname]
-       ~@code)))
+  ([]
+   `(reify IFnDef$OD
+      (invokePrim [this v#]
+        (Casts/doubleCast v#))))
+  ([varname & code]
+   `(reify IFnDef$OD
+      (invokePrim [this ~varname]
+        (Casts/doubleCast ~@code)))))
 
 
 (defmacro long->double
@@ -2142,13 +2151,16 @@ ham_fisted.PersistentHashMap
    (sort-by keyfn nil coll))
   ([keyfn comp coll]
    (let [coll (->random-access coll)
-         ^IMutList data (map keyfn coll)
+         data (map keyfn coll)
+         ;;Arraylists are faster to create because they do not have to be sized exactly
+         ;;to the collection.  They have very fast addAllReducible pathways that specialize
+         ;;for constant sized containers.
          data (case (type-single-arg-ifn keyfn)
                 :float64
-                (.toDoubleArray data)
+                (double-array-list data)
                 :int64
-                (.toLongArray data)
-                (.toArray data))
+                (long-array-list data)
+                (object-array-list data))
          indexes (argsort comp data)]
      (reindex coll indexes))))
 

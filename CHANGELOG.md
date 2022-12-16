@@ -1,10 +1,15 @@
+# 1.000-beta-65
+ * Better obj->long and obj->double pathways that will always apply the appropriate cast
+   and thus have 0 arg variants.
+ * Better/faster sort-by pathway that avoids potential intermediate data creation.
+
 # 1.000-beta-64
  * Fixed predicate, long-consumer, double-consumer and consumer pathways.
  * Faster dispatch for preduce.
- 
+
 # 1.000-beta-62
  * Faster dispatch for preduce.
- 
+
 # 1.000-beta-61
  * All lists are comparable.
 
