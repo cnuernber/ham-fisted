@@ -3055,8 +3055,15 @@ nil
   (deref [this] value)
   Reducible
   (reduce [this o]
-    (.accept this (deref o))
-    this))
+    (cond
+      (== data Long/MIN_VALUE)
+      o
+      (== (.-data ^MaxKeyReducer o) Long/MIN_VALUE)
+      this
+      :else
+      (do
+        (.accept this (deref o))
+        this))))
 
 (defn- ensure-obj->long ^IFn$OL [f] (if (instance? IFn$OL f) f (obj->long v (f v))))
 
@@ -3080,8 +3087,16 @@ nil
   (deref [this] value)
   Reducible
   (reduce [this o]
-    (.accept this (deref o))
-    this))
+    (cond
+      (== data Long/MAX_VALUE)
+      o
+      (== (.-data ^MinKeyReducer o) Long/MAX_VALUE)
+      this
+      :else
+      (do
+        (.accept this (deref o))
+        this))))
+
 
 (defn mmin-key
   "Faster and nil-safe version of #(apply min-key %1 %2)"
