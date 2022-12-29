@@ -1204,7 +1204,7 @@ class BitmapTrie implements IObj, TrieBase {
     return reduceLeaves(new IFnDef() {
 	public Object invoke(Object acc, Object v) {
 	  final ILeaf il = (ILeaf)v;
-	  return rfn.invoke(acc, new FMapEntry(il.key(), il.val()));
+	  return rfn.invoke(acc, new FMapEntry<Object,Object>(il.key(), il.val()));
 	}
       }, acc);
   }

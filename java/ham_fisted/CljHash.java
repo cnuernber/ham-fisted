@@ -15,6 +15,7 @@ import clojure.lang.Util;
 import clojure.lang.RT;
 import clojure.lang.Numbers;
 import clojure.lang.IPersistentCollection;
+import clojure.lang.Reduced;
 
 
 public class CljHash {
@@ -84,6 +85,23 @@ public class CljHash {
 	  return false;
       }
       return true;
+    }
+    return false;
+  }
+
+  public static boolean mapEquiv(Map lhs, Object rhs) {
+    if(rhs instanceof Map) {
+      final Map rm = (Map)rhs;
+      if(lhs.size() == rm.size()) {
+	return (Boolean)Reductions.serialReduction(new IFnDef() {
+	    public Object invoke(Object acc, Object v) {
+	      Map.Entry me = (Map.Entry)v;
+	      if(!equiv(lhs.get(me.getKey()), me.getValue()))
+		return new Reduced(false);
+	      return acc;
+	    }
+	  }, true, rhs);
+      }
     }
     return false;
   }
