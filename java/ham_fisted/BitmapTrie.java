@@ -83,6 +83,12 @@ class BitmapTrie implements IObj, TrieBase {
 	return this;
       return new LeafNode(nowner, this);
     }
+    public final void append(LeafNode n) {
+      if(nextNode == null)
+	nextNode = n;
+      else
+	nextNode.append(n);
+    }
     public final int countLeaves() {
       return nextNode != null ? 1 + nextNode.countLeaves() : 1;
     }
@@ -94,11 +100,11 @@ class BitmapTrie implements IObj, TrieBase {
       return retval;
     }
     //Mutable pathway
-    public final LeafNode getOrCreate(Object _k) {
+    public final LeafNode getOrCreate(Object _k, int hashcode) {
       if (owner.equals(k,_k)) {
 	return this;
       } else if (nextNode != null) {
-	return nextNode.getOrCreate(_k);
+	return nextNode.getOrCreate(_k,hashcode);
       } else {
 	final LeafNode retval = new LeafNode(owner, _k, hashcode);
 	nextNode = retval;
@@ -131,15 +137,15 @@ class BitmapTrie implements IObj, TrieBase {
       return this;
     }
 
-    public final LeafNode assoc(TrieBase nowner, Object _k, Object _v) {
+    public final LeafNode assoc(TrieBase nowner, Object _k, int hash, Object _v) {
       LeafNode retval = setOwner(nowner);
       if (nowner.equals(_k,k)) {
 	retval.v = _v;
       } else {
 	if (retval.nextNode != null) {
-	  retval.nextNode = retval.nextNode.assoc(nowner, _k, _v);
+	  retval.nextNode = retval.nextNode.assoc(nowner, _k, hash, _v);
 	} else {
-	  retval.nextNode = new LeafNode(nowner, _k, hashcode, _v);
+	  retval.nextNode = new LeafNode(nowner, _k, hash, _v);
 	}
       }
       return retval;
@@ -331,7 +337,7 @@ class BitmapTrie implements IObj, TrieBase {
       } else {
 	LeafNode lf = (LeafNode)entry;
 	if (hash == lf.hashcode) {
-	  return lf.getOrCreate(k);
+	  return lf.getOrCreate(k, hash);
 	} else {
 	  final BitmapNode node = new BitmapNode(owner, incShift(shift), lf);
 	  objData[index] = node;
@@ -415,7 +421,7 @@ class BitmapTrie implements IObj, TrieBase {
       if (entry instanceof LeafNode) {
 	LeafNode lf = (LeafNode)entry;
 	if (hashcode == lf.hashcode)
-	  return lf.assoc(owner, key, val);
+	  return lf.assoc(owner, key, hashcode, val);
 	entry = new BitmapNode(owner, incShift(shift), lf);
       }
 
@@ -1340,7 +1346,7 @@ class BitmapTrie implements IObj, TrieBase {
       if (nullEntry == null)
 	nullEntry = new LeafNode(this, key, 0, val);
       else
-	nullEntry = nullEntry.assoc(this, key, val);
+	nullEntry = nullEntry.assoc(this, key, 0, val);
     } else {
       root = root.assoc(this, key, hp.hash(key), val);
     }
