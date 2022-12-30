@@ -160,7 +160,7 @@ public class MapBase<K,V>
   public V compute(K key, BiFunction<? super K,? super V,? extends V> bfn) {
     //This operation is a performance sensitive operation so it must be done at the
     //lowest level
-    if (k == null || bfn == null)
+    if (key == null || bfn == null)
       throw new NullPointerException("Neither key nor compute function may be null");
     return (V)ht.compute(key, bfn);
   }
@@ -220,7 +220,8 @@ public class MapBase<K,V>
 	}
       }, false);
   }
-  class EntrySet<K,V> extends AbstractSet<Map.Entry<K,V>> {
+  class EntrySet<K,V> extends AbstractSet<Map.Entry<K,V>>
+			      implements ITypedReduce<Map.Entry<K,V>> {
     EntrySet() {
     }
 
@@ -235,6 +236,10 @@ public class MapBase<K,V>
     public final Iterator<Map.Entry<K,V>> iterator() {
       @SuppressWarnings("unchecked") Iterator<Map.Entry<K,V>> retval = (Iterator<Map.Entry<K,V>>) MapBase.this.iterator(identityIterFn);
       return retval;
+    }
+
+    public final void forEach(Consumer<? super Map.Entry<K,V>> c) {
+      ITypedReduce.super.forEach(c);
     }
 
     @SuppressWarnings("unchecked")
@@ -266,7 +271,7 @@ public class MapBase<K,V>
       entrySet = new EntrySet();
     return entrySet;
   }
-  class KeySet<K> extends AbstractSet<K> implements ITypedReduce {
+  class KeySet<K> extends AbstractSet<K> implements ITypedReduce<K> {
     KeySet() {}
     public final int size() {
       return MapBase.this.size();
@@ -299,10 +304,10 @@ public class MapBase<K,V>
     }
 
     @SuppressWarnings("unchecked")
-    public void forEach(Consumer c) {
+    public void forEach(Consumer<? super K> c) {
       reduce( new IFnDef() {
 	  public Object invoke(Object lhs, Object rhs) {
-	    c.accept(rhs);
+	    c.accept((K)rhs);
 	    return c;
 	  }
 	}, c);
@@ -314,7 +319,7 @@ public class MapBase<K,V>
     return keySet;
   }
 
-  class ValueCollection<V>  extends AbstractCollection<V> implements ITypedReduce {
+  class ValueCollection<V>  extends AbstractCollection<V> implements ITypedReduce<V> {
     ValueCollection() {}
     public final int size() { return MapBase.this.size(); }
     public final void clear() {
@@ -337,10 +342,10 @@ public class MapBase<K,V>
     }
 
     @SuppressWarnings("unchecked")
-    public void forEach(Consumer c) {
+    public void forEach(Consumer<? super V> c) {
       reduce( new IFnDef() {
 	  public Object invoke(Object lhs, Object rhs) {
-	    c.accept(rhs);
+	    c.accept((V)rhs);
 	    return c;
 	  }
 	}, c);

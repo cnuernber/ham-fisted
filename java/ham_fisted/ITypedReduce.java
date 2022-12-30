@@ -13,7 +13,7 @@ import clojure.lang.IReduce;
 import clojure.lang.IFn;
 
 /**
- *  Typed reductions - a typed extension of clojure.lang.IReduceInit and 
+ *  Typed reductions - a typed extension of clojure.lang.IReduceInit and
  *  java.util.Iterable.forEach.
  */
 public interface ITypedReduce<E> extends IReduceInit, IReduce {
@@ -22,7 +22,7 @@ public interface ITypedReduce<E> extends IReduceInit, IReduce {
     return Reductions.serialParallelReduction(initValFn, rfn, options, this);
   }
 
-  
+
   static class Reduce1 implements IFnDef {
     public boolean first;
     public IFn rfn;
@@ -50,7 +50,7 @@ public interface ITypedReduce<E> extends IReduceInit, IReduce {
 
   //Typed this way in order to match java.util.List's forEach
   @SuppressWarnings("unchecked")
-  default void forEach(Consumer<E> c) {
+  default void forEach(Consumer<? super E> c) {
     //Reduce is strictly more powerful.  You can define consume in terms of reduce with
     //full generality but you cannot define reduce in terms of consume.
     reduce( new IFnDef() {
