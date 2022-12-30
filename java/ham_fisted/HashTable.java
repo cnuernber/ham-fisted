@@ -26,7 +26,7 @@ import static ham_fisted.BitmapTrie.*;
 import static ham_fisted.IntegerOps.*;
 
 
-public final class HashTable implements TrieBase {
+public final class HashTable implements TrieBase, MapData {
   final HashProvider hp;
   int capacity;
   int mask;
@@ -46,6 +46,7 @@ public final class HashTable implements TrieBase {
     this.meta = meta;
     this.threshold = (int)(capacity * loadFactor);
   }
+  public HashProvider hashProvider() { return hp; }
   public int hash(Object k) { return hp.hash(k); }
   public boolean equals(Object lhs, Object rhs) { return hp.equals(lhs, rhs); }
   public void inc() { this.length++;}
@@ -67,13 +68,13 @@ public final class HashTable implements TrieBase {
     }
     return rv;
   }
-  
+
   Object checkResize(Object rv) {
     if(this.length >= this.threshold) {
       final int newCap = this.capacity * 2;
       final LeafNode[] newD = new LeafNode[newCap];
-      final int oldCap = this.data.length;
       final LeafNode[] oldD = this.data;
+      final int oldCap = oldD.length;
       final int mask = newCap - 1;
       for(int idx = 0; idx < oldCap; ++idx) {
 	LeafNode lf = oldD[idx];
@@ -96,36 +97,43 @@ public final class HashTable implements TrieBase {
     }
     return rv;
   }
-  LeafNode getOrCreate(Object key) {
+  public LeafNode getOrCreate(Object key) {
     final int hc = hp.hash(key);
     final int idx = hc & this.mask;
-    LeafNode e = this.data[idx];
-    if(e == null) {
-      e = new LeafNode(this, key, hc, null, null);
-      this.data[idx] = e;
-      return (LeafNode)checkResize(e);
-    } else {
-      return (LeafNode)checkResize(e.getOrCreate(key,hc));
+    final HashProvider hp = this.hp;
+    LeafNode lastNode = null;
+    //Avoid unneeded calls to both equals and checkResize
+    for(LeafNode e = this.data[idx]; e != null; e = e.nextNode) {
+      lastNode = e;
+      if(hp.equals(e.k, key))
+	return e;
+    }
+    if(lastNode != null)
+      return (LeafNode)checkResize(lastNode.getOrCreate(key,hc));
+    else {
+      lastNode = new LeafNode(this, key, hc, null, null);
+      this.data[idx] = lastNode;
+      return (LeafNode)checkResize(lastNode);
     }
   }
-  LeafNode getNode(Object key) {
+  public LeafNode getNode(Object key) {
     final int hc = hp.hash(key);
     final int idx = hc & this.mask;
     LeafNode e = this.data[idx];
     return e != null ? e.get(key) : null;
   }
-  void remove(Object k, Box b) {
+  public void remove(Object k, Box b) {
     final int hc = hp.hash(k);
     final int idx = hc & this.mask;
     LeafNode e = this.data[idx];
     if(e != null)
-      this.data[idx] = e.remove(k, b);    
+      this.data[idx] = e.remove(k, b);
   }
-  void clear() {
+  public void clear() {
     length = 0;
     Arrays.fill(data, null);
   }
-  void mutAssoc(Object k, Object v) {
+  public void mutAssoc(Object k, Object v) {
     final int hc = hp.hash(k);
     final int idx = hc & this.mask;
     LeafNode e = this.data[idx];
@@ -136,17 +144,17 @@ public final class HashTable implements TrieBase {
     }
     checkResize(null);
   }
-  void mutDissoc(Object k) {
+  public void mutDissoc(Object k) {
     final int hc = hp.hash(k);
     final int idx = hc & this.mask;
     LeafNode e = this.data[idx];
     if(e != null)
       this.data[idx] = e.dissoc(this, k);
   }
-  Object reduce(Function<ILeaf, Object> lfn, IFn rfn, Object acc) {
+  public Object reduce(Function<ILeaf, Object> lfn, IFn rfn, Object acc) {
     final LeafNode[] d = this.data;
     final int dl = d.length;
-    for(int idx = 0; idx < dl; ++idx) {      
+    for(int idx = 0; idx < dl; ++idx) {
       for(LeafNode e = d[idx]; e != null; e = e.nextNode) {
 	acc = rfn.invoke(acc, lfn.apply(e));
 	if(RT.isReduced(acc))
@@ -155,7 +163,7 @@ public final class HashTable implements TrieBase {
     }
     return acc;
   }
-  void mutUpdateValues(BiFunction bfn) {
+  public void mutUpdateValues(BiFunction bfn) {
     final LeafNode[] d = data;
     final int dl = d.length;
     for(int idx = 0; idx < dl; ++idx) {
@@ -163,7 +171,7 @@ public final class HashTable implements TrieBase {
       d[idx] = e.immutUpdate(this, bfn);
     }
   }
-  void mutUpdateValue(Object key, IFn fn) {
+  public void mutUpdateValue(Object key, IFn fn) {
     final int hc = hp.hash(key);
     final int idx = hc & this.mask;
     LeafNode e = this.data[idx];
@@ -174,7 +182,7 @@ public final class HashTable implements TrieBase {
     }
     checkResize(null);
   }
-  
+
   static class HTIter implements Iterator {
     final LeafNode[] d;
     final Function<ILeaf,Object> fn;
@@ -204,7 +212,7 @@ public final class HashTable implements TrieBase {
       return fn.apply(rv);
     }
   }
-  Iterator iterator(Function<ILeaf,Object> leafFn) {
+  public Iterator iterator(Function<ILeaf,Object> leafFn) {
     return new HTIter(this.data, leafFn);
   }
   static class HTSpliterator implements Spliterator, IReduceInit {
@@ -269,14 +277,14 @@ public final class HashTable implements TrieBase {
 	for(LeafNode e = dd[idx]; e != null; e = e.nextNode) {
 	  acc = rfn.invoke(acc, ffn.apply(e));
 	  if(RT.isReduced(acc)) return ((IDeref)acc).deref();
-	}	  
+	}
       }
       return acc;
     }
   }
-  Spliterator spliterator(Function<ILeaf,Object> leafFn) { return new HTSpliterator(this.data, this.length, leafFn); }
-  IPersistentMap meta() { return this.meta; }
-  HashTable withMeta(IPersistentMap m) {
+  public Spliterator spliterator(Function<ILeaf,Object> leafFn) { return new HTSpliterator(this.data, this.length, leafFn); }
+  public IPersistentMap meta() { return this.meta; }
+  public HashTable withMeta(IPersistentMap m) {
     HashTable rv = shallowClone();
     rv.meta = m;
     return rv;

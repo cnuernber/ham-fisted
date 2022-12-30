@@ -3,6 +3,7 @@ package ham_fisted;
 
 import java.util.Map;
 import clojure.lang.IPersistentMap;
+import clojure.lang.IMapEntry;
 
 public class FMapEntry<K,V> implements IMutList, Map.Entry<K,V> {
   public final K k;
@@ -33,7 +34,9 @@ public class FMapEntry<K,V> implements IMutList, Map.Entry<K,V> {
   }
   public V setValue( Object v) { throw new RuntimeException("Cannot set value."); }
   public K getKey() { return k; }
+  public Object key() { return k; }
   public V getValue() { return v; }
+  public Object val() { return v; }
   public int size() { return 2; }
   public Object get(int idx) {
     if(idx == 0) return k;

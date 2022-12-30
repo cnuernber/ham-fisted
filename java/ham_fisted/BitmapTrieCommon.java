@@ -64,6 +64,11 @@ public class BitmapTrieCommon {
 
   public static final HashProvider defaultHashProvider = hybridHashProvider;
 
+  public static Function<ILeaf,Object> valIterFn = lf -> lf.val();
+  public static Function<ILeaf,Object> keyIterFn = lf -> lf.key();
+  @SuppressWarnings("unchecked")
+  public static Function<ILeaf,Object> entryIterFn = lf -> new FMapEntry(lf.key(), lf.val());
+  public static Function<ILeaf,Object> identityIterFn = lf -> lf;
 
   /**
    * A base trie interface to define the information that nodes within the

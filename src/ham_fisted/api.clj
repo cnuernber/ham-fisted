@@ -56,7 +56,7 @@
             IFnDef$OLO IFnDef$OD IFnDef$OL IFnDef$LD IFnDef$DL IFnDef$OLOO IFnDef$OLDO
             IFnDef$OLLO IFnDef$LongPredicate IFnDef$DoublePredicate IFnDef$Predicate
             Consumers$IncConsumer Reductions$IndexedDoubleAccum Reductions$IndexedLongAccum
-            Reductions$IndexedAccum]
+            Reductions$IndexedAccum MutHashTable ImmutHashTable]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
@@ -617,6 +617,11 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
    (if (instance? obj-ary-cls data)
      (HashMap. (options->provider options) true ^objects data)
      (reduce-put-map (HashMap. (options->provider options)) data))))
+
+
+(defn mut-hashtable-map
+  ([] (MutHashTable. default-hash-provider))
+  ([data] (reduce-put-map (MutHashTable. default-hash-provider) data)))
 
 
 (defn ^:no-doc map-data->obj-ary

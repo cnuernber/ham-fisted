@@ -162,7 +162,7 @@ public final class PersistentHashMap
     return new PersistentHashMap(hb.shallowClone(newMeta));
   }
   public final Object kvreduce(IFn f, Object init) {
-    final LeafNodeIterator iter = hb.iterator(hb.identityIterFn);
+    final LeafNodeIterator iter = hb.iterator(identityIterFn);
     while(iter.hasNext() && !RT.isReduced(init)) {
       final ILeaf elem = iter.nextLeaf();
       init = f.invoke(init, elem.key(), elem.val());

@@ -834,12 +834,7 @@ class BitmapTrie implements IObj, TrieBase {
       return tfn.apply(nextLeaf());
     }
   }
-
-  public static Function<ILeaf,Object> valIterFn = lf -> lf.val();
-  public static Function<ILeaf,Object> keyIterFn = lf -> lf.key();
-  public static Function<ILeaf,Object> entryIterFn = lf -> new MapEntry(lf.key(), lf.val());
-  public static Function<ILeaf,Object> identityIterFn = lf -> lf;
-
+  
   protected final HashProvider hp;
   protected int count;
   protected BitmapNode root;
