@@ -40,7 +40,7 @@ class BitmapTrie implements IObj, TrieBase {
     BitmapTrie bitmapTrie();
   }
 
-  public static final class LeafNode implements INode, ILeaf {
+  public static final class LeafNode implements INode, ILeaf, Map.Entry, IMutList {
     public final TrieBase owner;
     public final int hashcode;
     public final Object k;
@@ -99,6 +99,15 @@ class BitmapTrie implements IObj, TrieBase {
       v = newv;
       return retval;
     }
+    public final Object getKey() { return k; }
+    public final Object getValue() { return v; }
+    public final Object setValue(Object vv) { Object rv = v; v = vv; return rv; }
+    public final int size() { return 2; }
+    public final Object get(int idx) {
+      if(idx == 0) return k;
+      if(idx == 1) return v;
+      throw new RuntimeException("Index out of range.");
+    }
     //Mutable pathway
     public final LeafNode getOrCreate(Object _k, int hashcode) {
       if (owner.equals(k,_k)) {
@@ -128,7 +137,7 @@ class BitmapTrie implements IObj, TrieBase {
     public final LeafNode remove(Object _k, Box b) {
       if(owner.equals(_k,k)) {
 	owner.dec();
-	b.obj = v;
+	if(b != null) b.obj = v;
 	return nextNode;
       }
       if(nextNode != null) {
@@ -834,7 +843,7 @@ class BitmapTrie implements IObj, TrieBase {
       return tfn.apply(nextLeaf());
     }
   }
-  
+
   protected final HashProvider hp;
   protected int count;
   protected BitmapNode root;

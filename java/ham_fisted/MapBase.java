@@ -33,7 +33,7 @@ import clojure.lang.IMapIterable;
 import clojure.lang.Seqable;
 import clojure.lang.ISeq;
 import clojure.lang.RT;
-  
+
 
 import static ham_fisted.BitmapTrie.*;
 import static ham_fisted.BitmapTrieCommon.*;
@@ -52,7 +52,7 @@ public class MapBase<K,V>
   public int count() { return ht.size(); }
   public MapBase<K,V> clone() { return new MapBase<K,V>(ht.clone()); }
   public String toString() {
-    final StringBuilder b = 
+    final StringBuilder b =
       (StringBuilder) ht.reduce(identityIterFn,
 				new IFnDef() {
 	  public Object invoke(Object acc, Object v) {
@@ -105,7 +105,7 @@ public class MapBase<K,V>
   }
   public boolean isEmpty() { return ht.isEmpty(); }
   public void clear() {
-    ht.clear();    
+    ht.clear();
   }
   @SuppressWarnings("unchecked")
   public V remove(Object k) {
@@ -158,16 +158,11 @@ public class MapBase<K,V>
   }
   @SuppressWarnings("unchecked")
   public V compute(K key, BiFunction<? super K,? super V,? extends V> bfn) {
-    int startc = ht.size();
-    LeafNode node = ht.getOrCreate(key);
-    try {
-      @SuppressWarnings("unchecked") V valval = (V)node.val();
-      return applyMapping(key, node, bfn.apply(key, valval));
-    } catch(Exception e) {
-      if (startc != ht.size())
-	ht.remove(key, new Box());
-      throw e;
-    }
+    //This operation is a performance sensitive operation so it must be done at the
+    //lowest level
+    if (k == null || bfn == null)
+      throw new NullPointerException("Neither key nor compute function may be null");
+    return (V)ht.compute(key, bfn);
   }
   @SuppressWarnings("unchecked")
   public V computeIfAbsent(K key, Function<? super K,? extends V> mappingFunction) {
@@ -192,14 +187,7 @@ public class MapBase<K,V>
   public V merge(K key, V value, BiFunction<? super V,? super V,? extends V> remappingFunction) {
     if (value == null || remappingFunction == null)
       throw new NullPointerException("Neither value nor remapping function may be null");
-    LeafNode lf = ht.getOrCreate(key);
-    V valval = (V)lf.val();
-    if (valval == null) {
-      lf.val(value);
-      return value;
-    } else {
-      return applyMapping(key, lf, remappingFunction.apply(valval, value));
-    }
+    return (V)ht.merge(key,value,remappingFunction);
   }
   @SuppressWarnings("unchecked")
   public void forEach(BiConsumer<? super K,? super V> action) {
@@ -221,7 +209,7 @@ public class MapBase<K,V>
 	}
       }, function);
   }
-  
+
   public boolean containsKey(Object key) { return ht.getNode(key) != null; }
   public boolean containsValue(Object value) {
     return (Boolean)ht.reduce(valIterFn, new IFnDef() {
@@ -245,13 +233,13 @@ public class MapBase<K,V>
     }
 
     public final Iterator<Map.Entry<K,V>> iterator() {
-      @SuppressWarnings("unchecked") Iterator<Map.Entry<K,V>> retval = (Iterator<Map.Entry<K,V>>) MapBase.this.iterator(entryIterFn);
+      @SuppressWarnings("unchecked") Iterator<Map.Entry<K,V>> retval = (Iterator<Map.Entry<K,V>>) MapBase.this.iterator(identityIterFn);
       return retval;
     }
 
     @SuppressWarnings("unchecked")
     public final Spliterator<Map.Entry<K,V>> spliterator() {
-      return (Spliterator<Map.Entry<K,V>>)MapBase.this.spliterator(entryIterFn);
+      return (Spliterator<Map.Entry<K,V>>)MapBase.this.spliterator(identityIterFn);
     }
 
     public final boolean contains(Object o) {
@@ -265,12 +253,12 @@ public class MapBase<K,V>
 	Objects.equals(candidate.val(), e.getValue());
     }
     public Object reduce(IFn rfn, Object init) {
-      return MapBase.this.reduce(entryIterFn, rfn, init);
+      return MapBase.this.reduce(identityIterFn, rfn, init);
     }
     public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
 				    ParallelOptions options ) {
       return Reductions.parallelCollectionReduction(initValFn, rfn, mergeFn, this, options);
-    }  
+    }
   }
   @SuppressWarnings("unchecked")
   public Set<Map.Entry<K,V>> entrySet() {
@@ -325,7 +313,7 @@ public class MapBase<K,V>
       keySet = new KeySet<K>();
     return keySet;
   }
-  
+
   class ValueCollection<V>  extends AbstractCollection<V> implements ITypedReduce {
     ValueCollection() {}
     public final int size() { return MapBase.this.size(); }
@@ -371,9 +359,9 @@ public class MapBase<K,V>
   public void forEach(Consumer c) {
     ITypedReduce.super.forEach(c);
   }
-  public Iterator keyIterator() { return ht.iterator(keyIterFn); }  
+  public Iterator keyIterator() { return ht.iterator(keyIterFn); }
   public Iterator valIterator() { return ht.iterator(valIterFn); }
-  
+
   Spliterator spliterator(Function<ILeaf,Object> fn) {
     return ht.spliterator(fn);
   }

@@ -77,17 +77,40 @@ public final class HashTable implements TrieBase, MapData {
       final int oldCap = oldD.length;
       final int mask = newCap - 1;
       for(int idx = 0; idx < oldCap; ++idx) {
-	LeafNode lf = oldD[idx];
-	while(lf != null) {
-	  LeafNode nn = lf.nextNode;
-	  lf.nextNode = null;
-	  final int newIdx = lf.hashcode & mask;
-	  final LeafNode existing = newD[newIdx];
-	  if(existing == null)
-	    newD[newIdx] = lf;
-	  else
-	    existing.append(lf);
-	  lf = nn;
+	LeafNode lf;
+	if((lf = oldD[idx]) != null) {
+	  if(lf.nextNode == null) {
+	    newD[lf.hashcode & mask] = lf;
+	  } else {
+	    //https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/HashMap.java#L722
+	    //Because we only allow capacities that are powers of two, we have exactly 2 locations
+	    //in the new data array where these can go.  We want to avoid writing to any locations
+	    //more than once and instead make the at most two new linked lists, one for the new
+	    //high position and one for the new low position.
+	    LeafNode loHead = null, loTail = null, hiHead = null, hiTail = null;
+	    while(lf != null) {
+	      LeafNode e = lf;
+	      lf = lf.nextNode;
+	      //Check high bit
+	      if((e.hashcode & oldCap) == 0) {
+		if(loTail == null) loHead = e;
+		else loTail.nextNode = e;
+		loTail = e;
+	      } else {
+		if(hiTail == null) hiHead = e;
+		else hiTail.nextNode = e;
+		hiTail = e;
+	      }
+	    }
+	    if(loHead != null) {
+	      loTail.nextNode = null;
+	      newD[idx] = loHead;
+	    }
+	    if(hiHead != null) {
+	      hiTail.nextNode = null;
+	      newD[idx+oldCap] = hiHead;
+	    }
+	  }
 	}
       }
       this.capacity = newCap;
@@ -121,6 +144,58 @@ public final class HashTable implements TrieBase, MapData {
     final int idx = hc & this.mask;
     LeafNode e = this.data[idx];
     return e != null ? e.get(key) : null;
+  }
+  @SuppressWarnings("unchecked")
+  public Object compute(Object k, BiFunction bfn) {
+    final HashProvider hp = this.hp;
+    final int hash = hp.hash(k);
+    final LeafNode[] d = this.data;
+    final int idx = hash & this.mask;
+    LeafNode e = d[idx], ee = null;
+    for(; e != null && !(e.k == k || hp.equals(e.k, k)); e = e.nextNode) {
+      ee = e;
+    }
+    Object newV = bfn.apply(k, e == null ? null : e.v);
+    if(e != null) {
+      if(newV != null)
+	e.v = newV;
+      else
+	remove(k, null);
+    } else if(newV != null) {
+      LeafNode nn = new LeafNode(this, k, hash, newV, null);
+      if(ee != null)
+	ee.nextNode = nn;
+      else
+	d[idx] = nn;
+      checkResize(null);
+    }
+    return newV;
+  }
+  @SuppressWarnings("unchecked")
+  public Object merge(Object k, Object v, BiFunction bfn) {
+    final HashProvider hp = this.hp;
+    final int hash = hp.hash(k);
+    final LeafNode[] d = this.data;
+    final int idx = hash & this.mask;
+    LeafNode e = d[idx], ee = null;
+    for(; e != null && !(e.k == k || hp.equals(e.k, k)); e = e.nextNode) {
+      ee = e;
+    }
+    Object newV = e == null ? v : bfn.apply(e.v, v);
+    if(e != null) {
+      if(newV != null)
+	e.v = newV;
+      else
+	remove(k, null);
+    } else if(newV != null) {
+      LeafNode nn = new LeafNode(this, k, hash, newV, null);
+      if(ee != null)
+	ee.nextNode = nn;
+      else
+	d[idx] = nn;
+      checkResize(null);
+    }
+    return newV;
   }
   public void remove(Object k, Box b) {
     final int hc = hp.hash(k);

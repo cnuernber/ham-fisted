@@ -19,6 +19,8 @@ public interface MapData {
   MapData withMeta(IPersistentMap m);
   LeafNode getOrCreate(Object k);
   LeafNode getNode(Object k);
+  Object compute(Object k, BiFunction bfn);
+  Object merge(Object k, Object v, BiFunction bfn);
   void clear();
   void remove(Object k, Box b);
   void mutAssoc(Object k, Object v);
