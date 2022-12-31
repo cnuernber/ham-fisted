@@ -79,14 +79,16 @@ public final class HashTable implements TrieBase, MapData {
       for(int idx = 0; idx < oldCap; ++idx) {
 	LeafNode lf;
 	if((lf = oldD[idx]) != null) {
+	  oldD[idx] = null;
 	  if(lf.nextNode == null) {
 	    newD[lf.hashcode & mask] = lf;
 	  } else {
 	    //https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/HashMap.java#L722
-	    //Because we only allow capacities that are powers of two, we have exactly 2 locations
-	    //in the new data array where these can go.  We want to avoid writing to any locations
-	    //more than once and instead make the at most two new linked lists, one for the new
-	    //high position and one for the new low position.
+	    //Because we only allow capacities that are powers of two, we have
+	    //exactly 2 locations in the new data array where these can go.  We want
+	    //to avoid writing to any locations more than once and instead make the
+	    //at most two new linked lists, one for the new high position and one
+	    //for the new low position.
 	    LeafNode loHead = null, loTail = null, hiHead = null, hiTail = null;
 	    while(lf != null) {
 	      LeafNode e = lf;
