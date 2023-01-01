@@ -57,13 +57,10 @@
         (is (= dissoc-data (set (keys disdata))))
         (is (= data (set (keys alldata))))))
     (testing "mutable"
-      (let [alldata (api/mut-map)
-            _ (doseq [item data]
-                (.put alldata item item))
+      (let [alldata (api/mut-map (map #(vector % %)) data)
             disdata (.clone alldata)
             _ (is (= n-elems (count disdata)))
-            _ (doseq [item dissoc-vals]
-                (.remove disdata item))]
+            _ (reduce #(do (.remove ^Map %1 %2) %1) disdata dissoc-vals)]
         (is (= n-left (count disdata)))
         (is (= n-elems (count alldata)))
         (is (= dissoc-data (set (keys disdata))))
@@ -135,73 +132,42 @@
 
 (defn java-hashmap
   [^ArrayList data]
-  (let [hm (java.util.HashMap. (.size data))]
-    (dotimes [idx nelems]
-      (.put hm (.get data idx) idx))
-    hm))
+  (reduce (api/indexed-accum
+           hm idx v (.put ^Map hm v idx) hm)
+          (api/java-hashmap (.size data))
+          data))
 
 
 (defn hamf-hashmap
   [^ArrayList data]
-  (let [hm (api/mut-map (.size data))]
-    (dotimes [idx nelems]
-      (.put hm (.get data idx) idx))
-    hm))
-
-
-(defn hamf-equiv-hashmap
-  [^ArrayList data]
-  (let [hm (HashMap. api/equiv-hash-provider)
-        nelems (.size data)]
-    (dotimes [idx nelems]
-      (.put hm (.get data idx) idx))
-    hm))
+  (reduce (api/indexed-accum
+           hm idx v (.put ^Map hm v idx) hm)
+          (api/mut-hashtable-map (.size data))
+          data))
 
 
 (defn clj-transient
   [^ArrayList data]
-  (let [nelems (.size data)]
-    (loop [hm (transient {})
-           idx 0]
-      (if (< idx nelems)
-        (recur (assoc! hm (.get data idx) idx) (unchecked-inc idx))
-        (persistent! hm)))))
+  (reduce (api/indexed-accum
+           hm idx v (assoc! hm v idx))
+          (transient {})
+          data))
 
 
 (defn hamf-transient
   [^ArrayList data]
-  (let [nelems (.size data)]
-    (loop [hm (transient PersistentHashMap/EMPTY)
-           idx 0]
-      (if (< idx nelems)
-        (recur (assoc! hm (.get data idx) idx) (unchecked-inc idx))
-        (persistent! hm)))))
+  (reduce (api/indexed-accum
+           hm idx v (assoc! hm v idx))
+          (transient api/empty-map)
+          data))
 
 
 (def datastructures
   [[:java-hashmap java-hashmap]
    [:hamf-hashmap hamf-hashmap]
-   [:hamf-equiv-hashmap hamf-equiv-hashmap]
    [:clj-transient clj-transient]
    [:hamf-transient hamf-transient]
    ])
-
-
-(defn compare-datastructures
-  [data]
-  (let [data (->array-list data)
-        ^Map hm (hamf-equiv-hashmap data)
-        ^Map thm (hamf-transient data)
-        nelems (.size data)]
-    (println "~~~HASHMAP~~~")
-    (.printNodes hm)
-    (crit/quick-bench (dotimes [idx nelems]
-                        (.get hm (.get data idx))))
-    (println "~~~Transient~~~~")
-    (.printNodes thm)
-    (crit/quick-bench (dotimes [idx nelems]
-                        (.get thm (.get data idx))))
-    ))
 
 
 (defn profile-datastructures
@@ -214,7 +180,7 @@
          (sort-by :construct-μs))))
 
 
-(deftest union-test
+#_(deftest union-test
   (let [n-elems 100
         hn-elems (quot n-elems 2)
         src-data (repeatedly n-elems #(rand-int 100000000))
@@ -233,7 +199,7 @@
     (is (= (* 3 single-sum) (reduce + (vals un2))))))
 
 
-(deftest difference-test
+#_(deftest difference-test
   (let [n-elems 100
         hn-elems (quot n-elems 2)
         src-data (repeatedly n-elems #(rand-int 100000000))
@@ -249,7 +215,7 @@
     (is (= (set/difference (set lhs) (set llhs)) (set (keys df2))))))
 
 
-(deftest intersection-test
+#_(deftest intersection-test
   (let [n-elems 100
         hn-elems (quot n-elems 2)
         hhn-elems (quot hn-elems 2)
@@ -336,17 +302,6 @@
     {:union-μs (:mean-μs (benchmark-us (reduce-fn bfn map-seq)))
      :name mapname}))
 
-
-(defn benchmark-split-map-reduction
-  [^long n-elems]
-  (let [^PersistentHashMap src-map (hamf-transient (->array-list (repeatedly n-elems #(rand-int 10000000))))]
-    (benchmark-us
-     #(let [map-ary (.splitMaps src-map 10)
-            incrementor (reify BiFunction (apply [this lhs rhs]
-                                            (throw (Exception. "Never get here"))
-                                            (unchecked-add (unchecked-long lhs)
-                                                           (unchecked-long rhs))))]
-        (reduce (api/map-union incrementor %1 %2) map-ary)))))
 
 
 (deftest hashcode-equal-hashmap

@@ -4,6 +4,7 @@ package ham_fisted;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.BiFunction;
+import clojure.lang.IFn;
 
 
 public class NonEditableArrayMapBase<K,V> extends ArrayMapBase<K,V> {
@@ -25,6 +26,20 @@ public class NonEditableArrayMapBase<K,V> extends ArrayMapBase<K,V> {
   }
   public V computeIfAbsent(K key, Function<? super K,? extends V> mappingFunction) {
     throw new RuntimeException("Unimplemented");
+  }
+  @Override
+  MapBase<K,V> mutAssoc(K k, V v) {
+    MapData md = ht.mutAssoc(k,v);
+    if(md instanceof ArrayMap)
+      return this;
+    return new ImmutHashTable<K,V>((HashTable)md);
+  }
+  @Override
+  MapBase<K,V> mutUpdateValue(K k, IFn fn) {
+    MapData md = ht.mutUpdateValue(k,fn);
+    if(md instanceof ArrayMap)
+      return this;
+    return new ImmutHashTable<K,V>((HashTable)md);
   }
   public V computeIfPresent(K key, BiFunction<? super K,? super V,? extends V> remappingFunction) {
     throw new RuntimeException("Unimplemented");

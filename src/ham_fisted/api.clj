@@ -159,7 +159,7 @@ This is currently the default hash provider for the library."}
 
 
 (def ^{:tag PersistentArrayMap
-       :doc "Constant persistent empty map"} empty-map (MutArrayMap. default-hash-provider))
+       :doc "Constant persistent empty map"} empty-map (.persistent (MutArrayMap. default-hash-provider)))
 (def ^{:tag PersistentHashSet
        :doc "Constant persistent empty set"} empty-set (PersistentHashSet. (options->provider nil)))
 (def ^{:tag ArrayImmutList
@@ -609,8 +609,8 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
 (defn mut-hashtable-map
   "Create a mutable implementation of java.util.Map.  This object efficiently implements
   ITransient map so you can use assoc! and persistent! on it but you can additionally use
-  operations such as put!, remove!, compute-at! and compute-if-absent!.  You can create
-  a persistent hashmap via the clojure `persistent!` call.
+  the various members of the java.util.Map interface such as put, compute, computeIfAbsent,
+  replaceAll and merge.
 
   If data is an object array it is treated as a flat key-value list which is distinctly
   different than how conj! treats object arrays.  You have been warned.

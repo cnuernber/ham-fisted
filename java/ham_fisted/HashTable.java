@@ -59,6 +59,8 @@ public final class HashTable implements TrieBase, MapData {
   }
   public HashTable clone() {
     HashTable rv = shallowClone();
+    //Length is updated during clone.
+    rv.length = 0;
     final int dl = rv.data.length;
     final LeafNode[] d = rv.data;
     for (int idx = 0; idx < dl; ++idx) {
