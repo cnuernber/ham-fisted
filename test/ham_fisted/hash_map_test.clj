@@ -3,9 +3,7 @@
             [clojure.set :as set]
             [ham-fisted.api :as api]
             [criterium.core :as crit])
-  (:import [ham_fisted HashMap PersistentHashMap BitmapTrie TransientHashMap
-            BitmapTrieCommon]
-           [java.util ArrayList Collections Map Collection]
+  (:import [java.util ArrayList Collections Map Collection]
            [java.util.function BiFunction BiConsumer]
            [java.util.concurrent ForkJoinPool Future Callable]))
 
@@ -13,7 +11,7 @@
 
 
 (deftest simple-assoc
-  (let [orig PersistentHashMap/EMPTY]
+  (let [orig api/empty-map]
     (is (= 0 (count orig)))
     (is (= {:a :b} (assoc orig :a :b)))
     (is (= 1 (count (assoc orig :a :b))))
@@ -58,34 +56,8 @@
         (is (= n-elems (count alldata)))
         (is (= dissoc-data (set (keys disdata))))
         (is (= data (set (keys alldata))))))
-    (testing "transient1"
-      (let [alldata (-> (reduce #(assoc! %1 %2 %2)
-                                (TransientHashMap.)
-                                data)
-                        (persistent!))
-            disdata (-> (reduce #(dissoc! %1 %2)
-                                (transient alldata)
-                                dissoc-vals)
-                        (persistent!))]
-        (is (= n-left (count disdata)))
-        (is (= n-elems (count alldata)))
-        (is (= dissoc-data (set (keys disdata))))
-        (is (= data (set (keys alldata))))))
-    (testing "transient"
-      (let [alldata (-> (reduce #(assoc! %1 %2 %2)
-                                (transient orig)
-                                data)
-                        (persistent!))
-            disdata (-> (reduce #(dissoc! %1 %2)
-                                (transient alldata)
-                                dissoc-vals)
-                        (persistent!))]
-        (is (= n-left (count disdata)))
-        (is (= n-elems (count alldata)))
-        (is (= dissoc-data (set (keys disdata))))
-        (is (= data (set (keys alldata))))))
     (testing "mutable"
-      (let [alldata (HashMap.)
+      (let [alldata (api/mut-map)
             _ (doseq [item data]
                 (.put alldata item item))
             disdata (.clone alldata)
@@ -163,8 +135,7 @@
 
 (defn java-hashmap
   [^ArrayList data]
-  (let [hm (java.util.HashMap.)
-        nelems (.size data)]
+  (let [hm (java.util.HashMap. (.size data))]
     (dotimes [idx nelems]
       (.put hm (.get data idx) idx))
     hm))
@@ -172,8 +143,7 @@
 
 (defn hamf-hashmap
   [^ArrayList data]
-  (let [hm (HashMap.)
-        nelems (.size data)]
+  (let [hm (api/mut-map (.size data))]
     (dotimes [idx nelems]
       (.put hm (.get data idx) idx))
     hm))

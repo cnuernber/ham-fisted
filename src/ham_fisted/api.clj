@@ -40,7 +40,7 @@
             [ham-fisted.protocols :as protocols])
   (:import [ham_fisted MutArrayMap MutHashTable MutBitmapTrie HashSet PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
-            BitmapTrieCommon$Box PersistentArrayMap ObjArray ImmutValues
+            BitmapTrieCommon$Box PersistentArrayMap ObjArray ImmutValues UpdateValues
             MutList ImmutList StringCollection ArrayImmutList ArrayLists
             ImmutSort IMutList Ranges$LongRange ArrayHelpers
             Ranges$DoubleRange IFnDef Transformables$MapIterable
@@ -159,7 +159,7 @@ This is currently the default hash provider for the library."}
 
 
 (def ^{:tag PersistentArrayMap
-       :doc "Constant persistent empty map"} empty-map PersistentArrayMap/EMPTY)
+       :doc "Constant persistent empty map"} empty-map (MutArrayMap. default-hash-provider))
 (def ^{:tag PersistentHashSet
        :doc "Constant persistent empty set"} empty-set (PersistentHashSet. (options->provider nil)))
 (def ^{:tag ArrayImmutList
@@ -457,7 +457,7 @@ ham-fisted.api> (reduce-reducer (reducer-xform->reducer (Sum.) (clojure.core/fil
   "Given a reducer, return a transduce-compatible rf -
 
 ```clojure
-ham-fisted.api> (transduce (clojure.core/map #(+ % 2)) (reducer->rfn (Sum.)) (range 200))
+ham-fisted.api> (transduce (clojure.core/map #(+ % 2)) (reducer->rf (Sum.)) (range 200))
 {:sum 20300.0, :n-elems 200}
 ```"
   [reducer]
@@ -623,8 +623,12 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
   (^MutHashTable [data] (mut-hashtable-map nil nil data))
   (^MutHashTable [xform data] (mut-hashtable-map xform nil data))
   (^MutHashTable [xform options data]
-   (if (and (nil? xform) (instance? obj-ary-cls data))
+   (cond
+     (number? data)
+     (MutHashTable. (options->provider options) nil (int data))
+     (and (nil? xform) (instance? obj-ary-cls data))
      (MutHashTable/create (options->provider options) true ^objects data)
+     :else
      (tduce xform
             (mut-map-rf #(MutHashTable. (options->provider nil)
                                         nil
@@ -649,8 +653,12 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
   (^MutBitmapTrie [data] (mut-trie-map nil nil data))
   (^MutBitmapTrie [xform data] (mut-trie-map xform nil data))
   (^MutBitmapTrie [xform options data]
-   (if (and (nil? xform) (instance? obj-ary-cls data))
+   (cond
+     (number? data)
+     (MutBitmapTrie. (options->provider nil))
+     (and (nil? xform) (instance? obj-ary-cls data))
      (MutBitmapTrie/create (options->provider options) true ^objects data)
+     :else
      (tduce xform
             (mut-map-rf #(MutBitmapTrie. (options->provider nil)))
             data))))
@@ -777,9 +785,11 @@ ham_fisted.PersistentHashMap
   (^java.util.HashMap [data] (java-hashmap nil nil data))
   (^java.util.HashMap [xform data] (java-hashmap xform nil data))
   (^java.util.HashMap [xform options data]
-   (tduce xform
-          (mut-map-rf #(java.util.HashMap. (long (get options :init-size 0))))
-          data)))
+   (if (number? data)
+     (java.util.HashMap. (int data))
+     (tduce xform
+            (mut-map-rf #(java.util.HashMap. (long (get options :init-size 0))))
+            data))))
 
 
 (defn java-linked-hashmap
@@ -789,6 +799,7 @@ ham_fisted.PersistentHashMap
   (^java.util.LinkedHashMap [data]
    (cond
      (instance? java.util.LinkedHashMap data) data
+     (number? data) (java.util.LinkedHashMap. (int data))
      (instance? Map data)
      (java.util.LinkedHashMap. ^Map data)
      :else
@@ -802,6 +813,7 @@ ham_fisted.PersistentHashMap
   (^ConcurrentHashMap [data]
    (cond
      (instance? ConcurrentHashMap data) data
+     (number? data) (ConcurrentHashMap. (int data))
      (instance? Map data)
      (ConcurrentHashMap. ^Map data)
      :else
@@ -1285,14 +1297,17 @@ ham_fisted.PersistentHashMap
 
 
 (defn update-values
-  "Immutably update all values in the map returning a new map.  bfn takes 2 arguments,
-  k,v and returns a new v. Returns new persistent map.
+  "Immutably (or mutablye) update all values in the map returning a new map.
+  bfn takes 2 arguments, k,v and returns a new v. Returns a new persistent map if input
+  is persistent else an updated mutable map.
   If passed a vector, k is the index and v is the value.  Will return a new vector.
   else map is assumed to be convertible to a sequence and this pathway works the same
   as map-indexed."
   [map bfn]
   (let [bfn (->bi-function bfn)]
     (cond
+      (instance? UpdateValues map)
+      (.updateValues ^UpdateValues map bfn)
       (immut-vals? map)
       (.immutUpdateValues (as-immut-vals map) bfn)
       (instance? IPersistentMap map)
@@ -1306,11 +1321,7 @@ ham_fisted.PersistentHashMap
         (.replaceAll ^Map map bfn)
         map)
       (instance? RandomAccess map)
-      (let [^List map map
-            retval (MutList.)]
-        (dotimes [idx (.size map)]
-          (.add retval (.apply bfn idx (.get map idx))))
-        (persistent! retval))
+      (mut-list (lznc/map-indexed #(.apply bfn %1 %2) map))
       :else
       (map-indexed #(.apply bfn %1 %2) map))))
 
@@ -1329,12 +1340,12 @@ ham_fisted.PersistentHashMap
   ```"
   [map-fn src-map]
   (-> (reduce (fn [^Map m entry]
-                     (let [^Indexed result (map-fn entry)]
-                       (when result
-                         (.put m (.nth result 0) (.nth result 1)))
-                       m))
-                   (mut-map)
-                   src-map)
+                (let [^Indexed result (map-fn entry)]
+                  (when result
+                    (.put m (.nth result 0) (.nth result 1)))
+                  m))
+              (mut-map nil {:init-size (or (constant-count src-map) 16)} nil)
+              src-map)
       (persistent!)))
 
 

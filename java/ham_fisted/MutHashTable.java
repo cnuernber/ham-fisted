@@ -33,11 +33,13 @@ public class MutHashTable<K,V>
   }
   @SuppressWarnings("unchecked")
   public MutHashTable<K,V> assoc(Object key, Object val) {
-    return (MutHashTable<K,V>)mutAssoc((K)key,(V)val);
+    put(key,val);
+    return this;
   }
   @SuppressWarnings("unchecked")
   public MutHashTable<K,V> without(Object key) {
-    return (MutHashTable<K,V>)mutDissoc((K)key);
+    remove(key);
+    return this;
   }
   public MutHashTable<K,V> withMeta(IPersistentMap m) {
     return new MutHashTable<K,V>((HashTable)ht.withMeta(m));

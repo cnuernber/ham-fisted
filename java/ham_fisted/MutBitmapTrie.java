@@ -32,11 +32,13 @@ public final class MutBitmapTrie<K,V>
   }
   @SuppressWarnings("unchecked")
   public MutBitmapTrie<K,V> assoc(Object key, Object val) {
-    return (MutBitmapTrie<K,V>)mutAssoc((K)key,(V)val);
+    put(key,val);
+    return this;
   }
   @SuppressWarnings("unchecked")
   public MutBitmapTrie<K,V> without(Object key) {
-    return (MutBitmapTrie<K,V>)mutDissoc((K)key);
+    remove(key);
+    return this;
   }
   public MutBitmapTrie<K,V> withMeta(IPersistentMap m) {
     return new MutBitmapTrie<K,V>((BitmapTrie)ht.withMeta(m));

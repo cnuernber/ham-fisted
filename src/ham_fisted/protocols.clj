@@ -91,6 +91,13 @@ two accumulators  and returns a or modified accumulator."))
   (->merge-fn [this] this))
 
 
+(extend-protocol ParallelReducer
+  Object
+  (->merge-fn [this]
+    (fn [_l _r] (throw (RuntimeException. (str "Object does not implement merge: "
+                                               (type this)))))))
+
+
 (def ^:no-doc double-consumer-accumulator
   (reify IFnDef$ODO
     (invokePrim [f acc v]
