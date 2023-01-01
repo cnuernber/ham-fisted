@@ -19,6 +19,9 @@ public class MutHashTable<K,V>
   public MutHashTable(HashProvider hp, int initSize) {
     super(new HashTable(hp, 0.75f, (int)(initSize / 0.75f), 0, null, null));
   }
+  public MutHashTable(HashProvider hp, IPersistentMap m, int initSize) {
+    super(new HashTable(hp, 0.75f, (int)(initSize / 0.75f), 0, null, m));
+  }
   public MutHashTable(HashTable ht) {
     super(ht);
   }
@@ -49,9 +52,7 @@ public class MutHashTable<K,V>
     mutUpdateValue((K)key,fn);
     return this;
   }
-  
   public IPersistentMap persistent()  {
     return new ImmutHashTable<K,V>((HashTable)ht);
   }
 }
-	  

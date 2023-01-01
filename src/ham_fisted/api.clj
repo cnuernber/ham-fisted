@@ -38,7 +38,7 @@
             [ham-fisted.alists :as alists]
             [ham-fisted.impl :as impl]
             [ham-fisted.protocols :as protocols])
-  (:import [ham_fisted HashMap PersistentHashMap HashSet PersistentHashSet
+  (:import [ham_fisted MutArrayMap MutHashTable MutBitmapTrie HashSet PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
             BitmapTrieCommon$Box PersistentArrayMap ObjArray ImmutValues
             MutList ImmutList StringCollection ArrayImmutList ArrayLists
@@ -206,9 +206,9 @@ This is currently the default hash provider for the library."}
    (when-not (== 0 (rem (count args) 2))
      (throw (Exception. "Assoc takes an odd number of arguments.")))
    (if (empty-map? m)
-     (let [m (HashMap. default-hash-provider
-                       ^IPersistentMap (meta m)
-                       (+ 4 (quot (count args) 2)))]
+     (let [m (MutHashTable. default-hash-provider
+                            ^IPersistentMap (meta m)
+                            (+ 4 (quot (count args) 2)))]
        (.put m a b)
        (.put m c d)
        (.put m e f)
@@ -611,12 +611,12 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
 
   * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
   the [[default-hash-provider]]."
-  (^HashMap [] (HashMap. (options->provider nil)))
-  (^HashMap [data] (mut-map nil data))
-  (^HashMap [options data]
+  (^MutHashTable [] (MutHashTable. (options->provider nil)))
+  (^MutHashTable [data] (mut-map nil data))
+  (^MutHashTable [options data]
    (if (instance? obj-ary-cls data)
-     (HashMap. (options->provider options) true ^objects data)
-     (reduce-put-map (HashMap. (options->provider options)) data))))
+     (MutHashTable. (options->provider options) true ^objects data)
+     (reduce-put-map (MutHashTable. (options->provider options)) data))))
 
 
 (defn mut-hashtable-map
@@ -643,7 +643,7 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
 
 (defn ^:no-doc immut-map-via-obj-ary
   [options data]
-  (PersistentHashMap/create (options->provider options) false (map-data->obj-ary data)))
+  (MutArrayMap/create (options->provider options) false (map-data->obj-ary data)))
 
 
 (defn constant-countable?

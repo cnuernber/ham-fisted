@@ -34,7 +34,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ExecutionException;
 
 
-class BitmapTrie implements IObj, TrieBase {
+class BitmapTrie implements IObj, TrieBase, MapData {
 
   interface BitmapTrieOwner {
     BitmapTrie bitmapTrie();
@@ -710,6 +710,8 @@ class BitmapTrie implements IObj, TrieBase {
     meta = other.meta;
   }
 
+  public HashProvider hashProvider() { return hp; }
+
   BitmapTrie shallowClone(IPersistentMap newMeta) {
     return new BitmapTrie(this, true);
   }
@@ -722,6 +724,9 @@ class BitmapTrie implements IObj, TrieBase {
     return new BitmapTrie(this);
   }
 
+  public boolean isEmpty() { return count == 0; }
+
+  public BitmapTrie clone() { return deepClone(); }
   public final void inc() { ++count; }
   public final void dec() { --count; }
   public final int hash(Object obj) { return hp.hash(obj); }
@@ -736,13 +741,13 @@ class BitmapTrie implements IObj, TrieBase {
   }
 
 
-  final LeafNode getNode(Object key) {
+  public final LeafNode getNode(Object key) {
     if(key == null)
       return nullEntry;
     return root.get(key, hp.hash(key), 0, hp);
   }
 
-  final LeafNode getOrCreate(Object key, int hash) {
+  public final LeafNode getOrCreate(Object key, int hash) {
     if (key == null) {
       if (nullEntry == null) {
 	nullEntry = new LeafNode(this, null, 0);
@@ -753,7 +758,7 @@ class BitmapTrie implements IObj, TrieBase {
     }
   }
 
-  final LeafNode getOrCreate(Object key) {
+  public LeafNode getOrCreate(Object key) {
     return getOrCreate(key, hp.hash(key));
   }
 
@@ -764,7 +769,7 @@ class BitmapTrie implements IObj, TrieBase {
     root.data = new INode[4];
   }
 
-  final LeafNodeIterator iterator(Function<ILeaf,Object> fn) {
+  public final LeafNodeIterator iterator(Function<ILeaf,Object> fn) {
     return new HTIterator(fn, nullEntry, root.iterator());
   }
 
@@ -822,7 +827,7 @@ class BitmapTrie implements IObj, TrieBase {
     }
   };
 
-  final Spliterator spliterator(Function<ILeaf,Object> fn) {
+  public final Spliterator spliterator(Function<ILeaf,Object> fn) {
     return new TrieSpliterator(this, fn);
   }
 
@@ -992,6 +997,14 @@ class BitmapTrie implements IObj, TrieBase {
     return Reductions.unreduce(root != null ? root.reduce(rfn, acc) : acc);
   }
 
+  public Object reduce(Function<ILeaf,Object> lfn, IFn rfn, Object acc) {
+    return reduceLeaves(new IFnDef() {
+	public Object invoke(Object acc, Object v) {
+	  return rfn.invoke(acc, lfn.apply((ILeaf)v));
+	}
+      }, acc);
+  }
+
   public Object reduceEntries(IFn rfn, Object acc) {
     return reduceLeaves(new IFnDef() {
 	public Object invoke(Object acc, Object v) {
@@ -1095,45 +1108,60 @@ class BitmapTrie implements IObj, TrieBase {
     serialTraversal(lf -> action.accept(lf.key(), lf.val()));
   }
 
+  public final void mutUpdateValues(BiFunction action) {
+    if (nullEntry != null) {
+      nullEntry = nullEntry.immutUpdate(this, action);
+    }
+    root = root.immutUpdate(this, action);
+  }
+
   final BitmapTrie immutUpdate(BiFunction action) {
     BitmapTrie retval = shallowClone();
-    if (nullEntry != null) {
-      retval.nullEntry = nullEntry.immutUpdate(retval, action);
-    }
-    retval.root = root.immutUpdate(retval, action);
+    retval.mutUpdateValues(action);
     return retval;
+  }
+  
+
+  @SuppressWarnings("unchecked")
+  public MapData mutUpdateValue(Object key, IFn action) {
+    if (key == null) {
+      if (nullEntry != null)
+	nullEntry = nullEntry.immutUpdate(this, key, 0, action);
+      else
+	nullEntry = new LeafNode(this, null, 0, action.invoke(null));
+    } else {
+      root = root.immutUpdate(this, key, hp.hash(key), action);
+    }
+    return this;
   }
 
   @SuppressWarnings("unchecked")
   final BitmapTrie immutUpdate(Object key, IFn action) {
     final BitmapTrie retval = shallowClone();
-    if (key == null) {
-      if (nullEntry != null)
-	retval.nullEntry = nullEntry.immutUpdate(retval, key, 0, action);
-      else
-	retval.nullEntry = new LeafNode(retval, null, 0, action.invoke(null));
-    } else {
-      retval.root = root.immutUpdate(retval, key, hp.hash(key), action);
-    }
+    retval.mutUpdateValue(key,action);
     return retval;
   }
 
-  final Object remove(Object key) {
+  public void remove(Object key, Box b) {
     if (key == null) {
       if (nullEntry != null) {
-	final Object retval = nullEntry.val();
+	if(b != null) b.obj = nullEntry.v;
 	nullEntry = null;
 	dec();
-	return retval;
       }
-      return null;
+    } else {
+      root.remove(key, hp.hash(key), b, false);
     }
+  }
+
+  final Object remove(Object key) {
     Box b = new Box();
-    root.remove(key, hp.hash(key), b, false);
+    remove(key, b);
     return b.obj;
   }
 
-  final BitmapTrie assoc(Object key, Object val) {
+
+  public MapData mutAssoc(Object key, Object val) {
     if (key == null) {
       if (nullEntry == null)
 	nullEntry = new LeafNode(this, key, 0, val);
@@ -1145,8 +1173,12 @@ class BitmapTrie implements IObj, TrieBase {
     return this;
   }
 
-  //Dissoc.  No check for null key identity - always returns this
-  final BitmapTrie dissoc(Object key) {
+  final BitmapTrie assoc(Object key, Object val) {
+    mutAssoc(key,val);
+    return this;
+  }
+
+  public void mutDissoc(Object key) {
     if(key == null) {
       if(nullEntry != null) {
 	nullEntry = null;
@@ -1155,17 +1187,12 @@ class BitmapTrie implements IObj, TrieBase {
     } else {
       root = (BitmapNode)root.dissoc(this,key,hp.hash(key),false);
     }
+  }
+
+  //Dissoc.  No check for null key identity - always returns this
+  final BitmapTrie dissoc(Object key) {
+    mutDissoc(key);
     return this;
-  }
-
-  final Object getOrDefault(Object key, Object defaultValue) {
-    LeafNode lf = getNode(key);
-    return lf == null ? defaultValue : lf.val();
-  }
-
-  final Object get(Object key) {
-    LeafNode lf = getNode(key);
-    return lf == null ? null : lf.val();
   }
 
   @SuppressWarnings("unchecked")

@@ -81,17 +81,15 @@ public class MapBase<K,V>
   }
   @SuppressWarnings("unchecked")
   public V get(Object k) {
-    LeafNode lf = ht.getNode(k);
-    return (V)(lf != null ? lf.v : null);
+    return (V)ht.get(k);
   }
   @SuppressWarnings("unchecked")
   public V getOrDefault(Object k, V v) {
-    LeafNode lf = ht.getNode(k);
-    return (V)(lf != null ? lf.v : v);
+    return (V)ht.getOrDefault(k,v);
   }
   @SuppressWarnings("unchecked")
   public V put(K key, V value) {
-    return (V)ht.getOrCreate(key).val(value);
+    return (V)ht.put(key,value);
   }
   @SuppressWarnings("unchecked")
   public void putAll(Map<? extends K,? extends V> m) {
@@ -135,21 +133,22 @@ public class MapBase<K,V>
       IPersistentVector v = (IPersistentVector)val;
       if (v.count() != 2)
 	throw new RuntimeException("Vector length != 2 during conj");
-      mutAssoc((K)v.nth(0), (V)v.nth(1));
+      return mutAssoc((K)v.nth(0), (V)v.nth(1));
     } else if (val instanceof Map.Entry) {
       Map.Entry e = (Map.Entry)val;
-      mutAssoc((K)e.getKey(), (V)e.getValue());
+      reutrn mutAssoc((K)e.getKey(), (V)e.getValue());
     } else {
       Iterator iter = ((Iterable)val).iterator();
+      MapBase<K,V> rv = this;
       while(iter.hasNext()) {
 	Map.Entry e = (Map.Entry)iter.next();
-	mutAssoc((K)e.getKey(), (V)e.getValue());
+	rv = rv.mutAssoc((K)e.getKey(), (V)e.getValue());
       }
+      return rv;
     }
-    return this;
   }
   @SuppressWarnings("unchecked")
-  final V applyMapping(K key, LeafNode node, Object val) {
+  final V applyMapping(K key, ILeaf node, Object val) {
     if(val == null)
       ht.remove(key, new Box());
     else
@@ -167,7 +166,7 @@ public class MapBase<K,V>
   @SuppressWarnings("unchecked")
   public V computeIfAbsent(K key, Function<? super K,? extends V> mappingFunction) {
     int startc = ht.size();
-    LeafNode node = ht.getOrCreate(key);
+    ILeaf node = ht.getOrCreate(key);
     try {
       return applyMapping(key, node, node.val() == null ? mappingFunction.apply(key) : (V)node.val());
     } catch(Exception e) {
@@ -177,7 +176,7 @@ public class MapBase<K,V>
     }
   }
   public V computeIfPresent(K key, BiFunction<? super K,? super V,? extends V> remappingFunction) {
-    LeafNode node = ht.getNode(key);
+    ILeaf node = ht.getNode(key);
     if (node == null || node.val() == null)
       return null;
     @SuppressWarnings("unchecked") V valval = (V)node.val();
@@ -210,7 +209,7 @@ public class MapBase<K,V>
       }, function);
   }
 
-  public boolean containsKey(Object key) { return ht.getNode(key) != null; }
+  public boolean containsKey(Object key) { return ht.containsKey(key); }
   public boolean containsValue(Object value) {
     return (Boolean)ht.reduce(valIterFn, new IFnDef() {
 	public Object invoke(Object acc, Object v) {
@@ -252,7 +251,7 @@ public class MapBase<K,V>
 	return false;
       @SuppressWarnings("unchecked") Map.Entry e = (Map.Entry)o;
       Object key = e.getKey();
-      LeafNode candidate = ht.getNode(key);
+      ILeaf candidate = ht.getNode(key);
       return candidate != null &&
 	Objects.equals(candidate.key(), key) &&
 	Objects.equals(candidate.val(), e.getValue());

@@ -41,14 +41,14 @@ import java.util.concurrent.atomic.AtomicReference;
 
 
 public class PersistentArrayMap
-  implements IPersistentMap, Map, IObj, IEditableCollection, MapSet, BitmapTrieOwner,
+  implements IPersistentMap, Map, IObj, IEditableCollection,
 	     IMapIterable, IKVReduce, IHashEq, ImmutValues, MapEquivalence, IFnDef,
 	     IReduceInit, IReduce {
   final HashProvider hp;
   final Object[] kvs;
   final int nElems;
   final IPersistentMap meta;
-  HashMap<Object,Object> cachedTrie = null;
+  MutHashTable<Object,Object> cachedMap = null;
   public static final int MAX_SIZE = 8;
 
   public static final PersistentArrayMap EMPTY = new PersistentArrayMap(defaultHashProvider);
@@ -198,12 +198,15 @@ public class PersistentArrayMap
   final int indexOf(Object key) {
     return indexOf(hp, nElems, kvs, key);
   }
-  static final HashMap<Object,Object> copyToTrie(HashProvider hp, int ne, Object[] kvs,
-						 IPersistentMap meta, int newNe) {
-    HashMap<Object,Object> retval = new HashMap<Object,Object>(hp, meta, newNe);
-    retval.putAll(kvs);
+  static final MutHashTable<Object,Object> copyToMap(HashProvider hp, int ne, Object[] kvs,
+						     IPersistentMap meta, int newNe) {
+    MutHashTable<Object,Object> retval = new MutHashTable<Object,Object>(hp, newNe, meta);
+    final int l = kvs.length;
+    for(int idx = 0; idx < l; ++idx)
+      retval.put(kvs[idx*2], kvs[(idx*2) + 1]);
     return retval;
   }
+  
   public final IPersistentMap assoc(Object k, Object v) {
     final int ne = nElems;
     if (ne == 0)
@@ -214,7 +217,7 @@ public class PersistentArrayMap
     final int idx = indexOf(hp, ne, data, k);
     if (idx == -1) {
       if (ne == MAX_SIZE) {
-	final HashMap<Object,Object> retval = copyToTrie(hp, ne, data, meta, ne+1);
+	final MutHashTable<Object,Object> retval = copyToMap(hp, ne, data, meta, ne+1);
 	retval.put(k,v);
 	return retval.persistent();
       } else {
@@ -338,7 +341,7 @@ public class PersistentArrayMap
       return assoc(v.nth(0), v.nth(1));
     }
 
-    HashMap<Object,Object> retval = copyToTrie(hp, nElems, kvs, meta, nElems);
+    MutHashTable<Object,Object> retval = copyToMap(hp, nElems, kvs, meta, nElems);
     for(ISeq es = RT.seq(o); es != null; es = es.next()) {
       Map.Entry e = (Map.Entry) es.first();
       retval.put(e.getKey(), e.getValue());
@@ -392,7 +395,7 @@ public class PersistentArrayMap
   }
 
   public final ITransientCollection asTransient() {
-    return copyToTrie(hp, nElems, kvs, meta, nElems);
+    return copyToMap(hp, nElems, kvs, meta, nElems);
   }
 
   public final ISeq seq() { return IteratorSeq.create(iterator()); }
@@ -562,29 +565,16 @@ public class PersistentArrayMap
     };
   }
 
-  final HashMap<Object,Object> cachedMap() {
-    if (cachedTrie == null) {
+  final MutHashTable<Object,Object> cachedMap() {
+    if (cachedMap == null) {
       synchronized(this) {
-	if ( cachedTrie == null)
-	  cachedTrie = copyToTrie(hp, nElems, kvs, meta, nElems);
+	if ( cachedMap == null)
+	  cachedMap = copyToMap(hp, nElems, kvs, meta, nElems);
       }
     }
-    return cachedTrie;
+    return cachedMap;
   }
 
-  public final BitmapTrie bitmapTrie() {
-    return cachedMap().bitmapTrie();
-  }
-
-  public MapSet intersection(MapSet rhs, BiFunction valueMap) {
-    return cachedMap().intersection(rhs, valueMap);
-  }
-  public MapSet union(MapSet rhs, BiFunction valueMap) {
-    return cachedMap().union(rhs, valueMap);
-  }
-  public MapSet difference(MapSet rhs) {
-    return cachedMap().difference(rhs);
-  }
   @SuppressWarnings("unchecked")
   public ImmutValues immutUpdateValues(BiFunction valueMap) {
     final Object[] mdata = kvs;

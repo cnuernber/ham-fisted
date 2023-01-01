@@ -210,7 +210,7 @@ public final class HashTable implements TrieBase, MapData {
     length = 0;
     Arrays.fill(data, null);
   }
-  public void mutAssoc(Object k, Object v) {
+  public HashTable mutAssoc(Object k, Object v) {
     final int hc = hp.hash(k);
     final int idx = hc & this.mask;
     LeafNode e = this.data[idx];
@@ -220,6 +220,7 @@ public final class HashTable implements TrieBase, MapData {
       this.data[idx] = new LeafNode(this, k, hc, v, null);
     }
     checkResize(null);
+    return this;
   }
   public void mutDissoc(Object k) {
     final int hc = hp.hash(k);
@@ -248,7 +249,7 @@ public final class HashTable implements TrieBase, MapData {
       d[idx] = e.immutUpdate(this, bfn);
     }
   }
-  public void mutUpdateValue(Object key, IFn fn) {
+  public HashTable mutUpdateValue(Object key, IFn fn) {
     final int hc = hp.hash(key);
     final int idx = hc & this.mask;
     LeafNode e = this.data[idx];
@@ -258,6 +259,7 @@ public final class HashTable implements TrieBase, MapData {
       this.data[idx] = new LeafNode(this, key, hc, fn.invoke(null));
     }
     checkResize(null);
+    return this;
   }
 
   static class HTIter implements Iterator {
