@@ -200,13 +200,13 @@ public class PersistentArrayMap
   }
   static final MutHashTable<Object,Object> copyToMap(HashProvider hp, int ne, Object[] kvs,
 						     IPersistentMap meta, int newNe) {
-    MutHashTable<Object,Object> retval = new MutHashTable<Object,Object>(hp, newNe, meta);
+    MutHashTable<Object,Object> retval = new MutHashTable<Object,Object>(hp, meta, newNe);
     final int l = kvs.length;
     for(int idx = 0; idx < l; ++idx)
       retval.put(kvs[idx*2], kvs[(idx*2) + 1]);
     return retval;
   }
-  
+
   public final IPersistentMap assoc(Object k, Object v) {
     final int ne = nElems;
     if (ne == 0)

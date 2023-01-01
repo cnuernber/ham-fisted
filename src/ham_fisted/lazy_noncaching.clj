@@ -128,28 +128,28 @@
    (fn [rf]
      (let [rf (Transformables/typedMapReducer rf f)]
        (cond
-         (instance? rf IFn$OLO)
+         (instance? IFn$OLO rf)
          (reify IFnDef$OLO
            (invoke [this] (rf))
            (invoke [this result] (rf result))
+           (invokePrim [this acc v] (.invokePrim ^IFn$OLO rf acc v))
            (applyTo [this args]
-             (rf (first args) (apply f (rest args))))
-           (invokePrim [this acc v] (.invokePrim ^IFn$OLO rf acc v)))
-         (instance? rf IFn$ODO)
+             (rf (first args) (apply f (rest args)))))
+         (instance? IFn$ODO rf)
          (reify IFnDef$ODO
            (invoke [this] (rf))
            (invoke [this result] (rf result))
+           (invokePrim [this acc v] (.invokePrim ^IFn$ODO rf acc v))
            (applyTo [this args]
-             (rf (first args) (apply f (rest args))))
-           (invokePrim [this acc v] (.invokePrim ^IFn$ODO rf acc v)))
+             (rf (first args) (apply f (rest args)))))
          :else
          (fn
            ([] (rf))
            ([result] (rf result))
            ([result input]
-            (rf result (f input)))
+            (rf result input))
            ([result input & inputs]
-            (rf result (apply f input inputs))))))))
+            (apply rf result input inputs)))))))
   ([f arg]
    (cond
      (nil? arg) PersistentList/EMPTY

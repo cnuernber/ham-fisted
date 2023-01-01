@@ -136,7 +136,7 @@ public class MapBase<K,V>
       return mutAssoc((K)v.nth(0), (V)v.nth(1));
     } else if (val instanceof Map.Entry) {
       Map.Entry e = (Map.Entry)val;
-      reutrn mutAssoc((K)e.getKey(), (V)e.getValue());
+      return mutAssoc((K)e.getKey(), (V)e.getValue());
     } else {
       Iterator iter = ((Iterable)val).iterator();
       MapBase<K,V> rv = this;

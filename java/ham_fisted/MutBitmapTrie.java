@@ -16,7 +16,7 @@ import static ham_fisted.BitmapTrieCommon.*;
 public final class MutBitmapTrie<K,V>
   extends MapBase<K,V>
   implements ITransientMap, ITransientAssociative2, IObj,
-	     UpdateValues
+	     UpdateValues, MutableMap
 {
   public MutBitmapTrie(HashProvider hp) {
     super(new BitmapTrie(hp));
@@ -53,5 +53,27 @@ public final class MutBitmapTrie<K,V>
   }
   public IPersistentMap persistent() {
     return new ImmutBitmapTrie<K,V>((BitmapTrie)ht);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static MutBitmapTrie create(HashProvider hp, boolean byAssoc, Object[] data) {
+    int nk = data.length/2;
+    if((data.length % 2) != 0)
+      throw new RuntimeException("Uneven number of keys-vals: " + data.length);
+    MutBitmapTrie rv = new MutBitmapTrie(hp);
+    if(!byAssoc) {
+      for(int idx = 0; idx < nk; ++idx) {
+	final int kidx = idx*2;
+	rv.put(data[kidx], data[kidx+1]);
+	if(rv.size() != idx-1)
+	  throw new RuntimeException("Duplicate key detected: " + data[kidx]);
+      }
+    } else {
+      for(int idx = 0; idx < nk; ++idx) {
+	final int kidx = idx*2;
+	rv.put(data[kidx], data[kidx+1]);
+      }
+    }
+    return rv;
   }
 }

@@ -15,11 +15,6 @@ public class ArrayMapBase<K,V> extends MapBase<K,V> {
     return new MutHashTable<K,V>((HashTable)md);
   }
   @Override
-  MapBase<K,V> mutDissoc(K k) {
-    ht.mutDissoc(k);
-    return this;
-  }
-  @Override
   MapBase<K,V> mutUpdateValue(K k, IFn fn) {
     MapData md = ht.mutUpdateValue(k,fn);
     if(md instanceof ArrayMap)

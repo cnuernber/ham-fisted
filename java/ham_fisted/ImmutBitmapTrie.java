@@ -45,9 +45,9 @@ public class ImmutBitmapTrie<K,V>
   }
   public ITransientCollection asTransient() {
     if(isEmpty())
-      return new MutBitmapTrie<K,V>((BitmapTrie)ht);
+      return new MutBitmapTrie<K,V>((BitmapTrie)ht.shallowClone());
     else
-      return new TransientBitmapTrie<K,V>((BitmapTrie)ht);
+      return new TransientBitmapTrie<K,V>((BitmapTrie)ht.shallowClone());
   }
   @SuppressWarnings("unchecked")
   public ImmutBitmapTrie<K,V> immutUpdateValues(BiFunction valueMap) {

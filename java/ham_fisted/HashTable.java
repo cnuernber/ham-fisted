@@ -214,11 +214,9 @@ public final class HashTable implements TrieBase, MapData {
     final int hc = hp.hash(k);
     final int idx = hc & this.mask;
     LeafNode e = this.data[idx];
-    if(e != null) {
-      e.assoc(this, k, hc, v);
-    } else {
-      this.data[idx] = new LeafNode(this, k, hc, v, null);
-    }
+    this.data[idx] = e != null ?
+      e.assoc(this, k, hc, v) :
+      new LeafNode(this, k, hc, v, null);
     checkResize(null);
     return this;
   }
@@ -253,11 +251,9 @@ public final class HashTable implements TrieBase, MapData {
     final int hc = hp.hash(key);
     final int idx = hc & this.mask;
     LeafNode e = this.data[idx];
-    if(e != null) {
-      this.data[idx] = e.immutUpdate(this, key, hc, fn);
-    } else {
-      this.data[idx] = new LeafNode(this, key, hc, fn.invoke(null));
-    }
+    this.data[idx] = e != null ?
+      e.immutUpdate(this, key, hc, fn) :
+      new LeafNode(this, key, hc, fn.invoke(null));
     checkResize(null);
     return this;
   }

@@ -12,7 +12,7 @@ import static ham_fisted.BitmapTrieCommon.*;
 public class MutHashTable<K,V>
   extends MapBase<K,V>
   implements ITransientMap, ITransientAssociative2, IObj,
-	     UpdateValues {
+	     UpdateValues, MutableMap {
   public MutHashTable(HashProvider hp) {
     super(new HashTable(hp, 0.75f, 0, 0, null, null));
   }
@@ -54,5 +54,27 @@ public class MutHashTable<K,V>
   }
   public IPersistentMap persistent()  {
     return new ImmutHashTable<K,V>((HashTable)ht);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static MutHashTable create(HashProvider hp, boolean byAssoc, Object[] data) {
+    int nk = data.length/2;
+    if((data.length % 2) != 0)
+      throw new RuntimeException("Uneven number of keys-vals: " + data.length);
+    MutHashTable rv = new MutHashTable(hp, null, nk);
+    if(!byAssoc) {
+      for(int idx = 0; idx < nk; ++idx) {
+	final int kidx = idx*2;
+	rv.put(data[kidx], data[kidx+1]);
+	if(rv.size() != idx-1)
+	  throw new RuntimeException("Duplicate key detected: " + data[kidx]);
+      }
+    } else {
+      for(int idx = 0; idx < nk; ++idx) {
+	final int kidx = idx*2;
+	rv.put(data[kidx], data[kidx+1]);
+      }
+    }
+    return rv;
   }
 }

@@ -44,9 +44,9 @@ public class ImmutHashTable<K,V>
   }
   public ITransientCollection asTransient() {
     if(isEmpty())
-      return new MutHashTable<K,V>((HashTable)ht);
+      return new MutHashTable<K,V>((HashTable)ht.shallowClone());
     else
-      return new TransientHashTable<K,V>((HashTable)ht);
+      return new TransientHashTable<K,V>((HashTable)ht.shallowClone());
   }
   @SuppressWarnings("unchecked")
   public ImmutHashTable<K,V> immutUpdateValues(BiFunction valueMap) {

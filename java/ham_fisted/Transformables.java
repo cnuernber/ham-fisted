@@ -167,6 +167,9 @@ public class Transformables {
 	public Object invoke(Object lhs, Object rhs) {
 	  return rr.invokePrim(lhs, mfn.invokePrim(rhs));
 	}
+	public Object applyTo(ISeq arglist) {
+	  return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
+	}
       };
     } else if (mapFn instanceof IFn.DD) {
       final IFn.DD mfn = (IFn.DD)mapFn;
@@ -176,6 +179,9 @@ public class Transformables {
 	public Object invokePrim(Object lhs, double rhs) {
 	  return rr.invokePrim(lhs, mfn.invokePrim(rhs));
 	}
+	public Object applyTo(ISeq arglist) {
+	  return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
+	}
       };
     } else {
       final IFn.LD mfn = (IFn.LD)mapFn;
@@ -184,6 +190,9 @@ public class Transformables {
 	public Object invoke(Object res) { return rfn.invoke(res); }
 	public Object invokePrim(Object lhs, long v) {
 	  return rr.invokePrim(lhs, mfn.invokePrim(v));
+	}
+	public Object applyTo(ISeq arglist) {
+	  return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
 	}
       };
     }
@@ -198,6 +207,9 @@ public class Transformables {
 	public Object invoke(Object lhs, Object v) {
 	  return rr.invokePrim(lhs, mfn.invokePrim(v));
 	}
+	public Object applyTo(ISeq arglist) {
+	  return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
+	}
       };
     } else if (mapFn instanceof IFn.LL) {
       final IFn.LL mfn = (IFn.LL)mapFn;
@@ -207,6 +219,9 @@ public class Transformables {
 	public Object invokePrim(Object lhs, long v) {
 	  return rr.invokePrim(lhs, mfn.invokePrim(v));
 	}
+	public Object applyTo(ISeq arglist) {
+	  return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
+	}
       };
     } else {
       final IFn.DL mfn = (IFn.DL)mapFn;
@@ -215,6 +230,9 @@ public class Transformables {
 	public Object invoke(Object res) { return rfn.invoke(res); }
 	public Object invokePrim(Object lhs, double v) {
 	  return rr.invokePrim(lhs, mfn.invokePrim(v));
+	}
+	public Object applyTo(ISeq arglist) {
+	  return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
 	}
       };
     }
