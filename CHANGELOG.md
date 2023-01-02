@@ -1,3 +1,7 @@
+# 1.000-beta-73
+ * memoize now supports `:eviction-fn` - for callbacks when things get evicted.
+ * More helpers for memoized fns - cache-as-map, evict-memoized-call.
+ 
 # 1.000-beta-72
  * Switch to caffeine for memoize cache and standard java library priority queue for take-min.
  This removed the dependency on google guava thus drastically cutting the chances for dependency
