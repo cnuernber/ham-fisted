@@ -57,6 +57,8 @@ public class ImmutHashTable<K,V>
     return (ImmutHashTable<K,V>)(shallowClone().mutUpdateValue((K)key, fn));
   }
   public ImmutHashTable<K,V> withMeta(IPersistentMap m) {
+    if(m == meta())
+      return this;
     return new ImmutHashTable<K,V>((HashTable)ht.withMeta(m));
   }
 }

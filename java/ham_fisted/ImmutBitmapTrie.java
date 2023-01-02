@@ -58,6 +58,8 @@ public class ImmutBitmapTrie<K,V>
     return (ImmutBitmapTrie<K,V>)(shallowClone().mutUpdateValue((K)key, fn));
   }
   public ImmutBitmapTrie<K,V> withMeta(IPersistentMap m) {
+    if(m == meta())
+      return this;
     return new ImmutBitmapTrie<K,V>((BitmapTrie)ht.withMeta(m));
   }
 }

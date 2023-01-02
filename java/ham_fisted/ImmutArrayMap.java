@@ -73,6 +73,8 @@ public class ImmutArrayMap<K,V>
     return (UpdateValues)(shallowClone().mutUpdateValue((K)key, fn));
   }
   public ImmutArrayMap<K,V> withMeta(IPersistentMap m) {
+    if(m == meta())
+      return this;
     return new ImmutArrayMap<K,V>((ArrayMap)ht.withMeta(m));
   }
 

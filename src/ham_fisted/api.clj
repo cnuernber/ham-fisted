@@ -40,7 +40,7 @@
             [ham-fisted.protocols :as protocols])
   (:import [ham_fisted MutArrayMap MutHashTable MutBitmapTrie HashSet PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
-            BitmapTrieCommon$Box PersistentArrayMap ObjArray ImmutValues UpdateValues
+            BitmapTrieCommon$Box ObjArray ImmutValues UpdateValues
             MutList ImmutList StringCollection ArrayImmutList ArrayLists
             ImmutSort IMutList Ranges$LongRange ArrayHelpers
             Ranges$DoubleRange IFnDef Transformables$MapIterable
@@ -56,7 +56,8 @@
             IFnDef$OLO IFnDef$OD IFnDef$OL IFnDef$LD IFnDef$DL IFnDef$OLOO IFnDef$OLDO
             IFnDef$OLLO IFnDef$LongPredicate IFnDef$DoublePredicate IFnDef$Predicate
             Consumers$IncConsumer Reductions$IndexedDoubleAccum Reductions$IndexedLongAccum
-            Reductions$IndexedAccum MutHashTable ImmutHashTable MutableMap]
+            Reductions$IndexedAccum MutHashTable ImmutHashTable MutableMap
+            ImmutArrayMap]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
@@ -158,7 +159,7 @@ This is currently the default hash provider for the library."}
   (get options :hash-provider default-hash-provider))
 
 
-(def ^{:tag PersistentArrayMap
+(def ^{:tag ImmutArrayMap
        :doc "Constant persistent empty map"} empty-map (.persistent (MutArrayMap. default-hash-provider)))
 (def ^{:tag PersistentHashSet
        :doc "Constant persistent empty set"} empty-set (PersistentHashSet. (options->provider nil)))
@@ -172,31 +173,36 @@ This is currently the default hash provider for the library."}
       (and (instance? Map m)
            (== 0 (.size ^Map m)))))
 
+
 (defn assoc
   "Drop in faster or equivalent replacement for clojure.core/assoc especially for
   small numbers of keyval pairs."
   ([m a b]
    (if (empty-map? m)
-     (PersistentArrayMap. default-hash-provider a b (meta m))
+     (with-meta (.persistent (MutArrayMap/createKV default-hash-provider a b))
+       (meta m))
      (.assoc ^Associative m a b)))
   ([m a b c d]
-   (if (and (empty-map? m) (PersistentArrayMap/different default-hash-provider a c))
-     (PersistentArrayMap. default-hash-provider a b c d (meta m))
-     (-> (assoc! (transient (or m PersistentArrayMap/EMPTY)) a b)
+   (if (empty-map? m)
+     (with-meta (.persistent (MutArrayMap/createKV default-hash-provider a b c d))
+       (meta m))
+     (-> (assoc! (transient (or m empty-map)) a b)
          (assoc! c d)
          (persistent!))))
   ([m a b c d e f]
-   (if (and (empty-map? m) (PersistentArrayMap/different default-hash-provider a c e))
-     (PersistentArrayMap. default-hash-provider a b c d e f (meta m))
-     (-> (transient (or m PersistentArrayMap/EMPTY))
+   (if (empty-map? m)
+     (with-meta (.persistent (MutArrayMap/createKV  default-hash-provider a b c d e f))
+       (meta m))
+     (-> (transient (or m empty-map))
          (assoc! a b)
          (assoc! c d)
          (assoc! e f)
          (persistent!))))
   ([m a b c d e f g h]
-   (if (and (empty-map? m) (PersistentArrayMap/different default-hash-provider a c e g))
-     (PersistentArrayMap. default-hash-provider a b c d e f g h (meta m))
-     (-> (transient (or m (PersistentArrayMap/EMPTY)))
+   (if (empty-map? m)
+     (with-meta (.persistent (MutArrayMap/createKV default-hash-provider a b c d e f g h))
+       (meta m))
+     (-> (transient (or m empty-map))
          (assoc! a b)
          (assoc! c d)
          (assoc! e f)
@@ -213,8 +219,14 @@ This is currently the default hash provider for the library."}
        (.put m c d)
        (.put m e f)
        (.put m g h)
-       (.putAll m (iterator/array-seq-ary args))
-       (persistent! m))
+       (loop [args args]
+         (if args
+           (let [k (RT/first args)
+                 args (RT/next args)
+                 v (RT/first args)]
+             (.put m k v)
+             (recur (RT/next args)))
+           (persistent! m))))
      (loop [m (-> (transient m)
                   (assoc! a b)
                   (assoc! c d)

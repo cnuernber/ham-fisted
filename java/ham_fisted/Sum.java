@@ -75,9 +75,9 @@ public final class Sum implements DoubleConsumer, Reducible, IDeref
   }
 
   public Object deref() {
-    return new PersistentArrayMap(BitmapTrieCommon.defaultHashProvider,
-				  sumKwd, computeFinalSum(),
-				  nElemsKwd, nElems, null);
+    return MutArrayMap.createKV(BitmapTrieCommon.defaultHashProvider,
+				sumKwd, computeFinalSum(),
+				nElemsKwd, nElems).persistent();
   }
 
   public static class SimpleSum implements DoubleConsumer, IDeref, Reducible

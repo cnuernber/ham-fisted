@@ -41,6 +41,8 @@ public final class MutBitmapTrie<K,V>
     return this;
   }
   public MutBitmapTrie<K,V> withMeta(IPersistentMap m) {
+    if(m == meta())
+      return this;
     return new MutBitmapTrie<K,V>((BitmapTrie)ht.withMeta(m));
   }
   @SuppressWarnings("unchecked")

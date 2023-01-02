@@ -42,6 +42,8 @@ public class MutHashTable<K,V>
     return this;
   }
   public MutHashTable<K,V> withMeta(IPersistentMap m) {
+    if(m == meta())
+      return this;
     return new MutHashTable<K,V>((HashTable)ht.withMeta(m));
   }
   @SuppressWarnings("unchecked")
