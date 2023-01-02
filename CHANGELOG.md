@@ -1,8 +1,38 @@
+# 1.000-beta-71
+ * HUGE CHANGES!!! - moved to hashtable implementation for main non-array map instead of
+   bitmap trie.  This is because in all my tests it is *much* faster for everything *aside*
+   from non-transient (reduce assoc ...) type loops which are a waste of time to begin with.
+ * Because there are now three full map implementations  (array, trie, hashtable) there is a
+   more defined map structure making it less error prone to test out different map backends.
+ * Lots of inner class renaming and such - however `frequencies`, `group-by-reduce`, and
+   `mapmap` now a bit faster - about 2X.  Here is a telling performance metric:
+
+```clojure
+({:construct-μs 2.726739663709692,
+  :access-μs 1.784634592104282,
+  :iterate-μs 2.7345543552812073,
+  :ds-name :java-hashmap}
+ {:construct-μs 3.5414584143710885,
+  :access-μs 2.761234751112207,
+  :iterate-μs 2.1730894775185403,
+  :ds-name :hamf-hashmap}
+ {:construct-μs 6.475808180747403,
+  :access-μs 2.484804237281106,
+  :iterate-μs 1.8564705765641765,
+  :ds-name :hamf-transient}
+ {:construct-μs 11.43649782981362,
+  :access-μs 5.152473242630386,
+  :iterate-μs 8.793332955848225,
+  :ds-name :clj-transient})
+ham-fisted.hash-map-test>
+```
+
+
 # 1.000-beta-69
  * Faster `mode`.
  * Faster map iteration.
  * Corrected clojure persistent hash map iteration.
- 
+
 # 1.000-beta-67
  * Faster `mode`.
  * `mmax-key` - use `(mmax-key f data)` as opposed to `(apply max-key f data)`.  It is faster

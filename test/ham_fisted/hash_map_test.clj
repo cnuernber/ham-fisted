@@ -149,15 +149,6 @@
                        data)))
 
 
-(defn hamf-equal-hashmap
-  [data]
-  (persistent! (reduce (api/indexed-accum
-                        hm idx v (.put ^Map hm v idx) hm)
-                       (api/mut-hashtable-map nil {:hash-provider api/equal-hash-provider
-                                                   :init-size (count data)} nil)
-                       data)))
-
-
 
 (defn clj-transient
   [data]
@@ -178,7 +169,6 @@
 (def datastructures
   [[:java-hashmap java-hashmap]
    [:hamf-hashmap hamf-hashmap]
-   [:hamf-equal-hashmap hamf-equal-hashmap]
    [:clj-transient clj-transient]
    [:hamf-transient hamf-transient]
    ])
