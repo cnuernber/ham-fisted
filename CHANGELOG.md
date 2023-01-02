@@ -1,6 +1,6 @@
 # 1.000-beta-72
  * Switch to caffeine for memoize cache and standard java library priority queue for take-min.
- This removed the dependency on google guava thus drastically cutting the changes for dependency
+ This removed the dependency on google guava thus drastically cutting the chances for dependency
  conflicts.
 
 # 1.000-beta-71
