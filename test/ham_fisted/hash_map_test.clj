@@ -56,8 +56,18 @@
         (is (= n-elems (count alldata)))
         (is (= dissoc-data (set (keys disdata))))
         (is (= data (set (keys alldata))))))
-    (testing "mutable"
-      (let [alldata (api/mut-map (map #(vector % %)) data)
+    (testing "hash table mutable"
+      (let [alldata (api/mut-hashtable-map (map #(vector % %)) data)
+            disdata (.clone alldata)
+            _ (is (= n-elems (count disdata)))
+            _ (reduce #(do (.remove ^Map %1 %2) %1) disdata dissoc-vals)]
+        (is (= n-left (count disdata)))
+        (is (= n-elems (count alldata)))
+        (is (= dissoc-data (set (keys disdata))))
+        (is (= data (set (keys alldata))))
+        ))
+    (testing "bitmap trie mutable"
+      (let [alldata (api/mut-trie-map (map #(vector % %)) data)
             disdata (.clone alldata)
             _ (is (= n-elems (count disdata)))
             _ (reduce #(do (.remove ^Map %1 %2) %1) disdata dissoc-vals)]
@@ -110,61 +120,65 @@
 
 (defn time-dataset
   [data constructor]
-  (let [dlist (doto (ArrayList.)
-                (.addAll ^Collection (seq data)))
-        _ (Collections/shuffle dlist)
+  (let [dlist (api/shuffle (api/object-array-list data))
         ctime (benchmark-us (constructor dlist))
         ^Map ds (constructor dlist)
-        nelems (.size dlist)
+        nelems (count dlist)
         atime (benchmark-us
-               (dotimes [idx nelems]
-                 (.get ds (.get dlist idx))))
+               (reduce (fn [acc v] (.get ds v)) nil data))
         itime (benchmark-us
-               (let [iter (.iterator (.entrySet ds))]
-                 (loop [c? (.hasNext iter)]
-                   (when c?
-                     (.next iter)
-                     (recur (.hasNext iter))))))]
+               (reduce #(+ (long %1) (val %2)) 0 ds))]
     {:construct-μs (:mean-μs ctime)
      :access-μs (:mean-μs atime)
      :iterate-μs (:mean-μs itime)}))
 
 
 (defn java-hashmap
-  [^ArrayList data]
+  [data]
   (reduce (api/indexed-accum
            hm idx v (.put ^Map hm v idx) hm)
-          (api/java-hashmap (.size data))
+          (api/java-hashmap (count data))
           data))
 
 
 (defn hamf-hashmap
-  [^ArrayList data]
-  (reduce (api/indexed-accum
-           hm idx v (.put ^Map hm v idx) hm)
-          (api/mut-hashtable-map (.size data))
-          data))
+  [data]
+  (persistent! (reduce (api/indexed-accum
+                        hm idx v (.put ^Map hm v idx) hm)
+                       (api/mut-hashtable-map (count data))
+                       data)))
+
+
+(defn hamf-equal-hashmap
+  [data]
+  (persistent! (reduce (api/indexed-accum
+                        hm idx v (.put ^Map hm v idx) hm)
+                       (api/mut-hashtable-map nil {:hash-provider api/equal-hash-provider
+                                                   :init-size (count data)} nil)
+                       data)))
+
 
 
 (defn clj-transient
-  [^ArrayList data]
-  (reduce (api/indexed-accum
-           hm idx v (assoc! hm v idx))
-          (transient {})
-          data))
+  [data]
+  (persistent! (reduce (api/indexed-accum
+                        hm idx v (assoc! hm v idx))
+                       (transient {})
+                       data)))
 
 
 (defn hamf-transient
-  [^ArrayList data]
-  (reduce (api/indexed-accum
-           hm idx v (assoc! hm v idx))
-          (transient api/empty-map)
-          data))
+  [data]
+  (persistent! (reduce (api/indexed-accum
+                        hm idx v (assoc! hm v idx))
+                       (transient api/empty-map)
+                       data)))
 
 
 (def datastructures
   [[:java-hashmap java-hashmap]
    [:hamf-hashmap hamf-hashmap]
+   [:hamf-equal-hashmap hamf-equal-hashmap]
    [:clj-transient clj-transient]
    [:hamf-transient hamf-transient]
    ])
@@ -172,12 +186,11 @@
 
 (defn profile-datastructures
   [data]
-  (let [data (->array-list data)]
-    (->> (shuffle datastructures)
-         (map (fn [[ds-name ctor]]
-                (-> (time-dataset data ctor)
-                    (assoc :ds-name ds-name))))
-         (sort-by :construct-μs))))
+  (->> (shuffle datastructures)
+       (map (fn [[ds-name ctor]]
+              (-> (time-dataset data ctor)
+                  (assoc :ds-name ds-name))))
+       (sort-by :construct-μs)))
 
 
 #_(deftest union-test

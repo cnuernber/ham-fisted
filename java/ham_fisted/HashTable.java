@@ -149,6 +149,22 @@ public final class HashTable implements TrieBase, MapData {
     LeafNode e = this.data[idx];
     return e != null ? e.get(key) : null;
   }
+  public Object getOrDefault(Object key, Object dv) {
+    for(LeafNode e = this.data[hp.hash(key) & this.mask]; e != null; e = e.nextNode) {
+      Object k;
+      if((k = e.k) == key || hp.equals(k, key))
+	return e.v;
+    }
+    return dv;
+  }
+  public Object get(Object key) {
+    for(LeafNode e = this.data[hp.hash(key) & this.mask]; e != null; e = e.nextNode) {
+      Object k;
+      if((k = e.k) == key || hp.equals(k, key))
+	return e.v;
+    }
+    return null;
+  }
   @SuppressWarnings("unchecked")
   public Object compute(Object k, BiFunction bfn) {
     final HashProvider hp = this.hp;

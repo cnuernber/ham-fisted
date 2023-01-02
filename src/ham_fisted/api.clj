@@ -134,7 +134,7 @@ the same pathway that `java.util.HashMap` uses and is the overall the fastest
 hash provider.  Hash-based data structures based on this hash provider will be
 faster to create and access but will not use the hasheq pathway. This is fine
 for integer keys, strings, keywords, and symbols, but differs for objects such
-as doubles, floats, and BigDecimals. This is the default hash provider."}
+as doubles, floats, and BigDecimals. This was the default hash provider."}
   equal-hash-provider BitmapTrieCommon/equalHashProvider)
 
 (def ^{:tag BitmapTrieCommon$HashProvider

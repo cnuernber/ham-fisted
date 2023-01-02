@@ -29,6 +29,20 @@ public class ImmutArrayMap<K,V>
   public ImmutArrayMap<K,V> cons(Object obj) {
     return (ImmutArrayMap<K,V>)(shallowClone().mutConj(obj));
   }
+  @Override
+  MapBase<K,V> mutAssoc(K k, V v) {
+    MapData md = ht.mutAssoc(k,v);
+    if(md instanceof ArrayMap)
+      return this;
+    return new ImmutHashTable<K,V>((HashTable)md);
+  }
+  @Override
+  MapBase<K,V> mutUpdateValue(K k, IFn fn) {
+    MapData md = ht.mutUpdateValue(k,fn);
+    if(md instanceof ArrayMap)
+      return this;
+    return new ImmutHashTable<K,V>((HashTable)md);
+  }
   @SuppressWarnings("unchecked")
   public IPersistentMap assoc(Object key, Object val) {
     return (IPersistentMap)(shallowClone().mutAssoc((K)key, (V)val));

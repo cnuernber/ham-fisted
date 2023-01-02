@@ -19,6 +19,20 @@ public class TransientArrayMap<K,V>
   public MutArrayMap<K,V> clone() {
     return new MutArrayMap<K,V>((ArrayMap)ht.clone());
   }
+  @Override
+  MapBase<K,V> mutAssoc(K k, V v) {
+    MapData md = ht.mutAssoc(k,v);
+    if(md instanceof ArrayMap)
+      return this;
+    return new TransientHashTable<K,V>((HashTable)md);
+  }
+  @Override
+  MapBase<K,V> mutUpdateValue(K k, IFn fn) {
+    MapData md = ht.mutUpdateValue(k,fn);
+    if(md instanceof ArrayMap)
+      return this;
+    return new TransientHashTable<K,V>((HashTable)md);
+  }
   public ITransientMap conj(Object val) {
     return (ITransientMap)mutConj(val);
   }
