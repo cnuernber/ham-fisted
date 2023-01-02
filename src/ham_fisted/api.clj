@@ -79,7 +79,8 @@
            [it.unimi.dsi.fastutil.floats FloatComparator]
            [it.unimi.dsi.fastutil.doubles DoubleComparator DoubleArrays]
            [it.unimi.dsi.fastutil.objects ObjectArrays]
-           [com.github.benmanes.caffeine.cache Caffeine LoadingCache CacheLoader Cache]
+           [com.github.benmanes.caffeine.cache Caffeine LoadingCache CacheLoader Cache
+            RemovalCause]
            [com.github.benmanes.caffeine.cache.stats CacheStats]
            [java.time Duration]
            [java.util.stream IntStream DoubleStream])
@@ -1527,9 +1528,35 @@ ham_fisted.PersistentHashMap
 (defn memoize
   "Efficient thread-safe version of clojure.core/memoize.
 
-  Also see [[clear-memoized-fn!]] to mutably clear the backing store.
+  Also see [[clear-memoized-fn!]] [[evict-memoized-call]] and [[memoize-cache-as-map]] to
+  mutably clear the backing store, manually evict a value, and get a java.util.Map view of
+  the cache backing store.
 
-  Options.
+
+```clojure
+ham-fisted.api> (def m (memoize (fn [& args] (println \"fn called - \" args) args)
+                                {:write-ttl-ms 1000 :eviction-fn (fn [args rv cause]
+                                                                   (println \"evicted - \" args rv cause))}))
+#'ham-fisted.api/m
+ham-fisted.api> (m 3)
+fn called -  (3)
+(3)
+ham-fisted.api> (m 4)
+fn called -  (4)
+(4)evicted -  [3] (3) :expired
+ham-fisted.api> (dotimes [idx 4] (do (m 3) (evict-memoized-call m [3])))
+fn called -  (3)
+fn called -  (3)
+fn called -  (3)
+fn called -  (3)
+nil
+ham-fisted.api> (dotimes [idx 4] (do (m 3) #_(evict-memoized-call m [3])))
+fn called -  (3)
+nil
+```
+
+
+  Options:
 
   * `:write-ttl-ms` - Time that values should remain in the cache after write in milliseconds.
   * `:access-ttl-ms` - Time that values should remain in the cache after access in milliseconds.
@@ -1537,37 +1564,18 @@ ham_fisted.PersistentHashMap
   * `:weak-values?` - When true, the cache will store [WeakReferences](https://docs.oracle.com/javase/7/docs/api/java/lang/ref/WeakReference.html) to the data.
   * `:max-size` - When set, the cache will behave like an LRU cache.
   * `:record-stats?` - When true, the LoadingCache will record access statistics.  You can
-     get those via the undocumented function memo-stats."
-  ([memo-fn]
-   (let [hm (ConcurrentHashMap.)
-         compute-fn (reify Function
-                      (apply [this argv]
-                        ;;wrapping in a vector to handle null case
-                        (BitmapTrieCommon$Box.
-                         (case (count argv)
-                           0 (memo-fn)
-                           1 (memo-fn (argv 0))
-                           2 (memo-fn (argv 0) (argv 1))
-                           3 (memo-fn (argv 0) (argv 1) (argv 2))
-                           4 (memo-fn (argv 0) (argv 1) (argv 2) (argv 3))
-                           (apply memo-fn argv)))))]
-     (vary-meta
-      (fn
-        ([] (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [] compute-fn)))
-        ([v0] (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [v0] compute-fn)))
-        ([v0 v1] (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [v0 v1] compute-fn)))
-        ([v0 v1 v2] (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [v0 v1 v2] compute-fn)))
-        ([v0 v1 v2 v3]
-         (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm [v0 v1 v2 v3] compute-fn)))
-        ([v0 v1 v2 v3 & args]
-         (.obj ^BitmapTrieCommon$Box (.computeIfAbsent hm (into [v0 v1 v2 v3] args) compute-fn))))
-      assoc :cache hm)))
+     get those via the undocumented function memo-stats.
+  * `:eviction-fn - Function that receives 3 arguments, [args v cause], when a value is
+     evicted.  Causes the keywords `:collected :expired :explicit :replaced and :size`.  See
+     [caffeine documentation](https://www.javadoc.io/static/com.github.ben-manes.caffeine/caffeine/2.9.3/com/github/benmanes/caffeine/cache/RemovalCause.html) for cause definitions."
+  ([memo-fn] (memoize memo-fn nil))
   ([memo-fn {:keys [write-ttl-ms
                     access-ttl-ms
                     soft-values?
                     weak-values?
                     max-size
-                    record-stats?]}]
+                    record-stats?
+                    eviction-fn]}]
    (let [^Caffeine new-builder
          (cond-> (Caffeine/newBuilder)
            access-ttl-ms
@@ -1581,12 +1589,22 @@ ham_fisted.PersistentHashMap
            max-size
            (.maximumSize (long max-size))
            record-stats?
-           (.recordStats))
+           (.recordStats)
+           eviction-fn
+           (.evictionListener (reify com.github.benmanes.caffeine.cache.RemovalListener
+                                (onRemoval [this args v cause]
+                                  (eviction-fn args (.-obj ^BitmapTrieCommon$Box v)
+                                               (condp identical? cause
+                                                 RemovalCause/COLLECTED :collected
+                                                 RemovalCause/EXPIRED :expired
+                                                 RemovalCause/EXPLICIT :explicit
+                                                 RemovalCause/REPLACED :replaced
+                                                 RemovalCause/SIZE :size
+                                                 (keyword (.toLowerCase (str cause)))))))))
          ^LoadingCache cache
          (.build new-builder
                  (proxy [CacheLoader] []
                    (load [args]
-                     (println "HERE!!" args)
                      (BitmapTrieCommon$Box. (apply memo-fn args)))))]
      (-> (fn
            ([] (.obj ^BitmapTrieCommon$Box (.get cache [])))
@@ -1604,11 +1622,24 @@ ham_fisted.PersistentHashMap
 
 (defn clear-memoized-fn!
   "Clear a memoized function backing store."
-  [memoize-fn]
-  (if-let [map (get (meta memoize-fn) :cache)]
+  [memoized-fn]
+  (if-let [map (get (meta memoized-fn) :cache)]
     (clear! map)
-    (throw (Exception. (str "Arg is not a memoized fn - " memoize-fn))))
-  memoize-fn)
+    (throw (Exception. (str "Arg is not a memoized fn - " memoized-fn))))
+  memoized-fn)
+
+
+(defn memoize-cache-as-map
+  "Return the memoize backing store as an implementation of java.util.Map."
+  ^Map [memoized-fn]
+  (when-let [^Cache cache (get (meta memoized-fn) :cache)]
+    (.asMap cache)))
+
+
+(defn evict-memoized-call
+  [memo-fn fn-args]
+  (when-let [cache (memoize-cache-as-map memo-fn)]
+    (.remove cache (vec fn-args))))
 
 
 (defn ^:no-doc memo-stats
