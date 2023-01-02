@@ -1,3 +1,8 @@
+# 1.000-beta-72
+ * Switch to caffeine for memoize cache and standard java library priority queue for take-min.
+ This removed the dependency on google guava thus drastically cutting the changes for dependency
+ conflicts.
+
 # 1.000-beta-71
  * HUGE CHANGES!!! - moved to hashtable implementation for main non-array map instead of
    bitmap trie.  This is because in all my tests it is *much* faster for everything *aside*

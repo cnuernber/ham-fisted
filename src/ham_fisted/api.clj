@@ -79,7 +79,8 @@
            [it.unimi.dsi.fastutil.floats FloatComparator]
            [it.unimi.dsi.fastutil.doubles DoubleComparator DoubleArrays]
            [it.unimi.dsi.fastutil.objects ObjectArrays]
-           [com.google.common.cache Cache CacheBuilder CacheLoader LoadingCache CacheStats]
+           [com.github.benmanes.caffeine.cache Caffeine LoadingCache CacheLoader Cache]
+           [com.github.benmanes.caffeine.cache.stats CacheStats]
            [java.time Duration]
            [java.util.stream IntStream DoubleStream])
   (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize
@@ -1567,8 +1568,8 @@ ham_fisted.PersistentHashMap
                     weak-values?
                     max-size
                     record-stats?]}]
-   (let [^CacheBuilder new-builder
-         (cond-> (CacheBuilder/newBuilder)
+   (let [^Caffeine new-builder
+         (cond-> (Caffeine/newBuilder)
            access-ttl-ms
            (.expireAfterAccess (Duration/ofMillis access-ttl-ms))
            write-ttl-ms
@@ -1585,9 +1586,19 @@ ham_fisted.PersistentHashMap
          (.build new-builder
                  (proxy [CacheLoader] []
                    (load [args]
+                     (println "HERE!!" args)
                      (BitmapTrieCommon$Box. (apply memo-fn args)))))]
-     (-> (fn [& args]
-           (.obj ^BitmapTrieCommon$Box (.get cache args)))
+     (-> (fn
+           ([] (.obj ^BitmapTrieCommon$Box (.get cache [])))
+           ([a] (.obj ^BitmapTrieCommon$Box (.get cache [a])))
+           ([a b] (.obj ^BitmapTrieCommon$Box (.get cache [a b])))
+           ([a b c] (.obj ^BitmapTrieCommon$Box (.get cache [a b c])))
+           ([a b c & args] (let [^IMutList obj-ary (mut-list)]
+                             (.add obj-ary a)
+                             (.add obj-ary b)
+                             (.add obj-ary c)
+                             (.addAllReducible obj-ary args)
+                             (.obj ^BitmapTrieCommon$Box (.get cache (persistent! obj-ary))))))
          (with-meta {:cache cache})))))
 
 
@@ -1613,7 +1624,6 @@ ham_fisted.PersistentHashMap
          :miss-count (.missCount cache-map)
          :miss-rate (.missRate cache-map)
          :load-success-count (.loadSuccessCount cache-map)
-         :load-exception-count (.loadExceptionCount cache-map)
          :average-load-penalty-nanos (.averageLoadPenalty cache-map)
          :total-load-time-nanos (.totalLoadTime cache-map)
          :eviction-count (.evictionCount cache-map)}))))
