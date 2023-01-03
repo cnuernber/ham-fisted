@@ -1,3 +1,6 @@
+# 1.000-beta-74
+ * bugfix - Map's `compute` has to accept nil keys.
+ 
 # 1.000-beta-73
  * memoize now supports `:eviction-fn` - for callbacks when things get evicted.
  * More helpers for memoized fns - cache-as-map, evict-memoized-call.

@@ -159,8 +159,8 @@ public class MapBase<K,V>
   public V compute(K key, BiFunction<? super K,? super V,? extends V> bfn) {
     //This operation is a performance sensitive operation so it must be done at the
     //lowest level
-    if (key == null || bfn == null)
-      throw new NullPointerException("Neither key nor compute function may be null");
+    if (bfn == null)
+      throw new NullPointerException("Compute function cannot be null");
     return (V)ht.compute(key, bfn);
   }
   @SuppressWarnings("unchecked")
