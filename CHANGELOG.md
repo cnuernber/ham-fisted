@@ -1,10 +1,22 @@
+# 1.000-beta-76
+ * Added group-by-consumer - this has different performance and functionality characteristics
+   than group-by-reducer.  For instance, group-by-consumer with a linked hashmap will return
+   a map with keys in the order of keys initially encounted.  group-by-reducer with the same
+   hashmap will return a map with keys in the order of latest encountered.  Group-by-consumer
+   uses `computeIfAbsent` which is a slightly faster primitive than `compute` as it doesn't
+   need to check the return value of the reducer, only of the initialization of the map
+   entry.
+
+# 1.000-beta-75
+ * MapForward class so we can use normal java maps in normal Clojure workflows.
+
 # 1.000-beta-74
  * bugfix - Map's `compute` has to accept nil keys.
- 
+
 # 1.000-beta-73
  * memoize now supports `:eviction-fn` - for callbacks when things get evicted.
  * More helpers for memoized fns - cache-as-map, evict-memoized-call.
- 
+
 # 1.000-beta-72
  * Switch to caffeine for memoize cache and standard java library priority queue for take-min.
  This removed the dependency on google guava thus drastically cutting the chances for dependency

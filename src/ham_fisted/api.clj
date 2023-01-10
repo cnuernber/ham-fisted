@@ -57,7 +57,7 @@
             IFnDef$OLLO IFnDef$LongPredicate IFnDef$DoublePredicate IFnDef$Predicate
             Consumers$IncConsumer Reductions$IndexedDoubleAccum Reductions$IndexedLongAccum
             Reductions$IndexedAccum MutHashTable ImmutHashTable MutableMap
-            ImmutArrayMap]
+            ImmutArrayMap MapForward]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
@@ -66,7 +66,7 @@
             IFn$OD IFn$OL IFn$OLO IFn$ODO IObj Util IReduceInit Seqable IteratorSeq
             ITransientMap]
            [java.util Map Map$Entry List RandomAccess Set Collection ArrayList Arrays
-            Comparator Random Collections Iterator PriorityQueue]
+            Comparator Random Collections Iterator PriorityQueue LinkedHashMap]
            [java.lang.reflect Array]
            [java.util.function Function BiFunction BiConsumer Consumer
             DoubleBinaryOperator LongBinaryOperator LongFunction IntFunction
@@ -100,8 +100,8 @@
          object-array-list int-array-list long-array-list double-array-list
          int-array argsort byte-array short-array char-array boolean-array repeat
          persistent! rest immut-map keys vals group-by-reduce consumer-accumulator
-         reducible-merge reindex long-consumer-reducer double-consumer-reducer
-         consumer-reducer merge constant-count mutable-map?)
+         reducible-merge reindex long-consumer-reducer group-by-consumer
+         double-consumer-reducer consumer-reducer merge constant-count mutable-map?)
 
 
 (defn ->collection
@@ -1444,7 +1444,7 @@ ham_fisted.PersistentHashMap
     v))
 
 
-(defn frequencies-gbr-inc
+(defn ^:no-doc frequencies-gbr-inc
   "Faster implementation of clojure.core/frequencies."
   [coll]
   (group-by-reduce identity (constantly 0)
@@ -1454,7 +1454,7 @@ ham_fisted.PersistentHashMap
                    coll))
 
 
-(defn frequencies-gbr-consumer
+(defn ^:no-doc frequencies-gbr-consumer
   "Faster implementation of clojure.core/frequencies."
   [coll]
   (-> (group-by-reduce identity #(Consumers$IncConsumer.)
@@ -1494,6 +1494,18 @@ ham_fisted.PersistentHashMap
                 (merge {:min-n 1000 :ordered? true} options)
                 coll)
        (persistent!))))
+
+
+(defn ^:no-doc frequencies-gbc
+  ([options coll]
+   (group-by-consumer nil (fn
+                            ([] (Consumers$IncConsumer.))
+                            ([acc v] (.accept ^Consumer acc v))
+                            ([acc] (deref acc)))
+                      (merge {:map-fn #(MapForward. (LinkedHashMap.) nil)}
+                             options)
+                      coll))
+  ([coll] (frequencies-gbc nil coll)))
 
 
 (defn merge
@@ -1942,6 +1954,67 @@ nil
                           (protocols/->merge-fn reducer)
                           options coll)
          (finalizer)))))
+
+
+(defn group-by-consumer
+  "Perform a group-by-reduce passing in a reducer.  Same options as group-by-reduce -
+  This uses a slightly different pathway - computeIfAbsent - in order to preserve order.
+  In this case the return value of the reduce fn is ignored.  This allows things like
+  the linked hash map to preserve initial order of keys.  It map also be slightly
+  more efficient because the map itself does not need to check the return value
+  of rfn - something that the `.compute` primitive *does* need to do.
+
+  Options:
+
+  * `:skip-finalize?` - skip finalization step."
+  ([key-fn reducer coll]
+   (group-by-reducer key-fn reducer nil coll))
+  ([key-fn reducer options coll]
+   (let [finalizer (when-not (:skip-finalize? options)
+                     #(update-values % (bi-function k v (protocols/finalize reducer v))))
+         has-map-fn? (get :map-fn options)
+         map-fn (get options :map-fn mut-map)
+         merge-fn (protocols/->merge-fn reducer)
+         merge-bifn (->bi-function merge-fn)
+         init-fn (protocols/->init-val-fn reducer)
+         afn (function k (init-fn))
+         rfn (protocols/->rfn reducer)
+         rfn (cond
+                 (or (= identity key-fn) (nil? key-fn))
+                 (fn [^Map l v]
+                   (-> (.computeIfAbsent l v afn)
+                       (rfn v))
+                   l)
+                 ;;These formulations can trigger more efficient primitive reductions when,
+                 ;;for instance, you are reducing over a stream of integer indexes.
+                 (and (instance? IFn$LO key-fn) (instance? IFn$OLO rfn))
+                 (long-accumulator
+                  l v
+                  (let [acc (.computeIfAbsent ^Map l (.invokePrim ^IFn$LO key-fn v) afn)]
+                    (.invokePrim ^IFn$OLO rfn acc v))
+                  l)
+                 (and (instance? IFn$DO key-fn) (instance? IFn$ODO rfn))
+                 (double-accumulator
+                  l v
+                  (let [acc (.computeIfAbsent ^Map l (.invokePrim ^IFn$DO key-fn v) afn)]
+                    (.invokePrim ^IFn$ODO rfn acc v))
+                  l)
+                 :else
+                 (fn [^Map l v]
+                   (-> (.computeIfAbsent l (key-fn v) afn)
+                       (rfn v))
+                   l))]
+     (let [fin-map (preduce map-fn rfn #(mut-map-union! merge-bifn %1 %2)
+                            (merge {:min-n 1000} options)
+                            coll)]
+       (cond
+         finalizer
+         (finalizer fin-map)
+         (not has-map-fn?)
+         (persistent! fin-map)
+         :else
+         fin-map)))))
+
 
 
 (defn group-by

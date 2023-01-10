@@ -8,7 +8,7 @@
                 techascent/tech.ml.dataset {:mvn/version "6.094"}
                 ch.qos.logback/logback-classic {:mvn/version "1.1.3"}
                 kixi/stats {:mvn/version "0.5.5"}}
-   :extra-paths ["dev/src"]}
+   :extra-paths ["dev/src" "test"]}
   :build
   {:deps {io.github.clojure/tools.build {:git/tag "v0.8.1" :git/sha "7d40500"}}
    :ns-default build}
@@ -27,7 +27,7 @@
    :exec-fn codox.main/-main
    :exec-args {:group-id "com.cnuernber"
                :artifact-id "ham-fisted"
-               :version "1.000-beta-74"
+               :version "1.000-beta-76"
                :name "Ham-Fisted"
                :description "High Performance Clojure Primitives"
                :metadata {:doc/format :markdown}

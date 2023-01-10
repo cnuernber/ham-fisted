@@ -33,7 +33,7 @@ public interface MapData {
   Spliterator spliterator(Function<ILeaf,Object> lf);
   HashProvider hashProvider();
 
-  
+
   default Object get(Object k) {
     ILeaf n = getNode(k);
     return n != null ? n.val() : null;
@@ -49,7 +49,7 @@ public interface MapData {
     return getOrCreate(k).val(v);
   }
 
-    //These are slow general versions.
+  //These are slow general versions.
   @SuppressWarnings("unchecked")
   default Object compute(Object key, BiFunction bfn) {
     int startc = size();
@@ -61,6 +61,26 @@ public interface MapData {
 	remove(key, null);
       else
 	node.val(newv);
+      return newv;
+    } catch(Exception e) {
+      if (startc != size())
+	remove(key, null);
+      throw e;
+    }
+  }
+  //These are slow general versions.
+  @SuppressWarnings("unchecked")
+  default Object computeIfAbsent(Object key, Function bfn) {
+    int startc = size();
+    ILeaf node = getOrCreate(key);
+    try {
+      Object newv = node.val();
+      if(newv != null)
+	return newv;
+      newv = bfn.apply(key);
+      if(newv == null)
+	remove(key, null);
+      node.val(newv);
       return newv;
     } catch(Exception e) {
       if (startc != size())

@@ -192,6 +192,31 @@ public final class HashTable implements TrieBase, MapData {
     return newV;
   }
   @SuppressWarnings("unchecked")
+  public Object computeIfAbsent(Object k, Function afn) {
+    final HashProvider hp = this.hp;
+    final int hash = hp.hash(k);
+    final LeafNode[] d = this.data;
+    final int idx = hash & this.mask;
+    LeafNode e = d[idx], ee = null;
+    for(; e != null && !(e.k == k || hp.equals(e.k, k)); e = e.nextNode) {
+      ee = e;
+    }
+    if(e != null) {
+      return e.v;
+    } else {
+      final Object newv = afn.apply(k);
+      if(newv != null) {
+	LeafNode nn = new LeafNode(this, k, hash, newv, null);
+	if(ee != null)
+	  ee.nextNode = nn;
+	else
+	  d[idx] = nn;
+	checkResize(null);
+      }
+      return newv;
+    }
+  }
+  @SuppressWarnings("unchecked")
   public Object merge(Object k, Object v, BiFunction bfn) {
     final HashProvider hp = this.hp;
     final int hash = hp.hash(k);

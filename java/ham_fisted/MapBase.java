@@ -165,15 +165,7 @@ public class MapBase<K,V>
   }
   @SuppressWarnings("unchecked")
   public V computeIfAbsent(K key, Function<? super K,? extends V> mappingFunction) {
-    int startc = ht.size();
-    ILeaf node = ht.getOrCreate(key);
-    try {
-      return applyMapping(key, node, node.val() == null ? mappingFunction.apply(key) : (V)node.val());
-    } catch(Exception e) {
-      if (startc != ht.size())
-	remove(key);
-      throw e;
-    }
+    return (V)ht.computeIfAbsent(key, mappingFunction);
   }
   public V computeIfPresent(K key, BiFunction<? super K,? super V,? extends V> remappingFunction) {
     ILeaf node = ht.getNode(key);
