@@ -250,7 +250,7 @@ This is currently the default hash provider for the library."}
     item))
 
 
-(defn- options->parallel-options
+(defn ^:no-doc options->parallel-options
   [options]
   (let [^ForkJoinPool pool (get options :pool (ForkJoinPool/commonPool))]
     (ParallelOptions. (get options :min-n 1000)
@@ -1326,13 +1326,22 @@ ham_fisted.PersistentHashMap
       (.immutUpdateValues (as-immut-vals map) bfn)
       (instance? IPersistentMap map)
       (-> (reduce (fn [^Map acc kv]
-                         (.put acc (key kv) (.apply bfn (key kv) (val kv))))
-                       (mut-map)
-                       map)
+                    (.put acc (key kv) (.apply bfn (key kv) (val kv))))
+                  (mut-map)
+                   map)
           (persistent!))
       (instance? Map map)
       (do
-        (.replaceAll ^Map map bfn)
+        ;;Mutable preduce - this is faster than replaceAll for larger maps and same
+        ;;speed for most other maps.
+        (preduce
+         (constantly nil)
+         ;;We do not care about the accumulator at all - we mutably replace
+         ;;the value of the map entry
+         (fn [acc ^Map$Entry e]
+           (.setValue e (.apply bfn (.getKey e) (.getValue e))))
+         (constantly nil)
+         map)
         map)
       (instance? RandomAccess map)
       (mut-list (lznc/map-indexed #(.apply bfn %1 %2) map))
