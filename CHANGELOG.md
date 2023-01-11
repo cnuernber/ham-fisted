@@ -1,3 +1,6 @@
+# 1.000-beta-77
+ * see [commit 38596d8](https://github.com/cnuernber/ham-fisted/commit/38596d85541de7d2c926ac8b16522a764fcb6af9)
+
 # 1.000-beta-76
  * Added group-by-consumer - this has different performance and functionality characteristics
    than group-by-reducer.  For instance, group-by-consumer with a linked hashmap will return
