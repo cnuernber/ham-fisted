@@ -1,3 +1,7 @@
+# 1.000-beta-78
+ * fill-range is now property accelerated making all downstream projects that use addAll and
+   friends far faster.
+
 # 1.000-beta-77
  * see [commit 38596d8](https://github.com/cnuernber/ham-fisted/commit/38596d85541de7d2c926ac8b16522a764fcb6af9)
 

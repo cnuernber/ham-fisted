@@ -121,7 +121,7 @@ public class ArrayLists {
     checkIndexRange(eidx-sidx, startidx, endidx);
     if(l instanceof ArrayOwner) {
       final ArraySection as = ((ArrayOwner)l).getArraySection();
-      if(aryCls.isAssignableFrom(as.array.getClass())) {
+      if(dest.getClass().isAssignableFrom(as.array.getClass())) {
 	System.arraycopy(as.array, as.sidx, dest, (int)(sidx+startidx), sz);
 	return true;
       }
