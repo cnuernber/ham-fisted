@@ -1505,12 +1505,27 @@ ham_fisted.PersistentHashMap
        (persistent!))))
 
 
+(defn ^:no-doc inc-consumer
+  "Return a consumer which increments a long counter.  Consumer ignores
+  its input.  Deref the consumer to get the value of the counter."
+  ^Consumer [] #(Consumers$IncConsumer.))
+
+
+(def ^:no-doc inc-consumer-reducer
+  (reify
+    protocols/Finalize
+    (finalize [this v] (deref v))
+    protocols/Reducer
+    (->init-val-fn [this] #(Consumers$IncConsumer.))
+    (->rfn [this] consumer-accumulator)
+    protocols/ParallelReducer
+    (->merge-fn [this] reducible-merge)))
+
+
+
 (defn ^:no-doc frequencies-gbc
   ([options coll]
-   (group-by-consumer nil (fn
-                            ([] (Consumers$IncConsumer.))
-                            ([acc v] (.accept ^Consumer acc v))
-                            ([acc] (deref acc)))
+   (group-by-consumer nil inc-consumer-reducer
                       (merge {:map-fn #(MapForward. (LinkedHashMap.) nil)}
                              options)
                       coll))

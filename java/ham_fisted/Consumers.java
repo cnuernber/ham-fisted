@@ -223,6 +223,7 @@ public class Consumers {
     long nElems;
     public IncConsumer() {}
     public void accept(Object o) { ++nElems; }
+    public void inc() { ++nElems; }
     public IncConsumer reduce(Reducible o) {
       nElems += ((IncConsumer)o).nElems;
       return this;
