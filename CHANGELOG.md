@@ -1,3 +1,7 @@
+# 1.000-beta-80
+ * Helpers for very high performance scenarios.  lazy-noncaching/map-reducible,
+   api/->long-predicate.
+
 # 1.000-beta-78
  * fill-range is now property accelerated making all downstream projects that use addAll and
    friends far faster.

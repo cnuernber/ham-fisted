@@ -410,10 +410,11 @@ ham-fisted.api> @*1
                             ;;else branch
                             (map protocols/->rfn reducers)))
            ^objects mergefns (object-array (map protocols/->merge-fn reducers))
-           n-vals (count rfns)]
+           n-vals (count rfns)
+           init-fn-map (map #(%) init-fns)]
        (reify
          protocols/Reducer
-         (->init-val-fn [_] (fn [] (object-array (map #(%) init-fns))))
+         (->init-val-fn [_] (fn compose-init [] (object-array init-fn-map)))
          (->rfn [_]
            (case rfn-dt
              :int64 (Reductions/longCompose n-vals rfns)
@@ -3032,6 +3033,13 @@ nil
      IFnDef$LongPredicate
      (test [this ~varname]
        ~@code)))
+
+
+(defn ->long-predicate
+  ^LongPredicate [f]
+  (if (instance? LongPredicate f)
+    f
+    (long-predicate ll (boolean (f ll)))))
 
 
 (defmacro long-unary-operator

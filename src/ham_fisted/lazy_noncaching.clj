@@ -194,6 +194,16 @@
     (Transformables$IndexedMapper. map-fn (protocols/->iterable coll) nil)))
 
 
+(defn map-reducible
+  "Map a function over r - r need only be reducible.  Returned value does not implement
+  seq and is not countable."
+  [f r]
+  (reify
+    IReduceInit
+    (reduce [this rfn acc]
+      (reduce (fn [acc v] (rfn acc (f v)))
+              acc r))))
+
 
 (defn concat
   ([] PersistentList/EMPTY)
