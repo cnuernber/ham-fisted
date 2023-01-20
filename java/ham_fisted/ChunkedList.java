@@ -6,6 +6,7 @@ import static ham_fisted.BitmapTrieCommon.*;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.RandomAccess;
 import java.util.NoSuchElementException;
 import java.util.Collection;
 import java.util.ListIterator;
@@ -19,7 +20,7 @@ import clojure.lang.ISeq;
 import clojure.lang.IteratorSeq;
 import clojure.lang.Util;
 import clojure.lang.Murmur3;
-
+import clojure.lang.Reduced;
 
 
 public final class ChunkedList {
@@ -655,6 +656,47 @@ public final class ChunkedList {
     }
     hash = Murmur3.mixCollHash(hash, n);
     return hash;
+  }
+  final boolean equiv(int sidx, int eidx, Object o) {
+    if(o instanceof RandomAccess) {
+      List lo = (List)o;
+      final int osz = lo.size();
+      final int sz = eidx - sidx;
+      if(osz != sz)
+	return false;
+      final int ee = eidx;
+      int idx = 0;
+      final Object[][] d = data;
+      while(idx < sz) {
+	final int midx = idx + sidx;
+	final Object[] chunk = d[midx / 32];
+	int cidx = midx % 32;
+	final int chunkSize = Math.min(32 - cidx, sz - idx);
+	final int endChunkIdx = idx + chunkSize;
+	for(; idx < endChunkIdx; ++idx, ++cidx) {
+	  final Object vv = chunk[cidx];
+	  if(CljHash.equiv(vv, lo.get(idx)) == false)
+	    return false;
+	}
+      }
+      return true;
+    } else if (o instanceof Iterable) {
+      final Object[][] d = data;
+      final int ss = sidx;
+      return (Boolean)Reductions.serialReduction(new Reductions.IndexedAccum(new IFnDef.OLOO() {
+	  public Object invokePrim(Object acc, long idx, Object v) {
+	    final int iidx = (int)idx + ss;
+	    if(iidx >= eidx)
+	      return new Reduced(false);
+	    final Object vv = d[iidx/32][iidx%32];
+	    if(CljHash.equiv(vv, v) == false)
+	      return new Reduced(false);
+	    return acc;
+	  }
+	}), true, o);
+    } else {
+      return false;
+    }
   }
   final IPersistentMap meta() { return meta; }
   final ChunkedList withMeta(IPersistentMap m) {

@@ -634,7 +634,7 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
 
   * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
   the [[default-hash-provider]]."
-  (^MutHashTable [] (MutHashTable. (options->provider nil)))
+  (^MutHashTable [] (MutHashTable. default-hash-provider))
   (^MutHashTable [data] (mut-hashtable-map nil nil data))
   (^MutHashTable [xform data] (mut-hashtable-map xform nil data))
   (^MutHashTable [xform options data]

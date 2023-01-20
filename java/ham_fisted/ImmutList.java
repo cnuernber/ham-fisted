@@ -78,7 +78,8 @@ public class ImmutList
   }
   public final String toString() { return Transformables.sequenceToString(this); }
   public final boolean equiv(Object other) {
-    return CljHash.listEquiv(this, other);
+    //return CljHash.listEquiv(this, other);
+    return data.equiv(startidx, startidx + nElems, other);
   }
   public final int size() { return nElems; }
   public final int count() { return nElems; }

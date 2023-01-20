@@ -321,7 +321,7 @@ public class MutList<E>
       return equiv(other);
     }
     public final boolean equiv(Object other) {
-      return CljHash.listEquiv(this, other);
+      return data.equiv(startidx, startidx+nElems, other);
     }
     public final ISeq seq() { return data.seq(startidx, startidx+nElems); }
     public final ISeq rseq() { return data.rseq(startidx, startidx+nElems); }
@@ -452,7 +452,7 @@ public class MutList<E>
     return equiv(other);
   }
   public final boolean equiv(Object other) {
-    return CljHash.listEquiv(this, other);
+    return data.equiv(0, data.nElems, other);
   }
   public final String toString() {
     return Transformables.sequenceToString(this);
