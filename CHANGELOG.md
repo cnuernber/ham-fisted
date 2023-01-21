@@ -1,3 +1,6 @@
+# 1.000-beta-81
+ * long primitive hashtables - these are quite a bit faster but especially when used directly.
+ 
 # 1.000-beta-80
  * Helpers for very high performance scenarios.  lazy-noncaching/map-reducible,
    api/->long-predicate.

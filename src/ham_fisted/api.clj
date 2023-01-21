@@ -38,7 +38,8 @@
             [ham-fisted.alists :as alists]
             [ham-fisted.impl :as impl]
             [ham-fisted.protocols :as protocols])
-  (:import [ham_fisted MutArrayMap MutHashTable MutBitmapTrie HashSet PersistentHashSet
+  (:import [ham_fisted MutArrayMap MutHashTable LongMutHashTable MutBitmapTrie HashSet
+            PersistentHashSet
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
             BitmapTrieCommon$Box ObjArray ImmutValues UpdateValues
             MutList ImmutList StringCollection ArrayImmutList ArrayLists
@@ -252,17 +253,18 @@ This is currently the default hash provider for the library."}
 
 (defn ^:no-doc options->parallel-options
   [options]
-  (let [^ForkJoinPool pool (get options :pool (ForkJoinPool/commonPool))]
-    (ParallelOptions. (get options :min-n 1000)
-                      (get options :max-batch-size 64000)
-                      (boolean (get options :ordered? true))
+  (let [^Map options (or options {})
+        ^ForkJoinPool pool (.getOrDefault options :pool (ForkJoinPool/commonPool))]
+    (ParallelOptions. (.getOrDefault options :min-n 1000)
+                      (.getOrDefault options :max-batch-size 64000)
+                      (boolean (.getOrDefault options :ordered? true))
                       pool
-                      (get options :parallelism (.getParallelism pool))
-                      (case (get options :cat-parallelism :seq-wise)
+                      (.getOrDefault options :parallelism (.getParallelism pool))
+                      (case (.getOrDefault options :cat-parallelism :seq-wise)
                         :seq-wise ParallelOptions$CatParallelism/SEQWISE
                         :elem-wise ParallelOptions$CatParallelism/ELEMWISE)
-                      (get options :put-timeout-ms 5000)
-                      (get options :unmerged-result? false))))
+                      (.getOrDefault options :put-timeout-ms 5000)
+                      (.getOrDefault options :unmerged-result? false))))
 
 
 (defn preduce
@@ -648,6 +650,34 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
             (mut-map-rf #(MutHashTable. (options->provider nil)
                                         nil
                                         (get options :init-size 0)))
+            data))))
+
+
+(defn mut-long-hashtable-map
+  "Create a mutable implementation of java.util.Map.  This object efficiently implements
+  ITransient map so you can use assoc! and persistent! on it but you can additionally use
+  the various members of the java.util.Map interface such as put, compute, computeIfAbsent,
+  replaceAll and merge.
+
+  If data is an object array it is treated as a flat key-value list which is distinctly
+  different than how conj! treats object arrays.  You have been warned.
+
+  Options:
+
+  * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
+  the [[default-hash-provider]]."
+  (^LongMutHashTable [] (LongMutHashTable.))
+  (^LongMutHashTable [data] (mut-long-hashtable-map nil nil data))
+  (^LongMutHashTable [xform data] (mut-long-hashtable-map xform nil data))
+  (^LongMutHashTable [xform options data]
+   (cond
+     (number? data)
+     (LongMutHashTable. nil (int data))
+     (and (nil? xform) (instance? obj-ary-cls data))
+     (LongMutHashTable/create true ^objects data)
+     :else
+     (tduce xform
+            (mut-map-rf #(LongMutHashTable. nil (get options :init-size 0)))
             data))))
 
 
@@ -1527,7 +1557,8 @@ ham_fisted.PersistentHashMap
 (defn ^:no-doc frequencies-gbc
   ([options coll]
    (group-by-consumer nil inc-consumer-reducer
-                      (merge {:map-fn #(MapForward. (LinkedHashMap.) nil)}
+                      (merge {:map-fn #(MapForward. (LinkedHashMap.) nil)
+                              :ordered? true}
                              options)
                       coll))
   ([coll] (frequencies-gbc nil coll)))
