@@ -216,6 +216,8 @@ public class ArrayLists {
     return res < 0 ? -1 - (res + sidx) : res - sidx;
   }
 
+  public static Object[] objectArray(int len) { return new Object[len]; }
+
   public static class ObjectArraySubList implements IArrayList {
     public final Object[] data;
     public final int sidx;
@@ -241,6 +243,9 @@ public class ArrayLists {
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
     public Object get(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
+    public Object nth(int idx) {
+      return data[checkIndex(idx < 0 ? idx + nElems : idx, nElems) + sidx];
+    }
     public Object set(int idx, Object obj) {
       idx = checkIndex(idx, nElems) + sidx;
       final Object retval = data[idx];
@@ -1097,6 +1102,10 @@ public class ArrayLists {
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
     public long getLong(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
+    public Object get(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
+    public Object nth(int idx) {
+      return data[checkIndex(idx < 0 ? idx + nElems : idx, nElems) + sidx];
+    }
     static void setLong(final long[] d, final int sidx, final int nElems,
 			int idx, final long v) {
       idx = checkIndex(idx, nElems) + sidx;
@@ -1624,6 +1633,12 @@ public class ArrayLists {
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
     public double getDouble(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
+    public Object get(int idx) { return data[checkIndex(idx, nElems) + sidx]; }
+    public Object nth(int idx) {
+      if(idx < 0)
+	idx += nElems;
+      return data[checkIndex(idx, nElems) + sidx];
+    }
     static void setDouble(final double[] d, final int sidx, final int nElems,
 			int idx, final double v) {
       idx = checkIndex(idx, nElems) + sidx;

@@ -44,7 +44,7 @@ public class ArrayImmutList
   final Object[] data;
   public final int startidx;
   public final int nElems;
-  public final IPersistentMap m = null;
+  public final IPersistentMap m;
   int _hash = 0;
 
   public static final ArrayImmutList EMPTY = new ArrayImmutList(new Object[0], 0,0,null);
@@ -53,6 +53,7 @@ public class ArrayImmutList
     data = d;
     startidx = sidx;
     nElems = eidx - sidx;
+    m = meta;
   }
   public static ArrayImmutList create(boolean owning, Object[] d,
 				      int sidx, int eidx, IPersistentMap meta) {

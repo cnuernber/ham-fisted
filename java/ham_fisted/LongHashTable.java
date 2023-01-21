@@ -146,6 +146,28 @@ public final class LongHashTable implements TrieBase, MapData {
       return (LongLeafNode)checkResize(lastNode);
     }
   }
+  public Object put(long key, Object val) {
+    final int hc = longHash(key);
+    final int idx = hc & this.mask;
+    final HashProvider hp = this.hp;
+    LongLeafNode lastNode = null;
+    //Avoid unneeded calls to both equals and checkResize
+    for(LongLeafNode e = this.data[idx]; e != null; e = e.nextNode) {
+      lastNode = e;
+      if(e.k == key) {
+	final Object rv = e.v;
+	e.v = val;
+	return rv;
+      }
+    }
+    LongLeafNode lf = new LongLeafNode(this, key, hc, val, null);
+    if(lastNode != null) {
+      lastNode.nextNode = lf;
+    } else {
+      data[idx] = lf;
+    }
+    return checkResize(null);
+  }
   public LongLeafNode getNode(long key) {
     final int hc = longHash(key);
     final int idx = hc & this.mask;

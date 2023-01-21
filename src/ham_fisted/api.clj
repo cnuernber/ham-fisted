@@ -39,7 +39,7 @@
             [ham-fisted.impl :as impl]
             [ham-fisted.protocols :as protocols])
   (:import [ham_fisted MutArrayMap MutHashTable LongMutHashTable MutBitmapTrie HashSet
-            PersistentHashSet
+            PersistentHashSet HashTable LongHashTable
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
             BitmapTrieCommon$Box ObjArray ImmutValues UpdateValues
             MutList ImmutList StringCollection ArrayImmutList ArrayLists
@@ -65,7 +65,7 @@
             IEditableCollection RT IPersistentMap Associative Util IFn ArraySeq
             Reversible IReduce IReduceInit IFn$DD IFn$DL IFn$DO IFn$LD IFn$LL IFn$LO
             IFn$OD IFn$OL IFn$OLO IFn$ODO IObj Util IReduceInit Seqable IteratorSeq
-            ITransientMap]
+            ITransientMap Counted]
            [java.util Map Map$Entry List RandomAccess Set Collection ArrayList Arrays
             Comparator Random Collections Iterator PriorityQueue LinkedHashMap]
            [java.lang.reflect Array]
@@ -623,6 +623,35 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
     (reduce-reducer rf data)))
 
 
+(defn hash-table-rf
+  "Fastest hashtable creation"
+  ([] (hash-table-rf nil))
+  ([options]
+   (let [provider (options->provider options)]
+     (fn
+       ([] (HashTable. provider 0.75 0 0 nil nil))
+       ([acc v]
+        (if (instance? Map$Entry v)
+          (.put ^HashTable acc (.getKey ^Map$Entry v) (.getValue ^Map$Entry v))
+          (.put ^HashTable acc (.nth ^Indexed v 0) (.nth ^Indexed v 1)))
+        acc)
+       ([acc] (MutHashTable. ^HashTable acc))))))
+
+
+(defn long-hash-table-rf
+  "Fastest hashtable creation if you know the keys will be longs"
+  ([] (long-hash-table-rf nil))
+  ([options]
+   (fn
+     ([] (LongHashTable. 0.75 0 0 nil nil))
+     ([acc v]
+      (if (instance? Map$Entry v)
+        (.put ^LongHashTable acc (long (.getKey ^Map$Entry v)) (.getValue ^Map$Entry v))
+        (.put ^LongHashTable acc (long (.nth ^Indexed v 0)) (.nth ^Indexed v 1)))
+      acc)
+     ([acc] (LongMutHashTable. ^LongHashTable acc)))))
+
+
 (defn mut-hashtable-map
   "Create a mutable implementation of java.util.Map.  This object efficiently implements
   ITransient map so you can use assoc! and persistent! on it but you can additionally use
@@ -743,6 +772,7 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
   [data]
   (when-not (nil? data)
     (or (instance? RandomAccess data)
+        (instance? Counted data)
         (instance? Set data)
         (instance? Map data)
         (.isArray (.getClass ^Object data)))))
@@ -755,6 +785,7 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
     0
     (cond
       (instance? RandomAccess data) (.size ^List data)
+      (instance? Counted data) (.count ^Counted data)
       (instance? Map data) (.size ^Map data)
       (instance? Set data) (.size ^Set data)
       (.isArray (.getClass ^Object data)) (Array/getLength data))))
@@ -2784,6 +2815,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
   ([data] `(ArrayLists/toList (double-array ~data))))
 
 
+
 (defn object-array-list
   "An array list that is as fast as java.util.ArrayList for add,get, etc but includes
   many accelerated operations such as fill and an accelerated addAll when the src data
@@ -2794,6 +2826,45 @@ ham-fisted.api> (binary-search data 1.1 nil)
      (ArrayLists$ObjectArrayList. (int cap-or-data))
      (doto (ArrayLists$ObjectArrayList.)
        (.addAllReducible (->reducible cap-or-data))))))
+
+
+(defmacro indexed-accum
+  "Create an indexed accumulator that recieves and additional long index
+  during a reduction:
+
+```clojure
+ham-fisted.api> (reduce (indexed-accum
+                         acc idx v (conj acc [idx v]))
+                        []
+                        (range 5))
+[[0 0] [1 1] [2 2] [3 3] [4 4]]
+```"
+  [accvar idxvar varvar & code]
+  `(Reductions$IndexedAccum.
+    (reify IFnDef$OLOO
+      (invokePrim [this# ~accvar ~idxvar ~varvar]
+        ~@code))))
+
+
+(defn ^:no-doc object-array-v
+  ^objects [data]
+  (if (instance? RandomAccess data)
+    (.toArray ^List data)
+    (if-let [c (constant-count data)]
+      (let [rv (ArrayLists/objectArray (int c))]
+        (reduce (indexed-accum
+                 acc idx v
+                 (ArrayHelpers/aset rv idx v))
+                nil
+                data)
+        rv)
+      (.toArray (object-array-list data)))))
+
+
+(defmacro ovec
+  ([] `(ArrayLists/toList (obj-ary)))
+  ([data] `(ArrayLists/toList (impl-array-macro ~data ArrayLists/objectArray identity
+                                                object-array-v))))
 
 
 
@@ -2906,24 +2977,6 @@ ham-fisted.api> (reduce (indexed-long-accum
   [accvar idxvar varvar & code]
   `(Reductions$IndexedLongAccum.
     (reify IFnDef$OLLO
-      (invokePrim [this# ~accvar ~idxvar ~varvar]
-        ~@code))))
-
-
-(defmacro indexed-accum
-  "Create an indexed accumulator that recieves and additional long index
-  during a reduction:
-
-```clojure
-ham-fisted.api> (reduce (indexed-accum
-                         acc idx v (conj acc [idx v]))
-                        []
-                        (range 5))
-[[0 0] [1 1] [2 2] [3 3] [4 4]]
-```"
-  [accvar idxvar varvar & code]
-  `(Reductions$IndexedAccum.
-    (reify IFnDef$OLOO
       (invokePrim [this# ~accvar ~idxvar ~varvar]
         ~@code))))
 

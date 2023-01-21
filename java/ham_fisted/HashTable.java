@@ -143,6 +143,28 @@ public final class HashTable implements TrieBase, MapData {
       return (LeafNode)checkResize(lastNode);
     }
   }
+  public Object put(Object key, Object val) {
+    final int hc = hp.hash(key);
+    final int idx = hc & this.mask;
+    final HashProvider hp = this.hp;
+    LeafNode lastNode = null;
+    //Avoid unneeded calls to both equals and checkResize
+    for(LeafNode e = this.data[idx]; e != null; e = e.nextNode) {
+      lastNode = e;
+      if(e.k == key || hp.equals(e.k, key)) {
+	final Object rv = e.v;
+	e.v = val;
+	return rv;
+      }
+    }
+    LeafNode lf = new LeafNode(this, key, hc, val, null);
+    if(lastNode != null) {
+      lastNode.nextNode = lf;
+    } else {
+      data[idx] = lf;
+    }
+    return checkResize(null);
+  }
   public LeafNode getNode(Object key) {
     final int hc = hp.hash(key);
     final int idx = hc & this.mask;
