@@ -3549,3 +3549,51 @@ nil
         (== lhs rhs)))
     (and (== (count lhs) (count rhs))
          (every? identity (map double-eq lhs rhs)))))
+
+
+(defmacro reduced->
+  "Helper macro to implement reduce chains checking for if the accumulator
+  is reduced before calling the next expression in data.
+
+```clojure
+(defrecord YMC [year-month ^long count]
+  clojure.lang.IReduceInit
+  (reduce [this rfn init]
+    (let [init (reduced-> rfn init
+                   (clojure.lang.MapEntry/create :year-month year-month)
+                   (clojure.lang.MapEntry/create :count count))]
+      (if (and __extmap (not (reduced? init)))
+        (reduce rfn init __extmap)
+        init))))
+```"
+  [rfn acc & data]
+  (reduce (fn [expr next-val]
+            `(let [val# ~expr]
+               (if (reduced? val#)
+                 val#
+                 (~rfn val# ~next-val))))
+          acc
+          data))
+
+
+(defmacro custom-ireduce
+  "Custom implementation of IReduceInit and nothing else.  This can be the most efficient
+  way to pass data to other interfaces.  Also see [[custom-counted-ireduce]] if the object
+  should also implement ICounted.  See [[reduced->]] for implementation helper."
+  [rfn acc & code]
+  `(reify ITypedReduce
+     (reduce [this# ~rfn ~acc]
+       ~@code)))
+
+
+(defmacro custom-counted-ireduce
+  "Custom implementation of IReduceInit and nothing else.  This can be the most efficient
+  way to pass data to other interfaces.  Also see custom-ireduce if the object
+  does not need to be counted and see [[reduced->]] for implementation helper."
+  [n-elems rfn acc & code]
+  `(reify
+     Counted
+     (count [this] (unchecked-int ~n-elems))
+     ITypedReduce
+     (reduce [this# ~rfn ~acc]
+       ~@code)))

@@ -1,3 +1,6 @@
+# 1.000-beta-83
+ * Opening the door to custom IReduce implementations.
+
 # 1.000-beta-82
  * convert hashsets to use hashtables instead of bitmap tries.
  * careful analysis of various vec-like object creation mechanisms.
