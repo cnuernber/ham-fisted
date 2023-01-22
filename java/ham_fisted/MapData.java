@@ -21,7 +21,7 @@ public interface MapData {
   void clear();
   void remove(Object k, Box b);
   MapData mutAssoc(Object k, Object v);
-  void mutDissoc(Object k);
+  MapData mutDissoc(Object k);
   //Leaf nodes are immutable here, but the this object, the structure
   //of the hashtable is mutable.
   MapData mutUpdateValue(Object k, IFn fn);

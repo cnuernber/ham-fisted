@@ -16,17 +16,17 @@ import java.util.Iterator;
 public class TransientHashSet
   implements ITransientSet, IObj, IFnDef, ILookup, Seqable {
 
-  final BitmapTrie hb;
+  final HashTable hb;
   boolean editable;
 
-  TransientHashSet(BitmapTrie _hb) { this.hb = _hb.shallowClone(); editable = true; }
+  TransientHashSet(HashTable _hb) { this.hb = _hb.shallowClone(); editable = true; }
 
   final void ensureEditable() { if (!editable) throw new RuntimeException("Transient set edited after persistent!"); }
      
   public final int count() { return hb.size(); }
   public final ITransientSet disjoin(Object key) {
     ensureEditable();
-    hb.dissoc(key);
+    hb.mutDissoc(key);
     return this;
   }
   public final boolean contains(Object key) {
@@ -37,7 +37,7 @@ public class TransientHashSet
   }
   public final TransientHashSet conj(Object key) {
     ensureEditable();
-    hb.assoc(key, HashSet.PRESENT);
+    hb.mutAssoc(key, HashSet.PRESENT);
     return this;
   }
   public final PersistentHashSet persistent() {

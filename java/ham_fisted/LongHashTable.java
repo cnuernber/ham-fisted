@@ -299,13 +299,14 @@ public final class LongHashTable implements TrieBase, MapData {
     checkResize(null);
     return this;
   }
-  public void mutDissoc(Object _k) {
+  public LongHashTable mutDissoc(Object _k) {
     final long k = Casts.longCast(_k);
     final int hc = longHash(k);
     final int idx = hc & this.mask;
     LongLeafNode e = this.data[idx];
     if(e != null)
       this.data[idx] = e.dissoc(this, k);
+    return this;
   }
   public Object reduce(Function<ILeaf, Object> lfn, IFn rfn, Object acc) {
     final LongLeafNode[] d = this.data;

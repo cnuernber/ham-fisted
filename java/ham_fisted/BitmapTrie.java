@@ -1178,7 +1178,7 @@ class BitmapTrie implements IObj, TrieBase, MapData {
     return this;
   }
 
-  public void mutDissoc(Object key) {
+  public BitmapTrie mutDissoc(Object key) {
     if(key == null) {
       if(nullEntry != null) {
 	nullEntry = null;
@@ -1187,6 +1187,7 @@ class BitmapTrie implements IObj, TrieBase, MapData {
     } else {
       root = (BitmapNode)root.dissoc(this,key,hp.hash(key),false);
     }
+    return this;
   }
 
   //Dissoc.  No check for null key identity - always returns this

@@ -29,19 +29,18 @@ import java.util.function.Consumer;
 
 public class PersistentHashSet
   implements IPersistentSet, Collection, Set, Serializable, IHashEq, IObj,
-	     MapSet, BitmapTrieOwner, ILookup, IEditableCollection, IFnDef,
-	     ITypedReduce, IReduce {
-  final BitmapTrie hb;
+	     ILookup, IEditableCollection, IFnDef, ITypedReduce, IReduce {
+  final HashTable hb;
   int cachedHash = 0;
 
   public static final PersistentHashSet EMPTY = new PersistentHashSet();
 
-  public PersistentHashSet() { hb = new BitmapTrie(defaultHashProvider); }
-  public PersistentHashSet(HashProvider hp) { hb = new BitmapTrie(hp); }
-  PersistentHashSet(BitmapTrie _hb) { hb = _hb; }
+  public PersistentHashSet() { hb = new HashTable(defaultHashProvider); }
+  public PersistentHashSet(HashProvider hp) { hb = new HashTable(hp); }
+  PersistentHashSet(HashTable _hb) { hb = _hb; }
   public final int hashCode() {
     if (cachedHash == 0) {
-      return cachedHash = CljHash.setHashcode(hb);
+      return cachedHash = CljHash.setHashcode(this);
     }
     return cachedHash;
   }
@@ -51,13 +50,12 @@ public class PersistentHashSet
   }
 
   public final boolean equals(Object o) {
-    return CljHash.setEquiv(hb, o);
+    return CljHash.setEquiv(this, o);
   }
   public final boolean equiv(Object o) {
     return equals(o);
   }
 
-  public BitmapTrie bitmapTrie() { return hb; }
   public final int count() { return hb.size(); }
   public final int size() { return hb.size(); }
   public final void clear() { hb.clear(); }
@@ -87,7 +85,7 @@ public class PersistentHashSet
   public final boolean isEmpty() { return hb.size() == 0; }
 
   public final IPersistentSet disjoin(Object key) {
-    return new PersistentHashSet(hb.shallowClone().dissoc(key));
+    return new PersistentHashSet(hb.shallowClone().mutDissoc(key));
   }
 
   public final boolean contains(Object key) {
@@ -99,7 +97,7 @@ public class PersistentHashSet
   }
 
   public final IPersistentSet cons(Object o) {
-    return new PersistentHashSet(hb.shallowClone().assoc(o, HashSet.PRESENT));
+    return new PersistentHashSet(hb.shallowClone().mutAssoc(o, HashSet.PRESENT));
   }
 
   public final IPersistentCollection empty(){
@@ -118,23 +116,6 @@ public class PersistentHashSet
   public final Iterator iterator() { return hb.iterator(keyIterFn); }
   public final Spliterator spliterator() { return hb.spliterator(keyIterFn); }
 
-  public PersistentHashSet intersection(MapSet rhs, BiFunction valueMap) {
-    return new PersistentHashSet(hb.intersection(((BitmapTrieOwner)rhs).bitmapTrie(),
-						 valueMap));
-  }
-  public PersistentHashSet union(MapSet rhs, BiFunction valueMap) {
-    return new PersistentHashSet(hb.union(((BitmapTrieOwner)rhs).bitmapTrie(),
-					  valueMap));
-  }
-  public PersistentHashSet difference(MapSet rhs) {
-    return new PersistentHashSet(hb.difference(((BitmapTrieOwner)rhs).bitmapTrie()));
-  }
-  public PersistentHashSet immutUpdateValues(BiFunction valueMap) {
-    throw new RuntimeException("Unimplemented");
-  }
-  public PersistentHashSet immutUpdateValue(Object key, Function valueMap) {
-    throw new RuntimeException("Unimplemented");
-  }
   public final Object[] toArray() {
     Object[] retval = new Object[size()];
     int idx = 0;

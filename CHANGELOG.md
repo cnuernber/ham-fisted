@@ -1,3 +1,7 @@
+# 1.000-beta-82
+ * convert hashsets to use hashtables instead of bitmap tries.
+ * careful analysis of various vec-like object creation mechanisms.
+ 
 # 1.000-beta-81
  * long primitive hashtables - these are quite a bit faster but especially when used directly.
  

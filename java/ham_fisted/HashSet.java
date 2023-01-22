@@ -26,34 +26,33 @@ import clojure.lang.IReduce;
 
 public class HashSet<E>
   extends AbstractSet<E>
-  implements MapSet, BitmapTrieOwner, IObj, ITransientSet, Seqable,
+  implements IObj, ITransientSet, Seqable,
 	     ILookup, IFnDef, IHashEq, ITypedReduce, IReduce {
-  BitmapTrie hb;
+  HashTable hb;
 
   public static final Object PRESENT = new Object();
   public static final BiFunction<Object,Object,Object> setValueMapper = (a,b) -> PRESENT;
 
-  public HashSet(){hb = new BitmapTrie(equalHashProvider);}
+  public HashSet(){hb = new HashTable(defaultHashProvider);}
   public HashSet(HashProvider hp) {
-    hb = new BitmapTrie(hp);
+    hb = new HashTable(hp);
   }
-  HashSet(BitmapTrie _hb) { hb = _hb; }
-  public BitmapTrie bitmapTrie() { return hb; }
-  public HashSet<E> clone() { return new HashSet<E>(hb.deepClone()); }
+  HashSet(HashTable _hb) { hb = _hb; }
+  public HashSet<E> clone() { return new HashSet<E>(hb.clone()); }
   public final int hashCode() {
-    return CljHash.setHashcode(hb);
+    return CljHash.setHashcode(this);
   }
   public final int hasheq() {
     return hashCode();
   }
   public final boolean equals(Object o) {
-    return CljHash.setEquiv(hb, o);
+    return CljHash.setEquiv(this, o);
   }
   public final boolean equiv(Object o) {
     return equals(o);
   }
   public final boolean add(E e) {
-    return (hb.getOrCreate(e).val(PRESENT)) == null;
+    return hb.put(e, PRESENT) == null;
   }
   public final void clear() {
     hb.clear();
@@ -71,7 +70,11 @@ public class HashSet<E>
     return hb.spliterator(keyIterFn);
   }
   public final ISeq seq() { return IteratorSeq.create(iterator()); }
-  public final boolean remove(Object k) { return hb.remove(k) != null; }
+  public final boolean remove(Object k) {
+    Box b = new Box();
+    hb.remove(k,b);
+    return b.obj != null;
+  }
   public final int size() { return hb.size(); }
   public final Object[] toArray() {
     Object[] data = new Object[hb.size()];
@@ -97,25 +100,6 @@ public class HashSet<E>
 
 
   public final int count() { return hb.size(); }
-
-
-  public PersistentHashSet intersection(MapSet rhs, BiFunction valueMap) {
-    return new PersistentHashSet(hb.intersection(((BitmapTrieOwner)rhs).bitmapTrie(),
-						 valueMap));
-  }
-  public final PersistentHashSet union(MapSet rhs, BiFunction valueMap) {
-    return new PersistentHashSet(hb.union(((BitmapTrieOwner)rhs).bitmapTrie(),
-					  valueMap));
-  }
-  public final PersistentHashSet difference(MapSet rhs) {
-    return new PersistentHashSet(hb.difference(((BitmapTrieOwner)rhs).bitmapTrie()));
-  }
-  public final PersistentHashSet immutUpdateValues(BiFunction valueMap) {
-    throw new RuntimeException("Unimplemented");
-  }
-  public final PersistentHashSet immutUpdateValue(Object key, Function valueMap) {
-    throw new RuntimeException("Unimplemented");
-  }
 
   public final IPersistentMap meta() { return hb.meta(); }
   public final HashSet<E> withMeta(IPersistentMap meta) {
@@ -163,11 +147,6 @@ public class HashSet<E>
 
   @SuppressWarnings("unchecked")
   public void forEach(Consumer c) {
-    reduce( new IFnDef() {
-	public Object invoke(Object lhs, Object rhs) {
-	  c.accept(rhs);
-	  return c;
-	}
-      }, c);
+    ITypedReduce.super.forEach(c);
   }
 }

@@ -164,11 +164,12 @@ public class ArrayMap implements MapData {
   public MapData mutAssoc(Object k, Object v) {
     return assocAt(index(k), k, v);
   }
-  public void mutDissoc(Object k) {
+  public MapData mutDissoc(Object k) {
     int kidx = index(k);
     if(kidx != -1) {
       backfill(kidx);
     }
+    return this;
   }
   public MapData mutUpdateValue(Object k, IFn fn) {
     int kidx = index(k);

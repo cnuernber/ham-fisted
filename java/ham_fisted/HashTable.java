@@ -46,6 +46,9 @@ public final class HashTable implements TrieBase, MapData {
     this.meta = meta;
     this.threshold = (int)(capacity * loadFactor);
   }
+  public HashTable(HashProvider hp) {
+    this(hp, 0.75f, 0, 0, null, null);
+  }
   public HashProvider hashProvider() { return hp; }
   public int hash(Object k) { return hp.hash(k); }
   public boolean equals(Object lhs, Object rhs) { return hp.equals(lhs, rhs); }
@@ -53,9 +56,12 @@ public final class HashTable implements TrieBase, MapData {
   public void dec() { this.length--;}
   public int size() { return this.length; }
   public boolean isEmpty() { return this.length == 0; }
-  public HashTable shallowClone() {
+  public HashTable shallowClone(IPersistentMap meta) {
     return new HashTable(this.hp, this.loadFactor, this.capacity, this.length,
-			 this.data.clone(), this.meta);
+			 this.data.clone(), meta);
+  }
+  public HashTable shallowClone() {
+    return shallowClone(this.meta);
   }
   public HashTable clone() {
     HashTable rv = shallowClone();
@@ -285,12 +291,13 @@ public final class HashTable implements TrieBase, MapData {
     checkResize(null);
     return this;
   }
-  public void mutDissoc(Object k) {
+  public HashTable mutDissoc(Object k) {
     final int hc = hp.hash(k);
     final int idx = hc & this.mask;
     LeafNode e = this.data[idx];
     if(e != null)
       this.data[idx] = e.dissoc(this, k);
+    return this;
   }
   public Object reduce(Function<ILeaf, Object> lfn, IFn rfn, Object acc) {
     final LeafNode[] d = this.data;

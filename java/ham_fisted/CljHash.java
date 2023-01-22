@@ -139,6 +139,21 @@ public class CljHash {
     return false;
   }
 
+
+  public static boolean setEquiv(Set data, Object rhs) {
+    if (rhs instanceof Set) {
+      Set rhsMap = (Set)rhs;
+      if (data.size() != rhsMap.size()) return false;
+
+      for(Object obj: rhsMap) {	
+	if (data.contains(obj) == false)
+	  return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
   public static int listHasheq(List l) {
     int hash = 1;
     final int n = l.size();

@@ -91,8 +91,8 @@ public class ArrayImmutList
   public final boolean equiv(HashProvider hp, Object other) {
     if(other == this) return true;
     if(other == null) return false;
-    final int ne = nElems;
     if(other instanceof ArrayImmutList) {
+      final int ne = nElems;
       final ArrayImmutList olist = (ArrayImmutList)other;
       if(olist.nElems != ne) return false;
       final int sidx = startidx;
@@ -247,11 +247,11 @@ public class ArrayImmutList
     final int ne = nElems;
     if (idx < 0)
       idx = idx + ne;
-    if (idx >= ne) return notFound;
+    if (idx < 0 || idx >= ne) return notFound;
     return data[idx+startidx];
   }
   public final Object nth(int idx) {
-    return data[wrapIndexCheck(idx)];
+    return data[ChunkedList.indexCheck(startidx, nElems, idx < 0 ? idx + nElems : idx)];
   }
   public final Object invoke(Object idx) {
     if (Util.isInteger(idx))
@@ -285,22 +285,15 @@ public class ArrayImmutList
     return false;
   }
   public final ArrayImmutList empty() { return EMPTY.withMeta(m); }
-  public final Object reduce(IFn f, int sidx, Object init) {
-    final int endidx = startidx + nElems;
-    final Object[] d = data;
-    while(sidx < endidx && !RT.isReduced(init)) {
-      init = f.invoke(init, d[sidx]);
-      sidx++;
-    }
-    return Reductions.unreduce(init);
-  }
   public final Object reduce(IFn f, Object init) {
-    return reduce(f, startidx, init);
-  }
-  public final Object reduce(IFn f) {
-    if(nElems == 0)
-      return f.invoke();
-    return reduce(f, startidx+1, get(0));
+    final int ne = startidx + nElems;
+    final Object[] d = data;
+    for(int idx = startidx; idx < ne; ++idx) {
+      init = f.invoke(init, d[idx]);
+      if(RT.isReduced(init))
+	return ((IDeref)init).deref();
+    }
+    return init;
   }
   public final Object kvreduce(IFn fn, Object init) {
     final int sidx = startidx;
@@ -311,8 +304,8 @@ public class ArrayImmutList
     }
     return Reductions.unreduce(init);
   }
-  public final ISeq seq() { return IteratorSeq.create(iterator()); }
-  public final ISeq rseq() { return IteratorSeq.create(riterator()); }
+  public final ISeq seq() { return RT.chunkIteratorSeq(iterator()); }
+  public final ISeq rseq() { return RT.chunkIteratorSeq(riterator()); }
   public final IPersistentVector cons(Object obj) {
     final int ne = nElems;
     switch(ne){
@@ -326,8 +319,8 @@ public class ArrayImmutList
     final int nne = nElems + 1;
     Object[] newD = Arrays.copyOfRange(data, startidx, startidx + nne);
     newD[ne] = obj;
-    if(nne == 32) {
-      return new ImmutList(0, nne, new ChunkedList(new Object[][] {newD}, nne, nne, m));
+    if(nne > 32) {
+      return new ImmutList(0, nne, ChunkedList.create(true, m, newD));
     } else {
       return new ArrayImmutList(newD, 0, nne, m);
     }

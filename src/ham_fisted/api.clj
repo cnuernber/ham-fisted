@@ -39,7 +39,7 @@
             [ham-fisted.impl :as impl]
             [ham-fisted.protocols :as protocols])
   (:import [ham_fisted MutArrayMap MutHashTable LongMutHashTable MutBitmapTrie HashSet
-            PersistentHashSet HashTable LongHashTable
+            PersistentHashSet HashTable LongHashTable ArrayLists$ArrayOwner
             BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
             BitmapTrieCommon$Box ObjArray ImmutValues UpdateValues
             MutList ImmutList StringCollection ArrayImmutList ArrayLists
@@ -897,7 +897,7 @@ ham_fisted.PersistentHashMap
 
 
 (defn mut-set
-  "Create a mutable hashset based on the bitmap trie. You can create a persistent hashset via
+  "Create a mutable hashset based on the hashtable. You can create a persistent hashset via
   the clojure `persistent!` call.
 
   Options:
@@ -910,7 +910,7 @@ ham_fisted.PersistentHashMap
 
 
 (defn immut-set
-  "Create an immutable hashset based on the bitmap trie.  This object supports conversion
+  "Create an immutable hashset based on a hash table.  This object supports conversion
   to transients via `transient`.
 
   Options:
@@ -2846,25 +2846,39 @@ ham-fisted.api> (reduce (indexed-accum
         ~@code))))
 
 
-(defn ^:no-doc object-array-v
-  ^objects [data]
+(defn ^:no-doc ovec-v
+  ^ArrayImmutList [data]
   (if (instance? RandomAccess data)
-    (.toArray ^List data)
-    (if-let [c (constant-count data)]
-      (let [rv (ArrayLists/objectArray (int c))]
-        (reduce (indexed-accum
-                 acc idx v
-                 (ArrayHelpers/aset rv idx v))
-                nil
-                data)
-        rv)
-      (.toArray (object-array-list data)))))
+    (ArrayImmutList. (.toArray ^List data) 0 (.size ^List data) (meta data))
+    (if (instance? obj-ary-cls data)
+      (ArrayImmutList. ^objects data 0 (alength ^objects data) nil)
+      (if (instance? RandomAccess data)
+        (ArrayImmutList. (.toArray ^List data) 0 (.size ^List data) (meta data))
+        (if-let [c (constant-count data)]
+          (let [rv (ArrayLists/objectArray (int c))]
+            (reduce (indexed-accum
+                     acc idx v
+                     (ArrayHelpers/aset rv idx v))
+                    nil
+                    data)
+            (ArrayImmutList. rv 0 c (meta data)))
+          (let [ol (object-array-list data)
+                as (.getArraySection ^ArrayLists$ArrayOwner ol)
+                ^objects ary (.-array as)]
+            (ArrayImmutList. ary 0 (.size as) (meta data))))))))
 
 
 (defmacro ovec
-  ([] `(ArrayLists/toList (obj-ary)))
-  ([data] `(ArrayLists/toList (impl-array-macro ~data ArrayLists/objectArray identity
-                                                object-array-v))))
+  "Return an immutable persistent vector like object backed by a single object array."
+  ([] `ArrayImmutList/EMPTY)
+  ([data]
+   (cond
+     (number? data)
+     `(ArrayImmutList. (ArrayLists/objectArray ~data) 0 ~data nil)
+     (vector? data)
+     `(ArrayImmutList. (obj-ary ~@data) 0 ~(count data) ~(meta data))
+     :else
+     `(ovec-v ~data))))
 
 
 
