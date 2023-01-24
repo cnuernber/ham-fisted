@@ -10,6 +10,7 @@ import clojure.lang.IPersistentMap;
 import clojure.lang.IFn;
 import clojure.lang.IDeref;
 import clojure.lang.Util;
+import clojure.lang.Reduced;
 
 
 
@@ -83,20 +84,26 @@ public class Ranges {
       return subList((long)sidx, (long)eidx);
     }
     public Object reduce(final IFn fn, Object init) {
-      final IFn.OLO rrfn = fn instanceof IFn.OLO ? (IFn.OLO)fn : new IFn.OLO() {
-	  public Object invokePrim(Object lhs, long v) {
-	    return fn.invoke(lhs, v);
-	  }
-	};
-      return longReduction(rrfn, init);
-    }
-    public Object longReduction(IFn.OLO op, Object init) {
-      final long sz = nElems;
-      final long se = step;
-      long st = start;
-      for(long idx = 0; idx < sz && !RT.isReduced(init); ++idx, st += se)
-	init = op.invokePrim(init, st);
-      return Reductions.unreduce(init);
+      Object acc = init;
+      long n = nElems;
+      long i = start;
+      if(!(fn instanceof IFn.OLO))
+	do {
+	  acc = fn.invoke(acc, i);
+	  if (RT.isReduced(acc)) return ((Reduced)acc).deref();
+	  i += step;
+	  n--;
+	} while(n > 0);
+      else {
+	final IFn.OLO ff = (IFn.OLO)fn;
+	do {
+	  acc = ff.invokePrim(acc, i);
+	  if (RT.isReduced(acc)) return ((Reduced)acc).deref();
+	  i += step;
+	  n--;
+	} while(n > 0);
+      }
+      return acc;
     }
     public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
 				     ParallelOptions options) {

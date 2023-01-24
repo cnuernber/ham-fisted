@@ -96,6 +96,7 @@
 
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (declare assoc! conj! vec mapv vector object-array range first take drop into-array shuffle
          object-array-list int-array-list long-array-list double-array-list
@@ -1770,7 +1771,7 @@ nil
       (let [nargs (count ks)
             nnargs (dec nargs)]
         `(let [~@(->> (range (dec nargs))
-                      (mapcat (fn [argidx]
+                      (mapcat (fn [^long argidx]
                                 (let [argidx (inc argidx)]
                                   [(symbol (str "m" argidx))
                                    (if (== 0 argidx)
@@ -1914,7 +1915,7 @@ nil
         0 `(update ~m nil ~f ~@args)
         1 `(update ~m ~(ks 0) ~f ~@args)
         `(let [~@(->> (range 1 countk)
-                      (mapcat (fn [argidx]
+                      (mapcat (fn [^long argidx]
                                 (let [didix (dec argidx)]
                                   [(symbol (str "m" argidx))
                                    `(get ~(if (= 0 didix) m (symbol (str "m" didix)))
@@ -2815,26 +2816,19 @@ ham-fisted.api> (reduce (indexed-accum
         ~@code))))
 
 
+
 (defn ^:no-doc ovec-v
   ^ArrayImmutList [data]
-  (if (instance? RandomAccess data)
-    (ArrayImmutList. (.toArray ^List data) 0 (.size ^List data) (meta data))
-    (if (instance? obj-ary-cls data)
-      (ArrayImmutList. ^objects data 0 (alength ^objects data) nil)
-      (if (instance? RandomAccess data)
-        (ArrayImmutList. (.toArray ^List data) 0 (.size ^List data) (meta data))
-        (if-let [c (constant-count data)]
-          (let [rv (ArrayLists/objectArray (int c))]
-            (reduce (indexed-accum
-                     acc idx v
-                     (ArrayHelpers/aset rv idx v))
-                    nil
-                    data)
-            (ArrayImmutList. rv 0 c (meta data)))
-          (let [ol (object-array-list data)
-                as (.getArraySection ^ArrayLists$ArrayOwner ol)
-                ^objects ary (.-array as)]
-            (ArrayImmutList. ary 0 (.size as) (meta data))))))))
+  (if (instance? obj-ary-cls data)
+    (ArrayImmutList. ^objects data 0 (alength ^objects data) nil)
+    (if-let [c (constant-count data)]
+      (let [rv (ArrayLists/objectArray (int c))]
+        (.fillRangeReducible (ArrayLists/toList rv) 0 data)
+        (ArrayImmutList. rv 0 c (meta data)))
+      (let [ol (object-array-list data)
+            as (.getArraySection ^ArrayLists$ArrayOwner ol)
+            ^objects ary (.-array as)]
+        (ArrayImmutList. ary 0 (.size as) (meta data))))))
 
 
 (defmacro ovec
@@ -2853,7 +2847,19 @@ ham-fisted.api> (reduce (indexed-accum
 (defn mapv
   "Produce a persistent vector from a collection."
   ([map-fn coll]
-   (ovec (lznc/map-reducible map-fn coll)))
+   (if-let [c (constant-count coll)]
+     (let [c (int c)
+           rv (ArrayLists/objectArray c)]
+       (reduce (indexed-accum
+                acc idx v
+                (ArrayHelpers/aset rv idx (map-fn v)))
+               nil
+               coll)
+       (ArrayImmutList. rv 0 c nil))
+     (let [rv (ArrayLists$ObjectArrayList. (ArrayLists/objectArray 8) 0 nil)
+           _ (reduce (fn [acc v] (.add rv (map-fn v))) nil coll)
+           as (.getArraySection ^ArrayLists$ArrayOwner rv)]
+       (ArrayImmutList. (.-array as) 0 (.size as) nil))))
   ([map-fn c1 c2]
    (ovec (map map-fn c1 c2)))
   ([map-fn c1 c2 c3]
@@ -3328,7 +3334,7 @@ nil
 
 
 (deftype ^:private MaxKeyReducer [^{:unsynchronized-mutable true
-                                    :tag 'long} data
+                                    :tag long} data
                                   ^:unsynchronized-mutable value
                                   ^IFn$OL mapper]
   Consumer
@@ -3360,7 +3366,7 @@ nil
     (preduce-reducer (consumer-reducer #(MaxKeyReducer. Long/MIN_VALUE nil f)) data)))
 
 (deftype ^:private MinKeyReducer [^{:unsynchronized-mutable true
-                                    :tag 'long} data
+                                    :tag long} data
                                   ^:unsynchronized-mutable value
                                   ^IFn$OL mapper]
   Consumer

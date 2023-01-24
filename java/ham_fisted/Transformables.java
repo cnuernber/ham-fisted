@@ -9,6 +9,7 @@ import java.util.AbstractCollection;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.HashMap;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -17,6 +18,7 @@ import java.util.Collection;
 import java.util.BitSet;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.LongConsumer;
@@ -93,16 +95,12 @@ public class Transformables {
 	}
       };
     }
-    if(rfn instanceof IFn) {
-      IFn rrfn = (IFn)rfn;
-      return new IFnDef.OLO() {
-	public Object invokePrim(Object lhs, long rhs) {
-	  return rrfn.invoke(lhs, rhs);
-	}
-      };
-    }
-    else
-      throw new RuntimeException("Unrecognised function type: " + String.valueOf(rfn.getClass()));
+    IFn rrfn = (IFn)rfn;
+    return new IFnDef.OLO() {
+      public Object invokePrim(Object lhs, long rhs) {
+	return rrfn.invoke(lhs, rhs);
+      }
+    };
   }
 
   public static IFn.ODO toDoubleReductionFn(Object rfn) {
@@ -117,16 +115,12 @@ public class Transformables {
 	}
       };
     }
-    if(rfn instanceof IFn) {
-      IFn rrfn = (IFn)rfn;
-      return new IFnDef.ODO() {
-	public Object invokePrim(Object lhs, double rhs) {
-	  return rrfn.invoke(lhs, rhs);
-	}
-      };
-    }
-    else
-      throw new RuntimeException("Unrecognised function type: " + String.valueOf(rfn.getClass()));
+    IFn rrfn = (IFn)rfn;
+    return new IFnDef.ODO() {
+      public Object invokePrim(Object lhs, double rhs) {
+	return rrfn.invoke(lhs, rhs);
+      }
+    };
   }
 
   public static Iterable toIterable(Object obj) {
@@ -156,46 +150,6 @@ public class Transformables {
 	return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
       }
     };
-  }
-  public static IFn doubleMapReducer(final IFn rfn, final IFn mapFn) {
-    final IFn.ODO rr = (IFn.ODO)rfn;
-    if (mapFn instanceof IFn.OD) {
-      final IFn.OD mfn = (IFn.OD)mapFn;
-      return new IFnDef() {
-	public Object invoke() { return rfn.invoke(); }
-	public Object invoke(Object res) { return rfn.invoke(res); }
-	public Object invoke(Object lhs, Object rhs) {
-	  return rr.invokePrim(lhs, mfn.invokePrim(rhs));
-	}
-	public Object applyTo(ISeq arglist) {
-	  return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
-	}
-      };
-    } else if (mapFn instanceof IFn.DD) {
-      final IFn.DD mfn = (IFn.DD)mapFn;
-      return new Reductions.DoubleAccum() {
-	public Object invoke() { return rfn.invoke(); }
-	public Object invoke(Object res) { return rfn.invoke(res); }
-	public Object invokePrim(Object lhs, double rhs) {
-	  return rr.invokePrim(lhs, mfn.invokePrim(rhs));
-	}
-	public Object applyTo(ISeq arglist) {
-	  return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
-	}
-      };
-    } else {
-      final IFn.LD mfn = (IFn.LD)mapFn;
-      return new Reductions.LongAccum() {
-	public Object invoke() { return rfn.invoke(); }
-	public Object invoke(Object res) { return rfn.invoke(res); }
-	public Object invokePrim(Object lhs, long v) {
-	  return rr.invokePrim(lhs, mfn.invokePrim(v));
-	}
-	public Object applyTo(ISeq arglist) {
-	  return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
-	}
-      };
-    }
   }
   public static IFn longMapReducer(final IFn rfn, final IFn mapFn) {
     final IFn.OLO rr = (IFn.OLO)rfn;
@@ -238,28 +192,118 @@ public class Transformables {
     }
   }
 
+  final static HashMap<Class,BiFunction<IFn,IFn,IFn>> mappingReducer = new HashMap<Class,BiFunction<IFn,IFn,IFn>>();
+  static {
+    mappingReducer.put(IFn.LD.class, (IFn rfn, IFn mapFn)-> {
+	final IFn.ODO rr = toDoubleReductionFn(rfn);
+	final IFn.LD mfn = (IFn.LD)mapFn;
+	return new IFnDef.OLO() {
+	  public Object invoke() { return rfn.invoke(); }
+	  public Object invoke(Object res) { return rfn.invoke(res); }
+	  public Object invokePrim(Object lhs, long v) {
+	    return rr.invokePrim(lhs, mfn.invokePrim(v));
+	  }
+	  public Object applyTo(ISeq arglist) {
+	    return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
+	  }
+	};
+      });
+    mappingReducer.put(IFnDef.LD.class, mappingReducer.get(IFn.LD.class));
+    mappingReducer.put(IFn.OD.class, (IFn rfn, IFn mapFn)->{
+	final IFn.ODO rr = toDoubleReductionFn(rfn);
+	final IFn.OD mfn = (IFn.OD)mapFn;
+	return new IFnDef.OOO() {
+	  public Object invoke() { return rfn.invoke(); }
+	  public Object invoke(Object res) { return rfn.invoke(res); }
+	  public Object invoke(Object lhs, Object v) {
+	    return rr.invokePrim(lhs, mfn.invokePrim(v));
+	  }
+	  public Object applyTo(ISeq arglist) {
+	    return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
+	  }
+	};
+      });
+    mappingReducer.put(IFnDef.OD.class, mappingReducer.get(IFn.OD.class));
+    mappingReducer.put(IFn.DD.class, (IFn rfn, IFn mapFn)-> {
+	final IFn.ODO rr = toDoubleReductionFn(rfn);
+	final IFn.DD mfn = (IFn.DD)mapFn;
+	return new IFnDef.ODO() {
+	  public Object invoke() { return rfn.invoke(); }
+	  public Object invoke(Object res) { return rfn.invoke(res); }
+	  public Object invokePrim(Object lhs, double rhs) {
+	    return rr.invokePrim(lhs, mfn.invokePrim(rhs));
+	  }
+	  public Object applyTo(ISeq arglist) {
+	    return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
+	  }
+	};
+      });
+    mappingReducer.put(IFnDef.DD.class, mappingReducer.get(IFn.DD.class));
+    mappingReducer.put(IFn.OL.class, (IFn rfn, IFn mapFn)-> {
+	final IFn.OLO rr = toLongReductionFn(rfn);
+	final IFn.OL mfn = (IFn.OL)mapFn;
+	return new IFnDef() {
+	  public Object invoke() { return rfn.invoke(); }
+	  public Object invoke(Object res) { return rfn.invoke(res); }
+	  public Object invoke(Object lhs, Object v) {
+	    return rr.invokePrim(lhs, mfn.invokePrim(v));
+	  }
+	  public Object applyTo(ISeq arglist) {
+	    return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
+	  }
+	};
+      });
+    mappingReducer.put(IFnDef.OL.class, mappingReducer.get(IFn.OL.class));
+    mappingReducer.put(IFn.DL.class, (IFn rfn, IFn mapFn)-> {
+	final IFn.OLO rr = toLongReductionFn(rfn);
+	final IFn.DL mfn = (IFn.DL)mapFn;
+	return new IFnDef.ODO() {
+	  public Object invoke() { return rfn.invoke(); }
+	  public Object invoke(Object res) { return rfn.invoke(res); }
+	  public Object invokePrim(Object lhs, double v) {
+	    return rr.invokePrim(lhs, mfn.invokePrim(v));
+	  }
+	  public Object applyTo(ISeq arglist) {
+	    return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
+	  }
+	};
+      });
+    mappingReducer.put(IFnDef.DL.class, mappingReducer.get(IFn.DL.class));
+    mappingReducer.put(IFn.LL.class, (IFn rfn, IFn mapFn)-> {
+	final IFn.OLO rr = toLongReductionFn(rfn);
+	final IFn.LL mfn = (IFn.LL)mapFn;
+	return new IFnDef.OLO() {
+	  public Object invoke() { return rfn.invoke(); }
+	  public Object invoke(Object res) { return rfn.invoke(res); }
+	  public Object invokePrim(Object lhs, long v) {
+	    return rr.invokePrim(lhs, mfn.invokePrim(v));
+	  }
+	  public Object applyTo(ISeq arglist) {
+	    return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
+	  }
+	};
+      });
+    mappingReducer.put(IFnDef.LL.class, mappingReducer.get(IFn.LL.class));
+  }
+
   public static IFn typedMapReducer(IFn rfn, IFn mapFn) {
-    if(mapFn instanceof IFn.LD ||
-       mapFn instanceof IFn.OD ||
-       mapFn instanceof IFn.DD ) {
-      return doubleMapReducer((IFn)toDoubleReductionFn(rfn), mapFn);
-    } else if ( mapFn instanceof IFn.DL ||
-		mapFn instanceof IFn.OL ||
-		mapFn instanceof IFn.LL ) {
-      return longMapReducer((IFn)toLongReductionFn(rfn), mapFn);
-    } else if ( mapFn instanceof IFn.LO ) {
-      //This is a common index->value type operation
-      final IFn.LO mm = (IFn.LO)mapFn;
-      return new IFnDef.OLO() {
-	public Object invoke() { return rfn.invoke(); }
-	public Object invoke(Object res) { return rfn.invoke(res); }
-	public Object invokePrim(Object acc, long v) {
-	  return rfn.invoke(acc, mm.invokePrim(v));
-	}
-      };
-    } else {
-      return mapReducer(rfn, mapFn);
+    final Class[] ifaces = mapFn.getClass().getInterfaces();
+    final int il = ifaces.length;
+    for(int idx = 0; idx < il; ++idx) {
+      final BiFunction<IFn, IFn, IFn> ff = mappingReducer.get(ifaces[idx]);
+      if(ff != null)
+	return ff.apply(rfn, mapFn);
     }
+    return new IFnDef() {
+      public Object invoke() { return rfn.invoke(); }
+      public Object invoke(Object res) { return rfn.invoke(res); }
+      public Object invoke(Object lhs, Object v) {
+	return rfn.invoke(lhs, mapFn.invoke(v));
+      }
+      public Object applyTo(ISeq arglist) {
+	return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
+      }
+    };
   }
   public static Object singleMapReduce(final Object item, final IFn rfn,
 				       final IFn mapFn, Object init) {
