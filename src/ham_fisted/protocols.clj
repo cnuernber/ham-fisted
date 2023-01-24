@@ -140,3 +140,8 @@ two accumulators  and returns a or modified accumulator."))
   (intersects-range? [item sidx eidx])
   (min-set-value [item])
   (max-set-value [item]))
+
+
+(defprotocol WrapArray
+  (^IMutList wrap-array [ary])
+  (^IMutList wrap-array-growable [ary ptr]))

@@ -770,25 +770,13 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
 (defn constant-countable?
   "Return true if data has a constant time count."
   [data]
-  (when-not (nil? data)
-    (or (instance? RandomAccess data)
-        (instance? Counted data)
-        (instance? Set data)
-        (instance? Map data)
-        (.isArray (.getClass ^Object data)))))
+  (lznc/constant-countable? data))
 
 
 (defn constant-count
   "Constant time count.  Returns nil if input doesn't have a constant time count."
   [data]
-  (if (nil? data)
-    0
-    (cond
-      (instance? RandomAccess data) (.size ^List data)
-      (instance? Counted data) (.count ^Counted data)
-      (instance? Map data) (.size ^Map data)
-      (instance? Set data) (.size ^Set data)
-      (.isArray (.getClass ^Object data)) (Array/getLength data))))
+  (lznc/constant-count data))
 
 
 (defn immut-map
@@ -2117,24 +2105,6 @@ nil
    (group-by f nil coll)))
 
 
-(defn mapv
-  "Produce a persistent vector from a collection."
-  ([map-fn coll]
-   (immut-list (map map-fn coll)))
-  ([map-fn c1 c2]
-   (immut-list (map map-fn c1 c2)))
-  ([map-fn c1 c2 c3]
-   (immut-list (map map-fn c1 c2 c3)))
-  ([map-fn c1 c2 c3 & args]
-   (immut-list (apply map map-fn c1 c2 c3 args))))
-
-
-(defn filterv
-  "Filter a collection into a vector."
-  [pred coll]
-  (immut-list (filter pred coll)))
-
-
 (defn vec
   "Produce a persistent vector.  Optimized pathways exist for object arrays and
   java List implementations."
@@ -2579,10 +2549,9 @@ ham-fisted.api> (binary-search data 1.1 nil)
   (if (number? data)
      (clj-ary-fn data)
      (let [data (->reducible data)]
-       (if (instance? RandomAccess data)
-         (let [^List data data
-               retval (clj-ary-fn (.size data))]
-           (.fillRange ^IMutList (ary-ra-fn retval) 0 data)
+       (if-let [c (constant-count data)]
+         (let [retval (clj-ary-fn c)]
+           (.fillRangeReducible ^IMutList (ary-ra-fn retval) 0 data)
            retval)
          (.toNativeArray ^IMutList (ary-list-fn data))))))
 
@@ -2880,6 +2849,23 @@ ham-fisted.api> (reduce (indexed-accum
      :else
      `(ovec-v ~data))))
 
+
+(defn mapv
+  "Produce a persistent vector from a collection."
+  ([map-fn coll]
+   (ovec (lznc/map-reducible map-fn coll)))
+  ([map-fn c1 c2]
+   (ovec (map map-fn c1 c2)))
+  ([map-fn c1 c2 c3]
+   (ovec (map map-fn c1 c2 c3)))
+  ([map-fn c1 c2 c3 & args]
+   (ovec (apply map map-fn c1 c2 c3 args))))
+
+
+(defn filterv
+  "Filter a collection into a vector."
+  [pred coll]
+  (ovec (filter pred coll)))
 
 
 (defmacro double-binary-operator
@@ -3597,3 +3583,18 @@ nil
      ITypedReduce
      (reduce [this# ~rfn ~acc]
        ~@code)))
+
+
+(defn wrap-array
+  "Wrap an array with an implementation of IMutList"
+  ^IMutList [ary] (alists/wrap-array ary))
+
+
+(defn wrap-array-growable
+  "Wrap an array with an implementation of IMutList that supports add and addAllReducible.
+  'ptr is the numeric put ptr, defaults to the array length.  Pass in zero for a preallocated
+  but empty growable wrapper."
+  (^IMutList [ary ptr]
+   (alists/wrap-array-growable ary ptr))
+  (^IMutList [ary]
+   (alists/wrap-array-growable ary)))

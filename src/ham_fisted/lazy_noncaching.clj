@@ -1,5 +1,6 @@
 (ns ham-fisted.lazy-noncaching
   (:require [ham-fisted.iterator :as iterator]
+            [ham-fisted.alists :as alists]
             [ham-fisted.protocols :as protocols])
   (:import [ham_fisted Transformables$MapIterable Transformables$FilterIterable
             Transformables$CatIterable Transformables$MapList Transformables$IMapable
@@ -10,16 +11,20 @@
             IFnDef$OLOO ArrayHelpers]
            [java.lang.reflect Array]
            [it.unimi.dsi.fastutil.ints IntArrays]
-           [java.util RandomAccess Collection Map List Random]
+           [java.util RandomAccess Collection Map List Random Set]
            [clojure.lang RT IPersistentMap IReduceInit IReduce PersistentList
             IFn$OLO IFn$ODO Counted])
   (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle object-array
                             remove map-indexed]))
 
 
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
+
+
 (def ^{:tag ArrayImmutList} empty-vec ArrayImmutList/EMPTY)
 
-(declare concat)
+(declare concat map-reducible)
 
 (defn ->collection
   "Ensure an item implements java.util.Collection.  This is inherently true for seqs and any
@@ -95,32 +100,44 @@
         c
         (->collection (object-array c))))))
 
+(defn constant-countable?
+  [data]
+  (or (nil? data)
+      (instance? RandomAccess data)
+      (instance? Counted data)
+      (instance? Set data)
+      (instance? Map data)
+      (.isArray (.getClass ^Object data))))
+
+
+(defn constant-count
+  "Constant time count.  Returns nil if input doesn't have a constant time count."
+  [data]
+  (cond
+    (nil? data) 0
+    (instance? RandomAccess data) (.size ^List data)
+    (instance? Counted data) (.count ^Counted data)
+    (instance? Map data) (.size ^Map data)
+    (instance? Set data) (.size ^Set data)
+    (.isArray (.getClass ^Object data)) (Array/getLength data)))
+
 
 (defn into-array
   ([aseq] (into-array (if-let [item (first aseq)] (.getClass ^Object item) Object) aseq))
   ([ary-type aseq]
    (let [^Class ary-type (or ary-type Object)
-         aseq (->collection aseq)
-         ^List aseq (if (instance? RandomAccess aseq)
-                      aseq
-                      (doto (ArrayLists$ObjectArrayList.)
-                        (.addAll (->collection aseq))))]
-     (if (.isAssignableFrom Object ary-type)
-       (.toArray aseq (Array/newInstance ary-type 0))
-       (let [retval (Array/newInstance ary-type (.size aseq))
-             ^IMutList ml (ArrayLists/toList retval)]
-         (.fillRange ml 0 aseq)
-         retval))))
+         aseq (->reducible aseq)]
+     (if-let [c (constant-count aseq)]
+       (let [rv (Array/newInstance ary-type (int c))]
+         (.fillRangeReducible ^IMutList (alists/wrap-array rv) 0 aseq)
+         rv)
+       (let [^IMutList al (alists/wrap-array-growable (Array/newInstance ary-type 4) 0)]
+         (.addAllReducible al aseq)
+         (.toNativeArray al)))))
   ([ary-type mapfn aseq]
-   (let [ary-type (or ary-type Object)]
-     (if mapfn
-       (into-array ary-type (if (instance? RandomAccess aseq)
-                              (Transformables$SingleMapList. mapfn nil aseq)
-                              (doto (ArrayLists$ObjectArrayList.)
-                                (.addAll (Transformables$MapIterable/createSingle
-                                          mapfn nil
-                                          (->collection aseq))))))
-       (into-array ary-type aseq)))))
+   (if mapfn
+     (into-array ary-type (map-reducible mapfn aseq))
+     (into-array ary-type aseq))))
 
 
 (defn map
@@ -196,13 +213,19 @@
 
 (defn map-reducible
   "Map a function over r - r need only be reducible.  Returned value does not implement
-  seq and is not countable."
+  seq but is countable when r is countable countable."
   [f r]
-  (reify
-    IReduceInit
-    (reduce [this rfn acc]
-      (reduce (fn [acc v] (rfn acc (f v)))
-              acc r))))
+  (if-let [c (constant-count r)]
+    (reify
+      Counted
+      (count [this] c)
+      IReduceInit
+      (reduce [this rfn acc]
+        (Reductions/serialReduction (Transformables/typedMapReducer rfn f) acc r)))
+    (reify
+      IReduceInit
+      (reduce [this rfn acc]
+        (Reductions/serialReduction (Transformables/typedMapReducer rfn f) acc r)))))
 
 
 (defn concat

@@ -111,16 +111,19 @@ public class ArrayLists {
     }
   }
   @SuppressWarnings("unchecked")
-  static boolean fillRangeArrayCopy(Object dest, long sidx, long eidx, Class aryCls,
-				    long startidx, List l) {
+  static boolean fillRangeArrayCopy(Object dest, long sidx, long eidx,
+				    long startidx, Object ll) {
     //True means this function took care of the transfer, false means
     //fallback to a more generalized transfer
-    if (l.isEmpty()) return true;
-    final int sz = l.size();
-    final long endidx = startidx + sz;
-    checkIndexRange(eidx-sidx, startidx, endidx);
-    if(l instanceof ArrayOwner) {
-      final ArraySection as = ((ArrayOwner)l).getArraySection();
+    if(ll instanceof RandomAccess) {
+      final List l = (List)ll;
+      if (l.isEmpty()) return true;
+      final long endidx = startidx + l.size();
+      checkIndexRange(eidx-sidx, startidx, endidx);
+    }
+    if(ll instanceof ArrayOwner) {
+      final ArraySection as = ((ArrayOwner)ll).getArraySection();
+      final int sz = as.size();
       if(dest.getClass().isAssignableFrom(as.array.getClass())) {
 	System.arraycopy(as.array, as.sidx, dest, (int)(sidx+startidx), sz);
 	return true;
@@ -150,16 +153,10 @@ public class ArrayLists {
       checkIndexRange(size(), startidx, endidx);
       fill((int)startidx, (int)endidx, v);
     }
-    default void fillRange(int startidx, List v) {
+    default void fillRangeReducible(long startidx, Object v) {
       final ArraySection as = getArraySection();
-      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
-	int ss = (int)startidx;
-	final int endidx = v.size() + ss;
-	final int ee = (int)endidx;
-	int idx = 0;
-	for(; ss < ee; ++ss, ++idx) {
-	  set(ss, v.get(idx));
-	}
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, startidx, v)) {
+	ArrayPersistentVector.super.fillRangeReducible(startidx, v);
       }
     }
     default Object ensureCapacity(int newlen) {
@@ -177,10 +174,10 @@ public class ArrayLists {
       checkIndexRange(size(), startidx, endidx);
       fill((int)startidx, (int)endidx, v);
     }
-    default void fillRange(long startidx, List v) {
+    default void fillRangeReducible(long startidx, Object v) {
       final ArraySection as = getArraySection();
-      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), (int)startidx, v))
-	LongMutList.super.fillRange(startidx, v);
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, (int)startidx, v))
+	LongMutList.super.fillRangeReducible(startidx, v);
     }
     default Object reduce(IFn rfn, Object init) {
       return LongMutList.super.reduce(rfn, init);
@@ -201,10 +198,10 @@ public class ArrayLists {
       checkIndexRange(size(), startidx, endidx);
       fill((int)startidx, (int)endidx, v);
     }
-    default void fillRange(long startidx, List v) {
+    default void fillRangeReducible(long startidx, Object v) {
       final ArraySection as = getArraySection();
-      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v))
-	DoubleMutList.super.fillRange(startidx, v);
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, startidx, v))
+	DoubleMutList.super.fillRangeReducible(startidx, v);
     }
     default Object toNativeArray() { return copyOf(size()); }
     default Object ensureCapacity(int newlen) {
@@ -286,13 +283,18 @@ public class ArrayLists {
       for(int ss = sidx; ss < es; ++ss)
 	c.accept(d[ss]);
     }
-    public void fillRange(long startidx, List v) {
+    public void fillRangeReducible(long startidx, Object v) {
       final ArraySection as = getArraySection();
-      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, startidx, v)) {
 	final int ss = (int)startidx + sidx;
-	Reductions.serialReduction(new Reductions.IndexedAccum( new IFn.OLOO() {
+	final int ee = sidx + size();
+	Reductions.serialReduction(new Reductions.IndexedAccum( startidx+sidx, new IFn.OLOO() {
 	    public Object invokePrim(Object acc, long idx, Object v) {
-	      ((Object[])acc)[(int)idx+ss] = v;
+	      if(idx >= ee)
+		throw new IndexOutOfBoundsException("Index " + String.valueOf(idx - sidx) +
+						    " is out of range: " +
+						    String.valueOf(size()));
+	      ((Object[])acc)[(int)idx] = v;
 	      return acc;
 	    }}), data, v);
       }
@@ -384,7 +386,7 @@ public class ArrayLists {
 	ensureCapacity(cs+sz);
 	nElems += cs;
 	//Hit fastpath
-	fillRange(sz, cl);
+	fillRangeReducible(sz, cl);
       } else  {
 	IArrayList.super.addAllReducible(c);
       }
@@ -422,6 +424,9 @@ public class ArrayLists {
       final Object[] d = data;
       for(int ss = 0; ss < es; ++ss)
 	c.accept(d[ss]);
+    }
+    public void fillRangeReducible(long startidx, Object v) {
+      subList(0, size()).fillRangeReducible(startidx, v);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(nElems, ssidx, seidx);
@@ -552,6 +557,24 @@ public class ArrayLists {
       return Reductions.unreduce(init);
     }
 
+    public void fillRangeReducible(long startidx, Object v) {
+      final ArraySection as = getArraySection();
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, startidx, v)) {
+	final int ss = (int)startidx + sidx;
+	final int ee = sidx + size();
+	Reductions.serialReduction(new Reductions.IndexedLongAccum( startidx+sidx,
+								    new IFn.OLLO() {
+	    public Object invokePrim(Object acc, long idx, long v) {
+	      if(idx >= ee)
+		throw new IndexOutOfBoundsException("Index " + String.valueOf(idx - sidx) +
+						    " is out of range: " +
+						    String.valueOf(size()));
+	      data[(int)idx] = RT.byteCast(v);
+	      return data;
+	    }}), data, v);
+      }
+    }
+
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, sidx + ssidx, sidx + seidx, RT.byteCast(Casts.longCast(v)));
@@ -663,6 +686,23 @@ public class ArrayLists {
       for(int ss = sidx; ss < es && !RT.isReduced(init); ++ss)
 	init = rfn.invokePrim(init, d[ss]);
       return Reductions.unreduce(init);
+    }
+    public void fillRangeReducible(long startidx, Object v) {
+      final ArraySection as = getArraySection();
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, startidx, v)) {
+	final int ss = (int)startidx + sidx;
+	final int ee = sidx + size();
+	Reductions.serialReduction(new Reductions.IndexedLongAccum( startidx+sidx,
+								    new IFn.OLLO() {
+	    public Object invokePrim(Object acc, long idx, long v) {
+	      if(idx >= ee)
+		throw new IndexOutOfBoundsException("Index " + String.valueOf(idx - sidx) +
+						    " is out of range: " +
+						    String.valueOf(size()));
+	      data[(int)idx] = RT.shortCast(v);
+	      return data;
+	    }}), data, v);
+      }
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -846,14 +886,19 @@ public class ArrayLists {
 	init = rfn.invokePrim(init, d[ss]);
       return Reductions.unreduce(init);
     }
-    public void fillRange(long startidx, List v) {
+    public void fillRangeReducible(long startidx, Object v) {
       final ArraySection as = getArraySection();
-      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
-	final int ss = (int)startidx + sidx;
-	Reductions.serialReduction(new Reductions.IndexedLongAccum( new IFn.OLLO() {
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, startidx, v)) {
+	final int[] d = data;
+	final int ee = sidx + size();
+	Reductions.serialReduction(new Reductions.IndexedLongAccum( startidx + sidx,
+								    new IFn.OLLO() {
 	    public Object invokePrim(Object acc, long idx, long v) {
-	      ((int[])acc)[(int)idx+ss] = RT.intCast(v);
-	      return acc;
+	      if(idx >= ee)
+		throw new IndexOutOfBoundsException("Index " + String.valueOf(idx - sidx) +
+						    "> length "  + String.valueOf(size()));
+	      d[(int)idx] = RT.intCast(v);
+	      return d;
 	    }}), data, v);
       }
     }
@@ -933,7 +978,7 @@ public class ArrayLists {
 	ensureCapacity(cs+sz);
 	nElems += cs;
 	//Hit fastpath
-	fillRange(sz, cl);
+	fillRangeReducible(sz, cl);
       } else {
 	ILongArrayList.super.addAllReducible(c);
       }
@@ -948,16 +993,7 @@ public class ArrayLists {
       ensureCapacity(cs+sz);
       nElems += cs;
       System.arraycopy(data, sidx, data, eidx, sz - sidx);
-      if (c instanceof List) {
-	//Hit fastpath
-	fillRange(sidx, (List)c);
-      } else {
-	int idx = sidx;
-	for(Object o: c) {
-	  set(idx, o);
-	  ++idx;
-	}
-      }
+      fillRangeReducible(sidx, c);
       return true;
     }
     public IMutList<Object> subList(int ssidx, int seidx) {
@@ -978,8 +1014,8 @@ public class ArrayLists {
     public void fillRange(long startidx, long endidx, Object v) {
       ((RangeList)subList(0, nElems)).fillRange(startidx, endidx, v);
     }
-    public void fillRange(long startidx, List v) {
-      ((RangeList)subList(0, nElems)).fillRange(startidx, v);
+    public void fillRangeReducible(long startidx, Object v) {
+      subList(0,size()).fillRangeReducible(startidx, v);
     }
     public void addRange(final int startidx, final int endidx, final Object v) {
       final int ne = nElems;
@@ -1241,14 +1277,19 @@ public class ArrayLists {
       for(int ss = sidx; ss < es; ++ss)
 	c.accept(d[ss]);
     }
-    public void fillRange(long startidx, List v) {
+    public void fillRangeReducible(long startidx, Object v) {
       final ArraySection as = getArraySection();
-      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
-	final int ss = (int)startidx + sidx;
-	Reductions.serialReduction(new Reductions.IndexedLongAccum( new IFn.OLLO() {
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, startidx, v)) {
+	final int ee = sidx + size();
+	final long[] d = data;
+	Reductions.serialReduction(new Reductions.IndexedLongAccum( startidx + sidx,
+								    new IFn.OLLO() {
 	    public Object invokePrim(Object acc, long idx, long v) {
-	      ((long[])acc)[(int)idx+ss] = v;
-	      return acc;
+	      if(idx >= ee)
+		throw new IndexOutOfBoundsException("Index " + String.valueOf(idx-sidx) +
+						    " > length: " + String.valueOf(size()));
+	      d[(int)idx] = v;
+	      return d;
 	    }}), data, v);
       }
     }
@@ -1327,7 +1368,7 @@ public class ArrayLists {
 	ensureCapacity(cs+sz);
 	nElems += cs;
 	//Hit fastpath
-	fillRange(sz, cl);
+	fillRangeReducible(sz, cl);
       } else {
 	ILongArrayList.super.addAllReducible(c);
       }
@@ -1342,16 +1383,7 @@ public class ArrayLists {
       ensureCapacity(cs+sz);
       nElems += cs;
       System.arraycopy(data, sidx, data, eidx, sz - sidx);
-      if (c instanceof List) {
-	//Hit fastpath
-	fillRange(sidx, (List)c);
-      } else {
-	int idx = sidx;
-	for(Object o: c) {
-	  set(idx, o);
-	  ++idx;
-	}
-      }
+      fillRangeReducible(sidx, c);
       return true;
     }
     public Object remove(int idx) {
@@ -1385,8 +1417,8 @@ public class ArrayLists {
     public void fillRange(long startidx, long endidx, Object v) {
       ((RangeList)subList(0, nElems)).fillRange(startidx, endidx, v);
     }
-    public void fillRange(long startidx, List v) {
-      ((RangeList)subList(0, nElems)).fillRange(startidx, v);
+    public void fillRangeReducible(long startidx, List v) {
+      ((RangeList)subList(0, nElems)).fillRangeReducible(startidx, v);
     }
     public void addRange(final int startidx, final int endidx, final Object v) {
       final int ne = nElems;
@@ -1424,6 +1456,9 @@ public class ArrayLists {
     }
     public int[] sortIndirect(Comparator c) {
       return ((IMutList)subList(0, nElems)).sortIndirect(c);
+    }
+    public void fillRangeReducible(long startidx, Object v) {
+      subList(0,size()).fillRangeReducible(startidx, v);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1576,14 +1611,20 @@ public class ArrayLists {
 	init = rfn.invokePrim(init, d[ss]);
       return Reductions.unreduce(init);
     }
-    public void fillRange(long startidx, List v) {
+    public void fillRangeReducible(long startidx, Object v) {
       final ArraySection as = getArraySection();
-      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
-	final int ss = sidx + (int)startidx;
-	Reductions.serialReduction(new Reductions.IndexedDoubleAccum( new IFn.OLDO() {
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, startidx, v)) {
+	final int ee = sidx + size();
+	final float[] d = data;
+	Reductions.serialReduction(new Reductions.IndexedDoubleAccum( startidx+sidx,
+								      new IFn.OLDO() {
 	    public Object invokePrim(Object acc, long idx, double v) {
-	      ((float[])acc)[(int)idx+ss] = (float)v;
-	      return acc;
+	      if(idx >= ee)
+		throw new IndexOutOfBoundsException("Index " + String.valueOf(idx - sidx) +
+						    " is out of range: " +
+						    String.valueOf(size()));
+	      d[(int)idx] = (float)v;
+	      return d;
 	    }}), data, v);
       }
     }
@@ -1768,14 +1809,19 @@ public class ArrayLists {
 	init = rfn.invokePrim(init, d[ss]);
       return Reductions.unreduce(init);
     }
-    public void fillRange(long startidx, List v) {
+    public void fillRangeReducible(long startidx, Object v) {
       final ArraySection as = getArraySection();
-      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, containedType(), startidx, v)) {
-	final int ss = sidx + (int)startidx;
-	Reductions.serialReduction(new Reductions.IndexedDoubleAccum( new IFn.OLDO() {
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, startidx, v)) {
+	final int ee = sidx + size();
+	final double[] d = data;
+	Reductions.serialReduction(new Reductions.IndexedDoubleAccum( startidx+sidx,
+								      new IFn.OLDO() {
 	    public Object invokePrim(Object acc, long idx, double v) {
-	      ((double[])acc)[(int)idx+ss] = v;
-	      return acc;
+	      if(idx >= ee)
+		throw new IndexOutOfBoundsException("Index " + String.valueOf(idx - sidx) +
+						    "> length " + String.valueOf(size()));
+	      d[(int)idx] = v;
+	      return d;
 	    }}), data, v);
       }
     }
@@ -1855,7 +1901,7 @@ public class ArrayLists {
 	ensureCapacity(cs+sz);
 	nElems += cs;
 	//Hit fastpath
-	fillRange(sz, cl);
+	fillRangeReducible(sz, cl);
       } else {
 	IDoubleArrayList.super.addAllReducible(c);
       }
@@ -1872,7 +1918,7 @@ public class ArrayLists {
       System.arraycopy(data, sidx, data, eidx, sz - sidx);
       if (c instanceof List) {
 	//Hit fastpath
-	fillRange(sidx, (List)c);
+	fillRangeReducible(sidx, (List)c);
       } else {
 	int idx = sidx;
 	for(Object o: c) {
@@ -1899,8 +1945,8 @@ public class ArrayLists {
       ChunkedList.sublistCheck(ssidx, seidx, size());
       return toList(data, ssidx, seidx, meta());
     }
-    public void fillRange(long startidx, List v) {
-      ((IMutList)subList(0, nElems)).fillRange(startidx, v);
+    public void fillRangeReducible(long startidx, List v) {
+      ((IMutList)subList(0, nElems)).fillRangeReducible(startidx, v);
     }
     public IPersistentMap meta() { return meta; }
     public IObj withMeta(IPersistentMap m) {
@@ -2058,6 +2104,23 @@ public class ArrayLists {
 	init = rfn.invoke(init, data[idx+sidx]);
       return Reductions.unreduce(init);
     }
+    public void fillRangeReducible(long startidx, Object v) {
+      final ArraySection as = getArraySection();
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, startidx, v)) {
+	final int ss = (int)startidx + sidx;
+	final int ee = sidx + size();
+	Reductions.serialReduction(new Reductions.IndexedAccum( startidx+sidx,
+								new IFn.OLOO() {
+	    public Object invokePrim(Object acc, long idx, Object v) {
+	      if(idx >= ee)
+		throw new IndexOutOfBoundsException("Index " + String.valueOf(idx - sidx) +
+						    " is out of range: " +
+						    String.valueOf(size()));
+	      data[(int)idx] = Casts.charCast(v);
+	      return data;
+	    }}), data, v);
+      }
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, ssidx+sidx, seidx+sidx, RT.charCast(Casts.longCast(v)));
@@ -2127,6 +2190,23 @@ public class ArrayLists {
 	retval[idx] = data[idx+sidx];
       return retval;
     }
+    public void fillRangeReducible(long startidx, Object v) {
+      final ArraySection as = getArraySection();
+      if (!fillRangeArrayCopy(as.array, as.sidx, as.eidx, startidx, v)) {
+	final int ss = (int)startidx + sidx;
+	final int ee = sidx + size();
+	Reductions.serialReduction(new Reductions.IndexedAccum( startidx+sidx,
+								new IFn.OLOO() {
+	    public Object invokePrim(Object acc, long idx, Object v) {
+	      if(idx >= ee)
+		throw new IndexOutOfBoundsException("Index " + String.valueOf(idx - sidx) +
+						    " is out of range: " +
+						    String.valueOf(size()));
+	      data[(int)idx] = Casts.booleanCast(v);
+	      return data;
+	    }}), data, v);
+      }
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, sidx+ssidx, sidx+seidx, Casts.booleanCast(v));
@@ -2154,18 +2234,18 @@ public class ArrayLists {
       throw new RuntimeException("Object is not an array: " + String.valueOf(obj));
     if(obj instanceof Object[])
       return toList((Object[])obj, sidx, eidx, meta);
+    else if (cls == long[].class)
+      return toList((long[])obj, sidx, eidx, meta);
+    else if (cls == double[].class)
+      return toList((double[])obj, sidx, eidx, meta);
     else if (cls == byte[].class)
       return toList((byte[])obj, sidx, eidx, meta);
     else if (cls == short[].class)
       return toList((short[])obj, sidx, eidx, meta);
     else if (cls == int[].class)
       return toList((int[])obj, sidx, eidx, meta);
-    else if (cls == long[].class)
-      return toList((long[])obj, sidx, eidx, meta);
     else if (cls == float[].class)
       return toList((float[])obj, sidx, eidx, meta);
-    else if (cls == double[].class)
-      return toList((double[])obj, sidx, eidx, meta);
     else if (cls == char[].class)
       return toList((char[])obj, sidx, eidx, meta);
     else if (cls == boolean[].class)

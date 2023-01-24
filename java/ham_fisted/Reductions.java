@@ -208,9 +208,12 @@ public class Reductions {
   public static class IndexedDoubleAccum implements IFnDef.ODO {
     long idx;
     final IFn.OLDO rfn;
-    public IndexedDoubleAccum(IFn.OLDO rfn) {
+    public IndexedDoubleAccum(long sidx, IFn.OLDO rfn) {
       this.rfn = rfn;
-      this.idx = 0;
+      this.idx = sidx;
+    }
+    public IndexedDoubleAccum(IFn.OLDO rfn) {
+      this(0, rfn);
     }
     public Object invokePrim(Object acc, double v) {
       return rfn.invokePrim(acc, idx++, v);
@@ -219,9 +222,12 @@ public class Reductions {
   public static class IndexedLongAccum implements IFnDef.OLO {
     long idx;
     final IFn.OLLO rfn;
-    public IndexedLongAccum(IFn.OLLO rfn) {
+    public IndexedLongAccum(long sidx, IFn.OLLO rfn) {
       this.rfn = rfn;
-      this.idx = 0;
+      this.idx = sidx;
+    }
+    public IndexedLongAccum(IFn.OLLO rfn) {
+      this(0, rfn);
     }
     public Object invokePrim(Object acc, long v) {
       return rfn.invokePrim(acc, idx++, v);
@@ -230,9 +236,12 @@ public class Reductions {
   public static class IndexedAccum implements IFnDef {
     long idx;
     final IFn.OLOO rfn;
-    public IndexedAccum(IFn.OLOO rfn) {
+    public IndexedAccum(long sidx, IFn.OLOO rfn) {
       this.rfn = rfn;
-      this.idx = 0;
+      this.idx = sidx;
+    }
+    public IndexedAccum(IFn.OLOO rfn) {
+      this(0, rfn);
     }
     public Object invoke(Object acc, Object v) {
       return rfn.invokePrim(acc, idx++, v);

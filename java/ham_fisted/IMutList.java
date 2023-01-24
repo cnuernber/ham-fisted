@@ -85,10 +85,11 @@ public interface IMutList<E>
     }
   }
   @SuppressWarnings("unchecked")
-  default void fillRange(final long startidx, List v) {
+  default void fillRangeReducible(final long startidx, Object v) {
     final int sz = size();
-    final int osz = v.size();
-    ChunkedList.checkIndexRange(0, sz, startidx, startidx+osz);
+    if (v instanceof RandomAccess) {
+      ChunkedList.checkIndexRange(0, sz, startidx, startidx+((List)v).size());
+    }
     final int ss = (int)startidx;
     Reductions.serialReduction(new Reductions.IndexedAccum(new IFnDef.OLOO() {
 	public Object invokePrim(Object acc, long idx, Object v) {

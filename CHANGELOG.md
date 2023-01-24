@@ -1,13 +1,17 @@
+# 1.000-beta-84
+ * `wrap-array`, `wrap-array-growable`, major into-array optimizations and better
+   `map-reducible`.
+
 # 1.000-beta-83
  * Opening the door to custom IReduce implementations.
 
 # 1.000-beta-82
  * convert hashsets to use hashtables instead of bitmap tries.
  * careful analysis of various vec-like object creation mechanisms.
- 
+
 # 1.000-beta-81
  * long primitive hashtables - these are quite a bit faster but especially when used directly.
- 
+
 # 1.000-beta-80
  * Helpers for very high performance scenarios.  lazy-noncaching/map-reducible,
    api/->long-predicate.

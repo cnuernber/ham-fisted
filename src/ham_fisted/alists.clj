@@ -100,9 +100,11 @@
                      newlen# (+ curlen# (.size ~'c))]
                  (.ensureCapacity this# newlen#)
                  (set! ~'n-elems newlen#)
-                 (.fillRange this# curlen# ~'c))))
+                 (.fillRangeReducible this# curlen# ~'c))))
            (~add-all-reduce this# c#))
          (not (== sz# ~'n-elems))))
+     (fillRangeReducible [this# sidx# c#]
+       (.fillRangeReducible (.subList this# 0 (.size this#)) sidx# c#))
      (removeRange [this# sidx# eidx#]
        (ArrayLists/checkIndexRange ~'n-elems (long sidx#) (long eidx#))
        (System/arraycopy ~'data sidx# ~'data eidx# (- ~'n-elems eidx#))
@@ -188,13 +190,15 @@
                  newlen (+ curlen (.size c))]
              (.ensureCapacity this newlen)
              (set! n-elems newlen)
-             (.fillRange this curlen c))
+             (.fillRangeReducible this curlen c))
            (Reductions/serialReduction (fn [acc v]
                                          (.add ^List acc v)
                                          v)
                                        this
                                        c))
          (not (== sz n-elems))))
+     (fillRangeReducible [this sidx c]
+       (.fillRangeReducible (.subList this 0 (.size this)) sidx c))
      (removeRange [this sidx eidx]
        (ArrayLists/checkIndexRange n-elems sidx eidx)
        (System/arraycopy data sidx data eidx (- n-elems eidx))
@@ -236,19 +240,15 @@
   ArrayLists$ObjectArrayList
   (->init-val-fn [item] #(ArrayLists$ObjectArrayList.))
   (->rfn [item] ladd)
-  (finalize [item v] v)
   ArrayLists$IntArrayList
   (->init-val-fn [item] #(ArrayLists$IntArrayList.))
   (->rfn [item] ladd)
-  (finalize [item v] v)
   ArrayLists$LongArrayList
   (->init-val-fn [item] #(ArrayLists$LongArrayList.))
   (->rfn [item] ladd)
-  (finalize [item v] v)
   ArrayLists$DoubleArrayList
   (->init-val-fn [item] #(ArrayLists$DoubleArrayList.))
-  (->rfn [item] ladd)
-  (finalize [item v] v))
+  (->rfn [item] ladd))
 
 
 (extend-protocol protocols/ParallelReducer
@@ -260,3 +260,54 @@
   (->merge-fn [l] lmerge)
   ArrayLists$DoubleArrayList
   (->merge-fn [l] lmerge))
+
+
+
+(def ary-classes
+  {(Class/forName "[Z") ['bytes 'BooleanArrayList.]
+   (Class/forName "[B") ['bytes 'ByteArrayList.]
+   (Class/forName "[S") ['shorts 'ShortArrayList.]
+   (Class/forName "[C") ['chars 'CharArrayList.]
+   (Class/forName "[I") ['ints 'ArrayLists$IntArrayList.]
+   (Class/forName "[J") ['longs 'ArrayLists$LongArrayList.]
+   (Class/forName "[F") ['floats 'FloatArrayList.]
+   (Class/forName "[D") ['doubles 'ArrayLists$DoubleArrayList.]
+   (Class/forName "[Ljava.lang.Object;") ['objects 'ArrayLists$ObjectArrayList.]})
+
+
+(defmacro extend-array-types
+  []
+  `(do
+     ~@(->>
+        ary-classes
+        (map (fn [[cls-type [hint growable-cons]]]
+               `(extend ~cls-type
+                  protocols/WrapArray
+                  {:wrap-array (fn [~(with-meta (symbol "ary") {:tag hint})]
+                                 (ArrayLists/toList ~'ary))
+                   :wrap-array-growable (fn [~(with-meta (symbol "ary") {:tag hint})
+                                             ~(with-meta (symbol "ptr") {:tag 'long})]
+                                          (~growable-cons ~'ary ~'ptr nil))}))))))
+
+
+(extend-array-types)
+
+(def ^:private obj-ary-cls (Class/forName "[Ljava.lang.Object;"))
+
+(defn wrap-array
+  "Wrap an array with an implementation of IMutList"
+  ^IMutList [ary]
+  (if (instance? obj-ary-cls ary)
+    (ArrayLists/toList ^objects ary)
+    (protocols/wrap-array ary)))
+
+
+(defn wrap-array-growable
+  "Wrap an array with an implementation of IMutList that supports add and addAllReducible.
+  'ptr is the numeric put ptr, defaults to the array length.  Pass in zero for a preallocated
+  but empty growable wrapper."
+  (^IMutList [ary ptr]
+   (if (instance? obj-ary-cls ary)
+     (ArrayLists$ObjectArrayList. ary ptr nil)
+     (protocols/wrap-array-growable ary ptr)))
+  (^IMutList [ary] (wrap-array-growable ary (java.lang.reflect.Array/getLength ary))))
