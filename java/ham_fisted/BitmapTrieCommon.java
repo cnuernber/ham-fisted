@@ -23,9 +23,7 @@ public class BitmapTrieCommon {
    */
   public interface HashProvider {
     public default int hash(Object obj) {
-      if (obj != null)
-	return mixhash(obj);
-      return 0;
+      return obj != null ? mixhash(obj.hashCode()) : 0;
     }
     public default boolean equals(Object lhs, Object rhs) {
       return Objects.equals(lhs,rhs);
