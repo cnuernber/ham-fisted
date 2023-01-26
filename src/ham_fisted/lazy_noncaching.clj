@@ -1,7 +1,8 @@
 (ns ham-fisted.lazy-noncaching
   (:require [ham-fisted.iterator :as iterator]
             [ham-fisted.alists :as alists]
-            [ham-fisted.protocols :as protocols])
+            [ham-fisted.protocols :as protocols]
+            [ham-fisted.print :as pp])
   (:import [ham_fisted Transformables$MapIterable Transformables$FilterIterable
             Transformables$CatIterable Transformables$MapList Transformables$IMapable
             Transformables$SingleMapList Transformables StringCollection ArrayLists
@@ -183,6 +184,11 @@
        (Transformables$MapIterable. f nil (into-array Iterable protocols/->iterable args))))))
 
 
+(pp/implement-tostring-print Transformables$SingleMapList)
+(pp/implement-tostring-print Transformables$MapIterable)
+(pp/implement-tostring-print Transformables$MapList)
+
+
 (defn map-indexed
   [map-fn coll]
   (cond
@@ -211,6 +217,9 @@
     (Transformables$IndexedMapper. map-fn (protocols/->iterable coll) nil)))
 
 
+(pp/implement-tostring-print Transformables$IndexedMapper)
+
+
 (defn map-reducible
   "Map a function over r - r need only be reducible.  Returned value does not implement
   seq but is countable when r is countable countable."
@@ -237,6 +246,9 @@
     (Transformables$CatIterable. (cons a args)))))
 
 
+(pp/implement-tostring-print Transformables$CatIterable)
+
+
 (defn apply-concat
   ([] PersistentList/EMPTY)
   ([data]
@@ -254,6 +266,9 @@
      (.filter ^Transformables$IMapable coll pred)
      :else
      (Transformables$FilterIterable. pred nil (protocols/->iterable coll)))))
+
+
+(pp/implement-tostring-print Transformables$FilterIterable)
 
 
 (defn remove

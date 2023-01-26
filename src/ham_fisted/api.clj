@@ -2178,6 +2178,14 @@ nil
        (object-array))))
 
 
+(defn apply-concat
+  "Faster lazy noncaching version of (apply concat)"
+  [args]
+  (if args
+    (lznc/apply-concat args)
+    '()))
+
+
 (defn object-array
   "Faster version of object-array for java collections and strings."
   ^objects [item] (lznc/object-array item))
