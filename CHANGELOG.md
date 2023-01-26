@@ -1,3 +1,68 @@
+# 1.000-beta-85
+ * Slightly faster map construction pathways.
+ * In fact both the hamf base map `mut-map` and the integer-specialized `mut-long-hashtable-map` are
+   faster than the default `clojure.data.int-map` pathway for construction and value lookup according
+   to the benchmarks in `clojure.data.int-map`.  Interestingly enough they are fastest if you create
+   an intermediate object array using lznc/apply-concat:
+   
+```clojure
+user> (count entries)
+1000000
+user> (c/quick-bench (into (persistent! (hamf/mut-long-hashtable-map))  entries))
+Evaluation count : 6 in 6 samples of 1 calls.
+             Execution time mean : 366.247830 ms
+    Execution time std-deviation : 11.024896 ms
+   Execution time lower quantile : 348.564420 ms ( 2.5%)
+   Execution time upper quantile : 376.625750 ms (97.5%)
+                   Overhead used : 1.492920 ns
+nil
+user> (c/quick-bench (into (i/int-map) entries))
+Evaluation count : 6 in 6 samples of 1 calls.
+             Execution time mean : 568.189038 ms
+    Execution time std-deviation : 1.677163 ms
+   Execution time lower quantile : 566.564884 ms ( 2.5%)
+   Execution time upper quantile : 570.564253 ms (97.5%)
+                   Overhead used : 1.492920 ns
+nil
+user> (def ll (into (persistent! (hamf/mut-long-hashtable-map)) entries))
+#'user/ll
+user> (def il (into (i/int-map) entries))
+#'user/il
+user> (c/quick-bench
+       (dotimes [idx (count entries)]
+         (.get ^java.util.Map ll idx)))
+
+Evaluation count : 84 in 6 samples of 14 calls.
+             Execution time mean : 7.399383 ms
+    Execution time std-deviation : 62.314286 µs
+   Execution time lower quantile : 7.297162 ms ( 2.5%)
+   Execution time upper quantile : 7.451677 ms (97.5%)
+                   Overhead used : 1.492920 ns
+nil
+user> (c/quick-bench
+       (dotimes [idx (count entries)]
+         (.get ^java.util.Map il idx)))
+
+Evaluation count : 30 in 6 samples of 5 calls.
+             Execution time mean : 22.936125 ms
+    Execution time std-deviation : 583.510734 µs
+   Execution time lower quantile : 22.334216 ms ( 2.5%)
+   Execution time upper quantile : 23.654541 ms (97.5%)
+                   Overhead used : 1.492920 ns
+nil
+user>
+
+user> (c/quick-bench (hamf/mut-long-hashtable-map (hamf/into-array Object (lznc/apply-concat entries))))
+Evaluation count : 6 in 6 samples of 1 calls.
+             Execution time mean : 271.755568 ms
+    Execution time std-deviation : 1.545379 ms
+   Execution time lower quantile : 270.184413 ms ( 2.5%)
+   Execution time upper quantile : 273.736344 ms (97.5%)
+                   Overhead used : 1.492920 ns
+nil
+```
+   
+
 # 1.000-beta-84
  * `wrap-array`, `wrap-array-growable`, major into-array optimizations and better
    `map-reducible`.

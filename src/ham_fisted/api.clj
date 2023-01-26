@@ -58,7 +58,7 @@
             IFnDef$OLLO IFnDef$LongPredicate IFnDef$DoublePredicate IFnDef$Predicate
             Consumers$IncConsumer Reductions$IndexedDoubleAccum Reductions$IndexedLongAccum
             Reductions$IndexedAccum MutHashTable ImmutHashTable MutableMap
-            ImmutArrayMap MapForward]
+            ImmutArrayMap MapForward MapBase]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
@@ -617,40 +617,20 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
       m))))
 
 
+(defn transient-map-rf
+  ([cons-fn] (transient-map-rf cons-fn nil))
+  ([cons-fn finalize-fn]
+   (fn
+     ([] (cons-fn))
+     ([acc] (if finalize-fn (finalize-fn acc) acc))
+     ([^ITransientCollection m d] (.conj m d)))))
+
+
 (defn- tduce
   [xform rf data]
   (if xform
     (transduce xform rf data)
     (reduce-reducer rf data)))
-
-
-(defn hash-table-rf
-  "Fastest hashtable creation"
-  ([] (hash-table-rf nil))
-  ([options]
-   (let [provider (options->provider options)]
-     (fn
-       ([] (HashTable. provider 0.75 0 0 nil nil))
-       ([acc v]
-        (if (instance? Map$Entry v)
-          (.put ^HashTable acc (.getKey ^Map$Entry v) (.getValue ^Map$Entry v))
-          (.put ^HashTable acc (.nth ^Indexed v 0) (.nth ^Indexed v 1)))
-        acc)
-       ([acc] (MutHashTable. ^HashTable acc))))))
-
-
-(defn long-hash-table-rf
-  "Fastest hashtable creation if you know the keys will be longs"
-  ([] (long-hash-table-rf nil))
-  ([options]
-   (fn
-     ([] (LongHashTable. 0.75 0 0 nil nil))
-     ([acc v]
-      (if (instance? Map$Entry v)
-        (.put ^LongHashTable acc (long (.getKey ^Map$Entry v)) (.getValue ^Map$Entry v))
-        (.put ^LongHashTable acc (long (.nth ^Indexed v 0)) (.nth ^Indexed v 1)))
-      acc)
-     ([acc] (LongMutHashTable. ^LongHashTable acc)))))
 
 
 (defn mut-hashtable-map
@@ -676,10 +656,9 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
      (and (nil? xform) (instance? obj-ary-cls data))
      (MutHashTable/create (options->provider options) true ^objects data)
      :else
-     (tduce xform
-            (mut-map-rf #(MutHashTable. (options->provider nil)
-                                        nil
-                                        (get options :init-size 0)))
+     (tduce xform (transient-map-rf #(MutHashTable. (options->provider nil)
+                                                    nil
+                                                    (get options :init-size 0)))
             data))))
 
 
@@ -706,9 +685,7 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
      (and (nil? xform) (instance? obj-ary-cls data))
      (LongMutHashTable/create true ^objects data)
      :else
-     (tduce xform
-            (mut-map-rf #(LongMutHashTable. nil (get options :init-size 0)))
-            data))))
+     (tduce xform (transient-map-rf #(LongMutHashTable.)) data))))
 
 
 (defn mut-trie-map
@@ -735,7 +712,7 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
      (MutBitmapTrie/create (options->provider options) true ^objects data)
      :else
      (tduce xform
-            (mut-map-rf #(MutBitmapTrie. (options->provider nil)))
+            (transient-map-rf #(MutBitmapTrie. (options->provider nil)))
             data))))
 
 
