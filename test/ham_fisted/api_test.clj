@@ -124,3 +124,7 @@
 
 (deftest mmax-key-clojure-map
   (is (= 3 (key (hamf/mmax-key val (frequencies (map #(rem % 7) (hamf/range 10000))))))))
+
+
+(deftest reduce-empty-range
+  (is (= 0 (reduce (fn [acc v] (inc acc)) 0 (hamf/range 0)))))

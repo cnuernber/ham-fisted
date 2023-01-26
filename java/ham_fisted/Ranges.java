@@ -84,6 +84,7 @@ public class Ranges {
       return subList((long)sidx, (long)eidx);
     }
     public Object reduce(final IFn fn, Object init) {
+      if(nElems == 0) return init;
       Object acc = init;
       long n = nElems;
       long i = start;

@@ -1,10 +1,13 @@
+# 1.000-beta-86
+ * Error in reduction of empty ranges.
+
 # 1.000-beta-85
  * Slightly faster map construction pathways.
  * In fact both the hamf base map `mut-map` and the integer-specialized `mut-long-hashtable-map` are
    faster than the default `clojure.data.int-map` pathway for construction and value lookup according
    to the benchmarks in `clojure.data.int-map`.  Interestingly enough they are fastest if you create
    an intermediate object array using lznc/apply-concat:
-   
+
 ```clojure
 user> (count entries)
 1000000
@@ -61,7 +64,7 @@ Evaluation count : 6 in 6 samples of 1 calls.
                    Overhead used : 1.492920 ns
 nil
 ```
-   
+
 
 # 1.000-beta-84
  * `wrap-array`, `wrap-array-growable`, major into-array optimizations and better
