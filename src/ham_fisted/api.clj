@@ -2807,13 +2807,12 @@ ham-fisted.api> (reduce (indexed-accum
   (if (instance? obj-ary-cls data)
     (ArrayImmutList. ^objects data 0 (alength ^objects data) nil)
     (if-let [c (constant-count data)]
-      (let [rv (ArrayLists/objectArray (int c))]
-        (.fillRangeReducible (ArrayLists/toList rv) 0 data)
-        (ArrayImmutList. rv 0 c (meta data)))
-      (let [ol (object-array-list data)
-            as (.getArraySection ^ArrayLists$ArrayOwner ol)
-            ^objects ary (.-array as)]
-        (ArrayImmutList. ary 0 (.size as) (meta data))))))
+      (-> (doto (ArrayLists/toList (ArrayLists/objectArray (int c)))
+            (.fillRangeReducible 0 data))
+          (persistent!))
+      (-> (doto (object-array-list)
+            (.addAllReducible data))
+          (persistent!)))))
 
 
 (defmacro ovec
@@ -2842,9 +2841,8 @@ ham-fisted.api> (reduce (indexed-accum
                coll)
        (ArrayImmutList. rv 0 c nil))
      (let [rv (ArrayLists$ObjectArrayList. (ArrayLists/objectArray 8) 0 nil)
-           _ (reduce (fn [acc v] (.add rv (map-fn v))) nil coll)
-           as (.getArraySection ^ArrayLists$ArrayOwner rv)]
-       (ArrayImmutList. (.-array as) 0 (.size as) nil))))
+           _ (reduce (fn [acc v] (.conj rv (map-fn v))) rv coll)]
+       (persistent! rv))))
   ([map-fn c1 c2]
    (ovec (map map-fn c1 c2)))
   ([map-fn c1 c2 c3]

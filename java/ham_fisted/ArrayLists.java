@@ -29,6 +29,9 @@ import clojure.lang.IMapEntry;
 import clojure.lang.Util;
 import clojure.lang.MapEntry;
 import clojure.lang.IPersistentStack;
+import clojure.lang.ITransientCollection;
+import clojure.lang.IEditableCollection;
+import clojure.lang.IPersistentCollection;
 import it.unimi.dsi.fastutil.bytes.ByteArrays;
 import it.unimi.dsi.fastutil.bytes.ByteComparator;
 import it.unimi.dsi.fastutil.shorts.ShortArrays;
@@ -299,6 +302,9 @@ public class ArrayLists {
 	    }}), data, v);
       }
     }
+    public IPersistentVector immut() {
+      return ArrayImmutList.create(true, data, sidx, eidx, meta());
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, sidx + ssidx, sidx + seidx, v);
@@ -319,7 +325,7 @@ public class ArrayLists {
     return len < 100000 ? len * 2 : (long)(len * 1.5);
   }
 
-  public static class ObjectArrayList implements IArrayList {
+  public static class ObjectArrayList implements IArrayList, ITransientCollection {
     Object[] data;
     int nElems;
     IPersistentMap meta;
@@ -427,6 +433,16 @@ public class ArrayLists {
     }
     public void fillRangeReducible(long startidx, Object v) {
       subList(0, size()).fillRangeReducible(startidx, v);
+    }
+    public IPersistentVector immut() {
+      return ArrayImmutList.create(true, data, 0, nElems, meta());
+    }
+    public IPersistentCollection persistent() {
+      return immut();
+    }
+    public final ObjectArrayList conj(Object obj) {
+      add(obj);
+      return this;
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(nElems, ssidx, seidx);

@@ -39,7 +39,7 @@ import clojure.lang.ITransientVector;
 public class ArrayImmutList
   implements IMutList, RandomAccess, Indexed, IFnDef, IReduce, IKVReduce,
 	     IHashEq, Seqable, Reversible, ChunkedListOwner, IPersistentVector,
-	     IObj, IEditableCollection, ImmutValues
+	     IObj, IEditableCollection, ImmutValues, ArrayLists.ArrayOwner
 {
   final Object[] data;
   public final int startidx;
@@ -377,5 +377,17 @@ public class ArrayImmutList
       newD[idx] = fn.apply(idx, newD[idx]);
 
     return new ArrayImmutList(newD, 0, nElems, m);
+  }
+  public ArraySection getArraySection() {
+    return new ArraySection(data, startidx, startidx+nElems);
+  }
+  public void fill(int sidx, int eidx, Object v) {
+    throw new RuntimeException("Unimplemented");
+  }
+  public Object copyOfRange(int sidx, int eidx) {
+    return Arrays.copyOfRange(data, startidx + sidx, startidx + eidx);
+  }
+  public Object copyOf(int len) {
+    return Arrays.copyOfRange(data, startidx + 0, startidx + len);
   }
 }
