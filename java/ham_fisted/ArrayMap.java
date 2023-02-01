@@ -119,7 +119,7 @@ public class ArrayMap implements MapData {
     final int l = length--;
     final int ll = l*2 - 1;
     for(int idx = kidx; idx < ll; ++idx)
-      kvs[idx] = kvs[idx+1];      
+      kvs[idx] = kvs[idx+1];
     kvs[ll] = null;
     kvs[ll-1] = null;
   }
@@ -141,7 +141,7 @@ public class ArrayMap implements MapData {
     }
     return rv;
   }
-  MapData assocAt(int kidx, Object k, Object v) {
+  MapData assocAt(int kidx, Object k, Object v, boolean forceCopy) {
     if(kidx == -1) {
       if(length == 8) {
 	HashTable rv= toMap();
@@ -149,20 +149,32 @@ public class ArrayMap implements MapData {
 	return rv;
       } else {
 	kidx = length*2;
-	++length;
-	if((kidx + 1) >= kvs.length)
-	  kvs = Arrays.copyOf(kvs, kvs.length*2);
-	kvs[kidx] = k;
+	Object[] nkvs = ((kidx+1) >= kvs.length) || forceCopy ?
+	  Arrays.copyOf(kvs, IntegerOps.nextPow2(Math.max(4,kidx+1)))
+	  : kvs;
+	nkvs[kidx] = k;
+	nkvs[kidx+1] = v;
+	if(forceCopy)
+	  return new ArrayMap(hp, nkvs, length+1, meta);
+	else {
+	  ++length;
+	  kvs = nkvs;
+	  return this;
+	}
+      }
+    } else {
+      if(forceCopy) {
+	Object[] nkvs = Arrays.copyOf(kvs, kvs.length);
+	nkvs[kidx+1] = v;
+	return new ArrayMap(hp, nkvs, length, meta);
+      } else {
 	kvs[kidx+1] = v;
 	return this;
-      }      
-    } else {
-      kvs[kidx+1] = v;
-      return this;
+      }
     }
   }
   public MapData mutAssoc(Object k, Object v) {
-    return assocAt(index(k), k, v);
+    return assocAt(index(k), k, v, false);
   }
   public MapData mutDissoc(Object k) {
     int kidx = index(k);
@@ -173,7 +185,7 @@ public class ArrayMap implements MapData {
   }
   public MapData mutUpdateValue(Object k, IFn fn) {
     int kidx = index(k);
-    return assocAt(kidx, k, kidx == -1 ? fn.invoke(null) : fn.invoke(kvs[kidx+1]));
+    return assocAt(kidx, k, kidx == -1 ? fn.invoke(null) : fn.invoke(kvs[kidx+1]), false);
   }
   @SuppressWarnings("unchecked")
   public void mutUpdateValues(BiFunction bfn) {
@@ -183,11 +195,11 @@ public class ArrayMap implements MapData {
       kvs[vidx] = bfn.apply(kvs[vidx-1], kvs[vidx]);
     }
   }
-  
+
   public Object reduce(Function<ILeaf,Object> lf, IFn rfn, Object acc) {
     final int l = length;
     if(lf == keyIterFn) {
-      
+
     } else if (lf == valIterFn) {
       for(int idx = 0; idx < l; ++idx) {
 	acc = rfn.invoke(acc, kvs[idx*2+1]);
@@ -207,7 +219,7 @@ public class ArrayMap implements MapData {
 	  return ((IDeref)acc).deref();
       }
     }
-    return acc;   
+    return acc;
   }
   public IntFunction classifyLf(Function<ILeaf,Object> lf) {
     final Object[] kk = kvs;
@@ -276,7 +288,7 @@ public class ArrayMap implements MapData {
       return false;
     }
     public Object reduce(IFn rfn, Object acc) {
-      final int ee = eidx;      
+      final int ee = eidx;
       for(int idx = sidx; idx < ee; ++idx) {
 	acc = rfn.invoke(acc, lf.apply(idx));
 	if(RT.isReduced(acc))

@@ -50,7 +50,7 @@ public class MutArrayMap<K,V>
     return (UpdateValues)super.mutUpdateValue((K)key, fn);
   }
   public IPersistentMap persistent() {
-    return new ImmutArrayMap<K,V>((ArrayMap)ht);
+    return new ImmutArrayMap((ArrayMap)ht);
   }
 
   public static Map create(HashProvider hp, boolean byAssoc, Object... data) {

@@ -44,6 +44,6 @@ public class LongTransientHashTable<K,V>
     return this;
   }
   public IPersistentMap persistent()  {
-    return new ImmutHashTable<K,V>((LongHashTable)ht);
+    return new LongImmutHashTable<K,V>((LongHashTable)ht);
   }
 }

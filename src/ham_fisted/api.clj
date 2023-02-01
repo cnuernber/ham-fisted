@@ -1387,7 +1387,7 @@ ham_fisted.PersistentHashMap
   Logically the same as:
 
   ```clojure
-  (->> (map map-fn src-map) (remove nil?) (into {}))
+  (into {} (comp (map map-fn) (remove nil)) src-map)
   ```"
   [map-fn src-map]
   (-> (reduce (fn [^Map m entry]

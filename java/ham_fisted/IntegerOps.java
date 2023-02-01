@@ -78,7 +78,6 @@ public final class IntegerOps {
   }
 
   public static final int mixhash(Object key) {
-    int h;
     return (key == null) ? 0 : mixhash(key.hashCode());
   }
 

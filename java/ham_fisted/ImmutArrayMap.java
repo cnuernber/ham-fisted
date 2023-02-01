@@ -4,17 +4,21 @@ package ham_fisted;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.BiFunction;
+import java.util.Iterator;
 import clojure.lang.IEditableCollection;
 import clojure.lang.ITransientCollection;
+import clojure.lang.ITransientMap;
 import clojure.lang.IPersistentMap;
 import clojure.lang.IObj;
 import clojure.lang.IFn;
+import clojure.lang.Indexed;
+import clojure.lang.Counted;
 
 import static ham_fisted.BitmapTrieCommon.*;
 
 
-public class ImmutArrayMap<K,V>
-  extends NonEditableArrayMapBase<K,V>
+public class ImmutArrayMap
+  extends APersistentMapBase
   implements IEditableCollection, IPersistentMap, IObj, ImmutValues {
   public ImmutArrayMap(HashProvider hp) {
     super(new ArrayMap(hp, new Object[4], 0, null));
@@ -22,60 +26,67 @@ public class ImmutArrayMap<K,V>
   public ImmutArrayMap(ArrayMap ht) {
     super(ht);
   }
-  public ImmutArrayMap<K,V> shallowClone() {
-    return new ImmutArrayMap<K,V>((ArrayMap)ht.shallowClone());
-  }
-  @SuppressWarnings("unchecked")
-  public ImmutArrayMap<K,V> cons(Object obj) {
-    return (ImmutArrayMap<K,V>)(shallowClone().mutConj(obj));
-  }
-  @Override
-  MapBase<K,V> mutAssoc(K k, V v) {
-    MapData md = ht.mutAssoc(k,v);
-    if(md instanceof ArrayMap)
-      return this;
-    return new ImmutHashTable<K,V>((HashTable)md);
-  }
-  @Override
-  MapBase<K,V> mutUpdateValue(K k, IFn fn) {
-    MapData md = ht.mutUpdateValue(k,fn);
-    if(md instanceof ArrayMap)
-      return this;
-    return new ImmutHashTable<K,V>((HashTable)md);
+  public IPersistentMap cons(Object obj) {
+    if (obj instanceof Map.Entry) {
+      Map.Entry me = (Map.Entry)obj;
+      return assoc(me.getKey(), me.getValue());
+    } else if (obj instanceof Indexed) {
+      Indexed me = (Indexed)obj;
+      if(2 != ((Counted)obj).count())
+	throw new RuntimeException("Vector length != 2");
+      return assoc(me.nth(0), me.nth(1));
+    } else {
+      ITransientMap t = asTransient();
+      Iterator iter = ((Iterable)obj).iterator();
+      while(iter.hasNext()) {
+	Map.Entry e = (Map.Entry)iter.next();
+	t = t.assoc(e.getKey(), e.getValue());
+      }
+      return t.persistent();
+    }
   }
   @SuppressWarnings("unchecked")
   public IPersistentMap assoc(Object key, Object val) {
-    return (IPersistentMap)(shallowClone().mutAssoc((K)key, (V)val));
+    ArrayMap am = (ArrayMap)ht;
+    MapData md = am.assocAt(am.index(key), key, val, true);
+    return md instanceof ArrayMap ? new ImmutArrayMap((ArrayMap)md) :
+      new ImmutHashTable((HashTable)md);
   }
   @SuppressWarnings("unchecked")
   public IPersistentMap assocEx(Object key, Object val) {
-    return (IPersistentMap)(shallowClone().mutAssoc((K)key, (V)val));
+    ArrayMap am = (ArrayMap)ht;
+    int idx = am.index(key);
+    if (idx != -1) throw new RuntimeException("Key already in map: " + String.valueOf(key));
+    MapData md = am.assocAt(idx, key, val, true);
+    return md instanceof ArrayMap ? new ImmutArrayMap((ArrayMap)md) :
+      new ImmutHashTable((HashTable)md);
   }
   @SuppressWarnings("unchecked")
-  public ImmutArrayMap<K,V>  without(Object key) {
-    return (ImmutArrayMap<K,V>)(shallowClone().mutDissoc((K)key));
+  public ImmutArrayMap without(Object key) {
+    ArrayMap am = (ArrayMap)ht;
+    return new ImmutArrayMap((ArrayMap)am.shallowClone().mutDissoc(key));
   }
-  public ImmutArrayMap<K,V> empty() {
-    return new ImmutArrayMap<K,V>(ht.hashProvider());
+  public ImmutArrayMap empty() {
+    return new ImmutArrayMap(ht.hashProvider());
   }
-  public ITransientCollection asTransient() {
+  public ITransientMap asTransient() {
     if(isEmpty())
-      return new MutArrayMap<K,V>((ArrayMap)ht);
+      return new MutArrayMap(((ArrayMap)ht).shallowClone());
     else
-      return new TransientArrayMap<K,V>((ArrayMap)ht);
+      return new TransientArrayMap(((ArrayMap)ht).shallowClone());
   }
   @SuppressWarnings("unchecked")
-  public ImmutArrayMap<K,V> immutUpdateValues(BiFunction valueMap) {
-    return (ImmutArrayMap<K,V>)(shallowClone().mutUpdateValues(valueMap));
+  public ImmutHashTable immutUpdateValues(BiFunction valueMap) {
+    return (ImmutHashTable)((ImmutValues)asTransient()).immutUpdateValues(valueMap);
   }
   @SuppressWarnings("unchecked")
-  public UpdateValues immutUpdateValue(Object key, IFn fn) {
-    return (UpdateValues)(shallowClone().mutUpdateValue((K)key, fn));
+  public ImmutHashTable immutUpdateValue(Object key, IFn fn) {
+    return (ImmutHashTable)((ImmutValues)asTransient()).immutUpdateValue(key,fn);
   }
-  public ImmutArrayMap<K,V> withMeta(IPersistentMap m) {
+  public ImmutArrayMap withMeta(IPersistentMap m) {
     if(m == meta())
       return this;
-    return new ImmutArrayMap<K,V>((ArrayMap)ht.withMeta(m));
+    return new ImmutArrayMap((ArrayMap)ht.withMeta(m));
   }
 
 }

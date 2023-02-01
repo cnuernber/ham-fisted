@@ -57,7 +57,7 @@ public class MutHashTable<K,V>
     return this;
   }
   public IPersistentMap persistent()  {
-    return new ImmutHashTable<K,V>((HashTable)ht);
+    return new ImmutHashTable((HashTable)ht);
   }
 
   @SuppressWarnings("unchecked")

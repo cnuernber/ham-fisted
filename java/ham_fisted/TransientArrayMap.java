@@ -58,6 +58,6 @@ public class TransientArrayMap<K,V>
     return (UpdateValues)mutUpdateValue((K)key,fn);
   }
   public IPersistentMap persistent()  {
-    return new ImmutArrayMap<K,V>((ArrayMap)ht);
+    return new ImmutArrayMap((ArrayMap)ht);
   }
 }
