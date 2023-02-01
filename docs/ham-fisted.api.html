@@ -433,7 +433,7 @@ pair or nil. Then, remove nil pairs, and return a new map. If map-fn returns
 more than one pair with the same key later pair will overwrite the earlier
 pair.</p>
 <p>Logically the same as:</p>
-<pre><code class="language-clojure">(into {} (comp (map map-fn) (remove nil)) src-map)
+<pre><code class="language-clojure">(into {} (comp (map map-fn) (remove nil?)) src-map)
 </code></pre>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/api.clj#L1380">view source</a></div></div><div class="public anchor" id="var-mapv"><h3>mapv</h3><div class="usage"><code>(mapv map-fn coll)</code><code>(mapv map-fn c1 c2)</code><code>(mapv map-fn c1 c2 c3)</code><code>(mapv map-fn c1 c2 c3 &amp; args)</code></div><div class="doc"><div class="markdown"><p>Produce a persistent vector from a collection.</p>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/api.clj#L2831">view source</a></div></div><div class="public anchor" id="var-mean"><h3>mean</h3><div class="usage"><code>(mean coll)</code><code>(mean options coll)</code></div><div class="doc"><div class="markdown"><p>Return the mean of the collection.  Returns double/NaN for empty collections.
