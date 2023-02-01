@@ -149,10 +149,10 @@ public interface IFnDef extends IFn
   }
 
   default Object applyTo(ISeq arglist) {
-    return applyToHelper(this, Util.ret1(arglist,arglist = null));
+    return ifaceApplyToHelper(this, Util.ret1(arglist,arglist = null));
   }
 
-  default Object applyToHelper(IFn ifn, ISeq arglist) {
+  default Object ifaceApplyToHelper(IFn ifn, ISeq arglist) {
     switch(RT.boundedLength(arglist, 20))
       {
       case 0:

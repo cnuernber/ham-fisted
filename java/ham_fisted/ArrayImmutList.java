@@ -34,10 +34,12 @@ import clojure.lang.ISeq;
 import clojure.lang.MapEntry;
 import clojure.lang.IMapEntry;
 import clojure.lang.ITransientVector;
+import clojure.lang.APersistentVector;
 
 
 public class ArrayImmutList
-  implements IMutList, RandomAccess, Indexed, IFnDef, IReduce, IKVReduce,
+  extends APersistentVector
+  implements IMutList, RandomAccess, Indexed, IReduce, IKVReduce,
 	     IHashEq, Seqable, Reversible, ChunkedListOwner, IPersistentVector,
 	     IObj, IEditableCollection, ImmutValues, ArrayLists.ArrayOwner
 {
@@ -188,15 +190,7 @@ public class ArrayImmutList
     return fillArray(new Object[nElems]);
   }
   public Object[] toArray(Object[] marker) {
-    Object[] retval = Arrays.copyOf(marker, nElems);
-    fillArray(retval);
-    return retval;
-  }
-  public ListIterator<Character> listIterator(int idx) {
-    throw new RuntimeException("Unimplemented");
-  }
-  public ListIterator<Character> listIterator() {
-    return listIterator(0);
+    return fillArray(Arrays.copyOf(marker, nElems));
   }
   public ArrayImmutList subList(int sidx, int endidx) {
     ChunkedList.sublistCheck(sidx, endidx, nElems);

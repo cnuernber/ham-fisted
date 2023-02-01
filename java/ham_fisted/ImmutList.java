@@ -32,11 +32,13 @@ import clojure.lang.Util;
 import clojure.lang.IEditableCollection;
 import clojure.lang.ITransientVector;
 import clojure.lang.IFn;
+import clojure.lang.APersistentVector;
 
 
 
 public class ImmutList
-  implements IMutList<Object>, IHashEq, ChunkedListOwner, IPersistentVector,
+  extends APersistentVector
+  implements IMutList, IHashEq, ChunkedListOwner, IPersistentVector,
 	     IEditableCollection, ImmutValues
 {
   public final int startidx;
@@ -133,19 +135,18 @@ public class ImmutList
     return data.containsAll(startidx, startidx+nElems, c);
   }
   @SuppressWarnings("unchecked")
-  public final Iterator<Object> iterator() {
+  public final Iterator iterator() {
     return data.iterator(startidx, startidx + nElems);
   }
-  public final IMutList<Object> subList(int sidx, int eidx) {
+  public final IMutList subList(int sidx, int eidx) {
     ChunkedList.sublistCheck(sidx, eidx, nElems);
     return new ImmutList(sidx+startidx, eidx+startidx, data);
   }
   public final Object[] toArray() {
     return data.toArray(startidx, startidx+nElems);
   }
-  @SuppressWarnings("unchecked")
-  public final <T> T[] toArray(T[] marker) {
-    return (T[])data.fillArray(startidx, startidx+nElems, Arrays.copyOf(marker, nElems));
+  public final Object[] toArray(Object[] marker) {
+    return data.fillArray(startidx, startidx+nElems, Arrays.copyOf(marker, nElems));
   }
   public IPersistentMap meta() { return data.meta(); }
   public ImmutList withMeta(IPersistentMap m) {
