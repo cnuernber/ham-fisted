@@ -1,3 +1,7 @@
+# 1.000-beta-88
+ * Immutable maps and vectors derive from APersistentMap and APersistentVector so that downtream
+   libraries can pick them up transparently.
+
 # 1.000-beta-86
  * Error in reduction of empty ranges.
 
