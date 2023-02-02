@@ -1943,9 +1943,7 @@ nil
     - `mut-map` - Fast merge, fast update, in-place immutable conversion via `persistent!`.
     - `java-hashmap` - fast merge, fast update, just a simple java.util.HashMap-based reduction.
     - `#(LinkedHashMap.)` - When used with options {:ordered? true} the result keys will be
-       in order *and* the result values will be reduced in order.
-
-  Beware that nil keys are not allowed in any java.util-based map."
+       in order *and* the result values will be reduced in order."
   ([key-fn init-val-fn rfn merge-fn options coll]
    (let [has-map-fn? (get :map-fn options)
          map-fn (get options :map-fn mut-map)
