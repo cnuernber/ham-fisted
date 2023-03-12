@@ -221,13 +221,15 @@ public class Consumers {
 
   public static class IncConsumer implements Consumer, Reducible, IDeref {
     long nElems;
-    public IncConsumer() {}
+    public IncConsumer(long v) { nElems = v;}
+    public IncConsumer() { this(0); }
     public void accept(Object o) { ++nElems; }
     public void inc() { ++nElems; }
     public IncConsumer reduce(Reducible o) {
       nElems += ((IncConsumer)o).nElems;
       return this;
     }
+    public long value() { return nElems; }
     public Object deref() { return nElems; }
   }
 

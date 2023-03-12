@@ -1,3 +1,8 @@
+# 1.000-beta-89
+ * Added inc-consumer - returns a generic consumer that increments a long.  Useful for the various
+   situations where you need to track an incrementing variable but don't want the overhead of
+   using a volatile variable.
+ 
 # 1.000-beta-88
  * Immutable maps and vectors derive from APersistentMap and APersistentVector so that downtream
    libraries can pick them up transparently.

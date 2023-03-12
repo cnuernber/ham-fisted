@@ -3585,3 +3585,8 @@ nil
    (alists/wrap-array-growable ary ptr))
   (^IMutList [ary]
    (alists/wrap-array-growable ary)))
+
+(defn inc-consumer
+  "Return a consumer that simply increments a long.  See java/ham_fisted/Consumers.java for definition."
+  (^Consumers$IncConsumer [] (Consumers$IncConsumer.))
+  (^Consumers$IncConsumer [^long init-value] (Consumers$IncConsumer. init-value)))
