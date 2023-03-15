@@ -254,18 +254,24 @@ This is currently the default hash provider for the library."}
 
 (defn ^:no-doc options->parallel-options
   [options]
-  (let [^Map options (or options {})
-        ^ForkJoinPool pool (.getOrDefault options :pool (ForkJoinPool/commonPool))]
-    (ParallelOptions. (.getOrDefault options :min-n 1000)
-                      (.getOrDefault options :max-batch-size 64000)
-                      (boolean (.getOrDefault options :ordered? true))
-                      pool
-                      (.getOrDefault options :parallelism (.getParallelism pool))
-                      (case (.getOrDefault options :cat-parallelism :seq-wise)
-                        :seq-wise ParallelOptions$CatParallelism/SEQWISE
-                        :elem-wise ParallelOptions$CatParallelism/ELEMWISE)
-                      (.getOrDefault options :put-timeout-ms 5000)
-                      (.getOrDefault options :unmerged-result? false))))
+  (cond
+    (instance? ParallelOptions options)
+    options
+    (nil? options)
+    (ParallelOptions.)
+    :else
+    (let [^Map options (or options {})
+          ^ForkJoinPool pool (.getOrDefault options :pool (ForkJoinPool/commonPool))]
+      (ParallelOptions. (.getOrDefault options :min-n 1000)
+                        (.getOrDefault options :max-batch-size 64000)
+                        (boolean (.getOrDefault options :ordered? true))
+                        pool
+                        (.getOrDefault options :parallelism (.getParallelism pool))
+                        (case (.getOrDefault options :cat-parallelism :seq-wise)
+                          :seq-wise ParallelOptions$CatParallelism/SEQWISE
+                          :elem-wise ParallelOptions$CatParallelism/ELEMWISE)
+                        (.getOrDefault options :put-timeout-ms 5000)
+                        (.getOrDefault options :unmerged-result? false)))))
 
 
 (defn preduce
