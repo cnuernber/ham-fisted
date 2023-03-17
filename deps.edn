@@ -5,10 +5,12 @@
  {;; Run with clj -T:build function-in-build
   :dev
   {:extra-deps {criterium/criterium {:mvn/version "0.4.5"}
-                techascent/tech.ml.dataset {:mvn/version "6.094"}
+                techascent/tech.ml.dataset {:mvn/version "7.000-beta-30"}
                 ch.qos.logback/logback-classic {:mvn/version "1.1.3"}
                 kixi/stats {:mvn/version "0.5.5"}
-                org.clojure/data.int-map {:mvn/version "1.2.0"}}
+                org.clojure/data.int-map {:mvn/version "1.2.0"}
+                techascent/tech.viz {:mvn/version "6.00-beta-16-2"}
+                com.clojure-goes-fast/clj-memory-meter {:mvn/version "0.2.2"}}
    :extra-paths ["dev/src" "test"]}
   :build
   {:deps {io.github.clojure/tools.build {:git/tag "v0.8.1" :git/sha "7d40500"}}
