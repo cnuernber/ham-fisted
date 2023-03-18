@@ -15,7 +15,7 @@
   (:import [java.util HashMap ArrayList Map List Map$Entry]
            [java.util.function BiFunction]
            [ham_fisted IMutList Sum$SimpleSum Sum BitmapTrieCommon Consumers$IncConsumer
-            BitmapTrieCommon$MapSet]
+            BitmapTrieCommon$MapSet ImmutValues]
            [clojure.lang PersistentHashMap])
   (:gen-class))
 
@@ -240,6 +240,88 @@
        (vec)
        (spit-data "union-disj")
        ))
+
+
+(defn union-reduce
+  []
+  (->> (for [n-elems [ 4 10
+                      100
+                       1000 10000 1000000
+                      ]
+             numeric? [true false
+                       ]
+             ]
+         (do
+           (log/info (str "union-reduce benchmark on " (if numeric?
+                                                              "numeric "
+                                                              "non-numeric ")
+                          "data with n=" n-elems))
+           (let [data (if numeric? (long-map-data n-elems) (kwd-map-data n-elems))
+                 constructors (map-constructors numeric?)
+                 init-maps (initial-maps constructors data)
+                 merge-bfn (hamf/bi-function a b (+ (long a) (long b)))]
+             (merge (hamf/mapmap (fn [kv]
+                                   (let [m (val kv)
+                                         mseq (vec (repeat 16 m))]
+                                     [(key kv)
+                                      (cond
+                                        (instance? clojure.lang.IPersistentMap m)
+                                        (benchmark-us (reduce #(merge-with merge-bfn %1 %2)
+                                                              m
+                                                              mseq))
+                                        (instance? BitmapTrieCommon$MapSet m)
+                                        (benchmark-us (reduce #(.union ^BitmapTrieCommon$MapSet %1 %2 merge-bfn)
+                                                              m
+                                                              mseq))
+                                        :else
+                                        (let [map-c (get constructors (key kv))]
+                                          (benchmark-us (reduce (fn [^Map acc m]
+                                                                  (reduce (fn [acc kv]
+                                                                            (.merge acc (key kv) (val kv) merge-bfn)
+                                                                            acc)
+                                                                          acc
+                                                                          m))
+                                                                (map-c m)
+                                                                mseq))))]))
+                                 init-maps)
+                    {:n-elems n-elems :numeric? numeric? :test :union-reduce}))))
+       (vec)
+       (spit-data "union-reduce")))
+
+
+(defn update-values
+  []
+  (->> (for [n-elems [ 4 10
+                      100
+                       1000 10000 1000000
+                      ]
+             numeric? [true false
+                       ]
+             ]
+         (do
+           (log/info (str "update-values benchmark on " (if numeric?
+                                                          "numeric "
+                                                          "non-numeric ")
+                          "data with n=" n-elems))
+           (let [data (if numeric? (long-map-data n-elems) (kwd-map-data n-elems))
+                 constructors (map-constructors numeric?)
+                 init-maps (initial-maps constructors data)
+                 update-bfn (hamf/bi-function k v (unchecked-inc v))]
+             (merge (hamf/mapmap (fn [kv]
+                                   (let [m (val kv)]
+                                     [(key kv)
+                                      (cond
+                                        (instance? clojure.lang.IPersistentMap m)
+                                        (benchmark-us (update-vals m unchecked-inc))
+                                        (instance? ImmutValues m)
+                                        (.immutUpdateValues ^ImmutValues m update-bfn)
+                                        :else
+                                        (.replaceAll ^Map ((constructors (key kv)) m) update-bfn))]))
+                                 init-maps)
+                    {:n-elems n-elems :numeric? numeric? :test :update-values}))))
+       (vec)
+       (spit-data "update-values")))
+
 
 
 
@@ -879,8 +961,8 @@
 (defn -main
   [& args]
   ;;shutdown test
-  (union-overlapping)
-  (union-disj)
+  (union-reduce)
+  (update-values)
   #_(let [perf-data (process-dataset (profile))
         vs (System/getProperty "java.version")
         mn (machine-name)

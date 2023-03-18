@@ -94,3 +94,14 @@
        (map plot-perf-test)
        (dorun))
   :ok)
+
+
+(defn union-analysis
+  []
+  (->> (concat (edn/read-string (slurp "results/union-overlapping.edn"))
+               (edn/read-string (slurp "results/union-disj.edn")))
+       (group-by (juxt :numeric? :test))
+       (vals)
+       (map plot-perf-test)
+       (dorun))
+  :ok)
