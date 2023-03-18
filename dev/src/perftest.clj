@@ -119,26 +119,31 @@
              numeric? [true false
                        ]
              ]
-         (let [cycle-size 1000
-               data (take (max cycle-size n-elems) (cycle (repeatedly (min n-elems cycle-size) #(rand-int 1000))))
-               data (if numeric? data (map (comp keyword str) data))
-               init-maps (hamf/mapmap (fn [kv] [(key kv) ((val kv) nil)]) (map-constructors numeric?))]
-           (merge (hamf/mapmap (fn [kv]
-                                 (let [m (val kv)
-                                       immut-path? (instance? clojure.lang.IPersistentMap m)]
-                                   [(key kv)
-                                    (if immut-path?
-                                      (benchmark-us (reduce (fn [acc v]
-                                                              (assoc! acc v (unchecked-inc (get acc v 0))))
-                                                            (transient m)
-                                                            data))
-                                      (benchmark-us (reduce (fn [^Map acc v]
-                                                              (.compute acc v BitmapTrieCommon/incBiFn)
-                                                              acc)
-                                                            m
-                                                            data)))]))
-                               init-maps)
-                  {:n-elems n-elems :numeric? numeric? :test :random-update})))
+         (do
+           (log/info (str "random-update benchmark on " (if numeric?
+                                                          "numeric "
+                                                          "non-numeric ")
+                          "data with n=" n-elems))
+           (let [cycle-size 1000
+                 data (take (max cycle-size n-elems) (cycle (repeatedly (min n-elems cycle-size) #(rand-int 1000))))
+                 data (if numeric? data (map (comp keyword str) data))
+                 init-maps (hamf/mapmap (fn [kv] [(key kv) ((val kv) nil)]) (map-constructors numeric?))]
+             (merge (hamf/mapmap (fn [kv]
+                                   (let [m (val kv)
+                                         immut-path? (instance? clojure.lang.IPersistentMap m)]
+                                     [(key kv)
+                                      (if immut-path?
+                                        (benchmark-us (reduce (fn [acc v]
+                                                                (assoc! acc v (unchecked-inc (get acc v 0))))
+                                                              (transient m)
+                                                              data))
+                                        (benchmark-us (reduce (fn [^Map acc v]
+                                                                (.compute acc v BitmapTrieCommon/incBiFn)
+                                                                acc)
+                                                              m
+                                                              data)))]))
+                                 init-maps)
+                    {:n-elems n-elems :numeric? numeric? :test :random-update}))))
        (vec)
        (spit-data "random-update")))
 
