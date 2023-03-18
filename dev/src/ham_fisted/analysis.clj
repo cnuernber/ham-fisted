@@ -84,3 +84,13 @@
        (map plot-perf-test)
        (dorun))
   :ok)
+
+
+(defn random-update-analysis
+  []
+  (->> (edn/read-string (slurp "results/random-update.edn"))
+       (group-by (juxt :numeric? :test))
+       (vals)
+       (map plot-perf-test)
+       (dorun))
+  :ok)

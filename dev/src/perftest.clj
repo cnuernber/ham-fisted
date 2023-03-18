@@ -14,7 +14,7 @@
             [clj-memory-meter.core :as mm])
   (:import [java.util HashMap ArrayList Map List Map$Entry]
            [java.util.function BiFunction]
-           [ham_fisted IMutList Sum$SimpleSum Sum BitmapTrieCommon]
+           [ham_fisted IMutList Sum$SimpleSum Sum BitmapTrieCommon Consumers$IncConsumer]
            [clojure.lang PersistentHashMap])
   (:gen-class))
 
@@ -114,7 +114,9 @@
 
 (defn random-updates
   []
-  (->> (for [n-elems [4 10 100 1000 10000 1000000
+  (->> (for [n-elems [ 4 10
+                      100
+                       1000 10000 1000000
                       ]
              numeric? [true false
                        ]
@@ -125,7 +127,7 @@
                                                           "non-numeric ")
                           "data with n=" n-elems))
            (let [cycle-size 1000
-                 data (take (max cycle-size n-elems) (cycle (repeatedly (min n-elems cycle-size) #(rand-int 1000))))
+                 data (vec (take (max cycle-size n-elems) (cycle (repeatedly (min n-elems cycle-size) #(long (rand-int 1000))))))
                  data (if numeric? data (map (comp keyword str) data))
                  init-maps (hamf/mapmap (fn [kv] [(key kv) ((val kv) nil)]) (map-constructors numeric?))]
              (merge (hamf/mapmap (fn [kv]
@@ -137,15 +139,19 @@
                                                                 (assoc! acc v (unchecked-inc (get acc v 0))))
                                                               (transient m)
                                                               data))
-                                        (benchmark-us (reduce (fn [^Map acc v]
-                                                                (.compute acc v BitmapTrieCommon/incBiFn)
-                                                                acc)
-                                                              m
-                                                              data)))]))
+                                        (let [cfn (hamf/function _v (Consumers$IncConsumer.))]
+                                          (benchmark-us (reduce (fn [^Map acc v]
+                                                                  (.inc ^Consumers$IncConsumer
+                                                                        (.computeIfAbsent acc v cfn))
+                                                                  acc)
+                                                                m
+                                                                data))))]))
                                  init-maps)
                     {:n-elems n-elems :numeric? numeric? :test :random-update}))))
        (vec)
-       (spit-data "random-update")))
+       (spit-data "random-update")
+       )
+  )
 
 
 ;;this test is designed to test deserialization performance of various map sizes.
