@@ -315,9 +315,9 @@
                                         (instance? clojure.lang.IPersistentMap m)
                                         (benchmark-us (update-vals m unchecked-inc))
                                         (instance? ImmutValues m)
-                                        (.immutUpdateValues ^ImmutValues m update-bfn)
+                                        (benchmark-us (.immutUpdateValues ^ImmutValues m update-bfn))
                                         :else
-                                        (.replaceAll ^Map ((constructors (key kv)) m) update-bfn))]))
+                                        (benchmark-us (.replaceAll ^Map ((constructors (key kv)) m) update-bfn)))]))
                                  init-maps)
                     {:n-elems n-elems :numeric? numeric? :test :update-values}))))
        (vec)

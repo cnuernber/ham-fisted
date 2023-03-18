@@ -99,7 +99,9 @@
 (defn union-analysis
   []
   (->> (concat (edn/read-string (slurp "results/union-overlapping.edn"))
-               (edn/read-string (slurp "results/union-disj.edn")))
+               (edn/read-string (slurp "results/union-disj.edn"))
+               (edn/read-string (slurp "results/union-reduce.edn"))
+               (edn/read-string (slurp "results/update-values.edn")))
        (group-by (juxt :numeric? :test))
        (vals)
        (map plot-perf-test)
