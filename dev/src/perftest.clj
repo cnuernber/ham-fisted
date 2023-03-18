@@ -313,9 +313,7 @@
                                       (cond
                                         ;;for whatever reason update-vals isn't found during uberjar build
                                         (instance? clojure.lang.IPersistentMap m)
-                                        (benchmark-us (reduce-kv (fn [acc k v] (assoc! acc k (update-bfn k v)))
-                                                                 (transient m)
-                                                                 m))
+                                        (benchmark-us (update-vals m unchecked-inc))
                                         (instance? ImmutValues m)
                                         (.immutUpdateValues ^ImmutValues m update-bfn)
                                         :else
