@@ -14,7 +14,7 @@
             [clj-memory-meter.core :as mm])
   (:import [java.util HashMap ArrayList Map List Map$Entry]
            [java.util.function BiFunction]
-           [ham_fisted IMutList Sum$SimpleSum Sum]
+           [ham_fisted IMutList Sum$SimpleSum Sum BitmapTrieCommon]
            [clojure.lang PersistentHashMap])
   (:gen-class))
 
@@ -38,6 +38,24 @@
      (lznc/repeatedly n-elems #(rand-int 100000))))))
 
 
+(def map-non-numeric-constructors
+  {:clj #(into {} %)
+   :hamf-trie hamf/mut-trie-map
+   :hamf-hashmap hamf/mut-map
+   :java hamf/java-hashmap})
+
+
+(def map-numeric-constructors
+  {:hamf-long-map hamf/mut-long-hashtable-map
+   :clj-int-map #(into (i/int-map) %)})
+
+(defn map-constructors
+  [numeric?]
+  (merge map-non-numeric-constructors
+         (when numeric?
+           map-numeric-constructors)))
+
+
 (defn hashmap-perftest
   [data]
   (let [numeric? (number? (ffirst data))
@@ -46,13 +64,7 @@
                                                        "numeric "
                                                        "non-numeric ")
                          "data with n=" n-elems))
-        map-constructors (merge {:clj #(into {} %)
-                                 :hamf-trie hamf/mut-trie-map
-                                 :hamf-hashmap hamf/mut-map
-                                 :java hamf/java-hashmap}
-                                (when numeric?
-                                  {:hamf-long-map hamf/mut-long-hashtable-map
-                                   :clj-int-map #(into (i/int-map) %)}))
+        map-constructors (map-constructors numeric?)
         map-data (hamf/mapmap #(vector (key %) ((val %) data)) map-constructors)]
     [(merge (hamf/mapmap (fn [entry]
                            [(key entry) (benchmark-us ((val entry) data))])
@@ -98,6 +110,37 @@
        (lznc/apply-concat)
        (vec)
        (spit-data "general-hashmap")))
+
+
+(defn random-updates
+  []
+  (->> (for [n-elems [4 10 100 1000 10000 1000000
+                      ]
+             numeric? [true false
+                       ]
+             ]
+         (let [cycle-size 1000
+               data (take (max cycle-size n-elems) (cycle (repeatedly (min n-elems cycle-size) #(rand-int 1000))))
+               data (if numeric? data (map (comp keyword str) data))
+               init-maps (hamf/mapmap (fn [kv] [(key kv) ((val kv) nil)]) (map-constructors numeric?))]
+           (merge (hamf/mapmap (fn [kv]
+                                 (let [m (val kv)
+                                       immut-path? (instance? clojure.lang.IPersistentMap m)]
+                                   [(key kv)
+                                    (if immut-path?
+                                      (benchmark-us (reduce (fn [acc v]
+                                                              (assoc! acc v (unchecked-inc (get acc v 0))))
+                                                            (transient m)
+                                                            data))
+                                      (benchmark-us (reduce (fn [^Map acc v]
+                                                              (.compute acc v BitmapTrieCommon/incBiFn)
+                                                              acc)
+                                                            m
+                                                            data)))]))
+                               init-maps)
+                  {:n-elems n-elems :numeric? numeric? :test :random-update})))
+       (vec)
+       (spit-data "random-update")))
 
 
 ;;this test is designed to test deserialization performance of various map sizes.
@@ -736,7 +779,7 @@
 (defn -main
   [& args]
   ;;shutdown test
-  (general-hashmap)
+  (random-updates)
   #_(let [perf-data (process-dataset (profile))
         vs (System/getProperty "java.version")
         mn (machine-name)
