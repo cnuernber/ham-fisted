@@ -16,7 +16,8 @@ import static ham_fisted.BitmapTrieCommon.*;
 public final class MutBitmapTrie<K,V>
   extends MapBase<K,V>
   implements ITransientMap, ITransientAssociative2, IObj,
-	     UpdateValues, MutableMap
+	     UpdateValues, MutableMap, BitmapTrieCommon.MapSet,
+	     BitmapTrie.BitmapTrieOwner
 {
   public MutBitmapTrie(HashProvider hp) {
     super(new BitmapTrie(hp));
@@ -57,6 +58,22 @@ public final class MutBitmapTrie<K,V>
   }
   public IPersistentMap persistent() {
     return new ImmutBitmapTrie<K,V>((BitmapTrie)ht);
+  }
+  public BitmapTrie bitmapTrie() { return (BitmapTrie)ht; }
+  public MapSet intersection(MapSet rhs, BiFunction valueMap) {
+    BitmapTrie.BitmapTrieOwner owner = (BitmapTrie.BitmapTrieOwner)rhs;
+    BitmapTrie rhsT = owner.bitmapTrie();
+    return new ImmutBitmapTrie<K,V>(((BitmapTrie)ht).intersection(rhsT, valueMap));
+  }
+  public MapSet union(MapSet rhs, BiFunction valueMap) {
+    BitmapTrie.BitmapTrieOwner owner = (BitmapTrie.BitmapTrieOwner)rhs;
+    BitmapTrie rhsT = owner.bitmapTrie();
+    return new ImmutBitmapTrie<K,V>(((BitmapTrie)ht).union(rhsT, valueMap));
+  }
+  public MapSet difference(MapSet rhs) {
+    BitmapTrie.BitmapTrieOwner owner = (BitmapTrie.BitmapTrieOwner)rhs;
+    BitmapTrie rhsT = owner.bitmapTrie();
+    return new ImmutBitmapTrie<K,V>(((BitmapTrie)ht).difference(rhsT));
   }
 
   @SuppressWarnings("unchecked")

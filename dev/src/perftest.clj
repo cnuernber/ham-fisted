@@ -14,7 +14,8 @@
             [clj-memory-meter.core :as mm])
   (:import [java.util HashMap ArrayList Map List Map$Entry]
            [java.util.function BiFunction]
-           [ham_fisted IMutList Sum$SimpleSum Sum BitmapTrieCommon Consumers$IncConsumer]
+           [ham_fisted IMutList Sum$SimpleSum Sum BitmapTrieCommon Consumers$IncConsumer
+            BitmapTrieCommon$MapSet]
            [clojure.lang PersistentHashMap])
   (:gen-class))
 
@@ -56,6 +57,11 @@
            map-numeric-constructors)))
 
 
+(defn initial-maps
+  [mapsc data]
+  (hamf/mapmap #(vector (key %) ((val %) data)) mapsc))
+
+
 (defn hashmap-perftest
   [data]
   (let [numeric? (number? (ffirst data))
@@ -65,7 +71,7 @@
                                                        "non-numeric ")
                          "data with n=" n-elems))
         map-constructors (map-constructors numeric?)
-        map-data (hamf/mapmap #(vector (key %) ((val %) data)) map-constructors)]
+        map-data (initial-maps map-constructors data)]
     [(merge (hamf/mapmap (fn [entry]
                            [(key entry) (benchmark-us ((val entry) data))])
                          map-constructors)
@@ -129,7 +135,7 @@
            (let [cycle-size 1000
                  data (vec (take (max cycle-size n-elems) (cycle (repeatedly (min n-elems cycle-size) #(long (rand-int 1000))))))
                  data (if numeric? data (map (comp keyword str) data))
-                 init-maps (hamf/mapmap (fn [kv] [(key kv) ((val kv) nil)]) (map-constructors numeric?))]
+                 init-maps (initial-maps (map-constructors numeric?) nil)]
              (merge (hamf/mapmap (fn [kv]
                                    (let [m (val kv)
                                          immut-path? (instance? clojure.lang.IPersistentMap m)]
@@ -149,9 +155,92 @@
                                  init-maps)
                     {:n-elems n-elems :numeric? numeric? :test :random-update}))))
        (vec)
-       (spit-data "random-update")
-       )
-  )
+       (spit-data "random-update")))
+
+
+(defn union-overlapping
+  []
+  (->> (for [n-elems [ 4 10
+                      100
+                       1000 10000 1000000
+                      ]
+             numeric? [true false
+                       ]
+             ]
+         (do
+           (log/info (str "union-overlapping benchmark on " (if numeric?
+                                                              "numeric "
+                                                              "non-numeric ")
+                          "data with n=" n-elems))
+           (let [data (if numeric? (long-map-data n-elems) (kwd-map-data n-elems))
+                 constructors (map-constructors numeric?)
+                 init-maps (initial-maps constructors data)
+                 merge-bfn (hamf/bi-function a b (+ (long a) (long b)))]
+             (merge (hamf/mapmap (fn [kv]
+                                   (let [m (val kv)]
+                                     [(key kv)
+                                      (cond
+                                        (instance? clojure.lang.IPersistentMap m)
+                                        (benchmark-us (merge-with merge-bfn m m))
+                                        (instance? BitmapTrieCommon$MapSet m)
+                                        (benchmark-us (.union ^BitmapTrieCommon$MapSet m m merge-bfn))
+                                        :else
+                                        (let [map-c (get constructors (key kv))]
+                                          (benchmark-us (reduce (fn [^Map acc kv]
+                                                                  (.merge acc (key kv) (val kv) merge-bfn)
+                                                                  acc)
+                                                                (map-c m)
+                                                                m))))]))
+                                 init-maps)
+                    {:n-elems n-elems :numeric? numeric? :test :union-overlapping}))))
+       (vec)
+       (spit-data "union-overlapping")
+       ))
+
+
+(defn union-disj
+  []
+  (->> (for [n-elems [ 4 10
+                      100
+                       1000 10000 1000000
+                      ]
+             numeric? [true false
+                       ]
+             ]
+         (do
+           (log/info (str "union-disj benchmark on " (if numeric?
+                                                              "numeric "
+                                                              "non-numeric ")
+                          "data with n=" n-elems))
+           (let [data (if numeric? (long-map-data n-elems) (kwd-map-data n-elems))
+                 lhs-data (vec (take (quot n-elems 2) data))
+                 rhs-data (vec (drop (- n-elems (count lhs-data)) data))
+                 constructors (map-constructors numeric?)
+                 lhs-maps (initial-maps constructors lhs-data)
+                 rhs-maps (initial-maps constructors rhs-data)
+                 merge-bfn (hamf/bi-function a b (+ (long a) (long b)))]
+             (merge (hamf/mapmap (fn [kv]
+                                   (let [lhs (val kv)
+                                         rhs (rhs-maps (key kv))]
+                                     [(key kv)
+                                      (cond
+                                        (instance? clojure.lang.IPersistentMap lhs)
+                                        (benchmark-us (merge-with merge-bfn lhs rhs))
+                                        (instance? BitmapTrieCommon$MapSet lhs)
+                                        (benchmark-us (.union ^BitmapTrieCommon$MapSet lhs rhs merge-bfn))
+                                        :else
+                                        (let [map-c (get constructors (key kv))]
+                                          (benchmark-us (reduce (fn [^Map acc kv]
+                                                                  (.merge acc (key kv) (val kv) merge-bfn)
+                                                                  acc)
+                                                                (map-c lhs)
+                                                                rhs))))]))
+                                 lhs-maps)
+                    {:n-elems n-elems :numeric? numeric? :test :union-disj}))))
+       (vec)
+       (spit-data "union-disj")
+       ))
+
 
 
 ;;this test is designed to test deserialization performance of various map sizes.
@@ -790,7 +879,8 @@
 (defn -main
   [& args]
   ;;shutdown test
-  (random-updates)
+  (union-overlapping)
+  (union-disj)
   #_(let [perf-data (process-dataset (profile))
         vs (System/getProperty "java.version")
         mn (machine-name)

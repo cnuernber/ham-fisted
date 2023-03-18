@@ -661,6 +661,8 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
      (MutHashTable. (options->provider options) nil (int data))
      (and (nil? xform) (instance? obj-ary-cls data))
      (MutHashTable/create (options->provider options) true ^objects data)
+     (and (nil? xform) (instance? MutHashTable data))
+     (.clone ^MutHashTable data)
      :else
      (tduce xform (transient-map-rf #(MutHashTable. (options->provider nil)
                                                     nil
@@ -690,6 +692,8 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
      (LongMutHashTable. nil (int data))
      (and (nil? xform) (instance? obj-ary-cls data))
      (LongMutHashTable/create true ^objects data)
+     (and (nil? xform) (instance? MutHashTable data))
+     (.clone ^LongMutHashTable data)
      :else
      (tduce xform (transient-map-rf #(LongMutHashTable.)) data))))
 
@@ -833,8 +837,12 @@ ham_fisted.PersistentHashMap
   (^java.util.HashMap [data] (java-hashmap nil nil data))
   (^java.util.HashMap [xform data] (java-hashmap xform nil data))
   (^java.util.HashMap [xform options data]
-   (if (number? data)
+   (cond
+     (number? data)
      (java.util.HashMap. (int data))
+     (and (nil? xform) (instance? java.util.HashMap data))
+     (.clone ^java.util.HashMap data)
+     :else
      (tduce xform
             (mut-map-rf #(java.util.HashMap. (long (get options :init-size 0))))
             data))))
@@ -848,6 +856,8 @@ ham_fisted.PersistentHashMap
    (cond
      (instance? java.util.LinkedHashMap data) data
      (number? data) (java.util.LinkedHashMap. (int data))
+     (instance? java.util.LinkedHashMap data)
+     (.clone ^java.util.LinkedHashMap data)
      (instance? Map data)
      (java.util.LinkedHashMap. ^Map data)
      :else

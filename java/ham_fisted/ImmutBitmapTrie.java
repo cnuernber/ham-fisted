@@ -14,7 +14,8 @@ import static ham_fisted.BitmapTrieCommon.*;
 
 public class ImmutBitmapTrie<K,V>
   extends NonEditableMapBase<K,V>
-  implements IEditableCollection, IPersistentMap, IObj, ImmutValues {
+  implements IEditableCollection, IPersistentMap, IObj, ImmutValues,
+	     BitmapTrieCommon.MapSet, BitmapTrie.BitmapTrieOwner {
   public ImmutBitmapTrie(HashProvider hp) {
     super(new BitmapTrie(hp));
   }
@@ -56,6 +57,22 @@ public class ImmutBitmapTrie<K,V>
   @SuppressWarnings("unchecked")
   public ImmutBitmapTrie<K,V> immutUpdateValue(Object key, IFn fn) {
     return (ImmutBitmapTrie<K,V>)(shallowClone().mutUpdateValue((K)key, fn));
+  }
+  public BitmapTrie bitmapTrie() { return (BitmapTrie)ht; }
+  public MapSet intersection(MapSet rhs, BiFunction valueMap) {
+    BitmapTrie.BitmapTrieOwner owner = (BitmapTrie.BitmapTrieOwner)rhs;
+    BitmapTrie rhsT = owner.bitmapTrie();
+    return new ImmutBitmapTrie<K,V>(((BitmapTrie)ht).intersection(rhsT, valueMap));
+  }
+  public MapSet union(MapSet rhs, BiFunction valueMap) {
+    BitmapTrie.BitmapTrieOwner owner = (BitmapTrie.BitmapTrieOwner)rhs;
+    BitmapTrie rhsT = owner.bitmapTrie();
+    return new ImmutBitmapTrie<K,V>(((BitmapTrie)ht).union(rhsT, valueMap));
+  }
+  public MapSet difference(MapSet rhs) {
+    BitmapTrie.BitmapTrieOwner owner = (BitmapTrie.BitmapTrieOwner)rhs;
+    BitmapTrie rhsT = owner.bitmapTrie();
+    return new ImmutBitmapTrie<K,V>(((BitmapTrie)ht).difference(rhsT));
   }
   public ImmutBitmapTrie<K,V> withMeta(IPersistentMap m) {
     if(m == meta())

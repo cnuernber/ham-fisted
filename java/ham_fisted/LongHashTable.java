@@ -226,7 +226,7 @@ public final class LongHashTable implements TrieBase, MapData {
   }
   @SuppressWarnings("unchecked")
   public Object computeIfAbsent(Object _k, Function afn) {
-    final long k = (long)_k;
+    final long k = Casts.longCast(_k);
     final int hash = longHash(k);
     final LongLeafNode[] d = this.data;
     final int idx = hash & this.mask;
