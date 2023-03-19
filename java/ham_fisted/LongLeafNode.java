@@ -171,12 +171,12 @@ final class LongLeafNode implements INode, ILeaf, Map.Entry, IMutList {
     return retval;
   }
   public final LongLeafNode dissoc(TrieBase nowner, long _k) {
-    if (k == (long)_k) {
+    if (k == _k) {
       nowner.dec();
       return nextNode;
     }
     if (nextNode != null) {
-      LongLeafNode nn = nextNode.dissoc(nowner,k);
+      LongLeafNode nn = nextNode.dissoc(nowner,_k);
       if (nn != nextNode) {
 	LongLeafNode retval = setOwner(nowner);
 	retval.nextNode = nn;
@@ -188,7 +188,7 @@ final class LongLeafNode implements INode, ILeaf, Map.Entry, IMutList {
 
   public final INode dissoc(TrieBase nowner, Object _k, int _hashcode) {
     if (hashcode == _hashcode) {
-      return dissoc(nowner, (long)k);
+      return dissoc(nowner, Casts.longCast(_k));
     } else {
       return this;
     }

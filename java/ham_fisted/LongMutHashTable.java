@@ -12,7 +12,8 @@ import static ham_fisted.BitmapTrieCommon.*;
 public class LongMutHashTable<K,V>
   extends MapBase<K,V>
   implements ITransientMap, ITransientAssociative2, IObj,
-	     UpdateValues, MutableMap {
+	     UpdateValues, MutableMap, BitmapTrieCommon.MapSet,
+	     LongHashTable.Owner {
   public LongMutHashTable() {
     super(new LongHashTable(0.75f, 0, 0, null, null));
   }
@@ -58,6 +59,16 @@ public class LongMutHashTable<K,V>
   }
   public IPersistentMap persistent()  {
     return new LongImmutHashTable<K,V>((LongHashTable)ht);
+  }
+  public LongHashTable getLongHashTable() { return (LongHashTable)ht; }
+  public LongImmutHashTable union(MapSet other, BiFunction mapper) {
+    return new LongImmutHashTable(((LongHashTable)ht).union(((LongHashTable.Owner)other).getLongHashTable(), mapper, true));
+  }
+  public LongImmutHashTable intersection(MapSet other, BiFunction mapper) {
+    return new LongImmutHashTable(((LongHashTable)ht).intersection(((LongHashTable.Owner)other).getLongHashTable(), mapper, true));
+  }
+  public LongImmutHashTable difference(MapSet other) {
+    return new LongImmutHashTable(((LongHashTable)ht).difference(((LongHashTable.Owner)other).getLongHashTable(), true));
   }
 
   @SuppressWarnings("unchecked")

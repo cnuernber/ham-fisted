@@ -9,9 +9,13 @@ import clojure.lang.IPersistentMap;
 import clojure.lang.IFn;
 
 
+import static ham_fisted.BitmapTrieCommon.*;
+
+
 public class LongTransientHashTable<K,V>
   extends NonEditableMapBase<K,V>
-  implements ITransientMap, ITransientAssociative2, IObj, UpdateValues {
+  implements ITransientMap, ITransientAssociative2, IObj, UpdateValues, BitmapTrieCommon.MapSet,
+	     LongHashTable.Owner {
   public LongTransientHashTable(LongHashTable ht) {
     super(ht);
   }
@@ -31,6 +35,16 @@ public class LongTransientHashTable<K,V>
   }
   public LongTransientHashTable<K,V> withMeta(IPersistentMap m) {
     return new LongTransientHashTable<K,V>((LongHashTable)ht.withMeta(m));
+  }
+  public LongHashTable getLongHashTable() { return (LongHashTable)ht; }
+  public LongTransientHashTable<K,V> union(MapSet other, BiFunction mapper) {
+    return new LongTransientHashTable<K,V>(((LongHashTable)ht).union(((LongHashTable.Owner)other).getLongHashTable(), mapper, false));
+  }
+  public LongTransientHashTable<K,V> intersection(MapSet other, BiFunction mapper) {
+    return new LongTransientHashTable<K,V>(((LongHashTable)ht).intersection(((LongHashTable.Owner)other).getLongHashTable(), mapper, false));
+  }
+  public LongTransientHashTable<K,V> difference(MapSet other) {
+    return new LongTransientHashTable<K,V>(((LongHashTable)ht).difference(((LongHashTable.Owner)other).getLongHashTable(), false));
   }
   IPersistentMap doPersistent() { return persistent(); }
   @SuppressWarnings("unchecked")

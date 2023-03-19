@@ -5,7 +5,8 @@
             [criterium.core :as crit])
   (:import [java.util ArrayList Collections Map Collection]
            [java.util.function BiFunction BiConsumer]
-           [java.util.concurrent ForkJoinPool Future Callable]))
+           [java.util.concurrent ForkJoinPool Future Callable]
+           [ham_fisted MutHashTable LongMutHashTable]))
 
 (defonce orig api/empty-map)
 
@@ -183,15 +184,20 @@
        (sort-by :construct-μs)))
 
 
-#_(deftest union-test
+(defn- indexed-map
+  ^MutHashTable [data]
+  (api/mut-map (map-indexed #(vector %2 %1) data)))
+
+
+(deftest union-test
   (let [n-elems 100
         hn-elems (quot n-elems 2)
         src-data (repeatedly n-elems #(rand-int 100000000))
         lhs (->array-list (take hn-elems src-data))
         rhs (->array-list (drop hn-elems src-data))
-        ^PersistentHashMap hm1 (hamf-transient lhs)
+        hm1 (indexed-map lhs)
         bfn (reify BiFunction (apply [this a b] (+ a b)))
-        hm2 (hamf-transient rhs)
+        hm2 (indexed-map rhs)
         un1 (.union hm1 hm2 bfn)
         un2 (.union un1 hm2 bfn)
         single-sum (reduce + (range hn-elems))]
@@ -202,23 +208,23 @@
     (is (= (* 3 single-sum) (reduce + (vals un2))))))
 
 
-#_(deftest difference-test
+(deftest difference-test
   (let [n-elems 100
         hn-elems (quot n-elems 2)
         src-data (repeatedly n-elems #(rand-int 100000000))
         lhs (->array-list (take hn-elems src-data))
         rhs (->array-list (drop hn-elems src-data))
         llhs (->array-list (take (quot hn-elems 2) src-data))
-        ^PersistentHashMap hm1 (hamf-transient lhs)
-        hm2 (hamf-transient rhs)
+        hm1 (indexed-map lhs)
+        hm2 (indexed-map rhs)
         df1 (.difference hm1 hm2)
-        df2 (.difference hm1 (hamf-transient llhs))]
+        df2 (.difference hm1 (indexed-map llhs))]
     (is (= hn-elems (count df1)))
     (is (= (quot hn-elems 2) (count df2)))
     (is (= (set/difference (set lhs) (set llhs)) (set (keys df2))))))
 
 
-#_(deftest intersection-test
+(deftest intersection-test
   (let [n-elems 100
         hn-elems (quot n-elems 2)
         hhn-elems (quot hn-elems 2)
@@ -227,9 +233,70 @@
         rhs (->array-list (drop hn-elems src-data))
         llhs (->array-list (take hhn-elems src-data))
         bfn (reify BiFunction (apply [this a b] (+ a b)))
-        ^PersistentHashMap hm1 (hamf-transient lhs)
-        hhm1 (hamf-transient llhs)
-        hm2 (hamf-transient rhs)
+        hm1 (indexed-map lhs)
+        hhm1 (indexed-map llhs)
+        hm2 (indexed-map rhs)
+        df1 (.intersection hm1 hm2 bfn)
+        df2 (.intersection hm1 hhm1 bfn)
+        hhn-sum (reduce + (range hhn-elems))]
+    (is (= 0 (count df1)))
+    (is (= (quot hn-elems 2) (count df2)))
+    (is (= (set/intersection (set lhs) (set llhs)) (set (keys df2))))
+    (is (= (* 2 hhn-sum) (reduce + (vals df2))))))
+
+
+(defn- long-indexed-map
+  ^LongMutHashTable [data]
+  (api/mut-long-hashtable-map (map-indexed #(vector %2 %1) data)))
+
+
+(deftest long-union-test
+  (let [n-elems 100
+        hn-elems (quot n-elems 2)
+        src-data (repeatedly n-elems #(rand-int 100000000))
+        lhs (->array-list (take hn-elems src-data))
+        rhs (->array-list (drop hn-elems src-data))
+        hm1 (long-indexed-map lhs)
+        bfn (reify BiFunction (apply [this a b] (+ a b)))
+        hm2 (long-indexed-map rhs)
+        un1 (.union hm1 hm2 bfn)
+        un2 (.union un1 hm2 bfn)
+        single-sum (reduce + (range hn-elems))]
+    (is (= (count un1) n-elems))
+    (is (= (set src-data) (set (keys un1))))
+    (is (= (count un2) n-elems))
+    (is (= (* 2 single-sum) (reduce + (vals un1))))
+    (is (= (* 3 single-sum) (reduce + (vals un2))))))
+
+
+(deftest long-difference-test
+  (let [n-elems 100
+        hn-elems (quot n-elems 2)
+        src-data (repeatedly n-elems #(rand-int 100000000))
+        lhs (->array-list (take hn-elems src-data))
+        rhs (->array-list (drop hn-elems src-data))
+        llhs (->array-list (take (quot hn-elems 2) src-data))
+        hm1 (long-indexed-map lhs)
+        hm2 (long-indexed-map rhs)
+        df1 (.difference hm1 hm2)
+        df2 (.difference hm1 (long-indexed-map llhs))]
+    (is (= hn-elems (count df1)))
+    (is (= (quot hn-elems 2) (count df2)))
+    (is (= (set/difference (set lhs) (set llhs)) (set (keys df2))))))
+
+
+(deftest long-intersection-test
+  (let [n-elems 100
+        hn-elems (quot n-elems 2)
+        hhn-elems (quot hn-elems 2)
+        src-data (repeatedly n-elems #(rand-int 100000000))
+        lhs (->array-list (take hn-elems src-data))
+        rhs (->array-list (drop hn-elems src-data))
+        llhs (->array-list (take hhn-elems src-data))
+        bfn (reify BiFunction (apply [this a b] (+ a b)))
+        hm1 (long-indexed-map lhs)
+        hhm1 (long-indexed-map llhs)
+        hm2 (long-indexed-map rhs)
         df1 (.intersection hm1 hm2 bfn)
         df2 (.intersection hm1 hhm1 bfn)
         hhn-sum (reduce + (range hhn-elems))]

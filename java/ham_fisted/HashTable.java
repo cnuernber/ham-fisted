@@ -283,25 +283,16 @@ public final class HashTable implements TrieBase, MapData {
       for(LeafNode lf = od[idx]; lf != null; lf = lf.nextNode) {
 	final int rvidx = lf.hashcode & mask;
 	final Object k = lf.k;
-	LeafNode e = rvd[rvidx], ee = null;
-	for(;e != null && !(e.k==k || hp.equals(e.k, k)); e = e.nextNode) {
-	  ee = e;
-	}
-
+	LeafNode init = rvd[rvidx], e = init;
+	for(;e != null && !(e.k==k || hp.equals(e.k, k)); e = e.nextNode);
 	if(e != null) {
-	  e = e.setOwner(rv);
-	  if(ee != null)
-	    ee.nextNode = e;
-	  else
-	    rvd[rvidx] = e;
-	  e.v = bfn.apply(e.v, lf.v);
+	  rvd[rvidx] = init.assoc(rv, lf.k, lf.hashcode, bfn.apply(e.v, lf.v));
 	}
 	else {
-	  LeafNode nn = new LeafNode(rv, k, lf.hashcode, lf.v, null);
-	  if(ee != null)
-	    ee.nextNode = nn;
+	  if(init != null)
+	    rvd[rvidx] = init.assoc(rv, lf.k, lf.hashcode, lf.v);
 	  else
-	    rvd[rvidx] = nn;
+	    rvd[rvidx] = new LeafNode(rv, k, lf.hashcode, lf.v, null);
 	  rv.checkResize(null);
 	  mask = rv.mask;
 	  rvd = rv.data;
@@ -310,6 +301,54 @@ public final class HashTable implements TrieBase, MapData {
     }
     return rv;
   }
+  @SuppressWarnings("unchecked")
+  public HashTable intersection(HashTable other, BiFunction bfn, boolean copy) {
+    HashTable rv = copy ? shallowClone() : this;
+    final LeafNode[] od = other.data;
+    final int omask = other.mask;
+    final LeafNode[] rvd = rv.data;
+    final int ne = rvd.length;
+    final HashProvider hp = this.hp;
+    for (int idx = 0; idx < ne; ++idx) {
+      LeafNode lf = rvd[idx];
+      while(lf != null) {
+	final LeafNode curlf = lf;
+	lf = lf.nextNode;
+	final int oidx = curlf.hashcode & omask;
+	LeafNode e = od[oidx];
+	final Object k = curlf.k;
+	for(;e != null && !(e.k==k || hp.equals(e.k, k)); e = e.nextNode);
+	// System.out.println("curlf.k: " + String.valueOf(curlf.k) + " found: " + String.valueOf(e != null));
+	rvd[idx] = (e != null)
+	  ? rvd[idx].assoc(rv, e.k, e.hashcode, bfn.apply(curlf.v, e.v))
+	  : rvd[idx].dissoc(rv, curlf.k);
+	// System.out.println("rvidx: " + String.valueOf(rvd[idx]) + ":" + String.valueOf(rvd[idx] != null ? rvd[idx].k : null));
+      }
+    }
+    return rv;
+  }
+  @SuppressWarnings("unchecked")
+  public HashTable difference(HashTable other, boolean copy) {
+    HashTable rv = copy ? shallowClone() : this;
+    final LeafNode[] od = other.data;
+    final int nod = od.length;
+    final LeafNode[] rvd = rv.data;
+    final int mask = rv.mask;
+    final HashProvider hp = this.hp;
+    for (int idx = 0; idx < nod; ++idx) {
+      for(LeafNode lf = od[idx]; lf != null; lf = lf.nextNode) {
+	final int rvidx = lf.hashcode & mask;
+	final Object k = lf.k;
+	LeafNode e = rvd[rvidx];
+	for(;e != null && !(e.k==k || hp.equals(e.k, k)); e = e.nextNode);
+	if(e != null) {
+	  rvd[rvidx] = rvd[rvidx].dissoc(rv, e.k);
+	}
+      }
+    }
+    return rv;
+  }
+
   public void remove(Object k, Box b) {
     final int hc = hp.hash(k);
     final int idx = hc & this.mask;

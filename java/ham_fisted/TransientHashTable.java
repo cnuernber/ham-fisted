@@ -8,10 +8,13 @@ import clojure.lang.IObj;
 import clojure.lang.IPersistentMap;
 import clojure.lang.IFn;
 
+import static ham_fisted.BitmapTrieCommon.*;
+
 
 public class TransientHashTable<K,V>
   extends NonEditableMapBase<K,V>
-  implements ITransientMap, ITransientAssociative2, IObj, UpdateValues {
+  implements ITransientMap, ITransientAssociative2, IObj, UpdateValues, BitmapTrieCommon.MapSet,
+	     HashTable.Owner {
   public TransientHashTable(HashTable ht) {
     super(ht);
   }
@@ -28,6 +31,19 @@ public class TransientHashTable<K,V>
   @SuppressWarnings("unchecked")
   public TransientHashTable<K,V> without(Object key) {
     return (TransientHashTable<K,V>)mutDissoc((K)key);
+  }
+  public HashTable getHashTable() { return (HashTable)ht; }
+  public TransientHashTable<K,V> union(MapSet other, BiFunction mapper) {
+    ((HashTable)ht).union(((HashTable.Owner)other).getHashTable(), mapper, false);
+    return this;
+  }
+  public TransientHashTable<K,V> intersection(MapSet other, BiFunction mapper) {
+    ((HashTable)ht).intersection(((HashTable.Owner)other).getHashTable(), mapper, false);
+    return this;
+  }
+  public TransientHashTable<K,V> difference(MapSet other) {
+    ((HashTable)ht).difference(((HashTable.Owner)other).getHashTable(), false);
+    return this;
   }
   public TransientHashTable<K,V> withMeta(IPersistentMap m) {
     return new TransientHashTable<K,V>((HashTable)ht.withMeta(m));

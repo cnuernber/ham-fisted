@@ -35,6 +35,9 @@ public final class LongHashTable implements TrieBase, MapData {
   float loadFactor;
   LongLeafNode[] data;
   IPersistentMap meta;
+  interface Owner {
+    LongHashTable getLongHashTable();
+  }
   public LongHashTable(float loadFactor, int initialCapacity,
 		       int length, LongLeafNode[] data, IPersistentMap meta) {
     this.loadFactor = loadFactor;
@@ -276,8 +279,85 @@ public final class LongHashTable implements TrieBase, MapData {
     }
     return newV;
   }
+  @SuppressWarnings("unchecked")
+  public LongHashTable union(LongHashTable other, BiFunction bfn, boolean copy) {
+    LongHashTable rv = copy ? shallowClone() : this;
+    final LongLeafNode[] od = other.data;
+    final int nod = od.length;
+    LongLeafNode[] rvd = rv.data;
+    int mask = rv.mask;
+    final HashProvider hp = this.hp;
+    for (int idx = 0; idx < nod; ++idx) {
+      for(LongLeafNode lf = od[idx]; lf != null; lf = lf.nextNode) {
+	final int rvidx = lf.hashcode & mask;
+	final long k = lf.k;
+	LongLeafNode init = rvd[rvidx], e = init;
+	for(;e != null && !(e.k==k); e = e.nextNode);
+	if(e != null) {
+	  rvd[rvidx] = init.assoc(rv, lf.k, lf.hashcode, bfn.apply(e.v, lf.v));
+	}
+	else {
+	  if(init != null)
+	    rvd[rvidx] = init.assoc(rv, lf.k, lf.hashcode, lf.v);
+	  else
+	    rvd[rvidx] = new LongLeafNode(rv, k, lf.hashcode, lf.v, null);
+	  rv.checkResize(null);
+	  mask = rv.mask;
+	  rvd = rv.data;
+	}
+      }
+    }
+    return rv;
+  }
+  @SuppressWarnings("unchecked")
+  public LongHashTable intersection(LongHashTable other, BiFunction bfn, boolean copy) {
+    LongHashTable rv = copy ? shallowClone() : this;
+    final LongLeafNode[] od = other.data;
+    final int omask = other.mask;
+    final LongLeafNode[] rvd = rv.data;
+    final int ne = rvd.length;
+    final HashProvider hp = this.hp;
+    for (int idx = 0; idx < ne; ++idx) {
+      LongLeafNode lf = rvd[idx];
+      while(lf != null) {
+	final LongLeafNode curlf = lf;
+	lf = lf.nextNode;
+	final int oidx = curlf.hashcode & omask;
+	LongLeafNode e = od[oidx];
+	final long k = curlf.k;
+	for(;e != null && !(e.k==k); e = e.nextNode);
+	// System.out.println("curlf.k: " + String.valueOf(curlf.k) + " found: " + String.valueOf(e != null));
+	rvd[idx] = (e != null)
+	  ? rvd[idx].assoc(rv, e.k, e.hashcode, bfn.apply(curlf.v, e.v))
+	  : rvd[idx].dissoc(rv, curlf.k);
+	// System.out.println("rvidx: " + String.valueOf(rvd[idx]) + ":" + String.valueOf(rvd[idx] != null ? rvd[idx].k : null));
+      }
+    }
+    return rv;
+  }
+  @SuppressWarnings("unchecked")
+  public LongHashTable difference(LongHashTable other, boolean copy) {
+    LongHashTable rv = copy ? shallowClone() : this;
+    final LongLeafNode[] od = other.data;
+    final int nod = od.length;
+    final LongLeafNode[] rvd = rv.data;
+    final int mask = rv.mask;
+    final HashProvider hp = this.hp;
+    for (int idx = 0; idx < nod; ++idx) {
+      for(LongLeafNode lf = od[idx]; lf != null; lf = lf.nextNode) {
+	final int rvidx = lf.hashcode & mask;
+	final long k = lf.k;
+	LongLeafNode e = rvd[rvidx];
+	for(;e != null && !(e.k==k); e = e.nextNode);
+	if(e != null) {
+	  rvd[rvidx] = rvd[rvidx].dissoc(rv, e.k);
+	}
+      }
+    }
+    return rv;
+  }
   public void remove(Object _k, Box b) {
-    final long k = (long)_k;
+    final long k = Casts.longCast(_k);
     final int hc = longHash(k);
     final int idx = hc & this.mask;
     LongLeafNode e = this.data[idx];
@@ -289,7 +369,7 @@ public final class LongHashTable implements TrieBase, MapData {
     Arrays.fill(data, null);
   }
   public LongHashTable mutAssoc(Object _k, Object v) {
-    final long k = (long)_k;
+    final long k = Casts.longCast(_k);
     final int hc = longHash(k);
     final int idx = hc & this.mask;
     LongLeafNode e = this.data[idx];
@@ -329,7 +409,7 @@ public final class LongHashTable implements TrieBase, MapData {
     }
   }
   public LongHashTable mutUpdateValue(Object _key, IFn fn) {
-    final long key = (long)_key;
+    final long key = Casts.longCast(_key);
     final int hc = longHash(key);
     final int idx = hc & this.mask;
     LongLeafNode e = this.data[idx];

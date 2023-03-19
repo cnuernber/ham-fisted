@@ -13,7 +13,8 @@ import static ham_fisted.BitmapTrieCommon.*;
 
 public class LongImmutHashTable<K,V>
   extends NonEditableMapBase<K,V>
-  implements IEditableCollection, IPersistentMap, IObj, ImmutValues {
+  implements IEditableCollection, IPersistentMap, IObj, ImmutValues, BitmapTrieCommon.MapSet,
+	     LongHashTable.Owner {
   public LongImmutHashTable(HashProvider hp) {
     super(new LongHashTable(0.75f, 0, 0, null, null));
   }
@@ -47,6 +48,16 @@ public class LongImmutHashTable<K,V>
       return new LongMutHashTable<K,V>((LongHashTable)ht.shallowClone());
     else
       return new LongTransientHashTable<K,V>((LongHashTable)ht.shallowClone());
+  }
+  public LongHashTable getLongHashTable() { return (LongHashTable)ht; }
+  public LongImmutHashTable union(MapSet other, BiFunction mapper) {
+    return new LongImmutHashTable(((LongHashTable)ht).union(((LongHashTable.Owner)other).getLongHashTable(), mapper, true));
+  }
+  public LongImmutHashTable intersection(MapSet other, BiFunction mapper) {
+    return new LongImmutHashTable(((LongHashTable)ht).intersection(((LongHashTable.Owner)other).getLongHashTable(), mapper, true));
+  }
+  public LongImmutHashTable difference(MapSet other) {
+    return new LongImmutHashTable(((LongHashTable)ht).difference(((LongHashTable.Owner)other).getLongHashTable(), true));
   }
   @SuppressWarnings("unchecked")
   public LongImmutHashTable<K,V> immutUpdateValues(BiFunction valueMap) {

@@ -50,14 +50,14 @@ public class ImmutHashTable
       return new TransientHashTable((HashTable)ht.shallowClone());
   }
   public HashTable getHashTable() { return (HashTable)ht; }
-  public ImmutHashTable intersection(MapSet other, BiFunction mapper) {
-    throw new RuntimeException("Unimplemented");
-  }
   public ImmutHashTable union(MapSet other, BiFunction mapper) {
     return new ImmutHashTable(((HashTable)ht).union(((HashTable.Owner)other).getHashTable(), mapper, true));
   }
+  public ImmutHashTable intersection(MapSet other, BiFunction mapper) {
+    return new ImmutHashTable(((HashTable)ht).intersection(((HashTable.Owner)other).getHashTable(), mapper, true));
+  }
   public ImmutHashTable difference(MapSet other) {
-    throw new RuntimeException("Unimplemented");
+    return new ImmutHashTable(((HashTable)ht).difference(((HashTable.Owner)other).getHashTable(), true));
   }
   @SuppressWarnings("unchecked")
   public ImmutHashTable immutUpdateValues(BiFunction valueMap) {

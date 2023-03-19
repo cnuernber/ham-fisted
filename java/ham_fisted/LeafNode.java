@@ -171,7 +171,7 @@ final class LeafNode implements INode, ILeaf, Map.Entry, IMutList {
       return nextNode;
     }
     if (nextNode != null) {
-      LeafNode nn = nextNode.dissoc(nowner,k);
+      LeafNode nn = nextNode.dissoc(nowner,_k);
       if (nn != nextNode) {
 	LeafNode retval = setOwner(nowner);
 	retval.nextNode = nn;
@@ -183,7 +183,7 @@ final class LeafNode implements INode, ILeaf, Map.Entry, IMutList {
 
   public final INode dissoc(TrieBase nowner, Object _k, int _hashcode) {
     if (hashcode == _hashcode) {
-      return dissoc(nowner, k);
+      return dissoc(nowner, _k);
     } else {
       return this;
     }
