@@ -962,6 +962,8 @@
 (defn -main
   [& args]
   ;;shutdown test
+  (union-overlapping)
+  (union-disj)
   (union-reduce)
   (update-values)
   #_(let [perf-data (process-dataset (profile))
