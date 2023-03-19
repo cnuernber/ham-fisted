@@ -12,7 +12,8 @@ import static ham_fisted.BitmapTrieCommon.*;
 public class MutHashTable<K,V>
   extends MapBase<K,V>
   implements ITransientMap, ITransientAssociative2, IObj,
-	     UpdateValues, MutableMap {
+	     UpdateValues, MutableMap, BitmapTrieCommon.MapSet,
+	     HashTable.Owner {
   public MutHashTable(HashProvider hp) {
     super(new HashTable(hp, 0.75f, 0, 0, null, null));
   }
@@ -59,6 +60,18 @@ public class MutHashTable<K,V>
   public IPersistentMap persistent()  {
     return new ImmutHashTable((HashTable)ht);
   }
+
+  public HashTable getHashTable() { return (HashTable)ht; }
+  public ImmutHashTable intersection(MapSet other, BiFunction mapper) {
+    throw new RuntimeException("Unimplemented");
+  }
+  public ImmutHashTable union(MapSet other, BiFunction mapper) {
+    return new ImmutHashTable(((HashTable)ht).union(((HashTable.Owner)other).getHashTable(), mapper, true));
+  }
+  public ImmutHashTable difference(MapSet other) {
+    throw new RuntimeException("Unimplemented");
+  }
+
 
   @SuppressWarnings("unchecked")
   public static MutHashTable create(HashProvider hp, boolean byAssoc, Object[] data) {

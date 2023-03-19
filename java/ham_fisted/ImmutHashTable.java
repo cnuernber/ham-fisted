@@ -14,7 +14,8 @@ import static ham_fisted.BitmapTrieCommon.*;
 
 public class ImmutHashTable
   extends APersistentMapBase
-  implements IEditableCollection, IPersistentMap, IObj, ImmutValues {
+  implements IEditableCollection, IPersistentMap, IObj, ImmutValues, BitmapTrieCommon.MapSet,
+	     HashTable.Owner {
   public ImmutHashTable(HashProvider hp) {
     super(new HashTable(hp, 0.75f, 0, 0, null, null));
   }
@@ -47,6 +48,16 @@ public class ImmutHashTable
       return new MutHashTable((HashTable)ht.shallowClone());
     else
       return new TransientHashTable((HashTable)ht.shallowClone());
+  }
+  public HashTable getHashTable() { return (HashTable)ht; }
+  public ImmutHashTable intersection(MapSet other, BiFunction mapper) {
+    throw new RuntimeException("Unimplemented");
+  }
+  public ImmutHashTable union(MapSet other, BiFunction mapper) {
+    return new ImmutHashTable(((HashTable)ht).union(((HashTable.Owner)other).getHashTable(), mapper, true));
+  }
+  public ImmutHashTable difference(MapSet other) {
+    throw new RuntimeException("Unimplemented");
   }
   @SuppressWarnings("unchecked")
   public ImmutHashTable immutUpdateValues(BiFunction valueMap) {

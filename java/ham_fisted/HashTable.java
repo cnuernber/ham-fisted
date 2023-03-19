@@ -35,6 +35,7 @@ public final class HashTable implements TrieBase, MapData {
   float loadFactor;
   LeafNode[] data;
   IPersistentMap meta;
+  interface Owner { public HashTable getHashTable(); }
   public HashTable(HashProvider hashProvider, float loadFactor, int initialCapacity,
 		   int length, LeafNode[] data, IPersistentMap meta) {
     this.hp = hashProvider;
@@ -270,6 +271,45 @@ public final class HashTable implements TrieBase, MapData {
     }
     return newV;
   }
+  @SuppressWarnings("unchecked")
+  public HashTable union(HashTable other, BiFunction bfn, boolean copy) {
+    HashTable rv = copy ? shallowClone() : this;
+    final LeafNode[] od = other.data;
+    final int nod = od.length;
+    LeafNode[] rvd = rv.data;
+    int mask = rv.mask;
+    final HashProvider hp = this.hp;
+    for (int idx = 0; idx < nod; ++idx) {
+      for(LeafNode lf = od[idx]; lf != null; lf = lf.nextNode) {
+	final int rvidx = lf.hashcode & mask;
+	final Object k = lf.k;
+	LeafNode e = rvd[rvidx], ee = null;
+	for(;e != null && !(e.k==k || hp.equals(e.k, k)); e = e.nextNode) {
+	  ee = e;
+	}
+
+	if(e != null) {
+	  e = e.setOwner(rv);
+	  if(ee != null)
+	    ee.nextNode = e;
+	  else
+	    rvd[rvidx] = e;
+	  e.v = bfn.apply(e.v, lf.v);
+	}
+	else {
+	  LeafNode nn = new LeafNode(rv, k, lf.hashcode, lf.v, null);
+	  if(ee != null)
+	    ee.nextNode = nn;
+	  else
+	    rvd[rvidx] = nn;
+	  rv.checkResize(null);
+	  mask = rv.mask;
+	  rvd = rv.data;
+	}
+      }
+    }
+    return rv;
+  }
   public void remove(Object k, Box b) {
     final int hc = hp.hash(k);
     final int idx = hc & this.mask;
@@ -281,8 +321,7 @@ public final class HashTable implements TrieBase, MapData {
     length = 0;
     Arrays.fill(data, null);
   }
-  public HashTable mutAssoc(Object k, Object v) {
-    final int hc = hp.hash(k);
+  public HashTable mutAssoc(Object k, Object v, final int hc) {
     final int idx = hc & this.mask;
     LeafNode e = this.data[idx];
     this.data[idx] = e != null ?
@@ -290,6 +329,9 @@ public final class HashTable implements TrieBase, MapData {
       new LeafNode(this, k, hc, v, null);
     checkResize(null);
     return this;
+  }
+  public HashTable mutAssoc(Object k, Object v) {
+    return mutAssoc(k, v, hp.hash(k));
   }
   public HashTable mutDissoc(Object k) {
     final int hc = hp.hash(k);
