@@ -160,9 +160,9 @@
 
 (defn union-overlapping
   []
-  (->> (for [n-elems [ 4 10
+  (->> (for [n-elems [4 10
                       100
-                       1000 10000 1000000
+                      1000 10000 1000000
                       ]
              numeric? [true false
                        ]
@@ -200,9 +200,9 @@
 
 (defn union-disj
   []
-  (->> (for [n-elems [ 4 10
+  (->> (for [n-elems [4 10
                       100
-                       1000 10000 1000000
+                      1000 10000 1000000
                       ]
              numeric? [true false
                        ]
