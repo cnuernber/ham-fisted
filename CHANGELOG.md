@@ -1,3 +1,8 @@
+# 1.000-beta-90
+ * Accelerated map boolean union, intersection, difference  for hashtable, long hashtable.
+ * Major bugfix in map dissoc.
+ 
+ 
 # 1.000-beta-89
  * Added inc-consumer - returns a generic consumer that increments a long.  Useful for the various
    situations where you need to track an incrementing variable but don't want the overhead of
