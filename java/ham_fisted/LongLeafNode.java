@@ -157,19 +157,6 @@ final class LongLeafNode implements INode, ILeaf, Map.Entry, IMutList {
     return retval;
   }
 
-  @SuppressWarnings("unchecked")
-  public final LongLeafNode union(TrieBase nowner, Object _key, Object v, BiFunction valueMapper) {
-    final long _k = (long)_key;
-    LongLeafNode retval = setOwner(nowner);
-    if(k == (long)_k)
-      retval.v = valueMapper.apply(retval.v, v);
-    else if (nextNode != null) {
-      retval.nextNode = nextNode.union(nowner, _k, v, valueMapper);
-    } else {
-      retval.nextNode = new LongLeafNode(nowner, _k, hashcode, v);
-    }
-    return retval;
-  }
   public final LongLeafNode dissoc(TrieBase nowner, long _k) {
     if (k == _k) {
       nowner.dec();
