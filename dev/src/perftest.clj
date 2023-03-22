@@ -380,7 +380,8 @@
    (for [n-elems [4 10
                   100
                   1000 1000000
-                  100000000]]
+                  100000000
+                  ]]
      (do
        (log/info (str "typed reduction benchmark on " (if true
                                                         "numeric "
@@ -388,8 +389,13 @@
                       "data with n=" n-elems))
        (let [ops (hamf/options->parallel-options {:min-n 1000})]
          (merge
-          {:clj (benchmark-us (transduce (comp (map #(+ (long %) 10)) (filter #(== 0 (rem (long %) 2))))
-                                         + 0 (hamf/range n-elems)))
+          {:clj (benchmark-us (->> (hamf/range n-elems)
+                                   (lznc/map #(+ (long %) 10))
+                                   (lznc/filter #(== 0 (rem (long %) 2)))
+                                   (hamf/preduce (constantly 0)
+                                                 #(+ (long %1) (long %2))
+                                                 #(+ (long %1) (long %2))
+                                                 ops)))
            :hamf-parallel (benchmark-us (->> (hamf/range n-elems)
                                              (lznc/map (hamf/long-unary-operator a (+ a 10)))
                                              (lznc/filter (hamf/long-predicate a(== 0 (rem a 2))))
@@ -406,7 +412,8 @@
                                                                     ops)))}
           {:n-elems n-elems :numeric? true :test :typed-parallel-reductions}))))
    (vec)
-   (spit-data "typed-parallel-reductions")))
+   (spit-data "typed-parallel-reductions")
+   ))
 
 (comment
   (typed-parallel-reductions)
@@ -1051,7 +1058,7 @@
 (defn -main
   [& args]
   ;;shutdown test
-  (typed-reductions)
+  (typed-parallel-reductions)
   #_(let [perf-data (process-dataset (profile))
         vs (System/getProperty "java.version")
         mn (machine-name)
