@@ -351,10 +351,14 @@
                                           (lznc/map (hamf/long-unary-operator a (+ a 10)))
                                           (lznc/filter (hamf/long-predicate a(== 0 (rem a 2))))
                                           (reduce (hamf/long-binary-operator a b (+ a b)) 0)))
-         :hamf-full (benchmark-us (->> (hamf/range n-elems)
-                                       (lznc/map (hamf/long-unary-operator a (+ a 10)))
-                                       (lznc/filter (hamf/long-predicate a(== 0 (rem a 2))))
-                                       (reduce hamf/long-consumer-accumulator (LongAccum. 0))))}
+         :hamf-deftype-consumer (benchmark-us (->> (hamf/range n-elems)
+                                                   (lznc/map (hamf/long-unary-operator a (+ a 10)))
+                                                   (lznc/filter (hamf/long-predicate a(== 0 (rem a 2))))
+                                                   (reduce hamf/long-consumer-accumulator (LongAccum. 0))))
+         :hamf-java-consumer (benchmark-us (->> (hamf/range n-elems)
+                                                (lznc/map (hamf/long-unary-operator a (+ a 10)))
+                                                (lznc/filter (hamf/long-predicate a(== 0 (rem a 2))))
+                                                (reduce hamf/long-consumer-accumulator (ham_fisted.LongAccum. 0))))}
         {:n-elems n-elems :numeric? true :test :typed-reduction})))
    (vec)
    (spit-data "update-values")))
