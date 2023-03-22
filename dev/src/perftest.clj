@@ -406,7 +406,7 @@
            :hamf-parallel-consumer (benchmark-us (->> (hamf/range n-elems)
                                                       (lznc/map (hamf/long-unary-operator a (+ a 10)))
                                                       (lznc/filter (hamf/long-predicate a(== 0 (rem a 2))))
-                                                      (hamf/preduce (constantly (ham_fisted.LongAccum. 0))
+                                                      (hamf/preduce #(ham_fisted.LongAccum. 0)
                                                                     hamf/long-consumer-accumulator
                                                                     hamf/reducible-merge
                                                                     ops)))}

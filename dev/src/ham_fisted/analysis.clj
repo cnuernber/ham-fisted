@@ -76,43 +76,39 @@
     ;;testdata
     ))
 
-(defn general-hashmap-analysis
-  []
-  (->> (edn/read-string (slurp "results/general-hashmap.edn"))
+(defn- process-files
+  [fnames]
+  (->> fnames
+       (mapcat #(edn/read-string (slurp %)))
        (group-by (juxt :numeric? :test))
        (vals)
        (map plot-perf-test)
        (dorun))
   :ok)
+
+(defn general-hashmap-analysis
+  []
+  (process-files ["results/general-hashmap.edn"])
+  )
 
 
 (defn random-update-analysis
   []
-  (->> (edn/read-string (slurp "results/random-update.edn"))
-       (group-by (juxt :numeric? :test))
-       (vals)
-       (map plot-perf-test)
-       (dorun))
-  :ok)
+  (process-files ["results/random-update.edn"]))
 
 
 (defn union-analysis
   []
-  (->> (concat (edn/read-string (slurp "results/union-overlapping.edn"))
-               (edn/read-string (slurp "results/union-disj.edn"))
-               (edn/read-string (slurp "results/union-reduce.edn"))
-               (edn/read-string (slurp "results/update-values.edn")))
-       (group-by (juxt :numeric? :test))
-       (vals)
-       (map plot-perf-test)
-       (dorun))
-  :ok)
+  (process-files ["results/union-overlapping.edn"
+                  "results/union-disj.edn"
+                  "results/union-reduce.edn"
+                  "results/update-values.edn"]))
 
 (defn typed-reduction-analysis
   []
-  (->> (edn/read-string (slurp "results/typed-reductions.edn"))
-       (group-by (juxt :numeric? :test))
-       (vals)
-       (map plot-perf-test)
-       (dorun))
-  :ok)
+  (process-files ["results/typed-reductions.edn"]))
+
+
+(defn typed-parallel-reduction-analysis
+  []
+  (process-files ["results/typed-parallel-reductions.edn"]))
