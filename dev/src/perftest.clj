@@ -335,10 +335,9 @@
 (defn typed-reductions
   []
   (->>
-   (for [n-elems [ ;; 4 10
+   (for [n-elems [ 4 10
                   100
-                  ;; 1000 10000 1000000
-                  ]]
+                  1000 10000 1000000                  ]]
      (do
        (log/info (str "typed reduction benchmark on " (if true
                                                         "numeric "
