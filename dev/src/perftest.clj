@@ -377,8 +377,7 @@
 (defn typed-parallel-reductions
   []
   (->>
-   (for [n-elems [4 10
-                  100
+   (for [n-elems [100
                   1000 1000000
                   100000000
                   ]]
