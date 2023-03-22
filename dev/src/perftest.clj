@@ -20,6 +20,9 @@
   (:gen-class))
 
 
+(set! *unchecked-math* :warn-on-boxed)
+
+
 
 (defn long-map-data
   [^long n-elems]
@@ -133,6 +136,7 @@
                                                           "non-numeric ")
                           "data with n=" n-elems))
            (let [cycle-size 1000
+                 n-elems (long n-elems)
                  data (vec (take (max cycle-size n-elems) (cycle (repeatedly (min n-elems cycle-size) #(long (rand-int 1000))))))
                  data (if numeric? data (map (comp keyword str) data))
                  init-maps (initial-maps (map-constructors numeric?) nil)]
@@ -142,7 +146,7 @@
                                      [(key kv)
                                       (if immut-path?
                                         (benchmark-us (reduce (fn [acc v]
-                                                                (assoc! acc v (unchecked-inc (get acc v 0))))
+                                                                (assoc! acc v (unchecked-inc (long (get acc v 0)))))
                                                               (transient m)
                                                               data))
                                         (let [cfn (hamf/function _v (Consumers$IncConsumer.))]
@@ -212,7 +216,8 @@
                                                               "numeric "
                                                               "non-numeric ")
                           "data with n=" n-elems))
-           (let [data (if numeric? (long-map-data n-elems) (kwd-map-data n-elems))
+           (let [n-elems (long n-elems)
+                 data (if numeric? (long-map-data n-elems) (kwd-map-data n-elems))
                  lhs-data (vec (take (quot n-elems 2) data))
                  rhs-data (vec (drop (- n-elems (count lhs-data)) data))
                  constructors (map-constructors numeric?)
@@ -306,7 +311,7 @@
            (let [data (if numeric? (long-map-data n-elems) (kwd-map-data n-elems))
                  constructors (map-constructors numeric?)
                  init-maps (initial-maps constructors data)
-                 update-bfn (hamf/bi-function k v (unchecked-inc v))]
+                 update-bfn (hamf/bi-function k v (unchecked-inc (long v)))]
              (merge (hamf/mapmap (fn [kv]
                                    (let [m (val kv)]
                                      [(key kv)
@@ -325,7 +330,7 @@
 
 
 (deftype LongAccum [^{:unsynchronized-mutable true
-                      :tag 'long} val]
+                      :tag long} val]
   clojure.lang.IDeref
   (deref [this] val)
   java.util.function.LongConsumer
@@ -344,7 +349,7 @@
                                                         "non-numeric ")
                       "data with n=" n-elems))
        (merge
-        {:clj (benchmark-us (transduce (comp (map #(+ % 10)) (filter #(== 0 (rem (long %) 2))))
+        {:clj (benchmark-us (transduce (comp (map #(+ (long %) 10)) (filter #(== 0 (rem (long %) 2))))
                                        + 0 (hamf/range n-elems)))
          :clj-typed (benchmark-us (transduce (comp (map (hamf/long-unary-operator a (+ a 10)))
                                                    (filter (hamf/long-predicate a (== 0 (rem a 2)))))
