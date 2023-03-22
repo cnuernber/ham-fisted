@@ -3,4 +3,4 @@
 echo "Building uberjar"
 rm -rf target
 clj -T:build perftest
-java -Djdk.attach.allowAttachSelf --illegal-access=permit -jar target/uber-ham-fisted.jar
+java -XX:+UseParallelGC -Djdk.attach.allowAttachSelf --illegal-access=permit -jar target/uber-ham-fisted.jar
