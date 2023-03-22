@@ -383,7 +383,7 @@
                   100000000
                   ]]
      (do
-       (log/info (str "typed reduction benchmark on " (if true
+       (log/info (str "parallel reduction benchmark on " (if true
                                                         "numeric "
                                                         "non-numeric ")
                       "data with n=" n-elems))
