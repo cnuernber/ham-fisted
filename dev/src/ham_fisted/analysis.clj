@@ -107,3 +107,12 @@
        (map plot-perf-test)
        (dorun))
   :ok)
+
+(defn typed-reduction-analysis
+  []
+  (->> (edn/read-string (slurp "results/typed-reductions.edn"))
+       (group-by (juxt :numeric? :test))
+       (vals)
+       (map plot-perf-test)
+       (dorun))
+  :ok)

@@ -346,6 +346,12 @@
        (merge
         {:clj (benchmark-us (transduce (comp (map #(+ % 10)) (filter #(== 0 (rem (long %) 2))))
                                        + 0 (hamf/range n-elems)))
+         :clj-typed (benchmark-us (transduce (comp (map (hamf/long-unary-operator a (+ a 10)))
+                                                   (filter (hamf/long-predicate a (== 0 (rem a 2)))))
+                                             (reify ham_fisted.IFnDef$LLL
+                                               (invokePrim [this a b] (+ a b))
+                                               (invoke [this a] a)) 0
+                                             (hamf/range n-elems)))
          :hamf-partial (benchmark-us (->> (hamf/range n-elems)
                                           (lznc/map (hamf/long-unary-operator a (+ a 10)))
                                           (lznc/filter (hamf/long-predicate a(== 0 (rem a 2))))
@@ -361,6 +367,10 @@
         {:n-elems n-elems :numeric? true :test :typed-reductions})))
    (vec)
    (spit-data "typed-reductions")))
+
+(comment
+  (typed-reductions)
+  )
 
 
 
