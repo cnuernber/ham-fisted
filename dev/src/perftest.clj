@@ -386,29 +386,31 @@
                                                         "numeric "
                                                         "non-numeric ")
                       "data with n=" n-elems))
-       (let [ops (hamf/options->parallel-options {:min-n 1000})]
+       (let [ops (hamf/options->parallel-options {:min-n 10})]
          (merge
-          {:clj (benchmark-us (->> (hamf/range n-elems)
-                                   (lznc/map #(+ (long %) 10))
-                                   (lznc/filter #(== 0 (rem (long %) 2)))
-                                   (hamf/preduce (constantly 0)
-                                                 #(+ (long %1) (long %2))
-                                                 #(+ (long %1) (long %2))
-                                                 ops)))
-           :hamf-parallel (benchmark-us (->> (hamf/range n-elems)
+          {:clj (benchmark-us (transduce (comp (map #(+ (long %) 10)) (filter #(== 0 (rem (long %) 2))))
+                                         + 0 (hamf/range n-elems)))
+           :hamf-untyped (benchmark-us (->> (hamf/range n-elems)
+                                            (lznc/map #(+ (long %) 10))
+                                            (lznc/filter #(== 0 (rem (long %) 2)))
+                                            (hamf/preduce (constantly 0)
+                                                          #(+ (long %1) (long %2))
+                                                          #(+ (long %1) (long %2))
+                                                          ops)))
+           :hamf-typed (benchmark-us (->> (hamf/range n-elems)
+                                          (lznc/map (hamf/long-unary-operator a (+ a 10)))
+                                          (lznc/filter (hamf/long-predicate a(== 0 (rem a 2))))
+                                          (hamf/preduce (constantly 0)
+                                                        (hamf/long-binary-operator a b (+ a b))
+                                                        (hamf/long-binary-operator a b (+ a b))
+                                                        ops)))
+           :hamf-consumer (benchmark-us (->> (hamf/range n-elems)
                                              (lznc/map (hamf/long-unary-operator a (+ a 10)))
                                              (lznc/filter (hamf/long-predicate a(== 0 (rem a 2))))
-                                             (hamf/preduce (constantly 0)
-                                                           (hamf/long-binary-operator a b (+ a b))
-                                                           (hamf/long-binary-operator a b (+ a b))
-                                                           ops)))
-           :hamf-parallel-consumer (benchmark-us (->> (hamf/range n-elems)
-                                                      (lznc/map (hamf/long-unary-operator a (+ a 10)))
-                                                      (lznc/filter (hamf/long-predicate a(== 0 (rem a 2))))
-                                                      (hamf/preduce #(ham_fisted.LongAccum. 0)
-                                                                    hamf/long-consumer-accumulator
-                                                                    hamf/reducible-merge
-                                                                    ops)))}
+                                             (hamf/preduce #(ham_fisted.LongAccum. 0)
+                                                           hamf/long-consumer-accumulator
+                                                           hamf/reducible-merge
+                                                           ops)))}
           {:n-elems n-elems :numeric? true :test :typed-parallel-reductions}))))
    (vec)
    (spit-data "typed-parallel-reductions")
