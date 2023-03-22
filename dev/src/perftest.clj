@@ -371,10 +371,45 @@
                                                 (reduce hamf/long-consumer-accumulator (ham_fisted.LongAccum. 0))))}
         {:n-elems n-elems :numeric? true :test :typed-reductions})))
    (vec)
-   (spit-data "typed-reductions")))
+   (spit-data "typed-reductions-intel")))
+
+
+(defn typed-parallel-reductions
+  []
+  (->>
+   (for [n-elems [4 10
+                  100
+                  1000 1000000
+                  100000000]]
+     (do
+       (log/info (str "typed reduction benchmark on " (if true
+                                                        "numeric "
+                                                        "non-numeric ")
+                      "data with n=" n-elems))
+       (let [ops (hamf/options->parallel-options {:min-n 1000})]
+         (merge
+          {:clj (benchmark-us (transduce (comp (map #(+ (long %) 10)) (filter #(== 0 (rem (long %) 2))))
+                                         + 0 (hamf/range n-elems)))
+           :hamf-parallel (benchmark-us (->> (hamf/range n-elems)
+                                             (lznc/map (hamf/long-unary-operator a (+ a 10)))
+                                             (lznc/filter (hamf/long-predicate a(== 0 (rem a 2))))
+                                             (hamf/preduce (constantly 0)
+                                                           (hamf/long-binary-operator a b (+ a b))
+                                                           (hamf/long-binary-operator a b (+ a b))
+                                                           ops)))
+           :hamf-parallel-consumer (benchmark-us (->> (hamf/range n-elems)
+                                                      (lznc/map (hamf/long-unary-operator a (+ a 10)))
+                                                      (lznc/filter (hamf/long-predicate a(== 0 (rem a 2))))
+                                                      (hamf/preduce (constantly (ham_fisted.LongAccum. 0))
+                                                                    hamf/long-consumer-accumulator
+                                                                    hamf/reducible-merge
+                                                                    ops)))}
+          {:n-elems n-elems :numeric? true :test :typed-parallel-reductions}))))
+   (vec)
+   (spit-data "typed-parallel-reductions")))
 
 (comment
-  (typed-reductions)
+  (typed-parallel-reductions)
   )
 
 
