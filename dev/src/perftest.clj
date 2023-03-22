@@ -324,6 +324,42 @@
        (spit-data "update-values")))
 
 
+(deftype LongAccum [^{:unsynchronized-mutable true
+                      :tag 'long} val]
+  clojure.lang.IDeref
+  (deref [this] val)
+  java.util.function.LongConsumer
+  (accept [this v] (set! val (+ v val))))
+
+
+(defn typed-reductions
+  []
+  (->>
+   (for [n-elems [ ;; 4 10
+                  100
+                  ;; 1000 10000 1000000
+                  ]]
+     (do
+       (log/info (str "typed reduction benchmark on " (if true
+                                                        "numeric "
+                                                        "non-numeric ")
+                      "data with n=" n-elems))
+       (merge
+        {:clj (benchmark-us (transduce (comp (map #(+ % 10)) (filter #(== 0 (rem (long %) 2))))
+                                       + 0 (hamf/range n-elems)))
+         :hamf-partial (benchmark-us (->> (hamf/range n-elems)
+                                          (lznc/map (hamf/long-unary-operator a (+ a 10)))
+                                          (lznc/filter (hamf/long-predicate a(== 0 (rem a 2))))
+                                          (reduce (hamf/long-binary-operator a b (+ a b)) 0)))
+         :hamf-full (benchmark-us (->> (hamf/range n-elems)
+                                       (lznc/map (hamf/long-unary-operator a (+ a 10)))
+                                       (lznc/filter (hamf/long-predicate a(== 0 (rem a 2))))
+                                       (reduce hamf/long-consumer-accumulator (LongAccum. 0))))}
+        {:n-elems n-elems :numeric? true :test :typed-reduction})))
+   (vec)
+   (spit-data "update-values")))
+
+
 
 
 ;;this test is designed to test deserialization performance of various map sizes.
@@ -962,10 +998,7 @@
 (defn -main
   [& args]
   ;;shutdown test
-  (union-overlapping)
-  (union-disj)
-  (union-reduce)
-  (update-values)
+  (typed-reductions)
   #_(let [perf-data (process-dataset (profile))
         vs (System/getProperty "java.version")
         mn (machine-name)
