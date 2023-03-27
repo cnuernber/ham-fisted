@@ -6,6 +6,9 @@ import clojure.lang.ISeq;
 import clojure.lang.Util;
 import clojure.lang.RT;
 import clojure.lang.ArityException;
+import java.util.function.Supplier;
+import java.util.function.DoubleSupplier;
+import java.util.function.LongSupplier;
 import java.util.function.Function;
 import java.util.function.LongFunction;
 import java.util.function.ToLongFunction;
@@ -437,6 +440,20 @@ public interface IFnDef extends IFn
     throw new ArityException(n, name);
   }
 
+  public interface O extends IFnDef, Supplier {
+    default Object get() { return invoke(); }
+  }
+
+  public interface D extends IFnDef, DoubleSupplier, Supplier, IFn.D {
+    default double getAsDouble() { return invokePrim(); }
+    default Object get() { return invokePrim(); }
+  }
+
+  public interface L extends IFnDef, DoubleSupplier, Supplier, IFn.L {
+    default long getAsLong() { return invokePrim(); }
+    default Object get() { return invokePrim(); }
+  }
+
   public interface OO extends IFnDef, UnaryOperator {
     default Object apply(Object arg) { return invoke(arg); }
   }
@@ -565,6 +582,20 @@ public interface IFnDef extends IFn
   public interface OLLO extends IFnDef, IFn.OLLO {
     default Object invoke(Object acc, Object idx, Object v) {
       return invokePrim(acc, Casts.longCast(idx), Casts.longCast(v));
+    }
+  }
+  public interface DDDD extends IFnDef, IFn.DDDD {
+    public Object invoke (Object a, Object b, Object c) {
+      return invokePrim(Casts.doubleCast(a),
+			Casts.doubleCast(b),
+			Casts.doubleCast(c));
+    }
+  }
+  public interface LLLL extends IFnDef, IFn.LLLL {
+    public Object invoke (Object a, Object b, Object c) {
+      return invokePrim(Casts.longCast(a),
+			Casts.longCast(b),
+			Casts.longCast(c));
     }
   }
 }
