@@ -447,11 +447,13 @@ public interface IFnDef extends IFn
   public interface D extends IFnDef, DoubleSupplier, Supplier, IFn.D {
     default double getAsDouble() { return invokePrim(); }
     default Object get() { return invokePrim(); }
+    default Object invoke() { return invokePrim(); }
   }
 
   public interface L extends IFnDef, DoubleSupplier, Supplier, IFn.L {
     default long getAsLong() { return invokePrim(); }
     default Object get() { return invokePrim(); }
+    default Object invoke() { return invokePrim(); }
   }
 
   public interface OO extends IFnDef, UnaryOperator {
@@ -585,14 +587,14 @@ public interface IFnDef extends IFn
     }
   }
   public interface DDDD extends IFnDef, IFn.DDDD {
-    public Object invoke (Object a, Object b, Object c) {
+    default Object invoke (Object a, Object b, Object c) {
       return invokePrim(Casts.doubleCast(a),
 			Casts.doubleCast(b),
 			Casts.doubleCast(c));
     }
   }
   public interface LLLL extends IFnDef, IFn.LLLL {
-    public Object invoke (Object a, Object b, Object c) {
+    default Object invoke (Object a, Object b, Object c) {
       return invokePrim(Casts.longCast(a),
 			Casts.longCast(b),
 			Casts.longCast(c));
