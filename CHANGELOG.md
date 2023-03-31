@@ -1,3 +1,7 @@
+# 1.000-beta-92
+ * pure java reductions for situations where you have an index fn a count.  These mainly
+   just make benchmarks a bit more stable.
+
 # 1.000-beta-91
  * IFnDef supports interfaces for long supplier (L), double supplier (D), and
    Supplier (O).

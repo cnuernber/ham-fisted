@@ -295,4 +295,31 @@ public class Reductions {
       }
     };
   }
+  public static Object longSamplerReduction(IFn rfn, Object acc, IFn.LL sampler, long nElems) {
+    final IFn.OLO rrfn = Transformables.toLongReductionFn(rfn);
+    for(long idx = 0; idx < nElems; ++idx) {
+      acc = rrfn.invokePrim(acc, sampler.invokePrim(idx));
+      if(RT.isReduced(acc))
+	return ((IDeref)acc).deref();
+    }
+    return acc;
+  }
+
+  public static Object doubleSamplerReduction(IFn rfn, Object acc, IFn.LD sampler, long nElems) {
+    final IFn.ODO rrfn = Transformables.toDoubleReductionFn(rfn);
+    for(long idx = 0; idx < nElems; ++idx) {
+      acc = rrfn.invokePrim(acc, sampler.invokePrim(idx));
+      if(RT.isReduced(acc))
+	return ((IDeref)acc).deref();
+    }
+    return acc;
+  }
+  public static Object samplerReduction(IFn rfn, Object acc, IFn sampler, long nElems) {
+    for(long idx = 0; idx < nElems; ++idx) {
+      acc = rfn.invoke(acc, sampler.invoke(idx));
+      if(RT.isReduced(acc))
+	return ((IDeref)acc).deref();
+    }
+    return acc;
+  }
 }
