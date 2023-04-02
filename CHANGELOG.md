@@ -1,3 +1,7 @@
+# 1.000-beta-93
+ * java implementation of a batched stream reducer.  This avoids adding java to
+   the stream api.
+
 # 1.000-beta-92
  * pure java reductions for situations where you have an index fn a count.  These mainly
    just make benchmarks a bit more stable.
