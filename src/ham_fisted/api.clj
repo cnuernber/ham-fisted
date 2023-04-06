@@ -3080,11 +3080,9 @@ nil
     (->merge-fn [r] reducible-merge)))
 
 
-(defn reducible-merge
-  "Parallel reduction merge function that expects both sides to be an instances of
-  Reducible"
-  [^Reducible lhs rhs]
-  (.reduce lhs rhs))
+(def ^{:doc "Parallel reduction merge function that expects both sides to be an instances of
+  Reducible"} reducible-merge
+  (bi-function lhs rhs (.reduce ^Reducible lhs rhs)))
 
 
 (defn sum-fast

@@ -220,6 +220,9 @@ public class Consumers {
   }
 
   public static class IncConsumer implements Consumer, Reducible, IDeref {
+    public static java.util.function.Function cfn = new java.util.function.Function() {
+	public IncConsumer apply(Object obj) { return new IncConsumer(); }
+      };
     long nElems;
     public IncConsumer(long v) { nElems = v;}
     public IncConsumer() { this(0); }
