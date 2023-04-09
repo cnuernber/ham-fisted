@@ -62,14 +62,17 @@ public class MutHashTable<K,V>
   }
 
   public HashTable getHashTable() { return (HashTable)ht; }
-  public ImmutHashTable union(MapSet other, BiFunction mapper) {
-    return new ImmutHashTable(((HashTable)ht).union(((HashTable.Owner)other).getHashTable(), mapper, true));
+  public MutHashTable<K,V> union(MapSet other, BiFunction mapper) {
+    ((HashTable)ht).union(((HashTable.Owner)other).getHashTable(), mapper, false);
+    return this;
   }
-  public ImmutHashTable intersection(MapSet other, BiFunction mapper) {
-    return new ImmutHashTable(((HashTable)ht).intersection(((HashTable.Owner)other).getHashTable(), mapper, true));
+  public MutHashTable<K,V> intersection(MapSet other, BiFunction mapper) {
+    ((HashTable)ht).intersection(((HashTable.Owner)other).getHashTable(), mapper, false);
+    return this;
   }
-  public ImmutHashTable difference(MapSet other) {
-    return new ImmutHashTable(((HashTable)ht).difference(((HashTable.Owner)other).getHashTable(), true));
+  public MutHashTable<K,V> difference(MapSet other) {
+    ((HashTable)ht).difference(((HashTable.Owner)other).getHashTable(), false);
+    return this;
   }
 
 

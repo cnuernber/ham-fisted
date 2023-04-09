@@ -181,7 +181,7 @@
                  init-maps (initial-maps constructors data)
                  merge-bfn (hamf/bi-function a b (+ (long a) (long b)))]
              (merge (hamf/mapmap (fn [kv]
-                                   (let [m (val kv)]
+                                   (let [m (hamf/persistent! (val kv))]
                                      [(key kv)
                                       (cond
                                         (instance? clojure.lang.IPersistentMap m)
@@ -225,14 +225,15 @@
                  rhs-maps (initial-maps constructors rhs-data)
                  merge-bfn (hamf/bi-function a b (+ (long a) (long b)))]
              (merge (hamf/mapmap (fn [kv]
-                                   (let [lhs (val kv)
+                                   ;;Make sure we can't edit lhs
+                                   (let [lhs (hamf/persistent! (val kv))
                                          rhs (rhs-maps (key kv))]
                                      [(key kv)
                                       (cond
                                         (instance? clojure.lang.IPersistentMap lhs)
                                         (benchmark-us (merge-with merge-bfn lhs rhs))
                                         (instance? BitmapTrieCommon$MapSet lhs)
-                                        (benchmark-us (.union ^BitmapTrieCommon$MapSet lhs rhs merge-bfn))
+                                        (benchmark-us (.union ^BitmapTrieCommon$MapSet (hamf/transient lhs) rhs merge-bfn))
                                         :else
                                         (let [map-c (get constructors (key kv))]
                                           (benchmark-us (reduce (fn [^Map acc kv]
@@ -266,7 +267,7 @@
                  init-maps (initial-maps constructors data)
                  merge-bfn (hamf/bi-function a b (+ (long a) (long b)))]
              (merge (hamf/mapmap (fn [kv]
-                                   (let [m (val kv)
+                                   (let [m (hamf/persistent! (val kv))
                                          mseq (vec (repeat 16 m))]
                                      [(key kv)
                                       (cond
@@ -292,6 +293,43 @@
                     {:n-elems n-elems :numeric? numeric? :test :union-reduce}))))
        (vec)
        (spit-data "union-reduce")))
+
+(defn union-reduce-transient
+  []
+  (->> (for [n-elems [ 4 10
+                      100
+                       1000 10000 1000000
+                      ]
+             numeric? [true
+                       ]
+             ]
+         (do
+           (log/info (str "union-reduce-transient benchmark on " (if numeric?
+                                                                   "numeric "
+                                                                   "non-numeric ")
+                          "data with n=" n-elems))
+           (let [data (if numeric? (long-map-data n-elems) (kwd-map-data n-elems))
+                 constructors (map-constructors numeric?)
+                 hashmap (hamf/mut-map data)
+                 long-hashmap (hamf/mut-map data)
+                 init-maps {:hamf-hashmap (persistent! hashmap)
+                            :hamf-long-map (persistent! long-hashmap)
+                            :hamf-trans-hashmap (with-meta (persistent! hashmap) {:transient? true})
+                            :hamf-trans-long-map (with-meta (persistent! long-hashmap) {:transient? true})}
+                 merge-bfn (hamf/bi-function a b (+ (long a) (long b)))]
+             (merge (hamf/mapmap (fn [kv]
+                                   (let [m (val kv)
+                                         mseq (vec (repeat 16 m))]
+                                     [(key kv)
+                                      (benchmark-us (reduce #(hamf/map-union merge-bfn %1 %2)
+                                                            (if (:transient? (meta m))
+                                                              (transient m)
+                                                              m)
+                                                            mseq))]))
+                                 init-maps)
+                    {:n-elems n-elems :numeric? numeric? :test :union-reduce-transient}))))
+       (vec)
+       (spit-data "union-reduce-transient")))
 
 
 (defn update-values
@@ -1058,7 +1096,7 @@
 (defn -main
   [& args]
   ;;shutdown test
-  (typed-parallel-reductions)
+  (union-reduce-transient)
   #_(let [perf-data (process-dataset (profile))
         vs (System/getProperty "java.version")
         mn (machine-name)

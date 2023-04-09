@@ -92,7 +92,7 @@
                             range map concat filter filterv first last pmap take take-last drop
                             drop-last sort-by repeat repeatedly shuffle into-array
                             empty? reverse byte-array short-array char-array boolean-array
-                            keys vals persistent! rest]))
+                            keys vals persistent! rest transient]))
 
 
 (set! *warn-on-reflection* true)
@@ -103,7 +103,8 @@
          int-array argsort byte-array short-array char-array boolean-array repeat
          persistent! rest immut-map keys vals group-by-reduce consumer-accumulator
          reducible-merge reindex long-consumer-reducer group-by-consumer
-         double-consumer-reducer consumer-reducer merge constant-count mutable-map?)
+         double-consumer-reducer consumer-reducer merge constant-count mutable-map?
+         transient)
 
 
 (defn ->collection
@@ -1189,7 +1190,6 @@ ham_fisted.PersistentHashMap
   (cond
     (nil? map1) map2
     (nil? map2) map1
-    (identical? map1 map2) map1
     :else
     (let [bfn (->bi-function bfn)]
       (if (and (map-set? map1) (map-set? map2))
@@ -1197,8 +1197,12 @@ ham_fisted.PersistentHashMap
         (let [[map1 map2] (if (< (count map1) (count map2))
                             [map2 map1]
                             [map1 map2])
-              map1 (if (mutable-map? map1)
+              map1 (cond
+                     (identical? map1 map2)
+                     (mut-map map1)
+                     (mutable-map? map1)
                      map1
+                     :else
                      (mut-map map1))]
           (.forEach ^Map map2 (reify BiConsumer
                                 (accept [this k v]
@@ -1494,6 +1498,13 @@ ham_fisted.PersistentHashMap
   [v]
   (if (instance? ITransientCollection v)
     (clojure.core/persistent! v)
+    v))
+
+
+(defn transient
+  [v]
+  (if (instance? IEditableCollection v)
+    (clojure.core/transient v)
     v))
 
 

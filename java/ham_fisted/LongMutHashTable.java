@@ -61,14 +61,17 @@ public class LongMutHashTable<K,V>
     return new LongImmutHashTable<K,V>((LongHashTable)ht);
   }
   public LongHashTable getLongHashTable() { return (LongHashTable)ht; }
-  public LongImmutHashTable union(MapSet other, BiFunction mapper) {
-    return new LongImmutHashTable(((LongHashTable)ht).union(((LongHashTable.Owner)other).getLongHashTable(), mapper, true));
+  public LongMutHashTable union(MapSet other, BiFunction mapper) {
+    ((LongHashTable)ht).union(((LongHashTable.Owner)other).getLongHashTable(), mapper, false);
+    return this;
   }
-  public LongImmutHashTable intersection(MapSet other, BiFunction mapper) {
-    return new LongImmutHashTable(((LongHashTable)ht).intersection(((LongHashTable.Owner)other).getLongHashTable(), mapper, true));
+  public LongMutHashTable intersection(MapSet other, BiFunction mapper) {
+    ((LongHashTable)ht).intersection(((LongHashTable.Owner)other).getLongHashTable(), mapper, false);
+    return this;
   }
-  public LongImmutHashTable difference(MapSet other) {
-    return new LongImmutHashTable(((LongHashTable)ht).difference(((LongHashTable.Owner)other).getLongHashTable(), true));
+  public LongMutHashTable difference(MapSet other) {
+    ((LongHashTable)ht).difference(((LongHashTable.Owner)other).getLongHashTable(), false);
+    return this;
   }
 
   @SuppressWarnings("unchecked")
