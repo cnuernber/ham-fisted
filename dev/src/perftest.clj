@@ -102,7 +102,8 @@
 
 (defn- spit-data
   [testname data]
-  (let [fname (str "results/" testname ".edn")]
+  (let [data (vec data)
+        fname (str "results/" testname ".edn")]
     (io/make-parents fname)
     (spit fname (pr-str data))))
 
@@ -190,11 +191,7 @@
                                         (benchmark-us (.union ^BitmapTrieCommon$MapSet m m merge-bfn))
                                         :else
                                         (let [map-c (get constructors (key kv))]
-                                          (benchmark-us (reduce (fn [^Map acc kv]
-                                                                  (.merge acc (key kv) (val kv) merge-bfn)
-                                                                  acc)
-                                                                (map-c m)
-                                                                m))))]))
+                                          (benchmark-us (hamf/map-union merge-bfn (map-c m) m))))]))
                                  init-maps)
                     {:n-elems n-elems :numeric? numeric? :test :union-overlapping}))))
        (vec)
@@ -236,11 +233,7 @@
                                         (benchmark-us (.union ^BitmapTrieCommon$MapSet (hamf/transient lhs) rhs merge-bfn))
                                         :else
                                         (let [map-c (get constructors (key kv))]
-                                          (benchmark-us (reduce (fn [^Map acc kv]
-                                                                  (.merge acc (key kv) (val kv) merge-bfn)
-                                                                  acc)
-                                                                (map-c lhs)
-                                                                rhs))))]))
+                                          (benchmark-us (hamf/map-union merge-bfn (map-c lhs ) rhs))))]))
                                  lhs-maps)
                     {:n-elems n-elems :numeric? numeric? :test :union-disj}))))
        (vec)
@@ -281,12 +274,7 @@
                                                               mseq))
                                         :else
                                         (let [map-c (get constructors (key kv))]
-                                          (benchmark-us (reduce (fn [^Map acc m]
-                                                                  (reduce (fn [acc kv]
-                                                                            (.merge acc (key kv) (val kv) merge-bfn)
-                                                                            acc)
-                                                                          acc
-                                                                          m))
+                                          (benchmark-us (reduce #(hamf/map-union merge-bfn %1 %2)
                                                                 (map-c m)
                                                                 mseq))))]))
                                  init-maps)
@@ -294,7 +282,9 @@
        (vec)
        (spit-data "union-reduce")))
 
+
 (defn union-reduce-transient
+  "Comparing reducing into a single transient container vs. doing a shallow clone every union call."
   []
   (->> (for [n-elems [ 4 10
                       100
@@ -321,7 +311,7 @@
                                    (let [m (val kv)
                                          mseq (vec (repeat 16 m))]
                                      [(key kv)
-                                      (benchmark-us (reduce #(hamf/map-union merge-bfn %1 %2)
+                                      (benchmark-us (reduce #(.union (hamf/as-map-set %1) %2 merge-bfn)
                                                             (if (:transient? (meta m))
                                                               (transient m)
                                                               m)

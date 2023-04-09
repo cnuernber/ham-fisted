@@ -1124,7 +1124,7 @@ ham_fisted.PersistentHashMap
   [item]
   (instance? BitmapTrieCommon$MapSet item))
 
-(defn- as-map-set
+(defn ^:no-doc as-map-set
   ^BitmapTrieCommon$MapSet [item] item)
 
 (defn- immut-vals?
