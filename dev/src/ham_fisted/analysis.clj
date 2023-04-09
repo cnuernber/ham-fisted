@@ -7,12 +7,13 @@
 
 
 (defn plot-perf-test
-  [testgroup]
+  [testgroup options]
   (let [group-item (first testgroup)
         testname (:test group-item)
         numeric? (:numeric? group-item)
         bytes? (= (:test group-item)
                   :hashmap-bytes)
+        baseline (or (:baseline options) :clj)
         testdata (->> testgroup
                       (mapcat (if bytes?
                                 (fn [group-item]
@@ -25,7 +26,7 @@
                                                  :norm-bytes (double (/ (val kv) clj-bytes))})))))
                                 (fn [group-item]
                                   (let [n-elems (:n-elems group-item)
-                                        clj-val (get-in group-item [:clj :mean-μs])]
+                                        clj-val (get-in group-item [baseline :mean-μs])]
                                     (->> group-item
                                          (map (fn [kv]
                                                 (let [k (key kv)
@@ -77,14 +78,15 @@
     ))
 
 (defn- process-files
-  [fnames]
-  (->> fnames
-       (mapcat #(edn/read-string (slurp %)))
-       (group-by (juxt :numeric? :test))
-       (vals)
-       (map plot-perf-test)
-       (dorun))
-  :ok)
+  ([fnames] (process-files fnames nil))
+  ([fnames options]
+   (->> fnames
+        (mapcat #(edn/read-string (slurp %)))
+        (group-by (juxt :numeric? :test))
+        (vals)
+        (map #(plot-perf-test % options))
+        (dorun))
+   :ok))
 
 (defn general-hashmap-analysis
   []
@@ -112,3 +114,8 @@
 (defn typed-parallel-reduction-analysis
   []
   (process-files ["results/typed-parallel-reductions.edn"]))
+
+(defn union-reduce-transient
+  []
+  (process-files ["results/union-reduce-transient.edn"] {:baseline :hamf-hashmap})
+  )
