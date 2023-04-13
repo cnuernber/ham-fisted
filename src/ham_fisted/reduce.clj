@@ -4,8 +4,9 @@
             [ham-fisted.lazy-noncaching :refer [map] :as lznc]
             [ham-fisted.function :refer [bi-function]])
   (:import [ham_fisted ParallelOptions ParallelOptions$CatParallelism Reductions
-            BitmapTrieCommon Transformables Reducible IFnDef$OOO
-            IFnDef$ODO IFnDef$OLO Sum Sum$SimpleSum]
+            BitmapTrieCommon Transformables Reducible IFnDef$OOO IFnDef$OLOO
+            IFnDef$ODO IFnDef$OLO Sum Sum$SimpleSum Reductions$IndexedAccum
+            Reductions$IndexedLongAccum Reductions$IndexedDoubleAccum IFnDef$OLLO IFnDef$OLDO]
            [clojure.lang IFn$DO IFn$LO]
            [java.util Map]
            [java.util.function DoubleConsumer LongConsumer Consumer]
@@ -392,6 +393,23 @@ ham-fisted.api> @*1
 (def ^{:doc "Parallel reduction merge function that expects both sides to be an instances of
   Reducible"} reducible-merge
   (bi-function lhs rhs (.reduce ^Reducible lhs rhs)))
+
+(defmacro indexed-accum
+  "Create an indexed accumulator that recieves and additional long index
+  during a reduction:
+
+```clojure
+ham-fisted.api> (reduce (indexed-accum
+                         acc idx v (conj acc [idx v]))
+                        []
+                        (range 5))
+[[0 0] [1 1] [2 2] [3 3] [4 4]]
+```"
+  [accvar idxvar varvar & code]
+  `(Reductions$IndexedAccum.
+    (reify IFnDef$OLOO
+      (invokePrim [this# ~accvar ~idxvar ~varvar]
+        ~@code))))
 
 
 (defmacro indexed-double-accum

@@ -2028,24 +2028,6 @@ ham-fisted.api> (binary-search data 1.1 nil)
        (.addAllReducible (->reducible cap-or-data))))))
 
 
-(defmacro indexed-accum
-  "Create an indexed accumulator that recieves and additional long index
-  during a reduction:
-
-```clojure
-ham-fisted.api> (reduce (indexed-accum
-                         acc idx v (conj acc [idx v]))
-                        []
-                        (range 5))
-[[0 0] [1 1] [2 2] [3 3] [4 4]]
-```"
-  [accvar idxvar varvar & code]
-  `(Reductions$IndexedAccum.
-    (reify IFnDef$OLOO
-      (invokePrim [this# ~accvar ~idxvar ~varvar]
-        ~@code))))
-
-
 
 (defn ^:no-doc ovec-v
   ^ArrayImmutList [data]
@@ -2079,7 +2061,7 @@ ham-fisted.api> (reduce (indexed-accum
    (if-let [c (constant-count coll)]
      (let [c (int c)
            rv (ArrayLists/objectArray c)]
-       (reduce (indexed-accum
+       (reduce (hamf-rf/indexed-accum
                 acc idx v
                 (ArrayHelpers/aset rv idx (map-fn v)))
                nil

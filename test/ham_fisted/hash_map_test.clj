@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing are]]
             [clojure.set :as set]
             [ham-fisted.api :as api]
+            [ham-fisted.reduce :as hamf-rf]
             [ham-fisted.function :as hamf-fn]
             [criterium.core :as crit])
   (:import [java.util ArrayList Collections Map Collection]
@@ -137,7 +138,7 @@
 
 (defn java-hashmap
   [data]
-  (reduce (api/indexed-accum
+  (reduce (hamf-rf/indexed-accum
            hm idx v (.put ^Map hm v idx) hm)
           (api/java-hashmap (count data))
           data))
@@ -145,7 +146,7 @@
 
 (defn hamf-hashmap
   [data]
-  (persistent! (reduce (api/indexed-accum
+  (persistent! (reduce (hamf-rf/indexed-accum
                         hm idx v (.put ^Map hm v idx) hm)
                        (api/mut-hashtable-map (count data))
                        data)))
@@ -154,7 +155,7 @@
 
 (defn clj-transient
   [data]
-  (persistent! (reduce (api/indexed-accum
+  (persistent! (reduce (hamf-rf/indexed-accum
                         hm idx v (assoc! hm v idx))
                        (transient {})
                        data)))
@@ -162,7 +163,7 @@
 
 (defn hamf-transient
   [data]
-  (persistent! (reduce (api/indexed-accum
+  (persistent! (reduce (hamf-rf/indexed-accum
                         hm idx v (assoc! hm v idx))
                        (transient api/empty-map)
                        data)))
