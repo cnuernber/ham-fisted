@@ -3,6 +3,9 @@
    clearer and the library more maintainable in the long run.
  * map-union of mutable or transient maps produces mutable or transient maps!
  * Final refactoring before 1.000 release.
+ * Functions to make creating java.util.function objects are moved to ham-fisted.function.
+ * Reduction-related systems are moved to ham-fisted.reduce.
+ * java.util.Map helpers are moved to ham-fisted.mut-map.
 
 # 1.000-beta-93
  * java implementation of a batched stream reducer.  This avoids adding java to
