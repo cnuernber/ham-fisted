@@ -1,3 +1,9 @@
+# 1.000-beta-94
+ * Major breaking changes!! API functions have been moved to make the documentation
+   clearer and the library more maintainable in the long run.
+ * map-union of mutable or transient maps produces mutable or transient maps!
+ * Final refactoring before 1.000 release.
+
 # 1.000-beta-93
  * java implementation of a batched stream reducer.  This avoids adding java to
    the stream api.

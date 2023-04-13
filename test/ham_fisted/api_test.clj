@@ -1,6 +1,8 @@
 (ns ham-fisted.api-test
   (:require [clojure.test :refer [deftest is]]
             [ham-fisted.api :as hamf]
+            [ham-fisted.reduce :as hamf-rf]
+            [ham-fisted.function :as hamf-fn]
             [ham-fisted.lazy-noncaching :as lznc]
             [ham-fisted.set])
   (:import [java.util BitSet]))
@@ -54,8 +56,8 @@
 (deftest empty-seq-preduce
   (is (== 0.0 (hamf/sum (list))))
   (is (== 19900.0 (hamf/sum (range 200))))
-  (is (= 1 (hamf/preduce (constantly 1) + + nil)))
-  (is (= 1 (hamf/preduce (constantly 1) + + (list)))))
+  (is (= 1 (hamf-rf/preduce (constantly 1) + + nil)))
+  (is (= 1 (hamf-rf/preduce (constantly 1) + + (list)))))
 
 
 (deftest group-by-reduce-large-n
@@ -77,7 +79,7 @@
              (.set 10))]
     (is (= [1 10] (hamf/->random-access (hamf/int-array bs))))
     (is (= [1.0 10.0] (->> bs
-                           (lznc/map (hamf/long->double v (double v)))
+                           (lznc/map (hamf-fn/long->double v (double v)))
                            (hamf/vec))))
     (is (not (nil? (hamf/->collection bs))))))
 
@@ -111,8 +113,8 @@
 
 
 (deftest map-filter-concat-reduced
-  (let [rfn (hamf/long-accumulator acc v (if (< v 4) acc (reduced v)))]
-    (is (= 4 (reduce rfn 0 (lznc/map (hamf/long-unary-operator v (inc v)) (hamf/range 20)))))
+  (let [rfn (hamf-rf/long-accumulator acc v (if (< v 4) acc (reduced v)))]
+    (is (= 4 (reduce rfn 0 (lznc/map (hamf-fn/long-unary-operator v (inc v)) (hamf/range 20)))))
     (is (= 4 (reduce rfn 0 (lznc/filter even? (hamf/range 20)))))
     (is (= 4 (reduce rfn 0 (lznc/concat  (hamf/range 20) (hamf/range 20 50)))))
     ))

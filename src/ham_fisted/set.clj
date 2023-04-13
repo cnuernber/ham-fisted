@@ -1,6 +1,8 @@
 (ns ham-fisted.set
   (:require [ham-fisted.protocols :as hamf-proto]
             [ham-fisted.api :as api]
+            [ham-fisted.function :as hamf-fn]
+            [ham-fisted.reduce :as hamf-rf]
             [ham-fisted.impl]
             [clojure.set :as cset])
   (:import [ham_fisted HashSet PersistentHashSet Ranges$LongRange IMutList]
@@ -133,7 +135,7 @@
       (.xor l (bitset r))
       l))
   (contains-fn [l]
-    (api/long-predicate v (.get l (unchecked-int v))))
+    (hamf-fn/long-predicate v (.get l (unchecked-int v))))
   (cardinality [l] (.cardinality l)))
 
 
@@ -147,7 +149,7 @@
 
 (extend-protocol hamf-proto/PAdd
   BitSet
-  (add-fn [c] (api/long-accumulator b v (.set ^BitSet b (unchecked-int v)) b)))
+  (add-fn [c] (hamf-rf/long-accumulator b v (.set ^BitSet b (unchecked-int v)) b)))
 
 
 (extend-protocol hamf-proto/BitSet
@@ -156,7 +158,7 @@
   BitSet
   (bitset? [item] true)
   (contains-range? [item sidx eidx]
-    (reduce (api/long-accumulator
+    (reduce (hamf-rf/long-accumulator
              acc v
              (if (and (>= v 0) (.get item (unchecked-int v)))
                true
@@ -164,7 +166,7 @@
             true
             (api/range sidx eidx)))
   (intersects-range? [item ^long sidx ^long eidx]
-    (reduce (api/long-accumulator
+    (reduce (hamf-rf/long-accumulator
              acc v
              (if (and (>= v 0) (.get item (unchecked-int v)))
                (reduced true)
@@ -332,5 +334,5 @@
 
   See options for [[unique-reducer]] and [[ham-fisted.api/preduce-reducer]]."
   ([options data]
-   (api/preduce-reducer (unique-reducer options) (merge {:min-n 1000} options) data))
+   (hamf-rf/preduce-reducer (unique-reducer options) (merge {:min-n 1000} options) data))
   ([data] (unique nil data)))

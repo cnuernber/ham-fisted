@@ -2,11 +2,12 @@
   (:require [clojure.test :refer [deftest is testing are]]
             [clojure.set :as set]
             [ham-fisted.api :as api]
+            [ham-fisted.function :as hamf-fn]
             [criterium.core :as crit])
   (:import [java.util ArrayList Collections Map Collection]
            [java.util.function BiFunction BiConsumer]
            [java.util.concurrent ForkJoinPool Future Callable]
-           [ham_fisted MutHashTable LongMutHashTable]))
+           [ham_fisted MutHashTable LongMutHashTable ImmutHashTable LongImmutHashTable]))
 
 (defonce orig api/empty-map)
 
@@ -185,8 +186,8 @@
 
 
 (defn- indexed-map
-  ^MutHashTable [data]
-  (api/mut-map (map-indexed #(vector %2 %1) data)))
+  ^ImmutHashTable [data]
+  (persistent! (api/mut-map (map-indexed #(vector %2 %1) data))))
 
 
 (deftest union-test
@@ -246,8 +247,8 @@
 
 
 (defn- long-indexed-map
-  ^LongMutHashTable [data]
-  (api/mut-long-hashtable-map (map-indexed #(vector %2 %1) data)))
+  ^LongImmutHashTable [data]
+  (persistent! (api/mut-long-hashtable-map (map-indexed #(vector %2 %1) data))))
 
 
 (deftest long-union-test
@@ -346,7 +347,7 @@
         src-data (repeatedly n-elems #(rand-int 100000000))
         lhs (->array-list (take hn-elems src-data))
         rhs (->array-list (drop hn-elems src-data))
-        bfn (api/->bi-function +)
+        bfn (hamf-fn/->bi-function +)
         lhs-m (construct-fn lhs)
         rhs-m (construct-fn rhs)
         merged-m (merge-fn bfn lhs-m rhs-m)]

@@ -2,7 +2,7 @@
   "Helpers for working with [java.util.function](https://docs.oracle.com/javase/8/docs/api/java/util/function/package-summary.html)
   package objects."
   (:import [ham_fisted IFnDef$ODO IFnDef$OOO IFnDef$OO IFnDef$OL IFnDef$LongPredicate
-            IFnDef$DoublePredicate IFnDef$DD IFnDef$LL IFnDef]
+            IFnDef$DoublePredicate IFnDef$DD IFnDef$LL IFnDef IFnDef$LD IFnDef$DL IFnDef$OD]
            [java.util.function BiFunction BiConsumer Function DoublePredicate LongPredicate Predicate]
            [java.util Comparator]
            [clojure.lang Util]

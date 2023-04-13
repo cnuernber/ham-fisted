@@ -1,5 +1,7 @@
 (ns ham-fisted.parallel-test
   (:require [ham-fisted.api :as api]
+            [ham-fisted.reduce :as hamf-rf]
+            [ham-fisted.mut-map :as hamf-map]
             [ham-fisted.lazy-noncaching :as lznc]
             [clojure.test :refer [deftest is]])
   (:import [ham_fisted Sum]))
@@ -8,10 +10,10 @@
 (deftest spliterator-preduce
   (let [data (api/immut-map (lznc/map #(api/vector % %) (range 10000)))
         sum-data (fn [opts m]
-                   (-> (api/preduce #(Sum.) api/double-consumer-accumulator
-                                    (fn [^Sum l ^Sum r] (.merge l r) l)
-                                    opts
-                                    m)
+                   (-> (hamf-rf/preduce #(Sum.) hamf-rf/double-consumer-accumulator
+                                        (fn [^Sum l ^Sum r] (.merge l r) l)
+                                        opts
+                                        m)
                        (deref)
                        :sum
                        (long)))
@@ -20,8 +22,8 @@
     (is (= 49995000 (sum-data opts (api/vals data))))
     (is (= 49995000 (sum-data (assoc opts :ordered? false) (api/keys data))))
     (is (= 49995000 (sum-data (assoc opts :ordered? false) (api/vals data))))
-    (is (= 49995000 (sum-data (assoc opts :ordered? false) (api/map-keyset data))))
-    (is (= 49995000 (sum-data (assoc opts :ordered? false) (api/map-values data))))
+    (is (= 49995000 (sum-data (assoc opts :ordered? false) (hamf-map/keyset data))))
+    (is (= 49995000 (sum-data (assoc opts :ordered? false) (hamf-map/values data))))
     (let [small (api/immut-map (lznc/map #(api/vector % %) (range 8)))]
       (is (= 28 (sum-data opts (api/keys small))))
       (is (= 28 (sum-data opts (api/vals small)))))))
