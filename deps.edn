@@ -48,8 +48,12 @@
                :output-path "docs"
                :doc-paths ["topics"]
                :source-uri "https://github.com/cnuernber/ham-fisted/blob/master/{filepath}#L{line}"
-               :namespaces [ham-fisted.api ham-fisted.lazy-noncaching
-                            ham-fisted.protocols ham-fisted.set]}}
+               :namespaces [ham-fisted.api
+                            ham-fisted.lazy-noncaching
+                            ham-fisted.protocols
+                            ham-fisted.set
+                            ham-fisted.function
+                            ham-fisted.mut-map]}}
   :deploy
   {:replace-deps {slipset/deps-deploy {:mvn/version "0.1.5"}}
    :exec-fn deps-deploy.deps-deploy/deploy

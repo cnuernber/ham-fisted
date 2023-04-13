@@ -176,12 +176,12 @@
      (instance? RandomAccess arg)
      (Transformables$SingleMapList. f nil arg)
      :else
-     (Transformables$MapIterable/createSingle f nil (protocols/->iterable arg))))
+     (Transformables$MapIterable/createSingle f nil arg)))
   ([f arg & args]
    (let [args (concat [arg] args)]
      (if (every? #(instance? RandomAccess %) args)
        (Transformables$MapList/create f nil (into-array List args))
-       (Transformables$MapIterable. f nil (into-array Iterable protocols/->iterable args))))))
+       (Transformables$MapIterable. f nil (object-array args))))))
 
 
 (pp/implement-tostring-print Transformables$SingleMapList)
@@ -265,7 +265,7 @@
      (instance? Transformables$IMapable coll)
      (.filter ^Transformables$IMapable coll pred)
      :else
-     (Transformables$FilterIterable. pred nil (protocols/->iterable coll)))))
+     (Transformables$FilterIterable. pred nil coll))))
 
 
 (pp/implement-tostring-print Transformables$FilterIterable)

@@ -44,9 +44,24 @@ import clojure.lang.IHashEq;
 import clojure.lang.IPersistentCollection;
 import clojure.lang.PersistentList;
 import clojure.lang.Reduced;
+import clojure.lang.Delay;
+import clojure.java.api.Clojure;
 
 
 public class Transformables {
+
+  public static final Delay toIterableDelay = new Delay(new IFnDef() {
+      public Object invoke() {
+	return ((IDeref)Clojure.var("ham-fisted.protocols", "->iterable")).deref();
+      }
+    } );
+
+  public static final Iterable toIterable(Object obj) {
+    if (obj instanceof Iterable)
+      return (Iterable) obj;
+    //else bail to protocol
+    return (Iterable)((IFn)toIterableDelay.deref()).invoke(obj);
+  }
   public interface IMapable extends Iterable, IObj {
     default IMapable map(IFn fn) {
       return new MapIterable(fn, meta(), this);
@@ -123,14 +138,6 @@ public class Transformables {
     };
   }
 
-  public static Iterable toIterable(Object obj) {
-    if( obj == null) return null;
-    if( obj instanceof Iterable) return (Iterable)obj;
-    if( obj instanceof Map) return ((Map)obj).entrySet();
-    if( obj.getClass().isArray()) return ArrayLists.toList(obj);
-    if( obj instanceof String) return new StringCollection((String)obj);
-    return (Iterable)RT.seq(obj);
-  }
   public static int iterCount(Iterator iter) {
     int c = 0;
     while(iter.hasNext()) {
@@ -354,16 +361,16 @@ public class Transformables {
   public static class MapIterable
     extends AbstractCollection
     implements IterableSeq {
-    final Iterable[] iterables;
+    final Object[] iterables;
     final IFn fn;
     final IPersistentMap meta;
-    public MapIterable(IFn _fn, IPersistentMap _meta, Iterable... _its) {
+    public MapIterable(IFn _fn, IPersistentMap _meta, Object... _its) {
       fn = _fn;
       meta = _meta;
       iterables = _its;
     }
-    public static MapIterable createSingle(IFn fn, IPersistentMap meta, Iterable single) {
-      return new MapIterable(fn, meta, new Iterable[] { single });
+    public static MapIterable createSingle(IFn fn, IPersistentMap meta, Object single) {
+      return new MapIterable(fn, meta, new Object[] { single });
     }
     public MapIterable(MapIterable o, IPersistentMap m) {
       fn = o.fn;
@@ -406,12 +413,13 @@ public class Transformables {
     public Iterator iterator() {
       final int ss = iterables.length;
       switch(ss) {
-      case 1: return new SingleIterator(fn, iterables[0].iterator());
-      case 2: return new DualIterator(fn, iterables[0].iterator(), iterables[1].iterator());
+      case 1: return new SingleIterator(fn, toIterable(iterables[0]).iterator());
+      case 2: return new DualIterator(fn, toIterable(iterables[0]).iterator(),
+				      toIterable(iterables[1]).iterator());
       default:
 	final Iterator[] iterators = new Iterator[ss];
 	for(int idx = 0; idx < ss; ++idx) {
-	  iterators[idx] = iterables[idx].iterator();
+	  iterators[idx] = toIterable(iterables[idx]).iterator();
 	}
 	return new Iterator() {
 	  public boolean hasNext() {
@@ -531,9 +539,9 @@ public class Transformables {
     extends AbstractCollection
     implements IterableSeq {
     final IFn pred;
-    final Iterable src;
+    final Object src;
     final IPersistentMap meta;
-    public FilterIterable(IFn _p, IPersistentMap _meta, Iterable _i) {
+    public FilterIterable(IFn _p, IPersistentMap _meta, Object _i) {
       pred = _p;
       src = _i;
       meta = _meta;
@@ -577,7 +585,7 @@ public class Transformables {
       }
     }
     public Iterator iterator() {
-      return new FilterIterator(src.iterator(), pred);
+      return new FilterIterator(toIterable(src).iterator(), pred);
     }
 
     public int hashCode(){ return hasheq(); }
@@ -591,19 +599,6 @@ public class Transformables {
     public IPersistentMap meta() { return meta; }
     public FilterIterable withMeta(IPersistentMap m) {
       return new FilterIterable(this, m);
-    }
-    public Object reduce(IFn fn) {
-      final Iterator iter = src.iterator();
-
-      if(iter.hasNext() == false) return fn.invoke();
-
-      Object ret = iter.next();
-      while(iter.hasNext() && !RT.isReduced(ret)) {
-	final Object nobj = iter.next();
-	if(truthy(pred.invoke(nobj)))
-	  ret = fn.invoke(ret, nobj);
-      }
-      return Reductions.unreduce(ret);
     }
     @SuppressWarnings("unchecked")
     public static IFn typedReducer(final IFn rfn, final IFn pred) {
@@ -1056,9 +1051,9 @@ public class Transformables {
   public static class IndexedMapper extends AbstractCollection
     implements IterableSeq {
     final IFn mapFn;
-    final Iterable src;
+    final Object src;
     final IPersistentMap meta;
-    public IndexedMapper(IFn mapFn, Iterable src, IPersistentMap m) {
+    public IndexedMapper(IFn mapFn, Object src, IPersistentMap m) {
       this.mapFn = mapFn;
       this.src = src;
       this.meta = m;
@@ -1067,7 +1062,7 @@ public class Transformables {
     public boolean equals(Object other) { return equiv(other); }
     public int hashCode() { return hasheq(); }
     public boolean isEmpty() { return iterator().hasNext() == false; }
-    public int size() { return iterCount(src.iterator()); }
+    public int size() { return iterCount(toIterable(src).iterator()); }
     public static class CountingFn implements IFnDef {
       long cnt;
       final IFn mapFn;
@@ -1076,7 +1071,7 @@ public class Transformables {
 	return mapFn.invoke(cnt++, arg);
       }
     }
-    MapIterable mapper() { return new MapIterable(new CountingFn(mapFn), meta, new Iterable[] { src }); }
+    MapIterable mapper() { return new MapIterable(new CountingFn(mapFn), meta, new Object[] { src }); }
     public Iterator iterator() {
       return mapper().iterator();
     }

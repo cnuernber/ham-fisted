@@ -31,6 +31,8 @@
 
   Unlike the standard Java objects, mutation-via-iterator is not supported."
   (:require [ham-fisted.iterator :as iterator]
+            [ham-fisted.function :refer [bi-function ->bi-function function bi-consumer obj->long]
+             :as hamf-fn]
             [ham-fisted.lazy-noncaching
              :refer [map concat filter repeatedly]
              :as lznc]
@@ -86,13 +88,13 @@
            [java.time Duration]
            [java.util.stream IntStream DoubleStream])
   (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize
-                            into assoc-in get-in update assoc update-in hash-map
+                            into hash-map
                             group-by subvec group-by mapv vec vector object-array
                             sort int-array long-array double-array float-array
                             range map concat filter filterv first last pmap take take-last drop
                             drop-last sort-by repeat repeatedly shuffle into-array
                             empty? reverse byte-array short-array char-array boolean-array
-                            keys vals persistent! rest transient]))
+                            keys vals persistent! rest transient update-vals]))
 
 
 (set! *warn-on-reflection* true)
@@ -104,7 +106,7 @@
          persistent! rest immut-map keys vals group-by-reduce consumer-accumulator
          reducible-merge reindex long-consumer-reducer group-by-consumer
          double-consumer-reducer consumer-reducer merge constant-count mutable-map?
-         transient)
+         transient update-vals)
 
 
 (defn ->collection
@@ -179,73 +181,6 @@ This is currently the default hash provider for the library."}
            (== 0 (.size ^Map m)))))
 
 
-(defn assoc
-  "Drop in faster or equivalent replacement for clojure.core/assoc especially for
-  small numbers of keyval pairs."
-  ([m a b]
-   (if (empty-map? m)
-     (with-meta (.persistent (MutArrayMap/createKV default-hash-provider a b))
-       (meta m))
-     (.assoc ^Associative m a b)))
-  ([m a b c d]
-   (if (empty-map? m)
-     (with-meta (.persistent (MutArrayMap/createKV default-hash-provider a b c d))
-       (meta m))
-     (-> (assoc! (transient (or m empty-map)) a b)
-         (assoc! c d)
-         (persistent!))))
-  ([m a b c d e f]
-   (if (empty-map? m)
-     (with-meta (.persistent (MutArrayMap/createKV  default-hash-provider a b c d e f))
-       (meta m))
-     (-> (transient (or m empty-map))
-         (assoc! a b)
-         (assoc! c d)
-         (assoc! e f)
-         (persistent!))))
-  ([m a b c d e f g h]
-   (if (empty-map? m)
-     (with-meta (.persistent (MutArrayMap/createKV default-hash-provider a b c d e f g h))
-       (meta m))
-     (-> (transient (or m empty-map))
-         (assoc! a b)
-         (assoc! c d)
-         (assoc! e f)
-         (assoc! g h)
-         (persistent!))))
-  ([m a b c d e f g h & args]
-   (when-not (== 0 (rem (count args) 2))
-     (throw (Exception. "Assoc takes an odd number of arguments.")))
-   (if (empty-map? m)
-     (let [m (MutHashTable. default-hash-provider
-                            ^IPersistentMap (meta m)
-                            (+ 4 (quot (count args) 2)))]
-       (.put m a b)
-       (.put m c d)
-       (.put m e f)
-       (.put m g h)
-       (loop [args args]
-         (if args
-           (let [k (RT/first args)
-                 args (RT/next args)
-                 v (RT/first args)]
-             (.put m k v)
-             (recur (RT/next args)))
-           (persistent! m))))
-     (loop [m (-> (transient m)
-                  (assoc! a b)
-                  (assoc! c d)
-                  (assoc! e f)
-                  (assoc! g h))
-            args args]
-       (if args
-         (let [k (RT/first args)
-               args (RT/next args)
-               v (RT/first args)]
-           (recur (assoc! m k v) (RT/next args)))
-         (persistent! m))))))
-
-
 (defn- unpack-reduced
   [item]
   (if (reduced? item)
@@ -253,8 +188,9 @@ This is currently the default hash provider for the library."}
     item))
 
 
-(defn ^:no-doc options->parallel-options
-  [options]
+(defn options->parallel-options
+  "Convert an options map to a parallel options object."
+  ^ParallelOptions [options]
   (cond
     (instance? ParallelOptions options)
     options
@@ -280,6 +216,10 @@ This is currently the default hash provider for the library."}
   chain based on one or more random access entities, hashmaps and sets from this library or
   any java.util set, hashmap or concurrent versions of these.  If input cannot be
   parallelized this lowers to a normal serial reduction.
+
+  For potentially small-n invocations providing the parallel options explicitly will improve
+  performance surprisingly - converting the options map to the parallel options object
+  takes a bit of time.
 
   * `init-val-fn` - Potentially called in reduction threads to produce each initial value.
   * `rfn` - normal clojure reduction function.  Typehinting the second argument to double
@@ -331,7 +271,7 @@ This is currently the default hash provider for the library."}
 
   Additional Options:
 
-  `:skip-finalize?` - when true, the reducer's finalize method is not called on the result."
+  * `:skip-finalize?` - when true, the reducer's finalize method is not called on the result."
   ([reducer options coll]
    (let [retval (preduce (protocols/->init-val-fn reducer)
                       (protocols/->rfn reducer)
@@ -986,124 +926,6 @@ ham_fisted.PersistentHashMap
   l1)
 
 
-(defmacro bi-function
-  "Create an implementation of java.util.function.BiFunction."
-  [arg1 arg2 & code]
-  `(reify IFnDef$OOO (invoke [this# ~arg1 ~arg2] ~@code)))
-
-
-(defmacro bi-consumer
-  [arg1 arg2 & code]
-  `(reify BiConsumer
-     (accept [this ~arg1 ~arg2]
-       ~@code)))
-
-
-(defn ->bi-function
-  "Convert an object to a java.util.BiFunction. Object can either already be a
-  bi-function or an IFn to be invoked with 2 arguments."
-  ^BiFunction [cljfn]
-  (if (instance? BiFunction cljfn)
-    cljfn
-    (bi-function a b (cljfn a b))))
-
-
-
-(defmacro function
-  "Create a java.util.function.Function"
-  [arg & code]
-  `(reify IFnDef$OO (invoke [this# ~arg] ~@code)))
-
-
-(defmacro obj->long
-  "Create a function that converts objects to longs"
-  ([]
-   `(reify IFnDef$OL
-        (invokePrim [this v#]
-          (Casts/longCast v#))))
-  ([varname & code]
-   `(reify IFnDef$OL
-      (invokePrim [this ~varname]
-        (Casts/longCast ~@code)))))
-
-
-
-(defmacro obj->double
-  "Create a function that converts objects to doubles"
-  ([]
-   `(reify IFnDef$OD
-      (invokePrim [this v#]
-        (Casts/doubleCast v#))))
-  ([varname & code]
-   `(reify IFnDef$OD
-      (invokePrim [this ~varname]
-        (Casts/doubleCast ~@code)))))
-
-
-(defmacro long->double
-  "Create a function that receives a long and returns a double"
-  [varname & code]
-  `(reify IFnDef$LD
-     (invokePrim [this ~varname] ~@code)))
-
-
-(defmacro double->long
-  "Create a function that receives a double and returns a long"
-  [varname & code]
-  `(reify IFnDef$DL
-     (invokePrim [this ~varname] ~@code)))
-
-
-(defmacro long->obj
-  "Create a function that receives a primitive long and returns an object."
-  [varname & code]
-  `(reify IFnDef$LO
-     (invokePrim [this ~varname] ~@code)))
-
-
-(defmacro double->obj
-  [varname & code]
-  `(reify IFnDef$DO
-     (invokePrim [this ~varname] ~@code)))
-
-
-(defn ->function
-  "Convert an object to a java Function. Object can either already be a
-  Function or an IFn to be invoked."
-  ^Function [cljfn]
-  (if (instance? Function cljfn)
-    cljfn
-    (reify Function (apply [this a] (cljfn a)))))
-
-
-(defn compute!
-  "Compute a new value in a map derived from an existing value.  bfn gets passed k, v where k
-  may be nil.  If the function returns nil the corresponding key is removed from the map.
-
-  See [Map.compute](https://docs.oracle.com/javase/8/docs/api/java/util/Map.html#compute-K-java.util.function.BiFunction-)
-
-  An example `bfn` for counting occurrences would be `#(if % (inc (long %)) 1)`."
-  [m k bfn]
-  (.compute ^Map m k (->bi-function bfn)))
-
-
-(defn compute-if-present!
-  "Compute a new value if the value already exists and is non-nil in the hashmap.  Must use
-  mutable maps.  bfn gets passed k, v where v is non-nil.
-
-  See [Map.computeIfPresent](https://docs.oracle.com/javase/8/docs/api/java/util/Map.html#computeIfPresent-K-java.util.function.BiFunction-)"
-  [m k bfn]
-  (.computeIfPresent ^Map m k (->bi-function bfn)))
-
-
-(defn compute-if-absent!
-  "Compute a value if absent from the map.  Useful for memoize-type operations.  Must use
-  mutable maps.  bfn gets passed k.
-
-  See [map.computeIfAbsent](https://docs.oracle.com/javase/8/docs/api/java/util/Map.html#computeIfAbsent-K-java.util.function.Function-)"
-  [m k bfn]
-  (.computeIfAbsent ^Map m k (->function bfn)))
-
 
 (defn clear!
   "Mutably clear a map, set, list or implementation of java.util.Collection."
@@ -1120,7 +942,7 @@ ham_fisted.PersistentHashMap
   map-or-coll)
 
 
-(defn- map-set?
+(defn ^:no-doc map-set?
   [item]
   (instance? BitmapTrieCommon$MapSet item))
 
@@ -1143,20 +965,6 @@ ham_fisted.PersistentHashMap
     (.keySet ^Map item)
     :else
     (immut-set item)))
-
-
-(defn map-keyset
-  "Return the keyset of the map.  This may not be in the same order as (keys m) or (vals
-  m).  For hamf maps, this has the same ordering as (keys m).  For both hamf and java
-  hashmaps, the returned implementation of java.util.Set has both more utility and better
-  performance than (keys m)."
-  ^Set [^Map m] (.keySet m))
-
-
-(defn map-values
-  "Return the values collection of the map.  This may not be in the same order as (keys m)
-  or (vals m).  For hamf hashmaps, this does have the same order as (vals m)."
-  ^Collection [^Map m] (.values m))
 
 
 (defn keys
@@ -1185,11 +993,14 @@ ham_fisted.PersistentHashMap
   Returns a persistent map if input is a persistent map else if map1 is a mutable map
   map1 is returned with overlapping entries merged.  In this way you can pass in a
   normal java hashmap, a linked java hashmap, or a persistent map and get back a result that
-  matches the input."
+  matches the input.
+
+  If map1 and map2 are the same returns map1."
   [bfn map1 map2]
   (cond
     (nil? map1) map2
     (nil? map2) map1
+    (identical? map1 map2) map1
     :else
     (let [bfn (->bi-function bfn)]
       (if (and (map-set? map1) (map-set? map2))
@@ -1270,7 +1081,7 @@ ham_fisted.PersistentHashMap
          (persistent!)))))
 
 
-(defn union-reduce-java-hashmap
+(defn ^:no-doc union-reduce-java-hashmap
   "Do an efficient union of many maps into a single java.util.HashMap."
   (^java.util.HashMap [bfn maps options]
    (let [maps (->reducible maps)]
@@ -1359,7 +1170,7 @@ ham_fisted.PersistentHashMap
 
 
 (defn update-values
-  "Immutably (or mutablye) update all values in the map returning a new map.
+  "Immutably (or mutably) update all values in the map returning a new map.
   bfn takes 2 arguments, k,v and returns a new v. Returns a new persistent map if input
   is persistent else an updated mutable map.
   If passed a vector, k is the index and v is the value.  Will return a new vector.
@@ -1395,6 +1206,11 @@ ham_fisted.PersistentHashMap
       (mut-list (lznc/map-indexed #(.apply bfn %1 %2) map))
       :else
       (map-indexed #(.apply bfn %1 %2) map))))
+
+
+(defn update-vals
+  [data f]
+  (update-values data (bi-function k v (f v))))
 
 
 (defn mapmap
@@ -1508,26 +1324,6 @@ ham_fisted.PersistentHashMap
     v))
 
 
-(defn ^:no-doc frequencies-gbr-inc
-  "Faster implementation of clojure.core/frequencies."
-  [coll]
-  (group-by-reduce identity (constantly 0)
-                   (fn [acc v]
-                     (unchecked-inc (long acc)))
-                   +
-                   coll))
-
-
-(defn ^:no-doc frequencies-gbr-consumer
-  "Faster implementation of clojure.core/frequencies."
-  [coll]
-  (-> (group-by-reduce identity #(Consumers$IncConsumer.)
-                       consumer-accumulator
-                       reducible-merge
-                       coll)
-      (update-values (bi-function k v (deref v)))))
-
-
 (defn mut-map-union!
   "Very fast union that may simply update lhs and return it.  Both lhs and rhs *must* be
   mutable maps.  See docs for [[map-union]]."
@@ -1545,19 +1341,39 @@ ham_fisted.PersistentHashMap
                       (.merge maxm k v merge-bifn)))
       maxm)))
 
+(defn freq-reducer
+  "Return a hamf parallel reducer that performs a frequencies operation."
+  ([options]
+   (let [map-fn (get options :map-fn mut-map)
+         cfn (function _v (Consumers$IncConsumer.))
+         sk? (get options :skip-finalize?)
+         fin-bfn (when-not sk? (bi-function k v (deref v)))]
+     (reify
+       protocols/Reducer
+       (->init-val-fn [this] mut-map)
+       (->rfn [this] (fn [acc v]
+                       (.inc ^Consumers$IncConsumer (.computeIfAbsent ^Map acc v cfn))
+                       acc))
+       protocols/ParallelReducer
+       (->merge-fn [this] reducible-merge)
+       protocols/Finalize
+       (finalize [this v]
+         (if (get options :skip-finalize?)
+           v
+           (update-values v fin-bfn))))))
+  ([] (freq-reducer nil)))
+
+(def ^:private nil-freq-reducer (freq-reducer nil))
+(def ^:private freq-parallel-opts (options->parallel-options {:min-n 1000
+                                                              :ordered? true}))
 
 (defn frequencies
   "Faster implementation of clojure.core/frequencies."
   ([coll] (frequencies nil coll))
   ([options coll]
-   (-> (preduce (get options :map-fn mut-map)
-                (fn [^Map l v]
-                  (.compute l v BitmapTrieCommon/incBiFn)
-                  l)
-                #(mut-map-union! BitmapTrieCommon/incBiFn %1 %2)
-                (merge {:min-n 1000 :ordered? true} options)
-                coll)
-       (persistent!))))
+   (preduce-reducer (if options (freq-reducer options) nil-freq-reducer)
+                    (if options options freq-parallel-opts)
+                    coll)))
 
 
 (defn ^:no-doc inc-consumer
@@ -1566,7 +1382,7 @@ ham_fisted.PersistentHashMap
   ^Consumer [] #(Consumers$IncConsumer.))
 
 
-(def ^:no-doc inc-consumer-reducer
+(def ^{:doc "A hamf reducer that works with inc-consumers"} inc-consumer-reducer
   (reify
     protocols/Finalize
     (finalize [this v] (deref v))
@@ -1575,17 +1391,6 @@ ham_fisted.PersistentHashMap
     (->rfn [this] consumer-accumulator)
     protocols/ParallelReducer
     (->merge-fn [this] reducible-merge)))
-
-
-
-(defn ^:no-doc frequencies-gbc
-  ([options coll]
-   (group-by-consumer nil inc-consumer-reducer
-                      (merge {:map-fn #(MapForward. (LinkedHashMap.) nil)
-                              :ordered? true}
-                             options)
-                      coll))
-  ([coll] (frequencies-gbc nil coll)))
 
 
 (defn merge
@@ -1647,7 +1452,6 @@ fn called -  (3)
 nil
 ```
 
-
   Options:
 
   * `:write-ttl-ms` - Time that values should remain in the cache after write in milliseconds.
@@ -1697,7 +1501,13 @@ nil
          (.build new-builder
                  (proxy [CacheLoader] []
                    (load [args]
-                     (BitmapTrieCommon$Box. (apply memo-fn args)))))]
+                     (BitmapTrieCommon$Box.
+                      (case (count args)
+                        0 (memo-fn)
+                        1 (memo-fn (args 0))
+                        2 (memo-fn (args 0) (args 1))
+                        3 (memo-fn (args 0) (args 1) (args 2))
+                        (.applyTo ^IFn memo-fn (seq args)))))))]
      (-> (fn
            ([] (.obj ^BitmapTrieCommon$Box (.get cache [])))
            ([a] (.obj ^BitmapTrieCommon$Box (.get cache [a])))
@@ -1751,189 +1561,6 @@ nil
          :total-load-time-nanos (.totalLoadTime cache-map)
          :eviction-count (.evictionCount cache-map)}))))
 
-
-
-(defn ^:no-doc assoc-inf
-  "Associates a value in a nested associative structure, where ks is a
-  sequence of keys and v is the new value and returns a new nested structure.
-  If any levels do not exist, hash-maps will be created."
-  {:added "1.0"
-   :static true}
-  [m [k & ks] v]
-  (if ks
-    (assoc m k (assoc-inf (get m k) ks v))
-    (assoc m k v)))
-
-
-(defmacro assoc-in
-  "Assoc-in - more efficient replacement if ks is a known compile time constant
-  or a vector.  See the caveats in the README before using this exact function."
-  [m ks v]
-  (if (vector? ks)
-    (if (== 0 (count ks))
-      `(assoc ~m nil ~v)
-      (let [nargs (count ks)
-            nnargs (dec nargs)]
-        `(let [~@(->> (range (dec nargs))
-                      (mapcat (fn [^long argidx]
-                                (let [argidx (inc argidx)]
-                                  [(symbol (str "m" argidx))
-                                   (if (== 0 argidx)
-                                     `~m
-                                     `(get ~(if (= 1 argidx)
-                                              m
-                                              (symbol (str "m" (dec argidx))))
-                                           ~(ks (dec argidx))))]))))]
-           ~(->> (range nargs)
-                 (reduce (fn [retstmt argidx]
-                           (let [ridx (- nnargs (long argidx))]
-                             `(assoc ~(if (= 0 ridx)
-                                        m
-                                        (symbol (str "m" ridx)))
-                                     ~(ks ridx)
-                                     ~retstmt)))
-                         v)))))
-    `(assoc-inf ~m ~ks ~v)))
-
-
-(defmacro get-in
-  "get-in drop-in more efficient replacement if ks is a vector especially if ks
-  is known at compile time."
-  ([m ks default-value]
-   (if (vector? ks)
-     (let [nargs (count ks)
-           nnargs (dec nargs)]
-       `~(->> (range nargs)
-              (reduce (fn [curget ^long argidx]
-                        (if (== argidx nnargs)
-                          `(get ~curget
-                                ~(ks argidx)
-                                ~default-value)
-                          `(get ~curget ~(ks argidx))))
-                      m)))
-     `(clojure.core/get-in ~m ~ks ~default-value)))
-  ([m ks]
-   `(get-in ~m ~ks nil)))
-
-
-(defn- single-arg-fn
-  ([f] (reify
-         Function
-         (apply [this v] (f v))
-         IFn
-         (invoke [this v] (f v))))
-  ([f a]
-   (reify
-     Function
-     (apply [this v] (f v a))
-     IFn
-     (invoke [this v] (f v a))))
-
-  ([f a b]
-   (reify
-     Function
-     (apply [this v] (f v a b))
-     IFn
-     (invoke [this v] (f v a b))))
-
-  ([f a b c]
-   (reify
-     Function
-     (apply [this v] (f v a b c))
-     IFn
-     (invoke [this v] (f v a b c))))
-
-
-  ([f a b c d]
-   (reify
-     Function
-     (apply [this v] (f v a b c d))
-     IFn
-     (invoke [this v] (f v a b c d))))
-
-  ([f a b c d e]
-   (reify
-     Function
-     (apply [this v] (f v a b c d e))
-     IFn
-     (invoke [this v] (f v a b c d e))))
-
-  ([f a b c d e f]
-   (reify
-     Function
-     (apply [this v] (f v a b c d e f))
-     IFn
-     (invoke [this v] (f v a b c d e f))))
-
-  ([f a b c d e f args]
-   (reify
-     Function
-     (apply [this v] (apply f v a b c d e f args))
-     IFn
-     (invoke [this v] (apply f v a b c d e f args)))))
-
-
-(defn update
-  "Version of update that produces maps from this library."
-  {:static true}
-  ([m k f]
-   (assoc m k (f (get m k))))
-  ([m k f x]
-   (assoc m k (f (get m k) x)))
-  ([m k f x y]
-   (assoc m k (f (get m k) x y)))
-  ([m k f x y z]
-   (assoc m k (f (get m k) x y z)))
-  ([m k f x y z & more]
-   (assoc m k (apply f (get m k) x y z more))))
-
-
-(defn ^:no-doc update-inf
-  "'Updates' a value in a nested associative structure, where ks is a
-  sequence of keys and f is a function that will take the old value
-  and any supplied args and return the new value, and returns a new
-  nested structure.  If any levels do not exist, hash-maps will be
-  created."
-  {:added "1.0"
-   :static true}
-  ([m ks f & args]
-     (let [up (fn up [m ks f args]
-                (let [[k & ks] ks]
-                  (if ks
-                    (assoc m k (up (get m k) ks f args))
-                    (assoc m k (apply f (get m k) args)))))]
-       (up m ks f args))))
-
-
-(defmacro update-in
-  "An attempt at a slightly more efficient version of update-in.
-
-  See the caveats in the readme - measure carefully before using this."
-  [m ks f & args]
-  (cond
-    (nil? m)
-    `(assoc-in ~m ~ks (~f nil ~@args))
-    (vector? ks)
-    (let [countk (count ks)]
-      (case countk
-        0 `(update ~m nil ~f ~@args)
-        1 `(update ~m ~(ks 0) ~f ~@args)
-        `(let [~@(->> (range 1 countk)
-                      (mapcat (fn [^long argidx]
-                                (let [didix (dec argidx)]
-                                  [(symbol (str "m" argidx))
-                                   `(get ~(if (= 0 didix) m (symbol (str "m" didix)))
-                                         ~(ks didix))]))))]
-           ~(reduce (fn [expr argidx]
-                      `(assoc ~(if (= 0 argidx) m (symbol (str "m" argidx)))
-                              ~(ks argidx)
-                              ~expr))
-                    `(update ~(symbol (str "m" (dec countk)))
-                             ~(ks (dec countk))
-                             ~f ~@args)
-                    (range (- countk 2) -1 -1)))))
-    :else
-    `(update-inf ~m ~ks ~f ~@args)))
 
 
 (defn subvec
@@ -2155,12 +1782,12 @@ nil
 
 
 (defn- concat-reducible
-  ([^IMutList retval v1 v2]
+  (^IMutList [^IMutList retval v1 v2]
    (let [retval (mut-list)]
      (.addAllReducible retval (->reducible v1))
      (.addAllReducible retval (->reducible v2))
      retval))
-  ([^IMutList retval v1 v2 args]
+  (^IMutList [^IMutList retval v1 v2 args]
    (when-not (nil? v1) (.addAllReducible retval (->reducible v1)))
    (when-not (nil? v2) (.addAllReducible retval (->reducible v2)))
    (reduce (fn [data c]
@@ -2197,10 +1824,10 @@ nil
      (nil? v2) (object-array v1)
      :else
      (-> (concat-reducible (ArrayLists$ObjectArrayList.) v1 v2)
-         (object-array))))
+         (.toArray))))
   (^objects [v1 v2 & args]
    (-> (concat-reducible (ArrayLists$ObjectArrayList.) v1 v2 args)
-       (object-array))))
+       (.toArray))))
 
 
 (defn apply-concat
@@ -2228,118 +1855,9 @@ nil
   (or comp compare))
 
 
-(defmacro make-long-comparator
-  "Make a comparator that gets passed two long arguments."
-  [lhsvar rhsvar & code]
-  (let [lhsvar (with-meta lhsvar {:tag 'long})
-        rhsvar (with-meta rhsvar {:tag 'long})
-        compsym (with-meta 'compare {:tag 'int})]
-    `(reify
-       LongComparator
-       (~compsym [this# ~lhsvar ~rhsvar]
-        ~@code)
-       IFnDef
-       (invoke [this# l# r#]
-         (.compare this# l# r#)))))
-
-
-(defmacro make-double-comparator
-  "Make a comparator that gets passed two double arguments."
-  [lhsvar rhsvar & code]
-  (let [lhsvar (with-meta lhsvar {:tag 'double})
-        rhsvar (with-meta rhsvar {:tag 'double})
-        compsym (with-meta 'compare {:tag 'int})]
-    `(reify
-       DoubleComparator
-       (~compsym [this# ~lhsvar ~rhsvar]
-        ~@code)
-       IFnDef
-       (invoke [this# l# r#]
-         (.compare this# l# r#)))))
-
-
-(defmacro make-comparator
-  "Make a java comparator."
-  [lhsvar rhsvar & code]
-  `(reify
-     Comparator
-     (compare [this# ~lhsvar ~rhsvar]
-      ~@code)
-     IFnDef
-     (invoke [this# l# r#]
-       (.compare this# l# r#))))
-
-
-
-
-(def ^{:doc "A reverse comparator that sorts in descending order" }
-  rcomp
-  (reify
-    Comparator
-    (^int compare [this ^Object l ^Object r]
-      (Util/compare r l))
-    DoubleComparator
-    (^int compare [this ^double l ^double r]
-     (Double/compare r l))
-    LongComparator
-    (^int compare [this ^long l ^long r]
-     (Long/compare r l))
-    IFnDef
-    (invoke [this l r]
-      (.compare this l r))))
-
-
-(def ^{:doc "A comparator that sorts null, NAN first, natural order"}
-  comp-nan-first
-  (reify
-    Comparator
-    (^int compare [this ^Object l ^Object r]
-     (cond
-       (nil? l) -1
-       (nil? r) 1
-       :else (Util/compare l r)))
-    DoubleComparator
-    (^int compare [this ^double l ^double r]
-     (cond
-       (Double/isNaN l) -1
-       (Double/isNaN r) 1
-       :else
-       (Double/compare l r)))
-    LongComparator
-    (^int compare [this ^long l ^long r]
-     (Long/compare l r))
-    IFnDef
-    (invoke [this l r]
-      (.compare this l r))))
-
-
-(def ^{:doc "A comparator that sorts null, NAN last, natural order"}
-  comp-nan-last
-  (reify
-    Comparator
-    (^int compare [this ^Object l ^Object r]
-     (cond
-       (nil? l) 1
-       (nil? r) -1
-       :else (clojure.lang.Util/compare l r)))
-    DoubleComparator
-    (^int compare [this ^double l ^double r]
-     (cond
-       (Double/isNaN l) 1
-       (Double/isNaN r) -1
-       :else
-       (Double/compare l r)))
-    LongComparator
-    (^int compare [this ^long l ^long r]
-     (Long/compare l r))
-    IFnDef
-    (invoke [this l r]
-      (.compare this l r))))
-
-
 (defn sorta
   "Sort returning an object array."
-  (^objects [coll] (sorta comp-nan-last coll))
+  (^objects [coll] (sorta hamf-fn/comp-nan-last coll))
   (^objects [comp coll]
    (let [coll (->reducible coll)]
      (if (instance? IMutList coll)
@@ -2363,7 +1881,7 @@ nil
 
   The default comparison is nan-last meaning null-last if the input is an undefined
   container and nan-last if the input is a double or float specific container."
-  ([coll] (sort comp-nan-last coll))
+  ([coll] (sort hamf-fn/comp-nan-last coll))
   ([comp coll]
    (let [coll (->collection coll)]
      (if (instance? ImmutSort coll)
@@ -2504,7 +2022,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
    (ArrayLists/larange start end step)))
 
 (defn darange
-  "Return a double array holding the values of the range.  Useing `->collection` to get
+  "Return a double array holding the values of the range.  Use `wrap-array` to get
   an implementation of java.util.List that supports the normal Clojure interfaces."
   (^doubles [end]
    (darange 0 end 1))
@@ -2552,7 +2070,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
           idata))
       (->collection))))
   ([coll]
-   (argsort comp-nan-last coll)))
+   (argsort hamf-fn/comp-nan-last coll)))
 
 
 (defn ^:no-doc do-make-array
@@ -2672,10 +2190,17 @@ ham-fisted.api> (binary-search data 1.1 nil)
        (.addAllReducible (->reducible cap-or-data))))))
 
 
+(def ^:private int-ary-cls (Class/forName "[I"))
+
+
 (defn ^:no-doc int-array-v
   ^ints [data]
-  (if (instance? IMutList data)
+  (cond
+    (instance? int-ary-cls data)
+    data
+    (instance? IMutList data)
     (.toIntArray ^IMutList data)
+    :else
     (do-make-array #(ArrayLists/intArray %) #(ArrayLists/toList ^ints %)
                    int-array-list data)))
 
@@ -2882,32 +2407,6 @@ ham-fisted.api> (reduce (indexed-accum
   (ovec (filter pred coll)))
 
 
-(defmacro double-binary-operator
-  "Create a binary operator that is specialized for double values.  Useful to speed up
-  operations such as sorting or summation."
-  [lvar rvar & code]
-  `(reify
-     DoubleBinaryOperator
-     (applyAsDouble [this# ~lvar ~rvar]
-       ~@code)
-     IFnDef$DDD
-     (invokePrim [this# l# r#]
-       (.applyAsDouble this# l# r#))))
-
-
-(defmacro long-binary-operator
-  "Create a binary operator that is specialized for long values.  Useful to speed up
-  operations such as sorting or summation."
-  [lvar rvar & code]
-  `(reify
-     LongBinaryOperator
-     (applyAsLong [this ~lvar ~rvar]
-       ~@code)
-     IFnDef$LLL
-     (invokePrim [this# l# r#]
-       (.applyAsLong this# l# r#))))
-
-
 (defn ^:no-doc reduce-reducibles
   [reducibles]
   (let [^Reducible r (first reducibles)]
@@ -3104,101 +2603,6 @@ nil
   @(reduce double-consumer-accumulator (Sum$SimpleSum.) coll))
 
 
-(defmacro double-predicate
-  "Create an implementation of java.util.Function.DoublePredicate"
-  [varname & code]
-  `(reify
-     IFnDef$DoublePredicate
-     (test [this ~varname]
-       ~@code)))
-
-
-(defmacro double-unary-operator
-  "Create an implementation of java.util.function.DoubleUnaryOperator"
-  [varname & code]
-  `(reify
-     IFnDef$DD
-     (invokePrim [this# ~varname]
-       ~@code)))
-
-
-(defmacro long-predicate
-  "Create an implementation of java.util.Function.LongPredicate"
-  [varname & code]
-  `(reify
-     IFnDef$LongPredicate
-     (test [this ~varname]
-       ~@code)))
-
-
-(defn ->long-predicate
-  ^LongPredicate [f]
-  (if (instance? LongPredicate f)
-    f
-    (long-predicate ll (boolean (f ll)))))
-
-
-(defmacro long-unary-operator
-  "Create an implementation of java.util.function.LongUnaryOperator"
-  [varname & code]
-  `(reify
-     IFnDef$LL
-     (invokePrim [this# ~varname]
-       ~@code)))
-
-
-(defmacro predicate
-  "Create an implementation of java.util.Function.Predicate"
-  [varname & code]
-  `(reify
-     IFnDef$Predicate
-     (test [this ~varname]
-       ~@code)))
-
-
-(defmacro unary-operator
-  "Create an implementation of java.util.function.UnaryOperator"
-  [varname & code]
-  `(function ~varname ~@code))
-
-
-(defmacro binary-operator
-  "Create an implementation of java.util.function.BinaryOperator"
-  [arg1 arg2 & code]
-  `(bi-function ~arg1 ~arg2 ~@code))
-
-
-(defmacro double-consumer
-  "Create an instance of a java.util.function.DoubleConsumer"
-  [varname & code]
-  `(reify
-     DoubleConsumer
-     (accept [this# ~varname]
-       ~@code)
-     IFnDef$DO
-     (invokePrim [this# v#] (.accept this# v#))))
-
-
-(defmacro long-consumer
-  "Create an instance of a java.util.function.LongConsumer"
-  [varname & code]
-  `(reify
-     LongConsumer
-     (accept [this# ~varname]
-       ~@code)
-     IFnDef$LO
-     (invokePrim [this# v#] (.accept this# v#))))
-
-
-(defmacro consumer
-  "Create an instance of a java.util.function.Consumer"
-  [varname & code]
-  `(reify Consumer
-     (accept [this# ~varname]
-       ~@code)
-     IFnDef$OO
-     (invoke [this# arg#] (.accept this# arg#))))
-
 
 (defn bind-double-consumer-reducer!
   "Bind a classtype as a double consumer parallel reducer - the consumer must implement
@@ -3264,12 +2668,12 @@ nil
 (defn ^:no-doc apply-nan-strategy
   [options coll]
   (case (get options :nan-strategy :remove)
-    :remove (filter (double-predicate v (not (Double/isNaN v))) coll)
+    :remove (filter (hamf-fn/double-predicate v (not (Double/isNaN v))) coll)
     :keep coll
-    :exception (map (double-unary-operator v
-                                           (when (Double/isNaN v)
-                                             (throw (Exception. "Nan detected")))
-                                           v)
+    :exception (map (hamf-fn/double-unary-operator v
+                                                   (when (Double/isNaN v)
+                                                     (throw (Exception. "Nan detected")))
+                                                   v)
                     coll)))
 
 
@@ -3443,28 +2847,30 @@ nil
 (defn take
   "Take the first N values from a collection.  If the input is
   random access, the result will be random access."
-  [n coll]
-  (when coll
-    (let [coll (->reducible coll)]
-      (if (instance? RandomAccess coll)
-        (.subList ^List coll 0 (min (long n) (.size ^List coll)))
-        (clojure.core/take n coll)))))
+  ([n] (clojure.core/take n))
+  ([n coll]
+   (when coll
+     (let [coll (->reducible coll)]
+       (if (instance? RandomAccess coll)
+         (.subList ^List coll 0 (min (long n) (.size ^List coll)))
+         (clojure.core/take n coll))))))
 
 
 (defn take-last
   "Take the last N values of the collection.  If the input is random-access,
   the result will be random-access."
-  [n coll]
-  (when coll
-    (let [coll (->reducible coll)]
-      (if (instance? RandomAccess coll)
-        (let [ne (.size ^List coll)
-              n (long n)]
-          (.subList ^List coll (- ne n 1) ne))
-        (clojure.core/take-last n coll)))))
+  ([n] (clojure.core/take-last n))
+  ([n coll]
+    (when coll
+      (let [coll (->reducible coll)]
+        (if (instance? RandomAccess coll)
+          (let [ne (.size ^List coll)
+                n (long n)]
+            (.subList ^List coll (- ne n 1) ne))
+          (clojure.core/take-last n coll))))))
 
 
-(defn priority-queue-rf
+(defn- priority-queue-rf
   [^long n comp]
   (let [comp (when comp (.reversed (->comparator comp)))]
     (fn
@@ -3513,14 +2919,15 @@ nil
 (defn drop-last
   "Drop the last N values from a collection.  IF the input is random access,
   the result will be random access."
-  [n coll]
-  (when coll
-    (let [coll (->reducible coll)]
-      (if (instance? RandomAccess coll)
-        (let [ne (.size ^List coll)
-              n (min (long n) ne)]
-          (.subList ^List coll 0 (- ne n)))
-        (clojure.core/take-last n coll)))))
+  ([n] (clojure.core/drop-last n))
+  ([n coll]
+   (when coll
+     (let [coll (->reducible coll)]
+       (if (instance? RandomAccess coll)
+         (let [ne (.size ^List coll)
+               n (min (long n) ne)]
+           (.subList ^List coll 0 (- ne n)))
+         (clojure.core/take-last n coll))))))
 
 
 (defn repeat
@@ -3610,6 +3017,7 @@ nil
    (alists/wrap-array-growable ary ptr))
   (^IMutList [ary]
    (alists/wrap-array-growable ary)))
+
 
 (defn inc-consumer
   "Return a consumer that simply increments a long.  See java/ham_fisted/Consumers.java for definition."
