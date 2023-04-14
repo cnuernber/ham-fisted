@@ -446,8 +446,11 @@ public final class ChunkedList {
     int dstOff = 0;
     while(cidx <= finalCidx) {
       final int copyLen = cidx == finalCidx ? finalEidx - eidx : 32 - eidx;
-      System.arraycopy(mdata[cidx], eidx, retval, dstOff, copyLen);
-      dstOff += copyLen;
+      //In the case where the end idx falls exactly on a boundary we get a copyLen of 0 here.
+      if(copyLen > 0) {
+	System.arraycopy(mdata[cidx], eidx, retval, dstOff, copyLen);
+	dstOff += copyLen;
+      }
       eidx = 0;
       ++cidx;
     }
