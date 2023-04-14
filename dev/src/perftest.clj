@@ -499,7 +499,7 @@
                   1000 10000 100000
                   ]]
      (do
-       (log/info (str "persistent vector perftest with n= " n-elems))
+       (log/info (str "sort-by perftest with n= " n-elems))
        (let [data (mapv (fn [idx]
                           {:a 1
                            :b idx})
