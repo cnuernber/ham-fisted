@@ -285,9 +285,9 @@ With the three functions bundled into one logical protocol or object it is easy 
 to create complex (aggregate) and efficient parallelized reductions:
 
 ```clojure
-user> (require '[ham-fisted.api :as hamf])
+user> (require '[ham-fisted.reduce :as hamf-rf])
 nil
-user> (hamf/preduce-reducers {:sum + :product *} (range 1 20))
+user> (hamf-rf/preduce-reducers {:sum + :product *} (range 1 20))
 {:product 121645100408832000, :sum 190}
 user>
 ```

@@ -168,14 +168,14 @@ non-parallelized reducer and simply get a sequence of results as opposed to one.
 <li>options - Same options as preduce.</li>
 <li>coll - something potentially with a parallelizable reduction.</li>
 </ul>
-<p>See options for <a href="ham-fisted.protocols.html#var-preduce">preduce</a>.</p>
+<p>See options for <a href="ham-fisted.reduce.html#var-preduce">ham-fisted.reduce/preduce</a>.</p>
 <p>Additional Options:</p>
 <ul>
 <li><code>:skip-finalize?</code> - when true, the reducer's finalize method is not called on the result.</li>
 </ul>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L91">view source</a></div></div><div class="public anchor" id="var-preduce-reducers"><h3>preduce-reducers</h3><div class="usage"><code>(preduce-reducers reducers options coll)</code><code>(preduce-reducers reducers coll)</code></div><div class="doc"><div class="markdown"><p>Given a map or sequence of <a href="ham-fisted.protocols.html#var-ParallelReducer">ham-fisted.protocols/ParallelReducer</a>, produce a map or
 sequence of reduced values. Reduces over input coll once in parallel if coll is large
-enough.  See options for <a href="ham-fisted.protocols.html#var-preduce">preduce</a>.</p>
+enough.  See options for <a href="ham-fisted.reduce.html#var-preduce">ham-fisted.reduce/preduce</a>.</p>
 <pre><code class="language-clojure">ham-fisted.api&gt; (preduce-reducers {:sum (Sum.) :mult *} (range 20))
 {:mult 0, :sum #&lt;Sum@5082c3b7: {:sum 190.0, :n-elems 20}&gt;}
 </code></pre>

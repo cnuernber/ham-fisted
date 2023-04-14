@@ -100,7 +100,7 @@
   * options - Same options as preduce.
   * coll - something potentially with a parallelizable reduction.
 
-  See options for [[preduce]].
+  See options for [[ham-fisted.reduce/preduce]].
 
   Additional Options:
 
@@ -227,7 +227,7 @@ ham-fisted.api> @*1
 (defn preduce-reducers
   "Given a map or sequence of [[ham-fisted.protocols/ParallelReducer]], produce a map or
   sequence of reduced values. Reduces over input coll once in parallel if coll is large
-  enough.  See options for [[preduce]].
+  enough.  See options for [[ham-fisted.reduce/preduce]].
 
 ```clojure
 ham-fisted.api> (preduce-reducers {:sum (Sum.) :mult *} (range 20))
