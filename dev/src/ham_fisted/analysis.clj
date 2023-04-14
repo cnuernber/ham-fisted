@@ -119,3 +119,8 @@
   []
   (process-files ["results/union-reduce-transient.edn"] {:baseline :hamf-hashmap})
   )
+
+
+(defn persistent-vector
+  []
+  (process-files ["results/persistent-vector.edn"]))

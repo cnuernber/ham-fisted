@@ -491,12 +491,32 @@
        (spit-data "persistent-vector")))
 
 
+(defn sort-by-perftest
+  []
+  (->>
+   (for [n-elems [4 10
+                  100
+                  1000 10000 100000
+                  ]]
+     (do
+       (log/info (str "persistent vector perftest with n= " n-elems))
+       (let [data (mapv (fn [idx]
+                          {:a 1
+                           :b idx})
+                        (shuffle (range n-elems)))]
+         {:clj (benchmark-us (sort-by :b data))
+          :hamf (benchmark-us (hamf/sort-by :b data))
+          :hamf-typed (benchmark-us (hamf/sort-by (hamf-fn/obj->long d (long (d :b))) data))})))
+   (vec)
+   (spit-data "sort-by")))
+
+
 
 
 (defn -main
   [& args]
   ;;shutdown test
-  (persistent-vector-perftest)
+  (sort-by-perftest)
   #_(let [perf-data (process-dataset (profile))
         vs (System/getProperty "java.version")
         mn (machine-name)
