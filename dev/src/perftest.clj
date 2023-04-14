@@ -506,7 +506,10 @@
                         (shuffle (range n-elems)))]
          {:clj (benchmark-us (sort-by :b data))
           :hamf (benchmark-us (hamf/sort-by :b data))
-          :hamf-typed (benchmark-us (hamf/sort-by (hamf-fn/obj->long d (long (d :b))) data))})))
+          :hamf-typed (benchmark-us (hamf/sort-by (hamf-fn/obj->long d (long (d :b))) data))
+          :n-elems n-elems
+          :test :sort-by
+          :numeric? true})))
    (vec)
    (spit-data "sort-by")))
 

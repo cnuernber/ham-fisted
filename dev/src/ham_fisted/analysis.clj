@@ -124,3 +124,8 @@
 (defn persistent-vector
   []
   (process-files ["results/persistent-vector.edn"]))
+
+
+(defn sort-by-analysis
+  []
+  (process-files ["results/sort-by.edn"]))
