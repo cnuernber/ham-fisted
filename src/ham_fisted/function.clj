@@ -3,9 +3,9 @@
   package objects."
   (:import [ham_fisted IFnDef$ODO IFnDef$OOO IFnDef$OO IFnDef$OL IFnDef$LongPredicate
             IFnDef$DoublePredicate IFnDef$DD IFnDef$LL IFnDef IFnDef$LD IFnDef$DL IFnDef$OD
-            IFnDef$LO Casts IFnDef$Predicate]
+            IFnDef$LO Casts IFnDef$Predicate IFnDef$LLL IFnDef$DDD]
            [java.util.function BiFunction BiConsumer Function DoublePredicate LongPredicate Predicate
-            Consumer LongConsumer DoubleConsumer]
+            Consumer LongConsumer DoubleConsumer LongBinaryOperator DoubleBinaryOperator]
            [java.util Comparator]
            [clojure.lang Util]
            [it.unimi.dsi.fastutil.longs LongComparator]
