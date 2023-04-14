@@ -497,6 +497,7 @@
    (for [n-elems [4 10
                   100
                   1000 10000 100000
+                  1000000
                   ]]
      (do
        (log/info (str "sort-by perftest with n= " n-elems))
