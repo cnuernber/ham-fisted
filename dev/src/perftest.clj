@@ -528,13 +528,38 @@
        (let [data (vec (repeat 10 (range n-elems)))]
          {:clj (benchmark-us (into [] cat data))
           :hamf (benchmark-us (hamf/apply-concatv data))
+          :hamf-objarry (benchmark-us (apply hamf/concata data))
           :n-elems n-elems
           :test :concatv
           :numeric? true})))
    (vec)
-   (spit-data "concatv")
-   ))
+   (spit-data "concatv")))
 
+
+(defn vec-equals-perftest
+  []
+  (->>
+   (for [n-elems [4 10
+                  100
+                  1000 10000 100000
+                  ]
+         numeric [true false]]
+     (do
+       (log/info (str "concatv perftest with n= " n-elems))
+       (let [src-data (if numeric
+                        (range n-elems)
+                        (map (comp str keyword) (range n-elems)))]
+         {:clj (let [lhs (vec src-data)
+                     rhs (vec src-data)]
+                 (benchmark-us (= lhs rhs)))
+          :hamf (let [lhs (hamf/vec src-data)
+                      rhs (hamf/vec src-data)]
+                  (benchmark-us (= lhs rhs)))
+          :n-elems n-elems
+          :test :equals
+          :numeric? numeric})))
+   (vec)
+   (spit-data "vec-equals")))
 
 
 
@@ -542,6 +567,7 @@
   [& args]
   ;;shutdown test
   (concatv-perftest)
+  (vec-equals-perftest)
   #_(let [perf-data (process-dataset (profile))
         vs (System/getProperty "java.version")
         mn (machine-name)
