@@ -110,7 +110,7 @@
          persistent! rest immut-map keys vals group-by-reduce
          reindex group-by-consumer
          merge constant-count mutable-map?
-         transient update-vals)
+         transient update-vals apply-concat)
 
 
 (defn ->collection
@@ -880,7 +880,8 @@ ham_fisted.PersistentHashMap
       (.immutUpdateValues (as-immut-vals map) bfn)
       (instance? IPersistentMap map)
       (-> (reduce (fn [^Map acc kv]
-                    (.put acc (key kv) (.apply bfn (key kv) (val kv))))
+                    (.put acc (key kv) (.apply bfn (key kv) (val kv)))
+                    acc)
                   (mut-map)
                    map)
           (persistent!))
@@ -938,13 +939,13 @@ ham_fisted.PersistentHashMap
 
 
 (defn pgroups
-  "Run y groups across n-elems.   Y is common pool parallelism.
+  "Run y index groups across n-elems.   Y is common pool parallelism.
 
   body-fn gets passed two longs, startidx and endidx.
 
   Returns a sequence of the results of body-fn applied to each group of indexes.
 
-  Before using this primitive please see if [[preduce]] will work.
+  Before using this primitive please see if [[ham-fisted.reduce/preduce]] will work.
 
   Options:
 
@@ -958,13 +959,13 @@ ham_fisted.PersistentHashMap
 
 
 (defn upgroups
-  "Run y groups across n-elems.   Y is common pool parallelism.
+  "Run y index groups across n-elems.   Y is common pool parallelism.
 
   body-fn gets passed two longs, startidx and endidx.
 
   Returns a sequence of the results of body-fn applied to each group of indexes.
 
-  Before using this primitive please see if [[preduce]] will work.
+  Before using this primitive please see if [[ham-fisted.reduce/preduce]] will work.
 
   Options:
 
@@ -983,7 +984,7 @@ ham_fisted.PersistentHashMap
   pmap in that it uses the ForkJoinPool/commonPool for parallelism as opposed to the
   agent pool - this makes it compose with pgroups and dtype-next's parallelism system.
 
-    Before using this primitive please see if [[preduce]] will work.
+    Before using this primitive please see if [[ham-fisted.reduce/preduce]] will work.
 
   Is guaranteed to *not* trigger the need for `shutdown-agents`."
   [map-fn & sequences]
@@ -994,7 +995,7 @@ ham_fisted.PersistentHashMap
   "Unordered pmap using the commonPool.  This is useful for interacting with other
   primitives, namely [[pgroups]] which are also based on this pool.
 
-  Before using this primitive please see if [[preduce]] will work.
+  Before using this primitive please see if [[ham-fisted.reduce/preduce]] will work.
 
   Like pmap this uses the commonPool so it composes with this api's pmap, pgroups, and
   dtype-next's parallelism primitives *but* it does not impose an ordering constraint on the
@@ -1114,7 +1115,7 @@ ham_fisted.PersistentHashMap
   ([f m1 m2] (map-union f m1 m2))
   ([f m1 m2 & args]
    (let [f (->bi-function f)]
-     (union-reduce-maps f (apply lznc/concat (vector (map-union f m1 m2)) args)))))
+     (union-reduce-maps f (apply-concat [(map-union f m1 m2)] args)))))
 
 
 (defn memoize
@@ -1491,6 +1492,14 @@ nil
                 retval
                 args)))
 
+(defn apply-concatv
+  [data]
+  (reduce (fn [^IMutList v data]
+            (when data
+              (.addAllReducible v data))
+            v)
+          (mut-list)
+          data))
 
 (defn concatv
   "non-lazily concat a set of items returning a persistent vector.  "

@@ -515,12 +515,33 @@
    (spit-data "sort-by")))
 
 
+(defn concatv-perftest
+  []
+  (->>
+   (for [n-elems [4 10
+                  100
+                  1000 10000 100000
+                  1000000
+                  ]]
+     (do
+       (log/info (str "concatv perftest with n= " n-elems))
+       (let [data (vec (repeat 10 (range n-elems)))]
+         {:clj (benchmark-us (into [] cat data))
+          :hamf (benchmark-us (hamf/apply-concatv data))
+          :n-elems n-elems
+          :test :concatv
+          :numeric? true})))
+   (vec)
+   #_(spit-data "concatv")
+   ))
+
+
 
 
 (defn -main
   [& args]
   ;;shutdown test
-  (sort-by-perftest)
+  (concatv-perftest)
   #_(let [perf-data (process-dataset (profile))
         vs (System/getProperty "java.version")
         mn (machine-name)
