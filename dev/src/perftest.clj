@@ -532,7 +532,7 @@
           :test :concatv
           :numeric? true})))
    (vec)
-   #_(spit-data "concatv")
+   (spit-data "concatv")
    ))
 
 
