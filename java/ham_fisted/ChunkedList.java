@@ -221,21 +221,20 @@ public final class ChunkedList {
 					  + String.valueOf(sidx) + ")");
   }
 
-  public static final int indexCheck(int startidx, int nElems, int idx) {
-    if (idx < 0)
-      throw new IndexOutOfBoundsException("Index underflow: " + String.valueOf(idx));
-    if(idx >= nElems)
-      throw new IndexOutOfBoundsException("Index out of range: " + String.valueOf(idx) + " : "
-					  + String.valueOf(nElems));
-    return idx + startidx;
+  public static final int indexCheck(int nElems, int idx) {
+    if (idx < 0 || idx >= nElems)
+      throw new IndexOutOfBoundsException("Index " + String.valueOf(idx) + "out of range 0-" + String.valueOf(nElems));
+    return idx;
   }
 
+  public static final int indexCheck(int startidx, int nElems, int idx) {
+    return indexCheck(nElems,idx) + startidx;
+  }
+
+
   public static final long indexCheck(long startidx, long nElems, long idx) {
-    if (idx < 0)
-      throw new IndexOutOfBoundsException("Index underflow: " + String.valueOf(idx));
-    if(idx >= nElems)
-      throw new IndexOutOfBoundsException("Index out of range: " + String.valueOf(idx) + " : "
-					  + String.valueOf(nElems));
+    if (idx < 0 || idx >= nElems)
+      throw new IndexOutOfBoundsException("Index " + String.valueOf(idx) + "out of range 0-" + String.valueOf(nElems));
     return idx + startidx;
   }
 

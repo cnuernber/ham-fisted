@@ -133,7 +133,9 @@ public class ArrayImmutList
   public boolean retainAll(Collection c) { throw new RuntimeException("Unimplemented"); }
   public boolean removeAll(Collection c) { throw new RuntimeException("Unimplemented"); }
   public boolean addAll(Collection c) { throw new RuntimeException("Unimplemented"); }
-  public Object get(int idx) { return data[indexCheck(idx)]; }
+  public Object get(int idx) {
+    return data[ChunkedList.indexCheck(startidx, nElems, idx)];
+  }
   public final int indexOf(Object obj) {
     final int ne = nElems;
     final int sidx = startidx;

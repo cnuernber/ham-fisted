@@ -182,7 +182,7 @@ public class MutList<E>
 
   @SuppressWarnings("unchecked")
   public final E get(int idx) {
-    return (E)data.getValue(indexCheck(idx));
+    return (E)data.getValue(ChunkedList.indexCheck(data.nElems, idx));
   }
 
   public final int indexOf(Object o) {
@@ -234,7 +234,7 @@ public class MutList<E>
     }
     @SuppressWarnings("unchecked")
     public final E get(int idx) {
-      return (E)data.getValue(indexCheck(idx));
+      return (E)data.getValue(ChunkedList.indexCheck(startidx, nElems, idx));
     }
     public final int indexOf(Object obj) {
       return data.indexOf(startidx, startidx+nElems, obj);

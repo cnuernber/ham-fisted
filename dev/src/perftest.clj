@@ -566,8 +566,9 @@
 (defn -main
   [& args]
   ;;shutdown test
-  (concatv-perftest)
-  (vec-equals-perftest)
+  (persistent-vector-perftest)
+  #_(concatv-perftest)
+  #_(vec-equals-perftest)
   #_(let [perf-data (process-dataset (profile))
         vs (System/getProperty "java.version")
         mn (machine-name)
