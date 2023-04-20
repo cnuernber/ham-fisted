@@ -120,7 +120,8 @@ public class ArrayImmutList9
     return new ArrayImmutList(data, startidx, startidx+nElems, m);
   }
   public Object get(int idx) {
-    return data[startidx + Objects.checkIndex(idx, nElems)];
+    Objects.checkIndex(idx, nElems);
+    return data[idx];
   }
   public final int indexOf(Object obj) {
     final int ne = nElems;
