@@ -121,7 +121,7 @@ public class ArrayImmutList9
   }
   public Object get(int idx) {
     Objects.checkIndex(idx, nElems);
-    return data[idx];
+    return data[startidx+idx];
   }
   public final int indexOf(Object obj) {
     final int ne = nElems;
