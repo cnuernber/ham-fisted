@@ -239,7 +239,7 @@ This is currently the default hash provider for the library."}
    (into container (eduction xform data))))
 
 
-(defonce ^:private obj-ary-cls (type (clojure.core/object-array 0)))
+(defonce ^:no-doc obj-ary-cls (type (clojure.core/object-array 0)))
 
 
 (defn mut-map-rf

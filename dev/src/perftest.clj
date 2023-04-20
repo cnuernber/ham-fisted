@@ -447,11 +447,13 @@
 
 
 (def persistent-vector-constructors
-  {:clj vec
-   :hamf hamf/immut-list
-   :hamf-objary #(hamf/immut-list (hamf/object-array %))
-   :java #(doto (ArrayList.)
-            (.addAll (hamf/->random-access %)))})
+  (merge {:clj vec
+          :hamf hamf/immut-list
+          :hamf-objary #(hamf/immut-list (hamf/object-array %))
+          :java #(doto (ArrayList.)
+                   (.addAll (hamf/->random-access %)))}
+         (when-let [obj-ary-j9 (requiring-resolve 'ham-fisted.api-j9/immut-list)]
+           {:hamf-objary-j9 #(obj-ary-j9 (hamf/object-array %))})))
 
 
 (defn persistent-vector-perftest
