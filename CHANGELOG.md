@@ -1,3 +1,7 @@
+# 1.000-beta-98
+ * Fixed serious but subtle issue when a transient hash map is resized.  This should be
+   considered a must-have upgrade.
+ 
 # 1.000-beta-96
  * Fixed from upgrading dtype-next.
  * Major breaking changes!! API functions have been moved to make the documentation
