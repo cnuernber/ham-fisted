@@ -130,3 +130,9 @@
 
 (deftest reduce-empty-range
   (is (= 0 (reduce (fn [acc v] (inc acc)) 0 (hamf/range 0)))))
+
+
+(deftest assoc-basic-fail
+  (let [m1 (hamf/immut-map {:age 2, :sex 1, "salary (binned)" 4, :job 0, :salary 3})
+        m2 (assoc m1 :tech.v3.dataset.reductions/_tmp_col 5)]
+    (is (= (set (keys m1)) #{:age :sex "salary (binned)" :job :salary}))))

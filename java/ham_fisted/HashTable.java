@@ -100,7 +100,7 @@ public final class HashTable implements TrieBase, MapData {
 	    //for the new low position.
 	    LeafNode loHead = null, loTail = null, hiHead = null, hiTail = null;
 	    while(lf != null) {
-	      LeafNode e = lf;
+	      LeafNode e = lf.setOwner(this);
 	      lf = lf.nextNode;
 	      //Check high bit
 	      if((e.hashcode & oldCap) == 0) {

@@ -98,7 +98,7 @@ public final class LongHashTable implements TrieBase, MapData {
 	    //for the new low position.
 	    LongLeafNode loHead = null, loTail = null, hiHead = null, hiTail = null;
 	    while(lf != null) {
-	      LongLeafNode e = lf;
+	      LongLeafNode e = lf.setOwner(this);
 	      lf = lf.nextNode;
 	      //Check high bit
 	      if((e.hashcode & oldCap) == 0) {

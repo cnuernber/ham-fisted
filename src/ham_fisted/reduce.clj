@@ -80,7 +80,7 @@
   * `:unmerged-result?` - Defaults to false.  When true, the sequence of results
      be returned directly without any merge steps in a lazy-noncaching container.  Beware
      the noncaching aspect -- repeatedly evaluating this result may kick off the parallelized
-     reduction multiple times.  To ensure caching if unsure call `seq` on the result ...)."
+     reduction multiple times.  To ensure caching if unsure call `seq` on the result."
   ([init-val-fn rfn merge-fn coll] (preduce init-val-fn rfn merge-fn nil coll))
   ([init-val-fn rfn merge-fn options coll]
    (unpack-reduced
