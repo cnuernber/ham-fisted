@@ -44,8 +44,13 @@ public class Casts {
 				 + String.valueOf(obj));
     return RT.charCast(obj);
   }
+  public static char charCast(long obj) {
+    return RT.charCast(obj);
+  }
   public static char charCast(Object obj) {
-    if (obj instanceof Boolean)
+    if(obj == null)
+      return (char)0;
+    else if (obj instanceof Boolean)
       return ((Boolean)obj) ? (char)1 : (char)0;
     else if (obj instanceof Number) {
       final Number nobj = (Number)obj;
@@ -57,6 +62,9 @@ public class Casts {
 	return charCast(nobj.longValue());
     }
     return RT.charCast(obj);
+  }
+  public static long charLongCast(Object obj) {
+    return (long)charCast(obj);
   }
   public static long longCast(Object obj) {
     if (obj instanceof Long)

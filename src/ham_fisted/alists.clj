@@ -66,6 +66,11 @@
      (~getname [this# idx#] (~get-cast-fn (aget ~'data (ArrayLists/checkIndex idx# ~'n-elems))))
      (get [this# idx#] (aget ~'data (ArrayLists/checkIndex idx# ~'n-elems)))
      (~setname [this# idx# v#] (ArrayHelpers/aset ~'data (ArrayLists/checkIndex idx# ~'n-elems) (~set-cast-fn v#)))
+     (set [this# idx# val#]
+       (let [idx# (ArrayLists/checkIndex idx# ~'n-elems)
+             rv# (aget ~'data idx#)]
+         (ArrayHelpers/aset ~'data idx# (~set-cast-fn val#))
+         rv#))
      (subList [this# sidx# eidx#]
        (ChunkedList/sublistCheck sidx# eidx# ~'n-elems)
        (ArrayLists/toList ~'data sidx# eidx# ~'m))
@@ -131,7 +136,7 @@
 (make-prim-array-list ShortArrayList shorts ArrayLists$ILongArrayList getLong setLong addLong
                       RT/shortCast unchecked-long Casts/longCast add-long-reduce)
 (make-prim-array-list CharArrayList chars ArrayLists$ILongArrayList getLong setLong addLong
-                      RT/charCast Casts/longCast Casts/longCast add-long-reduce)
+                      Casts/charCast Casts/charLongCast Casts/charLongCast add-long-reduce)
 (make-prim-array-list FloatArrayList floats ArrayLists$IDoubleArrayList getDouble setDouble
                       addDouble float unchecked-double Casts/doubleCast add-double-reduce)
 

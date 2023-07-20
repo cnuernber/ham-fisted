@@ -2056,7 +2056,12 @@ public class ArrayLists {
     public int hashCode() { return hasheq(); }
     public ArraySection getArraySection() { return new ArraySection(data, sidx, sidx + dlen); }
     public int size() { return dlen; }
-    public Character set(int idx, Object obj) { final Character c = get(idx); setLong(idx, Casts.longCast(obj)); return c; }
+    public Character set(int idx, Object obj) {
+      idx = checkIndex(idx, dlen);
+      char rv = data[idx];
+      data[idx] = Casts.charCast(obj);
+      return rv;
+    }
     public Character get(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
     public long getLong(int idx) { return data[checkIndex(idx, dlen) + sidx]; }
     public void setLong(int idx, long obj) {
@@ -2139,7 +2144,7 @@ public class ArrayLists {
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
-      Arrays.fill(data, ssidx+sidx, seidx+sidx, RT.charCast(Casts.longCast(v)));
+      Arrays.fill(data, ssidx+sidx, seidx+sidx, RT.charCast(Casts.longCast((v==null)?0:v)));
     }
     public Object copyOfRange(int ssidx, int seidx) {
       checkIndex(ssidx, size());
