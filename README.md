@@ -2,6 +2,7 @@
 
 [![Clojars Project](https://clojars.org/com.cnuernber/ham-fisted/latest-version.svg)](https://clojars.org/com.cnuernber/ham-fisted)
 * [API docs](https://cnuernber.github.io/ham-fisted/)
+* [Clojure Conj Talk](https://www.youtube.com/watch?v=ralZ4j_ruVg)
 
 What started as a collection of efficient mutable and immutable data structures based
 on Phil Bagwell's bitmap trie concept became an overall reimplementation of
