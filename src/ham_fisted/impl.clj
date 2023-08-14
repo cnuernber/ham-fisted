@@ -12,7 +12,7 @@
             Reductions Transformables IFnDef$OLO ArrayLists StringCollection]
            [clojure.lang IteratorSeq IReduceInit PersistentHashMap IFn$OLO IFn$ODO Seqable
             IReduce PersistentList]
-           [java.util Spliterator BitSet Collection Iterator]
+           [java.util Spliterator BitSet Collection Iterator ArrayDeque]
            [java.util.logging Logger Level])
   (:refer-clojure :exclude [map pmap concat]))
 
@@ -149,6 +149,29 @@
    (pgroups n-elems body-fn nil)))
 
 
+(deftype ^:private LookaheadIter [^Iterator iter ^ArrayDeque queue deref?]
+  Iterator
+  (hasNext [this] (not (.isEmpty queue)))
+  (next [this] (let [^Future ne (.removeLast queue)]
+                 (when (.hasNext iter)
+                   (.push queue (.next iter)))
+                 (if deref? (.get ne) ne))))
+
+
+(defn- lookahead-iterable
+  ^Iterable [^Iterator submissions ^long n-ahead deref?]
+  (let [queue (ArrayDeque. n-ahead)]
+    (loop [idx 0]
+      (if (and (.hasNext submissions)
+               (< idx n-ahead))
+        (do (.push queue (.next submissions))
+            (recur (inc idx)))
+        (reify
+          Iterable
+          (iterator [this]
+            (LookaheadIter. submissions queue deref?)))))))
+
+
 (defn pmap
   [^ParallelOptions options map-fn sequences]
   (if (in-fork-join-task?)
@@ -173,12 +196,14 @@
               (fn [& args]
                 (.submit pool ^Callable (fn [] (queue-put! queue (apply map-fn args) (.-putTimeoutMs options)))))))
 
-          [submissions lookahead] (->> (apply map submit-fn sequences)
-                                       (seq->lookahead (n-lookahead options)))]
+          submissions (.iterator ^Iterable (apply map submit-fn sequences))
+          n-ahead (n-lookahead options)]
       (if (.-ordered options)
         ;;lazy noncaching map - the future itself does the caching for us.
-        (map (fn [cur read-ahead] (.get ^Future cur)) submissions lookahead)
-        (iter-queue->seq (.iterator ^Iterable lookahead) queue)))))
+        (lookahead-iterable submissions n-ahead true)
+        (iter-queue->seq
+         (.iterator ^Iterable (lookahead-iterable submissions n-ahead false))
+         queue)))))
 
 
 (defn- split-spliterator
