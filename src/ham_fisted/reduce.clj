@@ -22,7 +22,27 @@
 
 
 (defn options->parallel-options
-  "Convert an options map to a parallel options object."
+  "Convert an options map to a parallel options object.
+
+  Options:
+
+  * `:pool` - supply the forkjoinpool to use.
+  * `:max-batch-size` - Defaults to 64000, used for index-based  parallel pathways to control
+     the number size of each parallelized batch.
+  * `:ordered?` - When true process inputs and provide results in order.
+  * `:parallelism` - The amount of parallelism to expect.  Defaults to the number of threads
+     in the fork-join pool provided.
+  * `:cat-parallelism` - Either `:seq-wise` or `:elem-wise` - when parallelizing over a
+     concatenation of containers either parallelize each container - `:elem-wise` or use
+     one thread per container - `seq-wise`.  Defaults to `seq-wise` as this doesn't require
+     each container itself to support parallelization but relies on the sequence of containers
+     to be long enough to saturate the processor.
+  * `:put-timeout-ms` - The time to wait to put data into the queue.  This is a safety mechanism
+    so that if the processing system fails we don't just keep putting things into a queue.
+  * `:unmerged-result?` - Use with care.  For parallel reductions do not perform the merge step
+    but instead return the sequence of partially reduced results.
+  * `:n-lookahead` - How for to look ahead for pmap and upmap to add new jobs to the queue.  Defaults
+    to `(* 2 parallelism)."
   ^ParallelOptions [options]
   (cond
     (instance? ParallelOptions options)
@@ -41,7 +61,8 @@
                           :seq-wise ParallelOptions$CatParallelism/SEQWISE
                           :elem-wise ParallelOptions$CatParallelism/ELEMWISE)
                         (.getOrDefault options :put-timeout-ms 5000)
-                        (.getOrDefault options :unmerged-result? false)))))
+                        (.getOrDefault options :unmerged-result? false)
+                        (.getOrDefault options :n-lookahead -1)))))
 
 
 (defn preduce

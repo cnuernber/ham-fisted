@@ -991,6 +991,14 @@ ham_fisted.PersistentHashMap
   (impl/pmap (ParallelOptions. 0 64000 true) map-fn sequences))
 
 
+(defn pmap-opts
+  "[[pmap]] but takes an extra option map as the *first* argument.  This is useful if you,
+   for instance, want to control exactly the parallel options arguments such as
+  `:n-lookahead`.  See docs for [[ham-fisted.reduce/options->parallel-options]]."
+  [opts map-fn & sequences]
+  (impl/pmap (hamf-rf/options->parallel-options opts) map-fn sequences))
+
+
 (defn upmap
   "Unordered pmap using the commonPool.  This is useful for interacting with other
   primitives, namely [[pgroups]] which are also based on this pool.

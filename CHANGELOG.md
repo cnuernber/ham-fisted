@@ -1,3 +1,7 @@
+# 1.002
+ * Added n-lookahead to the parallel options pathway as for some problems
+   this makes a major difference in the efficiency of the pmap pathway.
+
 # 1.001
  * Fixed pmap implementation to release memory much more aggressively.
 
