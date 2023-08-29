@@ -3,16 +3,16 @@
             [ham-fisted.protocols :as protocols]
             [clojure.core.protocols :as cl-proto])
   (:import [java.util.concurrent ForkJoinPool ForkJoinTask ArrayBlockingQueue Future
-            TimeUnit]
+            TimeUnit ConcurrentHashMap]
            [clojure.lang MapEntry]
-           [java.util Iterator Set Map RandomAccess]
-           [java.util.concurrent ConcurrentHashMap]
+           [java.util Iterator Set Map RandomAccess Spliterator BitSet Collection
+            Iterator ArrayDeque]
+           [java.util.function Supplier]
            [ham_fisted ParallelOptions BitmapTrieCommon$Box ITypedReduce IFnDef
             ICollectionDef ArrayLists$ObjectArrayList Reductions$ReduceConsumer
             Reductions Transformables IFnDef$OLO ArrayLists StringCollection]
            [clojure.lang IteratorSeq IReduceInit PersistentHashMap IFn$OLO IFn$ODO Seqable
             IReduce PersistentList]
-           [java.util Spliterator BitSet Collection Iterator ArrayDeque]
            [java.util.logging Logger Level])
   (:refer-clojure :exclude [map pmap concat]))
 
@@ -299,11 +299,25 @@
                  (set! setbit (long (if (== nextbit -1) -1 nextbit)))
                  retval)))
 
+(deftype SupplierIterator [^Supplier sup
+                           ^:unsynchronized-mutable val]
+  Iterator
+  (hasNext [this] (boolean val))
+  (next [this]
+    (let [rv val]
+      (set! val (.get sup))
+      rv)))
+
 
 (extend-protocol protocols/ToIterable
   nil
   (convertible-to-iterable? [item] true)
   (->iterable [item] PersistentList/EMPTY)
+  java.util.function.Supplier
+  (convertible-to-iterable? [item] true)
+  (->iterable [item] (reify Iterable
+                       (iterator [this]
+                         (SupplierIterator. item (.get ^java.util.function.Supplier item)))))
   Object
   (convertible-to-iterable? [item] (or (instance? Iterable item)
                                        (protocols/convertible-to-collection? item)))
