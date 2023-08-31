@@ -947,6 +947,9 @@ ham_fisted.PersistentHashMap
 
   Before using this primitive please see if [[ham-fisted.reduce/preduce]] will work.
 
+  You *must* wrap this in something that realizes the results if you need the parallelization
+  to finish by a particular point in the program - `(dorun (hamf/pgroups ...))`.
+
   Options:
 
   * `:pgroup-min` - when provided n-elems must be more than this value for the computation
