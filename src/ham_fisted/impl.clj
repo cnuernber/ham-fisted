@@ -169,10 +169,25 @@
                (< idx n-ahead))
         (do (.push queue (.next submissions))
             (recur (inc idx)))
-        (reify
-          Iterable
-          (iterator [this]
-            (LookaheadIter. submissions queue deref?)))))))
+        (let [seq-data (volatile! nil)]
+          (reify
+            Seqable
+            (seq [this]
+              (vswap! seq-data
+                      (fn [val]
+                        (if val
+                          val
+                          (IteratorSeq/create (.iterator this))))))
+            ITypedReduce
+            (reduce [this rfn acc]
+              (if-let [seq-impl @seq-data]
+                (reduce rfn acc seq-impl)
+                (Reductions/iterReduce this acc rfn)))
+            Iterable
+            (iterator [this]
+              (if-let [seq-impl @seq-data]
+                (.iterator ^Iterable seq-impl)
+                (LookaheadIter. submissions queue deref?)))))))))
 
 
 (defn pmap

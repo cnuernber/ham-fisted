@@ -1,3 +1,6 @@
+# 1.005
+ * pmap, upmap pathways now return an object that full implements seqable and ireduceinit.
+
 # 1.002
  * Added n-lookahead to the parallel options pathway as for some problems
    this makes a major difference in the efficiency of the pmap pathway.
