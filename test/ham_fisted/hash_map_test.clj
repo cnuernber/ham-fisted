@@ -810,4 +810,50 @@
   ;;   :iterate-μs 37.85340298225746,
   ;;   :ds-name :clj-transient})
 
+
+
+  ;; joinr test
+  (def db {:name {"bilbo" "baggins"}
+           :age  {"bilbo" 111}
+           :location {"bilbo" "Shire"}})
+
+  (defn mutable2d [m]
+    (let [hm (api/mut-hashtable-map nil m) ]
+      (reduce-kv (fn [acc k v]
+                   (assoc! acc k (api/mut-hashtable-map))) hm hm )))
+
+  (defn eq-mutable2d [m]
+    (let [hm (api/mut-hashtable-map nil m) ]
+      (reduce-kv (fn [acc k v]
+                   (assoc! acc k (api/mut-hashtable-map nil {:hash-provider api/equal-hash-provider} v))) hm hm )))
+
+  (def mdb (mutable2d db))
+
+  (def eq-mdb (eq-mutable2d db))
+
+  (def hdb (reduce-kv (fn [^java.util.Map acc k v]
+                        (doto acc
+                          (.put k
+                                (reduce-kv (fn [^java.util.Map inner k v]
+                                             (doto inner (.put k v))) (java.util.HashMap.) v)) (java.util.HashMap.)))
+                      (java.util.HashMap.) db))
+
+  (let [inner (.get mdb :name)]
+    (crit/quick-bench (.get ^Map inner "bilbo")))
+
+  (let [inner (.get hdb :name)]
+    (crit/quick-bench (.get ^Map inner "bilbo")))
+
+  (let [inner (.get db :name)]
+    (crit/quick-bench (.get ^Map inner "bilbo")))
+
+  (let [inner (.get eq-mdb :name)]
+    (println (type inner))
+    (crit/quick-bench (.get ^Map inner "bilbo")))
+
+  (do
+    (def ht (ham_fisted.HashTable. api/equal-hash-provider))
+    (.put ht "bilbo" "baggins"))
+
+  (crit/quick-bench (.get ^ham_fisted.HashTable ht "bilbo"))
   )
