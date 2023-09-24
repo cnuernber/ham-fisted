@@ -7,7 +7,7 @@
             BitmapTrieCommon Transformables Reducible IFnDef$OOO IFnDef$OLOO
             IFnDef$ODO IFnDef$OLO Sum Sum$SimpleSum Reductions$IndexedAccum
             Reductions$IndexedLongAccum Reductions$IndexedDoubleAccum IFnDef$OLLO IFnDef$OLDO]
-           [clojure.lang IFn$DO IFn$LO]
+           [clojure.lang IFn$DO IFn$LO IFn$OLO]
            [java.util Map]
            [java.util.function DoubleConsumer LongConsumer Consumer]
            [java.util.concurrent ForkJoinPool])

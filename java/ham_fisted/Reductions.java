@@ -247,16 +247,28 @@ public class Reductions {
       return rfn.invokePrim(acc, idx++, v);
     }
   }
-  public static IFn longCompose(final int nVals, final Object[] rfns) {
-    return new IFnDef.OLO() {
-      public Object invokePrim(Object acc, long val) {
-	final Object[] objs = (Object[])acc;
-	for(int idx = 0; idx < nVals; ++idx ) {
-	  objs[idx] = ((IFn.OLO)rfns[idx]).invokePrim(objs[idx], val);
-	}
-	return objs;
+  static class LongCompose implements IFnDef.OLO {
+    final int nVals;
+    final IFn.OLO[] rfns;
+    public LongCompose(int nVals, Object[] rfns) {
+      this.nVals = nVals;
+      this.rfns = new IFn.OLO[rfns.length];
+      for(int idx = 0; idx < rfns.length; ++idx) {
+	this.rfns[idx] = Transformables.toLongReductionFn(rfns[idx]);
       }
-    };
+    }
+    public Object invokePrim(Object acc, long val) {
+      final int nv = nVals;
+      final Object[] objs = (Object[])acc;
+      final IFn.OLO[] rfs = this.rfns;
+      for(int idx = 0; idx < nv; ++idx)
+	objs[idx] = rfs[idx].invokePrim(objs[idx], val);
+      return objs;
+    }
+  }
+
+  public static IFn longCompose(final int nVals, final Object[] rfns) {
+    return new LongCompose(nVals, rfns);
   }
 
   public static IFn doubleCompose(final int nVals, final Object[] rfns) {
