@@ -1,3 +1,9 @@
+# 1.007
+ * Fast pathways for finding min/max index of a collection of objects in a similar way to min-key and max-key.
+
+# 1.006
+ * Very specific upgrade to combine-reducers pathways.
+
 # 1.005
  * pmap, upmap pathways now return an object that full implements seqable and ireduceinit.
 

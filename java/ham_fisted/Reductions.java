@@ -271,28 +271,52 @@ public class Reductions {
     return new LongCompose(nVals, rfns);
   }
 
-  public static IFn doubleCompose(final int nVals, final Object[] rfns) {
-    return new IFnDef.ODO() {
-      public Object invokePrim(Object acc, double val) {
-	final Object[] objs = (Object[])acc;
-	for(int idx = 0; idx < nVals; ++idx ) {
-	  objs[idx] = ((IFn.ODO)rfns[idx]).invokePrim(objs[idx], val);
-	}
-	return objs;
+  static class DoubleCompose implements IFnDef.ODO {
+    final int nVals;
+    final IFn.ODO[] rfns;
+    public DoubleCompose(int nVals, Object[] rfns) {
+      this.nVals = nVals;
+      this.rfns = new IFn.ODO[rfns.length];
+      for(int idx = 0; idx < rfns.length; ++idx) {
+	this.rfns[idx] = Transformables.toDoubleReductionFn(rfns[idx]);
       }
-    };
+    }
+    public Object invokePrim(Object acc, double val) {
+      final int nv = nVals;
+      final Object[] objs = (Object[])acc;
+      final IFn.ODO[] rfs = this.rfns;
+      for(int idx = 0; idx < nv; ++idx)
+	objs[idx] = rfs[idx].invokePrim(objs[idx], val);
+      return objs;
+    }
+  }
+
+  public static IFn doubleCompose(final int nVals, final Object[] rfns) {
+    return new DoubleCompose(nVals, rfns);
+  }
+
+  static class ObjCompose implements IFnDef.ODO {
+    final int nVals;
+    final IFn[] rfns;
+    public ObjCompose(int nVals, Object[] rfns) {
+      this.nVals = nVals;
+      this.rfns = new IFn[rfns.length];
+      for(int idx = 0; idx < rfns.length; ++idx) {
+	this.rfns[idx] = (IFn)rfns[idx];
+      }
+    }
+    public Object invokePrim(Object acc, double val) {
+      final int nv = nVals;
+      final Object[] objs = (Object[])acc;
+      final IFn[] rfs = this.rfns;
+      for(int idx = 0; idx < nv; ++idx)
+	objs[idx] = rfs[idx].invoke(objs[idx], val);
+      return objs;
+    }
   }
 
   public static IFn objCompose(final int nVals, final Object[] rfns) {
-    return new IFnDef() {
-      public Object invoke(Object acc, Object val) {
-	final Object[] objs = (Object[])acc;
-	for(int idx = 0; idx < nVals; ++idx ) {
-	  objs[idx] = ((IFn)rfns[idx]).invoke(objs[idx], val);
-	}
-	return objs;
-      }
-    };
+    return new ObjCompose(nVals, rfns);
   }
 
   public static IFn mergeCompose(final int nVals, final Object[] mergeFns) {
