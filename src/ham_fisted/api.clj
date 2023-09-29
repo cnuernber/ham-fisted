@@ -2222,7 +2222,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
   "Faster and nil-safe version of #(apply max-key %1 %2)"
   [f data]
   (let [f (ensure-obj->long f)]
-    (preduce-reducer (hamf-rf/consumer-reducer #(MaxKeyReducer. Long/MIN_VALUE nil f)) data)))
+    @(reduce hamf-rf/consumer-accumulator (MaxKeyReducer. Long/MIN_VALUE nil f) data)))
 
 (deftype ^:private MinKeyReducer [^{:unsynchronized-mutable true
                                     :tag long} data
@@ -2253,7 +2253,58 @@ ham-fisted.api> (binary-search data 1.1 nil)
   "Faster and nil-safe version of #(apply min-key %1 %2)"
   [f data]
   (let [f (ensure-obj->long f)]
-    (preduce-reducer (hamf-rf/consumer-reducer #(MinKeyReducer. Long/MAX_VALUE nil f)) data)))
+    @(reduce hamf-rf/consumer-accumulator (MinKeyReducer. Long/MAX_VALUE nil f) data)))
+
+
+(deftype ^:private MaxIdx [^{:unsynchronized-mutable true
+                             :tag long} data
+                           ^{:unsynchronized-mutable true
+                             :tag long} idx
+                           ^{:unsynchronized-mutable true
+                             :tag long} value
+                           ^IFn$OL mapper]
+  Consumer
+  (accept [this v]
+    (let [mval (.invokePrim mapper v)]
+      (when (>= mval data)
+        (set! data mval)
+        (set! value idx))
+      (set! idx (unchecked-inc idx))))
+  clojure.lang.IDeref
+  (deref [this] value))
+
+
+(defn mmax-idx
+  "Like [[mmin-key]] but returns the max index.  F should be a function from obj->long."
+  ^long [f data]
+  @(reduce hamf-rf/consumer-accumulator (MaxIdx. Long/MIN_VALUE 0 -1 (ensure-obj->long f))
+           data))
+
+
+(deftype ^:private MinIdx [^{:unsynchronized-mutable true
+                             :tag long} data
+                           ^{:unsynchronized-mutable true
+                             :tag long} idx
+                           ^{:unsynchronized-mutable true
+                             :tag long} value
+                           ^IFn$OL mapper]
+  Consumer
+  (accept [this v]
+    (let [mval (.invokePrim mapper v)]
+      (when (<= mval data)
+        (set! data mval)
+        (set! value idx))
+      (set! idx (unchecked-inc idx))))
+  clojure.lang.IDeref
+  (deref [this] value))
+
+
+(defn mmin-idx
+  "Like [[mmin-key]] but returns the min index.  F should be a function from obj->long."
+  ^long [f data]
+  @(reduce hamf-rf/consumer-accumulator (MinIdx. Long/MAX_VALUE 0 -1 (ensure-obj->long f))
+           data))
+
 
 
 (defn mode
