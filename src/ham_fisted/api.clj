@@ -500,6 +500,18 @@ ham_fisted.PersistentHashMap
      (tduce nil (mut-map-rf #(java.util.LinkedHashMap.)) data))))
 
 
+(defn linked-hashmap
+  "Linked hash map using clojure's equiv pathways.  This hashmap behaves slightly
+  different in that if you put the same value as previously the node isn't marked
+  as modified"
+  (^ham_fisted.LinkedHashMap [] (ham_fisted.LinkedHashMap.))
+  (^ham_fisted.LinkedHashMap [data]
+   (let [rv (ham_fisted.LinkedHashMap.)]
+     (if (instance? Map data)
+       (.putAll rv data)
+       (tduce nil (mut-map-rf (constantly rv)) data)))))
+
+
 (defn java-concurrent-hashmap
   "Create a java concurrent hashmap which is still the fastest possible way to solve a
   few concurrent problems."

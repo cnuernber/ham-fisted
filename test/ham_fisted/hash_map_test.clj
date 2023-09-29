@@ -495,6 +495,23 @@
 (deftest test-pers-map-vals (test-vals pers-map))
 
 
+(deftest basic-linked-hashmap
+  (is (= [:a :b :c] (vec (keys (api/linked-hashmap [[:a 1][:b 2][:c 3]])))))
+  (is (not= [:a :b :c] (vec (keys (api/mut-map [[:a 1][:b 2][:c 3]])))))
+  (is (= [:a :b :c :d :e]
+         (vec (keys (.union (api/linked-hashmap [[:a 1][:b 2][:c 3]])
+                            (api/linked-hashmap [[:d 4] [:e 5]])
+                            (hamf-fn/bi-function v1 v2 inc))))))
+  (is (= [:a :b :c :d]
+         (vec (keys (.union (api/linked-hashmap [[:a (api/long-array-list [1 2])][:b (api/long-array-list [3 4])]
+                                                 [:c (api/long-array-list [4 5])]])
+                            (api/linked-hashmap [[:a (api/long-array-list [4 5])]
+                                                 [:d (api/long-array-list [6 7])]])
+                            (hamf-fn/bi-function v1 v2 (.addAll ^java.util.List v1 v2) v1))))))
+  (is (= (.get (api/linked-hashmap [[(int 1) :a]]) 1) :a)))
+
+
+
 (comment
 
   (do

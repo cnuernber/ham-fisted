@@ -3,6 +3,7 @@ package ham_fisted;
 import java.util.Map;
 import clojure.lang.IEditableCollection;
 import clojure.lang.IPersistentMap;
+import clojure.lang.ITransientMap;
 import clojure.lang.IObj;
 import clojure.lang.Indexed;
 
@@ -24,7 +25,7 @@ public class PersistentHashMap
     return _hasheq;
   }
   public int count() { return length; }
-  public PersistentHashMap cons(Object val) {
+  public IPersistentMap cons(Object val) {
     Object k, v;
     if(val instanceof Indexed) {
       Indexed ii = (Indexed)val;
@@ -39,18 +40,18 @@ public class PersistentHashMap
     }
     return assoc(k,v);
   }
-  public PersistentHashMap assocEx(Object key, Object val) {
+  public IPersistentMap assocEx(Object key, Object val) {
     if(containsKey(key))
       throw new RuntimeException("Object already contains key :" + String.valueOf(key));
     return assoc(key, val);
   }
-  public PersistentHashMap assoc(Object key, Object val) {
+  public IPersistentMap assoc(Object key, Object val) {
     return asTransient().assoc(key,val).persistent();
   }
-  public PersistentHashMap without(Object key) {
+  public IPersistentMap without(Object key) {
     return asTransient().without(key).persistent();
   }
-  public TransientHashMap asTransient() {
+  public ITransientMap asTransient() {
     return isEmpty() ? new InitHashMap(meta) : 
       new TransientHashMap(this);
   }

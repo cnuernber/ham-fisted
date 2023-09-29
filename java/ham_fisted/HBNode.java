@@ -48,11 +48,39 @@ public class HBNode implements Map.Entry, IMutList, IMapEntry {
   public final Object val() { return v; }
   public final Object getKey() { return k; }
   public final Object getValue() { return v; }
-  public final Object setValue(Object vv) { Object rv = v; v = vv; return rv; }
+  public Object setValue(Object vv) { Object rv = v; v = vv; return rv; }
   public final int size() { return 2; }
   public final Object get(int idx) {
     if(idx == 0) return k;
     if(idx == 1) return v;
     throw new RuntimeException("Index out of range.");
+  }
+  public final HBNode assoc(HashMap nowner, Object _k, int hash, Object _v) {
+    HBNode retval = setOwner(nowner);
+    if (nowner.equals(_k,k)) {
+      retval.setValue(_v);
+    } else {
+      if (retval.nextNode != null) {
+	retval.nextNode = retval.nextNode.assoc(nowner, _k, hash, _v);
+      } else {
+	retval.nextNode = nowner.newNode(k, hash, _v);
+      }
+    }
+    return retval;
+  }
+  public final HBNode dissoc(HashMap nowner, Object _k) {
+    if (owner.equals(k, _k)) {
+      nowner.dec(this);
+      return nextNode;
+    }
+    if (nextNode != null) {
+      HBNode nn = nextNode.dissoc(nowner,_k);
+      if (nn != nextNode) {
+	HBNode retval = setOwner(nowner);
+	retval.nextNode = nn;
+	return retval;
+      }
+    }
+    return this;
   }
 }

@@ -27,7 +27,7 @@ import clojure.lang.IMapEntry;
 import clojure.lang.MapEntry;
 
 
-public class HashMap implements IMap, IMeta {
+public class HashMap implements IMap, IMeta, BitmapTrieCommon.MapSet {
   int capacity;
   int mask;
   int length;
@@ -185,9 +185,7 @@ public class HashMap implements IMap, IMeta {
     for(HBNode e = this.data[idx]; e != null; e = e.nextNode) {
       lastNode = e;
       if(e.k == key || equals(e.k, key)) {
-	final Object rv = e.v;
-	e.v = val;
-	return rv;
+	return e.setValue(val);
       }
     }
     HBNode lf = newNode(key,hc,val);
@@ -341,6 +339,89 @@ public class HashMap implements IMap, IMeta {
 	}
       }
     }
+  }
+  @SuppressWarnings("unchecked")
+  public HashMap union(BitmapTrieCommon.MapSet o, BiFunction bfn) {
+    if(!(o instanceof HashMap))
+      throw new RuntimeException("Accelerated union must have same type on both sides");
+    HashMap other = (HashMap)o;
+    HashMap rv = shallowClone();
+    final HBNode[] od = other.data;
+    final int nod = od.length;
+    HBNode[] rvd = rv.data;
+    int mask = rv.mask;
+    for (int idx = 0; idx < nod; ++idx) {
+      for(HBNode lf = od[idx]; lf != null; lf = lf.nextNode) {
+	final int rvidx = lf.hashcode & mask;
+	final Object k = lf.k;
+	HBNode init = rvd[rvidx], e = init;
+	for(;e != null && !(e.k==k || equals(e.k, k)); e = e.nextNode);
+	if(e != null) {
+	  rvd[rvidx] = init.assoc(rv, lf.k, lf.hashcode, bfn.apply(e.v, lf.v));
+	}
+	else {
+	  if(init != null)
+	    rvd[rvidx] = init.assoc(rv, lf.k, lf.hashcode, lf.v);
+	  else
+	    rvd[rvidx] = rv.newNode(k, lf.hashcode, lf.v);
+	  rv.checkResize(null);
+	  mask = rv.mask;
+	  rvd = rv.data;
+	}
+      }
+    }
+    return rv;
+  }
+  @SuppressWarnings("unchecked")
+  public HashMap intersection(BitmapTrieCommon.MapSet o, BiFunction bfn) {
+    if(!(o instanceof HashMap))
+      throw new RuntimeException("Accelerated union must have same type on both sides");
+    HashMap other = (HashMap)o;
+    HashMap rv = shallowClone();
+    final HBNode[] od = other.data;
+    final int omask = other.mask;
+    final HBNode[] rvd = rv.data;
+    final int ne = rvd.length;
+    for (int idx = 0; idx < ne; ++idx) {
+      HBNode lf = rvd[idx];
+      while(lf != null) {
+	final HBNode curlf = lf;
+	lf = lf.nextNode;
+	final int oidx = curlf.hashcode & omask;
+	HBNode e = od[oidx];
+	final Object k = curlf.k;
+	for(;e != null && !(e.k==k || equals(e.k, k)); e = e.nextNode);
+	// System.out.println("curlf.k: " + String.valueOf(curlf.k) + " found: " + String.valueOf(e != null));
+	rvd[idx] = (e != null)
+	  ? rvd[idx].assoc(rv, e.k, e.hashcode, bfn.apply(curlf.v, e.v))
+	  : rvd[idx].dissoc(rv, curlf.k);
+	// System.out.println("rvidx: " + String.valueOf(rvd[idx]) + ":" + String.valueOf(rvd[idx] != null ? rvd[idx].k : null));
+      }
+    }
+    return new PersistentHashMap(rv);
+  }
+  @SuppressWarnings("unchecked")
+  public PersistentHashMap difference(BitmapTrieCommon.MapSet o) {
+    if(!(o instanceof HashMap))
+      throw new RuntimeException("Accelerated union must have same type on both sides");
+    HashMap other = (HashMap)o;
+    HashMap rv = shallowClone();
+    final HBNode[] od = other.data;
+    final int nod = od.length;
+    final HBNode[] rvd = rv.data;
+    final int mask = rv.mask;
+    for (int idx = 0; idx < nod; ++idx) {
+      for(HBNode lf = od[idx]; lf != null; lf = lf.nextNode) {
+	final int rvidx = lf.hashcode & mask;
+	final Object k = lf.k;
+	HBNode e = rvd[rvidx];
+	for(;e != null && !(e.k==k || equals(e.k, k)); e = e.nextNode);
+	if(e != null) {
+	  rvd[rvidx] = rvd[rvidx].dissoc(rv, e.k);
+	}
+      }
+    }
+    return new PersistentHashMap(rv);
   }
   public IPersistentMap meta() { return meta; }
   static class HTIter implements Iterator {
