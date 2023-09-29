@@ -107,11 +107,9 @@ public class LinkedHashMap extends HashMap {
       HBNode e = rvd[rvidx], lastNode = null;
       for(;e != null && !(e.k==k || equals(e.k, k)); e = e.nextNode) { lastNode = e; }
       if(e != null) {
-	Object newv = bfn.apply(e.v, lf.v);
-	if(e.v != newv) {
-	  e.v = newv;
-	  modify(e);
-	}
+	e.v = bfn.apply(e.v, lf.v);
+	//Union cannot change order on modification.
+	//modify(e);
       }
       else {
 	HBNode nn = newNode(lf.k, lf.hashcode, lf.v);
