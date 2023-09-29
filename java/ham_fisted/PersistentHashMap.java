@@ -51,7 +51,8 @@ public class PersistentHashMap
     return asTransient().without(key).persistent();
   }
   public TransientHashMap asTransient() {
-    return new TransientHashMap(this);
+    return isEmpty() ? new InitHashMap(meta) : 
+      new TransientHashMap(this);
   }
   public PersistentHashMap withMeta(IPersistentMap m) {
     return new PersistentHashMap(this, m);
