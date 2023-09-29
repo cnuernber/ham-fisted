@@ -1,3 +1,6 @@
+# 1.009
+ * new linked hashmap implementation with equiv-semantics and fast union op.
+
 # 1.008
  * Fast set intersection for longer sequencers of sets (intersect-sets).
 

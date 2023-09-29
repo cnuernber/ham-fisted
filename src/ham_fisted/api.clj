@@ -503,7 +503,10 @@ ham_fisted.PersistentHashMap
 (defn linked-hashmap
   "Linked hash map using clojure's equiv pathways.  This hashmap behaves slightly
   different in that if you put the same value as previously the node isn't marked
-  as modified"
+  as modified.  It has an accelerated union pathway (.union member) that will only
+  work if the other arg is also a linked hashmap.  Union will not change the order
+  of the original hashmap but new keys may be added and will appear later in iteration
+  order."
   (^ham_fisted.LinkedHashMap [] (ham_fisted.LinkedHashMap.))
   (^ham_fisted.LinkedHashMap [data]
    (let [rv (ham_fisted.LinkedHashMap.)]
