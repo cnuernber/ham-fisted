@@ -14,10 +14,4 @@ public class LinkedHashNode extends HBNode {
     nextLink = prev.nextLink;
     prevLink = prev.prevLink;
   }
-  public Object setValue(Object vv) {
-    if(vv == v) return v;
-    Object rv = super.setValue(vv);
-    ((LinkedHashMap)owner).modify(this);
-    return rv;
-  }
 }

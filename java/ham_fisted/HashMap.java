@@ -79,7 +79,7 @@ public class HashMap implements IMap, IMeta, BitmapTrieCommon.MapSet {
   }
   protected void inc(HBNode lf) { ++this.length; }
   protected void dec(HBNode lf) { --this.length; }
-
+  protected void modify(HBNode lf) {}
 
   public HashMap shallowClone() {
     return new HashMap(loadFactor, capacity, length, data.clone(), meta);
@@ -185,7 +185,10 @@ public class HashMap implements IMap, IMeta, BitmapTrieCommon.MapSet {
     for(HBNode e = this.data[idx]; e != null; e = e.nextNode) {
       lastNode = e;
       if(e.k == key || equals(e.k, key)) {
-	return e.setValue(val);
+	Object rv = e.v;
+	e.v = val;
+	modify(e);
+	return rv;
       }
     }
     HBNode lf = newNode(key,hc,val);
@@ -239,8 +242,10 @@ public class HashMap implements IMap, IMeta, BitmapTrieCommon.MapSet {
     }
     Object newV = bfn.apply(k, e == null ? null : e.v);
     if(e != null) {
-      if(newV != null)
+      if(newV != null) {
 	e.v = newV;
+	modify(e);
+      }
       else
 	remove(k, null);
     } else if(newV != null) {
@@ -326,7 +331,7 @@ public class HashMap implements IMap, IMeta, BitmapTrieCommon.MapSet {
       for(HBNode e = this.data[idx]; e != null; e = e.nextNode) {
 	Object newv = bfn.apply(e.k, e.v);
 	if(newv != null) {
-	  e.setValue(newv);
+	  e.v = newv;
 	  lastNode = e;
 	}
 	else {

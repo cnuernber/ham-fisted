@@ -52,7 +52,8 @@ public class LinkedHashMap extends HashMap {
     removeLink(hn);
     hn.nextLink = hn.prevLink = null;
   }
-  protected void modify(LinkedHashNode hn) {
+  protected void modify(HBNode n) {
+    LinkedHashNode hn = (LinkedHashNode)n;
     if(firstLink != hn) {
       removeLink(hn);
       if(hn == lastLink)
@@ -106,7 +107,11 @@ public class LinkedHashMap extends HashMap {
       HBNode e = rvd[rvidx], lastNode = null;
       for(;e != null && !(e.k==k || equals(e.k, k)); e = e.nextNode) { lastNode = e; }
       if(e != null) {
-	e.setValue(bfn.apply(e.v, lf.v));
+	Object newv = bfn.apply(e.v, lf.v);
+	if(e.v != newv) {
+	  e.v = newv;
+	  modify(e);
+	}
       }
       else {
 	HBNode nn = newNode(lf.k, lf.hashcode, lf.v);
