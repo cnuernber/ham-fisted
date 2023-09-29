@@ -2306,6 +2306,32 @@ ham-fisted.api> (binary-search data 1.1 nil)
            data))
 
 
+(defn intersect-sets
+  "Given a sequence of sets, efficiently perform the intersection of them.  This algorithm is usually faster and has a more stable
+   runtime than (reduce clojure.set/intersection sets) which degrades depending on the order of the sets and the pairwise
+   intersection of the initial sets."
+  [sets]
+  (let [sets (vec sets)
+        ns (count sets)]
+    (case ns
+      0 #{}
+      1 (sets 0)
+      (let [min-idx (mmin-idx (fn ^long [arg] (.size ^Set arg)) sets)]
+        (-> (reduce (fn [^Set rv val]
+                      (when (reduce (fn [rv ^long idx]
+                                      (if (== idx min-idx)
+                                        rv
+                                        (if-not (.contains ^Set (sets idx) val)
+                                          (reduced false)
+                                          true)))
+                                    true
+                                    (range ns))
+                        (.add rv val))
+                      rv)
+                    (mut-set)
+                    (sets min-idx)))))))
+
+
 
 (defn mode
   "Return the most common occurance in the data."

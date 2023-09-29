@@ -1,3 +1,6 @@
+# 1.008
+ * Fast set intersection for longer sequencers of sets (intersect-sets).
+
 # 1.007
  * Fast pathways for finding min/max index of a collection of objects in a similar way to min-key and max-key.
 
