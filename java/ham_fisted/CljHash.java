@@ -38,22 +38,23 @@ public class CljHash {
       return true;
     //Somewhat faster version of equiv *if* both are longs or both are doubles.
     //which happens to be a very common case in Clojure.
-    if(k1 != null) {
-      if( k1 instanceof Long && k2 instanceof Long)
-	return (long)k1 == (long)k2;
+    return k1 != null ? nonNullEquiv(k1,k2) : false;
+  }
 
-      if ( k1 instanceof Double && k2 instanceof Double)
-	return (double)k1 == (double)k2;
+  public static boolean nonNullEquiv(Object k1, Object k2) {
+    if( k1 instanceof Long && k2 instanceof Long)
+      return (long)k1 == (long)k2;
 
-      if(k1 instanceof Number && k2 instanceof Number)
-	return Numbers.equal((Number)k1, (Number)k2);
+    if ( k1 instanceof Double && k2 instanceof Double)
+      return (double)k1 == (double)k2;
 
-      if(k1 instanceof IPersistentCollection || k2 instanceof IPersistentCollection)
-	return Util.pcequiv(k1,k2);
+    if(k1 instanceof Number && k2 instanceof Number)
+      return Numbers.equal((Number)k1, (Number)k2);
 
-      return k1.equals(k2);
-    }
-    return false;
+    if(k1 instanceof IPersistentCollection || k2 instanceof IPersistentCollection)
+      return Util.pcequiv(k1,k2);
+
+    return k1.equals(k2);
   }
 
   public static boolean mapEquiv(BitmapTrie data, Object rhs) {
