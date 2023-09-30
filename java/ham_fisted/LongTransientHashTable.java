@@ -1,6 +1,6 @@
 package ham_fisted;
 
-
+import java.util.Map;
 import java.util.function.BiFunction;
 import clojure.lang.ITransientMap;
 import clojure.lang.ITransientAssociative2;
@@ -14,7 +14,7 @@ import static ham_fisted.BitmapTrieCommon.*;
 
 public class LongTransientHashTable<K,V>
   extends NonEditableMapBase<K,V>
-  implements ITransientMap, ITransientAssociative2, IObj, UpdateValues, BitmapTrieCommon.MapSet,
+  implements ITransientMap, ITransientAssociative2, IObj, UpdateValues, MapSetOps,
 	     LongHashTable.Owner {
   public LongTransientHashTable(LongHashTable ht) {
     super(ht);
@@ -37,13 +37,13 @@ public class LongTransientHashTable<K,V>
     return new LongTransientHashTable<K,V>((LongHashTable)ht.withMeta(m));
   }
   public LongHashTable getLongHashTable() { return (LongHashTable)ht; }
-  public LongTransientHashTable<K,V> union(MapSet other, BiFunction mapper) {
+  public LongTransientHashTable<K,V> union(Map other, BiFunction mapper) {
     return new LongTransientHashTable<K,V>(((LongHashTable)ht).union(((LongHashTable.Owner)other).getLongHashTable(), mapper, false));
   }
-  public LongTransientHashTable<K,V> intersection(MapSet other, BiFunction mapper) {
+  public LongTransientHashTable<K,V> intersection(Map other, BiFunction mapper) {
     return new LongTransientHashTable<K,V>(((LongHashTable)ht).intersection(((LongHashTable.Owner)other).getLongHashTable(), mapper, false));
   }
-  public LongTransientHashTable<K,V> difference(MapSet other) {
+  public LongTransientHashTable<K,V> difference(Map other) {
     return new LongTransientHashTable<K,V>(((LongHashTable)ht).difference(((LongHashTable.Owner)other).getLongHashTable(), false));
   }
   IPersistentMap doPersistent() { return persistent(); }

@@ -8,13 +8,13 @@ import clojure.lang.ITransientAssociative2;
 import clojure.lang.Indexed;
 
 
-public class InitHashMap
+public class UnsharedHashMap
   extends HashMap
   implements ITransientMap, ITransientAssociative2 {
-  public InitHashMap(IPersistentMap meta) {
+  public UnsharedHashMap(IPersistentMap meta) {
     super(meta);
   }
-  public InitHashMap conj(Object val) {
+  public UnsharedHashMap conj(Object val) {
     Object k, v;
     if(val instanceof Indexed) {
       Indexed ii = (Indexed)val;
@@ -29,11 +29,11 @@ public class InitHashMap
     }
     return assoc(k,v);
   }
-  public InitHashMap assoc(Object key, Object val) {
+  public UnsharedHashMap assoc(Object key, Object val) {
     put(key,val);
     return this;
   }
-  public InitHashMap without(Object key) {
+  public UnsharedHashMap without(Object key) {
     remove(key);
     return this;
   }

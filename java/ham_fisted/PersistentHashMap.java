@@ -52,7 +52,7 @@ public class PersistentHashMap
     return asTransient().without(key).persistent();
   }
   public ITransientMap asTransient() {
-    return isEmpty() ? new InitHashMap(meta) : 
+    return isEmpty() ? new UnsharedHashMap(meta) : 
       new TransientHashMap(this);
   }
   public PersistentHashMap withMeta(IPersistentMap m) {

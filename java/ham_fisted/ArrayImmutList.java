@@ -163,26 +163,6 @@ public class ArrayImmutList
   public final boolean contains(Object obj) {
     return indexOf(obj) != -1;
   }
-  public final boolean containsAll(Collection c) {
-    final int ne = nElems;
-    Iterator minC;
-    Iterator maxC;
-    if (ne < c.size()) {
-      minC = this.iterator();
-      maxC = c.iterator();
-    } else {
-      maxC = this.iterator();
-      minC = c.iterator();
-    }
-    //This set can contain null.
-    HashSet<Object> hc = new HashSet<Object>();
-    while(minC.hasNext()) hc.add(minC.next());
-    while(maxC.hasNext()) {
-      if (!hc.contains(maxC.next()))
-	return false;
-    }
-    return true;
-  }
   public boolean isEmpty() { return nElems == 0; }
   public Object[] fillArray(Object[] retval) {
     System.arraycopy(data, startidx, retval, 0, nElems);

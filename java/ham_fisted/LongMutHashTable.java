@@ -1,5 +1,6 @@
 package ham_fisted;
 
+import java.util.Map;
 import java.util.function.BiFunction;
 import clojure.lang.IFn;
 import clojure.lang.ITransientMap;
@@ -12,7 +13,7 @@ import static ham_fisted.BitmapTrieCommon.*;
 public class LongMutHashTable<K,V>
   extends MapBase<K,V>
   implements ITransientMap, ITransientAssociative2, IObj,
-	     UpdateValues, MutableMap, BitmapTrieCommon.MapSet,
+	     UpdateValues, MutableMap, MapSetOps,
 	     LongHashTable.Owner {
   public LongMutHashTable() {
     super(new LongHashTable(0.75f, 0, 0, null, null));
@@ -61,15 +62,15 @@ public class LongMutHashTable<K,V>
     return new LongImmutHashTable<K,V>((LongHashTable)ht);
   }
   public LongHashTable getLongHashTable() { return (LongHashTable)ht; }
-  public LongMutHashTable union(MapSet other, BiFunction mapper) {
+  public LongMutHashTable union(Map other, BiFunction mapper) {
     ((LongHashTable)ht).union(((LongHashTable.Owner)other).getLongHashTable(), mapper, false);
     return this;
   }
-  public LongMutHashTable intersection(MapSet other, BiFunction mapper) {
+  public LongMutHashTable intersection(Map other, BiFunction mapper) {
     ((LongHashTable)ht).intersection(((LongHashTable.Owner)other).getLongHashTable(), mapper, false);
     return this;
   }
-  public LongMutHashTable difference(MapSet other) {
+  public LongMutHashTable difference(Map other) {
     ((LongHashTable)ht).difference(((LongHashTable.Owner)other).getLongHashTable(), false);
     return this;
   }

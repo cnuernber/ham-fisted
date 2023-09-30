@@ -120,12 +120,6 @@ public class BitmapTrieCommon {
     public default Object next() { return nextLeaf(); }
   }
 
-  public interface MapSet {
-    public MapSet intersection(MapSet rhs, BiFunction valueMap);
-    public MapSet union(MapSet rhs, BiFunction valueMap);
-    public MapSet difference(MapSet rhs);
-  }
-
   public static final BiFunction<Object,Object,Object> rhsWins = (a,b) -> b;
   public static final BiFunction<Object,Object,Object> lhsWins = (a,b) -> a;
   public static final BiFunction<Object,Object,Object> nonNilWins = (a,b) -> a == null ? b : a;
