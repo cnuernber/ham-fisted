@@ -74,7 +74,7 @@ public class LinkedHashMap extends HashMap {
     hn.nextLink = hn.prevLink = null;
   }
   protected void modify(HashNode n) {
-    // The algorithm below is correct but currently linkedhashmaps only
+    // The algorithm below is lightly tested but currently linkedhashmaps only
     // record insertion and deletion events.
     
     // LinkedHashNode hn = (LinkedHashNode)n;
