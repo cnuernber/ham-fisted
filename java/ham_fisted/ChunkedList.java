@@ -1,7 +1,6 @@
 package ham_fisted;
 
 import static ham_fisted.IntegerOps.*;
-import static ham_fisted.BitmapTrieCommon.*;
 
 import java.util.Arrays;
 import java.util.Iterator;

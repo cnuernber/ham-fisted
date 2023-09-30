@@ -1,7 +1,6 @@
 package ham_fisted;
 
 
-import static ham_fisted.BitmapTrieCommon.*;
 import static ham_fisted.ChunkedList.*;
 import java.util.List;
 import java.util.Objects;

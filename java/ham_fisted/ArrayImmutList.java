@@ -1,7 +1,8 @@
 package ham_fisted;
 
-import static ham_fisted.BitmapTrieCommon.*;
+
 import static ham_fisted.ChunkedList.*;
+import static ham_fisted.HashProviders.*;
 
 import java.util.List;
 import java.util.RandomAccess;
