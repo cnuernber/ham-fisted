@@ -1,6 +1,7 @@
 package ham_fisted;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
@@ -24,29 +25,29 @@ public class LinkedHashMap extends HashMap {
     this(null);
   }
   public LinkedHashMap(float loadFactor, int initialCapacity,
-		       int length, HBNode[] data,
+		       int length, HashNode[] data,
 		       IPersistentMap meta) {
     super(loadFactor, initialCapacity, length, data, meta);
   }
   public LinkedHashMap clone() {
-    LinkedHashMap rv = new LinkedHashMap(loadFactor, capacity, 0, new HBNode[data.length], meta);
-    final HBNode[] data = this.data;
+    LinkedHashMap rv = new LinkedHashMap(loadFactor, capacity, 0, new HashNode[data.length], meta);
+    final HashNode[] data = this.data;
     final int mask = this.mask;
-    final HBNode[] newData = rv.data;
+    final HashNode[] newData = rv.data;
     //Table is already correct size - no need to check resize.
     for(LinkedHashNode lf = lastLink; lf != null; lf = lf.nextLink) {
       int idx = lf.hashcode & mask;
-      HBNode loc = newData[idx];
-      HBNode newNode = rv.newNode(lf.k, lf.hashcode, lf.v);
+      HashNode loc = newData[idx];
+      HashNode newNode = rv.newNode(lf.k, lf.hashcode, lf.v);
       newData[idx] = newNode;
       newNode.nextNode = loc;
     }
     return rv;
   }
-  protected HBNode newNode(Object key, int hc, Object val) {
+  protected HashNode newNode(Object key, int hc, Object val) {
     return new LinkedHashNode(this,key,hc,val,null);
   }
-  protected void inc(HBNode lf) {
+  protected void inc(HashNode lf) {
     super.inc(lf);
     LinkedHashNode hn = (LinkedHashNode)lf;
     if(lastLink == null)
@@ -62,7 +63,7 @@ public class LinkedHashMap extends HashMap {
     if(hn.nextLink != null)
       hn.nextLink.prevLink = hn.prevLink;
   }
-  protected void dec(HBNode lf) {
+  protected void dec(HashNode lf) {
     super.dec(lf);
     LinkedHashNode hn = (LinkedHashNode)lf;
     if(hn == firstLink)
@@ -72,7 +73,7 @@ public class LinkedHashMap extends HashMap {
     removeLink(hn);
     hn.nextLink = hn.prevLink = null;
   }
-  protected void modify(HBNode n) {
+  protected void modify(HashNode n) {
     // The algorithm below is correct but currently linkedhashmaps only
     // record insertion and deletion events.
     
@@ -117,22 +118,22 @@ public class LinkedHashMap extends HashMap {
   @SuppressWarnings("unchecked")
   public LinkedHashMap union(Map o, BiFunction bfn) {
     if(!(o instanceof LinkedHashMap))
-      return (LinkedHashMap)HashMap.unionFallback(this, o, bfn);
+      return (LinkedHashMap)HashMap.union(this, o, bfn);
     LinkedHashMap other = (LinkedHashMap)o;
     LinkedHashMap rv = this;
-    HBNode[] rvd = rv.data;
+    HashNode[] rvd = rv.data;
     int mask = rv.mask;
     for(LinkedHashNode lf = other.lastLink; lf != null; lf = lf.nextLink) {      
       final int rvidx = lf.hashcode & mask;
       final Object k = lf.k;
-      HBNode e = rvd[rvidx], lastNode = null;
+      HashNode e = rvd[rvidx], lastNode = null;
       for(;e != null && !(e.k==k || equals(e.k, k)); e = e.nextNode) { lastNode = e; }
       if(e != null) {
 	e.v = bfn.apply(e.v, lf.v);
 	modify(e);
       }
       else {
-	HBNode nn = newNode(lf.k, lf.hashcode, lf.v);
+	HashNode nn = newNode(lf.k, lf.hashcode, lf.v);
 	if(lastNode != null)
 	  lastNode.nextNode = nn;
 	else
@@ -145,17 +146,15 @@ public class LinkedHashMap extends HashMap {
     return rv;
   }
 
-  @SuppressWarnings("unchecked")
   public LinkedHashMap intersection(Map o, BiFunction bfn) {
-    if(!(o instanceof HashMap))
-      return (LinkedHashMap)HashMap.intersectionFallback(this, o, bfn);
-    return (LinkedHashMap)HashMap.intersection(this, (HashMap)o, bfn);
+    return (LinkedHashMap)HashMap.intersection(this, o, bfn);
+  }
+
+  public LinkedHashMap intersection(Set o) {
+    return (LinkedHashMap)HashMap.intersection(this, o);
   }
   
-  @SuppressWarnings("unchecked")
-  public LinkedHashMap difference(Map o) {
-    if(!(o instanceof HashMap))
-      return (LinkedHashMap)differenceFallback(this, o);
-    return (LinkedHashMap)HashMap.difference(this, (HashMap)o);
+  public LinkedHashMap difference(Set o) {    
+    return (LinkedHashMap)difference(this, o);
   }
 }

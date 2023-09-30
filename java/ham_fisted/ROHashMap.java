@@ -10,7 +10,7 @@ import clojure.lang.MapEntry;
 
 public class ROHashMap extends HashMap {
   ROHashMap(float loadFactor, int initialCapacity,
-	     int length, HBNode[] data,
+	     int length, HashNode[] data,
 	     IPersistentMap meta) {
     super(loadFactor, initialCapacity, length, data, meta);
   }
