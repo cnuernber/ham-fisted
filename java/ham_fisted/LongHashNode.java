@@ -5,15 +5,15 @@ import java.util.Iterator;
 import clojure.lang.IMapEntry;
 import ham_fisted.IMutList;
 
-public class HashNode implements Map.Entry, IMutList, IMapEntry {
-  public final HashBase owner;
+public class LongHashNode implements Map.Entry, IMutList, IMapEntry {
+  public final LongHashBase owner;
   public final int hashcode;
-  public final Object k;
+  public final long k;
   //compute-at support means we can modify v.
   Object v;
-  HashNode nextNode;
+  LongHashNode nextNode;
 
-  public HashNode(HashBase _owner, Object _k, int hc, Object _v, HashNode nn) {
+  public LongHashNode(LongHashBase _owner, long _k, int hc, Object _v, LongHashNode nn) {
     owner = _owner;
     hashcode = hc;
     k = _k;
@@ -21,26 +21,26 @@ public class HashNode implements Map.Entry, IMutList, IMapEntry {
     nextNode = nn;
     _owner.inc(this);
   }
-  public HashNode(HashBase _owner, Object _k, int hc, Object _v) {
+  public LongHashNode(LongHashBase _owner, long _k, int hc, Object _v) {
     this(_owner, _k, hc, _v, null);
   }
-  public HashNode(HashBase _owner, Object _k, int hc) {
+  public LongHashNode(LongHashBase _owner, long _k, int hc) {
     this(_owner, _k, hc, null, null);
   }
-  public HashNode(HashBase _owner, HashNode prev) {
+  public LongHashNode(LongHashBase _owner, LongHashNode prev) {
     owner = _owner;
     hashcode = prev.hashcode;
     k = prev.k;
     v = prev.v;
     nextNode = prev.nextNode;
   }
-  public HashNode setOwner(HashBase nowner) {
+  public LongHashNode setOwner(LongHashBase nowner) {
     if (owner == nowner)
       return this;
-    return new HashNode(nowner, this);
+    return new LongHashNode(nowner, this);
   }
-  public HashNode clone(HashBase nowner) {
-    HashNode rv = new HashNode(nowner, k, hashcode, v, null);
+  public LongHashNode clone(LongHashBase nowner) {
+    LongHashNode rv = new LongHashNode(nowner, k, hashcode, v, null);
     if(nextNode != null)
       rv.nextNode = nextNode.clone(nowner);
     return rv;
@@ -56,8 +56,8 @@ public class HashNode implements Map.Entry, IMutList, IMapEntry {
     if(idx == 1) return v;
     throw new RuntimeException("Index out of range.");
   }
-  public HashNode assoc(HashBase nowner, Object _k, int hash, Object _v) {
-    HashNode retval = setOwner(nowner);
+  public LongHashNode assoc(LongHashBase nowner, long _k, int hash, Object _v) {
+    LongHashNode retval = setOwner(nowner);
     if (nowner.equals(_k,k)) {
       retval.setValue(_v);
     } else {
@@ -69,15 +69,15 @@ public class HashNode implements Map.Entry, IMutList, IMapEntry {
     }
     return retval;
   }
-  public HashNode dissoc(HashBase nowner, Object _k) {
+  public LongHashNode dissoc(LongHashBase nowner, long _k) {
     if (owner.equals(k, _k)) {
       nowner.dec(this);
       return nextNode;
     }
     if (nextNode != null) {
-      HashNode nn = nextNode.dissoc(nowner,_k);
+      LongHashNode nn = nextNode.dissoc(nowner,_k);
       if (nn != nextNode) {
-	HashNode retval = setOwner(nowner);
+	LongHashNode retval = setOwner(nowner);
 	retval.nextNode = nn;
 	return retval;
       }

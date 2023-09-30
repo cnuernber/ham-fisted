@@ -15,27 +15,27 @@ import clojure.lang.IDeref;
 import clojure.lang.RT;
 
 
-public class HashBase implements IMeta {
+public class LongHashBase implements IMeta {
   int capacity;
   int mask;
   int length;
   int threshold;
   float loadFactor;
-  HashNode[] data;
+  LongHashNode[] data;
   IPersistentMap meta;
-  public HashBase(float loadFactor, int initialCapacity,
-		  int length, HashNode[] data,
-		  IPersistentMap meta) {
+  public LongHashBase(float loadFactor, int initialCapacity,
+		      int length, LongHashNode[] data,
+		      IPersistentMap meta) {
     this.loadFactor = loadFactor;
     this.capacity = IntegerOps.nextPow2(Math.max(4, initialCapacity));
     this.mask = this.capacity - 1;
     this.length = length;
-    this.data = data == null ? new HashNode[this.capacity] : data;
+    this.data = data == null ? new LongHashNode[this.capacity] : data;
     this.threshold = (int)(capacity * loadFactor);
     this.meta = meta;
   }
   
-  public HashBase(HashBase other, IPersistentMap m) {
+  public LongHashBase(LongHashBase other, IPersistentMap m) {
     this.loadFactor = other.loadFactor;
     this.capacity = other.capacity;
     this.mask = other.mask;
@@ -47,34 +47,28 @@ public class HashBase implements IMeta {
   public int size() { return length; }
   public int count() { return length; }
   //protected so clients can override as desired.
-  protected int hash(Object k) {
-    return
-      k == null ? 0 :
-      k instanceof IHashEq ? ((IHashEq)k).hasheq() :
-      IntegerOps.mixhash(k.hashCode());
+  static int hash(long k) {
+    return IntegerOps.mixhash(Long.hashCode(k));
   }
-  protected boolean equals(Object lhs, Object rhs) {
-    return
-      lhs == rhs ? true :
-      lhs == null || rhs == null ? false :
-      CljHash.nonNullEquiv(lhs,rhs);
+  static boolean equals(long lhs, long rhs) {
+    return lhs == rhs;
   }
-  protected void inc(HashNode lf) { ++this.length; }
-  protected void dec(HashNode lf) { --this.length; }
-  protected void modify(HashNode lf) {}
-  protected HashNode newNode(Object key, int hc, Object val) {
-    return new HashNode(this,key,hc,val,null);
+  protected void inc(LongHashNode lf) { ++this.length; }
+  protected void dec(LongHashNode lf) { --this.length; }
+  protected void modify(LongHashNode lf) {}
+  protected LongHashNode newNode(long key, int hc, Object val) {
+    return new LongHashNode(this,key,hc,val,null);
   }
   
   Object checkResize(Object rv) {
     if(this.length >= this.threshold) {
       final int newCap = this.capacity * 2;
-      final HashNode[] newD = new HashNode[newCap];
-      final HashNode[] oldD = this.data;
+      final LongHashNode[] newD = new LongHashNode[newCap];
+      final LongHashNode[] oldD = this.data;
       final int oldCap = oldD.length;
       final int mask = newCap - 1;
       for(int idx = 0; idx < oldCap; ++idx) {
-	HashNode lf;
+	LongHashNode lf;
 	if((lf = oldD[idx]) != null) {
 	  oldD[idx] = null;
 	  if(lf.nextNode == null) {
@@ -86,9 +80,9 @@ public class HashBase implements IMeta {
 	    //to avoid writing to any locations more than once and instead make the
 	    //at most two new linked lists, one for the new high position and one
 	    //for the new low position.
-	    HashNode loHead = null, loTail = null, hiHead = null, hiTail = null;
+	    LongHashNode loHead = null, loTail = null, hiHead = null, hiTail = null;
 	    while(lf != null) {
-	      HashNode e = lf.setOwner(this);
+	      LongHashNode e = lf.setOwner(this);
 	      lf = lf.nextNode;
 	      //Check high bit
 	      if((e.hashcode & oldCap) == 0) {
@@ -121,7 +115,7 @@ public class HashBase implements IMeta {
   }
   public void clear() {
     for(int idx = 0; idx < data.length; ++idx) {
-      for(HashNode lf = data[idx]; lf != null; lf = lf.nextNode) {
+      for(LongHashNode lf = data[idx]; lf != null; lf = lf.nextNode) {
 	dec(lf);
       }
     }
@@ -130,12 +124,12 @@ public class HashBase implements IMeta {
   }
   public IPersistentMap meta() { return meta; }
   static class HTIter implements Iterator {
-    final HashNode[] d;
+    final LongHashNode[] d;
     final Function<Map.Entry,Object> fn;
-    HashNode l;
+    LongHashNode l;
     int idx;
     final int dlen;
-    HTIter(HashNode[] data, Function<Map.Entry,Object> fn) {
+    HTIter(LongHashNode[] data, Function<Map.Entry,Object> fn) {
       this.d = data;
       this.fn = fn;
       this.l = null;
@@ -153,19 +147,19 @@ public class HashBase implements IMeta {
     }
     public boolean hasNext() { return l != null; }
     public Object next() {
-      HashNode rv = l;
+      LongHashNode rv = l;
       advance();
       return fn.apply(rv);
     }
   }
   static class HTSpliterator implements Spliterator, ITypedReduce {
-    final HashNode[] d;
+    final LongHashNode[] d;
     final Function<Map.Entry,Object> fn;
     int sidx;
     int eidx;
     int estimateSize;
-    HashNode l;
-    public HTSpliterator(HashNode[] d, int len, Function<Map.Entry,Object> fn) {
+    LongHashNode l;
+    public HTSpliterator(LongHashNode[] d, int len, Function<Map.Entry,Object> fn) {
       this.d = d;
       this.fn = fn;
       this.sidx = 0;
@@ -173,7 +167,7 @@ public class HashBase implements IMeta {
       this.estimateSize = len;
       this.l = null;
     }
-    public HTSpliterator(HashNode[] d, int sidx, int eidx, int es, Function<Map.Entry,Object> fn) {
+    public HTSpliterator(LongHashNode[] d, int sidx, int eidx, int es, Function<Map.Entry,Object> fn) {
       this.d = d;
       this.fn = fn;
       this.sidx = sidx;
@@ -203,7 +197,7 @@ public class HashBase implements IMeta {
 	return true;
       }
       for(; sidx < eidx; ++sidx) {
-	final HashNode ll = this.d[sidx];
+	final LongHashNode ll = this.d[sidx];
 	if(ll != null) {
 	  c.accept(this.fn.apply(ll));
 	  this.l = ll.nextNode;
@@ -213,11 +207,11 @@ public class HashBase implements IMeta {
       return false;
     }
     public Object reduce(IFn rfn, Object acc) {
-      final HashNode[] dd = this.d;
+      final LongHashNode[] dd = this.d;
       final int ee = this.eidx;
       final Function<Map.Entry,Object> ffn = this.fn;
       for(int idx = sidx; idx < ee; ++idx) {
-	for(HashNode e = dd[idx]; e != null; e = e.nextNode) {
+	for(LongHashNode e = dd[idx]; e != null; e = e.nextNode) {
 	  acc = rfn.invoke(acc, ffn.apply(e));
 	  if(RT.isReduced(acc)) return ((IDeref)acc).deref();
 	}
@@ -226,10 +220,10 @@ public class HashBase implements IMeta {
     }
   }
 
-  final boolean containsNodeKey(Object key) {
-    for(HashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
-      Object k;
-      if((k = e.k) == key || equals(k, key))
+  final boolean containsNodeKey(Object kk) {
+    long key = Casts.longCast(kk);
+    for(LongHashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
+      if(e.k == key)
 	return true;
     }
     return false;
