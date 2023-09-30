@@ -27,7 +27,7 @@ import clojure.lang.IMapEntry;
 import clojure.lang.MapEntry;
 
 
-public class HashMap implements IMap, IMeta, BitmapTrieCommon.MapSet {
+public class HashMap implements IMap, IMeta, MapSetOps {
   int capacity;
   int mask;
   int length;
@@ -345,10 +345,38 @@ public class HashMap implements IMap, IMeta, BitmapTrieCommon.MapSet {
       }
     }
   }
+  
   @SuppressWarnings("unchecked")
-  public HashMap union(BitmapTrieCommon.MapSet o, BiFunction bfn) {
+  public static HashMap unionFallback(HashMap rv, Map o, BiFunction bfn) {
+    HBNode[] rvd = rv.data;
+    int mask = rv.mask;
+    for(Object ee : o.entrySet()) {
+      Map.Entry lf = (Map.Entry)ee;
+      final Object k = lf.getKey();
+      final int hashcode = rv.hash(k);
+      final int rvidx = hashcode & mask;
+      HBNode init = rvd[rvidx], e = init;
+      for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
+      if(e != null) {
+	rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, lf.getValue()));
+      }
+      else {
+	if(init != null)
+	  rvd[rvidx] = init.assoc(rv, k, hashcode, lf.getValue());
+	else
+	  rvd[rvidx] = rv.newNode(k, hashcode, lf.getValue());
+	rv.checkResize(null);
+	mask = rv.mask;
+	rvd = rv.data;
+      }
+    }
+    return rv;
+  }
+  
+  @SuppressWarnings("unchecked")
+  public HashMap union(Map o, BiFunction bfn) {
     if(!(o instanceof HashMap))
-      throw new RuntimeException("Accelerated union must have same type on both sides");
+      return new PersistentHashMap(unionFallback(shallowClone(), o, bfn));
     HashMap other = (HashMap)o;
     HashMap rv = shallowClone();
     final HBNode[] od = other.data;
@@ -375,14 +403,28 @@ public class HashMap implements IMap, IMeta, BitmapTrieCommon.MapSet {
 	}
       }
     }
-    return rv;
+    return new PersistentHashMap(rv);
   }
   @SuppressWarnings("unchecked")
-  public HashMap intersection(BitmapTrieCommon.MapSet o, BiFunction bfn) {
-    if(!(o instanceof HashMap))
-      throw new RuntimeException("Accelerated union must have same type on both sides");
-    HashMap other = (HashMap)o;
-    HashMap rv = shallowClone();
+  static HashMap intersectionFallback(HashMap rv, Map o, BiFunction bfn) {
+    final HBNode[] rvd = rv.data;
+    final int ne = rvd.length;
+    for (int idx = 0; idx < ne; ++idx) {
+      HBNode lf = rvd[idx];
+      while(lf != null) {
+	final HBNode curlf = lf;
+	lf = lf.nextNode;
+	final Object v = o.get(lf.k);
+	rvd[idx] = (v != null)
+	  ? rvd[idx].assoc(rv, curlf.k, curlf.hashcode, bfn.apply(curlf.v, v))
+	  : rvd[idx].dissoc(rv, curlf.k);
+      }
+    }
+    return rv;
+  }
+  
+  @SuppressWarnings("unchecked")
+  static HashMap intersection(HashMap rv, HashMap other, BiFunction bfn) {
     final HBNode[] od = other.data;
     final int omask = other.mask;
     final HBNode[] rvd = rv.data;
@@ -395,7 +437,7 @@ public class HashMap implements IMap, IMeta, BitmapTrieCommon.MapSet {
 	final int oidx = curlf.hashcode & omask;
 	HBNode e = od[oidx];
 	final Object k = curlf.k;
-	for(;e != null && !(e.k==k || equals(e.k, k)); e = e.nextNode);
+	for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
 	// System.out.println("curlf.k: " + String.valueOf(curlf.k) + " found: " + String.valueOf(e != null));
 	rvd[idx] = (e != null)
 	  ? rvd[idx].assoc(rv, e.k, e.hashcode, bfn.apply(curlf.v, e.v))
@@ -403,14 +445,37 @@ public class HashMap implements IMap, IMeta, BitmapTrieCommon.MapSet {
 	// System.out.println("rvidx: " + String.valueOf(rvd[idx]) + ":" + String.valueOf(rvd[idx] != null ? rvd[idx].k : null));
       }
     }
-    return new PersistentHashMap(rv);
+    return rv;
   }
-  @SuppressWarnings("unchecked")
-  public PersistentHashMap difference(BitmapTrieCommon.MapSet o) {
+  
+  public HashMap intersection(Map o, BiFunction bfn) {
     if(!(o instanceof HashMap))
-      throw new RuntimeException("Accelerated union must have same type on both sides");
+      return new PersistentHashMap(intersectionFallback(shallowClone(), o, bfn));
     HashMap other = (HashMap)o;
     HashMap rv = shallowClone();
+    return new PersistentHashMap(intersection(rv, other, bfn));
+  }
+
+  @SuppressWarnings("unchecked")
+  static HashMap differenceFallback(HashMap rv, Map o) {
+    final HBNode[] rvd = rv.data;
+    final int mask = rv.mask;
+    for (Object ee : o.entrySet()) {
+      Map.Entry lf = (Map.Entry)ee;
+      final Object k = lf.getKey();
+      final int hashcode = rv.hash(k);
+      final int rvidx = hashcode & mask;
+      HBNode e = rvd[rvidx];
+      for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
+      if(e != null) {
+	rvd[rvidx] = rvd[rvidx].dissoc(rv, e.k);
+      }
+    }
+    return rv;
+  }
+  
+  @SuppressWarnings("unchecked")
+  static HashMap difference(HashMap rv, HashMap other) {
     final HBNode[] od = other.data;
     final int nod = od.length;
     final HBNode[] rvd = rv.data;
@@ -420,13 +485,22 @@ public class HashMap implements IMap, IMeta, BitmapTrieCommon.MapSet {
 	final int rvidx = lf.hashcode & mask;
 	final Object k = lf.k;
 	HBNode e = rvd[rvidx];
-	for(;e != null && !(e.k==k || equals(e.k, k)); e = e.nextNode);
+	for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
 	if(e != null) {
 	  rvd[rvidx] = rvd[rvidx].dissoc(rv, e.k);
 	}
       }
     }
-    return new PersistentHashMap(rv);
+    return rv;
+  }
+  
+  @SuppressWarnings("unchecked")
+  public HashMap difference(Map o) {
+    if(!(o instanceof HashMap))
+      return new PersistentHashMap(differenceFallback(shallowClone(), o));
+    HashMap other = (HashMap)o;
+    HashMap rv = shallowClone();
+    return new PersistentHashMap(difference(rv, other));
   }
   public IPersistentMap meta() { return meta; }
   static class HTIter implements Iterator {

@@ -23,6 +23,26 @@ public class LinkedHashMap extends HashMap {
   public LinkedHashMap() {
     this(null);
   }
+  public LinkedHashMap(float loadFactor, int initialCapacity,
+		       int length, HBNode[] data,
+		       IPersistentMap meta) {
+    super(loadFactor, initialCapacity, length, data, meta);
+  }
+  public LinkedHashMap clone() {
+    LinkedHashMap rv = new LinkedHashMap(loadFactor, capacity, 0, new HBNode[data.length], meta);
+    final HBNode[] data = this.data;
+    final int mask = this.mask;
+    final HBNode[] newData = rv.data;
+    //Table is already correct size - no need to check resize.
+    for(LinkedHashNode lf = lastLink; lf != null; lf = lf.nextLink) {
+      int idx = lf.hashcode & mask;
+      HBNode loc = newData[idx];
+      HBNode newNode = rv.newNode(lf.k, lf.hashcode, lf.v);
+      newData[idx] = newNode;
+      newNode.nextNode = loc;
+    }
+    return rv;
+  }
   protected HBNode newNode(Object key, int hc, Object val) {
     return new LinkedHashNode(this,key,hc,val,null);
   }
@@ -53,19 +73,22 @@ public class LinkedHashMap extends HashMap {
     hn.nextLink = hn.prevLink = null;
   }
   protected void modify(HBNode n) {
-    LinkedHashNode hn = (LinkedHashNode)n;
-    if(firstLink != hn) {
-      removeLink(hn);
-      if(hn == lastLink)
-	lastLink = hn.nextLink;
-      hn.prevLink = firstLink;
-      hn.nextLink = null;
+    // The algorithm below is correct but currently linkedhashmaps only
+    // record insertion and deletion events.
+    
+    // LinkedHashNode hn = (LinkedHashNode)n;
+    // if(firstLink != hn) {
+    //   removeLink(hn);
+    //   if(hn == lastLink)
+    // 	lastLink = hn.nextLink;
+    //   hn.prevLink = firstLink;
+    //   hn.nextLink = null;
 
-      if(firstLink != null)
-	firstLink.nextLink = hn;
-      hn.prevLink = firstLink;
-      firstLink = hn;
-    }
+    //   if(firstLink != null)
+    // 	firstLink.nextLink = hn;
+    //   hn.prevLink = firstLink;
+    //   firstLink = hn;
+    // }
   }
   public static class LinkedIter implements Iterator {
     LinkedHashNode current;
@@ -92,24 +115,21 @@ public class LinkedHashMap extends HashMap {
   }
 
   @SuppressWarnings("unchecked")
-  public LinkedHashMap union(BitmapTrieCommon.MapSet o, BiFunction bfn) {
-    if(!(o instanceof HashMap))
-      throw new RuntimeException("Accelerated union must have same type on both sides");
+  public LinkedHashMap union(Map o, BiFunction bfn) {
+    if(!(o instanceof LinkedHashMap))
+      return (LinkedHashMap)HashMap.unionFallback(this, o, bfn);
     LinkedHashMap other = (LinkedHashMap)o;
     LinkedHashMap rv = this;
-    for(LinkedHashNode lf = other.lastLink; lf != null; lf = lf.nextLink) {
-      final HBNode[] od = other.data;
-      final int nod = od.length;
-      HBNode[] rvd = rv.data;
-      int mask = rv.mask;
+    HBNode[] rvd = rv.data;
+    int mask = rv.mask;
+    for(LinkedHashNode lf = other.lastLink; lf != null; lf = lf.nextLink) {      
       final int rvidx = lf.hashcode & mask;
       final Object k = lf.k;
       HBNode e = rvd[rvidx], lastNode = null;
       for(;e != null && !(e.k==k || equals(e.k, k)); e = e.nextNode) { lastNode = e; }
       if(e != null) {
 	e.v = bfn.apply(e.v, lf.v);
-	//Union cannot change order on modification.
-	//modify(e);
+	modify(e);
       }
       else {
 	HBNode nn = newNode(lf.k, lf.hashcode, lf.v);
@@ -123,5 +143,19 @@ public class LinkedHashMap extends HashMap {
       }
     }
     return rv;
+  }
+
+  @SuppressWarnings("unchecked")
+  public LinkedHashMap intersection(Map o, BiFunction bfn) {
+    if(!(o instanceof HashMap))
+      return (LinkedHashMap)HashMap.intersectionFallback(this, o, bfn);
+    return (LinkedHashMap)HashMap.intersection(this, (HashMap)o, bfn);
+  }
+  
+  @SuppressWarnings("unchecked")
+  public LinkedHashMap difference(Map o) {
+    if(!(o instanceof HashMap))
+      return (LinkedHashMap)differenceFallback(this, o);
+    return (LinkedHashMap)HashMap.difference(this, (HashMap)o);
   }
 }

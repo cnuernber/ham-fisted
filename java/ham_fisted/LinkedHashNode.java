@@ -14,4 +14,41 @@ public class LinkedHashNode extends HBNode {
     nextLink = prev.nextLink;
     prevLink = prev.prevLink;
   }
+  public HBNode clone(HashMap nowner) {
+    throw new UnsupportedOperationException("LinkedHashNodes cannot clone");
+  }
+  public HBNode setOwner(HashMap nowner) {
+    if(nowner != owner)
+      throw new RuntimeException("LinkedHashMap nodes cannot be structurally shared");
+    return this;
+  }
+  //Linked node assoc/dissoc are not functional like their counterparts -
+  //they just keep the same signature for use in the set algorithms.
+  public final HBNode assoc(HashMap nowner, Object _k, int hash, Object _v) {
+    if(nowner != owner)
+      throw new RuntimeException("LinkedHashMap assoc called in functional pathway");
+    HBNode retval = this;
+    if (owner.equals(_k,k)) {
+      retval.setValue(_v);      
+    } else {
+      if (retval.nextNode != null) {
+	retval.nextNode = retval.nextNode.assoc(nowner, _k, hash, _v);
+      } else {
+	retval.nextNode = nowner.newNode(k, hash, _v);
+      }
+    }
+    return retval;
+  }
+  public final HBNode dissoc(HashMap nowner, Object _k) {
+    if(nowner != owner)
+      throw new RuntimeException("LinkedHashMap assoc called in functional pathway");
+    if (owner.equals(k, _k)) {
+      owner.dec(this);
+      return nextNode;
+    }
+    if (nextNode != null) {
+      nextNode = nextNode.dissoc(nowner, _k);
+    }
+    return this;
+  }
 }
