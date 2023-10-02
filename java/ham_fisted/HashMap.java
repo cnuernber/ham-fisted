@@ -376,12 +376,8 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
 	HashNode cur = lf;
 	lf = lf.nextNode;
 	Object newv = valueMap.apply(cur.k, cur.v);
-	if(newv != null) {
-	  cur.v = newv;
-	}
-	else {
-	  d[idx] = d[idx].dissoc(rv,cur.k);
-	}
+	d[idx] = newv == null ? d[idx].dissoc(rv, cur.k) :
+	  d[idx].assoc(rv, cur.k, cur.hashcode, newv);
       }
     }
     return rv;
@@ -397,16 +393,8 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
     HashNode e = data[idx];
     for(; e != null && !((e.k == k) || rv.equals(e.k, k)); e = e.nextNode);
     final Object newv = e != null ? fn.apply(e.v) : fn.apply(null);
-    if(newv != null) {
-      if(e != null)
-	data[idx] = data[idx].assoc(rv, k, hc, newv);
-      else {
-	data[idx] = rv.newNode(k, hc, newv);
-	rv.checkResize(null);
-      }
-    } else if (e != null) {
-      data[idx] = data[idx].dissoc(rv, k);
-    }
+    data[idx] = newv == null ? data[idx].dissoc(rv, k) : data[idx].assoc(rv, k, hc, newv);
+    if(newv != null && e == null) rv.checkResize(null);
     return rv;
   }
 

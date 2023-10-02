@@ -854,36 +854,31 @@ ham_fisted.PersistentHashMap
 
 (defn update-values
   "Immutably (or mutably) update all values in the map returning a new map.
-  bfn takes 2 arguments, k,v and returns a new v. Returns a new persistent map if input
-  is persistent else an updated mutable map.
-  If passed a vector, k is the index and v is the value.  Will return a new vector.
-  else map is assumed to be convertible to a sequence and this pathway works the same
-  as map-indexed."
+  bfn takes 2 arguments, k,v and returns a new v. Returning nil removes the key from the map.
+  When passed a vector the keys are indexes and no nil-removal is done."
   [map bfn]
   (let [bfn (->bi-function bfn)]
     (cond
       (instance? UpdateValues map)
       (.updateValues ^UpdateValues map bfn)
-      (instance? IPersistentMap map)
+      (or (instance? ITransientMap map) (instance? IPersistentMap map))
       (-> (reduce (fn [^Map acc kv]
-                    (.put acc (key kv) (.apply bfn (key kv) (val kv)))
+                    (when-let [v (.apply bfn (key kv) (val kv))]
+                      (.put acc (key kv) v))
                     acc)
                   (mut-map)
-                   map)
+                  map)
           (persistent!))
       (instance? Map map)
-      (do
-        ;;Mutable preduce - this is faster than replaceAll for larger maps and same
-        ;;speed for most other maps.
-        (preduce
-         (constantly nil)
-         ;;We do not care about the accumulator at all - we mutably replace
-         ;;the value of the map entry
-         (fn [acc ^Map$Entry e]
-           (.setValue e (.apply bfn (.getKey e) (.getValue e))))
-         (constantly nil)
-         map)
-        map)
+      (let [iter (.iterator (.entrySet ^Map map))]
+        (loop [continue? (.hasNext iter)]
+          (if continue?
+            (let [kv (.next iter)]
+              (if-let [v (.apply bfn (key kv) (val kv))]
+                (.setValue ^Map$Entry kv v)
+                (.remove iter))
+              (recur (.hasNext iter)))
+            map)))
       (instance? RandomAccess map)
       (mut-list (lznc/map-indexed #(.apply bfn %1 %2) map))
       :else
