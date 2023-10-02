@@ -27,7 +27,8 @@ import clojure.lang.IMapEntry;
 import clojure.lang.MapEntry;
 
 
-public class LongHashMap extends LongHashBase implements IMap, MapSetOps {
+public class LongHashMap extends LongHashBase implements IMap, MapSetOps, UpdateValues {
+  Set keySet = null;
   public LongHashMap(float loadFactor, int initialCapacity,
 		 int length, LongHashNode[] data,
 		 IPersistentMap meta) {
@@ -273,6 +274,12 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps {
     }
   }
 
+  public Set keySet() {
+    if(this.keySet  == null )
+      this.keySet = IMap.super.keySet();
+    return this.keySet;
+   }
+
   @SuppressWarnings("unchecked")
   public static LongHashMap union(LongHashMap rv, Map o, BiFunction bfn) {
     LongHashNode[] rvd = rv.data;
@@ -300,15 +307,9 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps {
     return rv;
   }
 
-  // public HashSet keySet() {
-  //   if(this.keySet  == null )
-  //     this.keySet = new PersistentHashSet(this);
-  //   return this.keySet;
-  // }
-
   @SuppressWarnings("unchecked")
   public LongHashMap union(Map o, BiFunction bfn) {
-    return new PersistentLongHashMap(union(shallowClone(), o, bfn));
+    return union(this, o, bfn);
   }
   @SuppressWarnings("unchecked")
   static LongHashMap intersection(LongHashMap rv, Map o, BiFunction bfn) {
@@ -330,7 +331,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps {
 
 
   public LongHashMap intersection(Map o, BiFunction bfn) {
-    return new PersistentLongHashMap(intersection(shallowClone(), o, bfn));
+    return intersection(this, o, bfn);
   }
 
   public static LongHashMap intersection(LongHashMap rv, Set o) {
@@ -349,7 +350,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps {
     return rv;
   }
   public LongHashMap intersection(Set o) {
-    return new PersistentLongHashMap(intersection(shallowClone(), o));
+    return intersection(this, o);
   }
 
 
@@ -371,7 +372,56 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps {
   }
 
   public LongHashMap difference(Collection o) {
-    return difference(shallowClone(), o);
+    return difference(this, o);
+  }
+
+  @SuppressWarnings("unchecked")
+  static LongHashMap updateValues(LongHashMap rv, BiFunction valueMap) {
+    final LongHashNode[] d = rv.data;
+    final int nl = d.length;
+    for(int idx = 0; idx < nl; ++idx) {
+      LongHashNode lf = d[idx];
+      while(lf != null) {
+	LongHashNode cur = lf;
+	lf = lf.nextNode;
+	Object newv = valueMap.apply(cur.k, cur.v);
+	if(newv != null) {
+	  cur.v = newv;
+	}
+	else {
+	  d[idx] = d[idx].dissoc(rv,cur.k);
+	}
+      }
+    }
+    return rv;
+  }
+  public LongHashMap updateValues(BiFunction valueMap) {
+    return updateValues(this, valueMap);
+  }
+  @SuppressWarnings("unchecked")
+  static LongHashMap updateValue(LongHashMap rv, Object kk, Function fn) {
+    long k = Casts.longCast(kk);
+    final int hc = rv.hash(k);
+    final int idx = hc & rv.mask;
+    final LongHashNode[] data = rv.data;
+    LongHashNode e = data[idx];
+    for(; e != null && !((e.k == k)); e = e.nextNode);
+    final Object newv = e != null ? fn.apply(e.v) : fn.apply(null);
+    if(newv != null) {
+      if(e != null)
+	data[idx] = data[idx].assoc(rv, k, hc, newv);
+      else {
+	data[idx] = rv.newNode(k, hc, newv);
+	rv.checkResize(null);
+      }
+    } else if (e != null) {
+      data[idx] = data[idx].dissoc(rv, k);
+    }
+    return rv;
+  }
+
+  public LongHashMap updateValue(Object k, Function fn) {
+    return updateValue(this, fn);
   }
 
   public Iterator iterator(Function<Map.Entry,Object> leafFn) {

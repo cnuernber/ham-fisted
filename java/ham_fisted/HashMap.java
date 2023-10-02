@@ -395,7 +395,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
     final int idx = hc & rv.mask;
     final HashNode[] data = rv.data;
     HashNode e = data[idx];
-    for(; e != null || !((e.k == k) || rv.equals(e.k, k)); e = e.nextNode);
+    for(; e != null && !((e.k == k) || rv.equals(e.k, k)); e = e.nextNode);
     final Object newv = e != null ? fn.apply(e.v) : fn.apply(null);
     if(newv != null) {
       if(e != null)

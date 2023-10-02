@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Collection;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import clojure.lang.IEditableCollection;
 import clojure.lang.IPersistentMap;
 import clojure.lang.ITransientMap;
@@ -48,5 +49,11 @@ public class PersistentHashMap
   }
   public PersistentHashMap difference(Collection c) {
     return new PersistentHashMap(difference(shallowClone(), c));
+  }
+  public PersistentHashMap updateValues(BiFunction valueMap) {
+    return new PersistentHashMap(updateValues(shallowClone(), valueMap));
+  }
+  public PersistentHashMap updateValue(Object k, Function fn) {
+    return new PersistentHashMap(updateValue(this, fn));
   }
 }
