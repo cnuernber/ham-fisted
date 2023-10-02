@@ -47,7 +47,7 @@
   (:import [ham_fisted UnsharedHashMap UnsharedLongHashMap UnsharedHashSet
             PersistentHashSet PersistentHashMap PersistentLongHashMap
             ArrayLists$ArrayOwner
-            HashProvider MapSetOps SetOps ObjArray ImmutValues UpdateValues
+            HashProvider MapSetOps SetOps ObjArray UpdateValues
             MutList ImmutList StringCollection ArrayImmutList ArrayLists
             ImmutSort IMutList Ranges$LongRange ArrayHelpers
             Ranges$DoubleRange IFnDef Transformables$MapIterable
@@ -619,13 +619,6 @@ ham_fisted.PersistentHashMap
 (defn ^:no-doc as-map-set
   ^MapSetOps [item] item)
 
-(defn- immut-vals?
-  [item]
-  (instance? ImmutValues item))
-
-(defn- as-immut-vals
-  ^ImmutValues [item] item)
-
 (defn- ->set
   ^Set [item]
   (cond
@@ -871,8 +864,6 @@ ham_fisted.PersistentHashMap
     (cond
       (instance? UpdateValues map)
       (.updateValues ^UpdateValues map bfn)
-      (immut-vals? map)
-      (.immutUpdateValues (as-immut-vals map) bfn)
       (instance? IPersistentMap map)
       (-> (reduce (fn [^Map acc kv]
                     (.put acc (key kv) (.apply bfn (key kv) (val kv)))
