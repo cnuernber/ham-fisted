@@ -4,7 +4,7 @@
             [ham-fisted.lazy-noncaching :refer [map] :as lznc]
             [ham-fisted.function :refer [bi-function]])
   (:import [ham_fisted ParallelOptions ParallelOptions$CatParallelism Reductions
-            BitmapTrieCommon Transformables Reducible IFnDef$OOO IFnDef$OLOO
+            Transformables Reducible IFnDef$OOO IFnDef$OLOO
             IFnDef$ODO IFnDef$OLO Sum Sum$SimpleSum Reductions$IndexedAccum
             Reductions$IndexedLongAccum Reductions$IndexedDoubleAccum IFnDef$OLLO IFnDef$OLDO]
            [clojure.lang IFn$DO IFn$LO IFn$OLO]
@@ -181,14 +181,14 @@ ham-fisted.api> @*1
    (-> (reduce (fn [^Map m v]
                  (.put m (keyfn v) (valfn v))
                  m)
-               (ham_fisted.MutHashTable. BitmapTrieCommon/defaultHashProvider)
+               (ham_fisted.UnsharedHashMap. nil)
                data)
        (persistent!)))
   ([ks vs]
-   (let [rv (ham_fisted.MutHashTable. BitmapTrieCommon/defaultHashProvider)
+   (let [rv (ham_fisted.UnsharedHashMap. nil)
          ki (.iterator (Transformables/toIterable ks))
          vi (.iterator (Transformables/toIterable vs))]
-     (while (.hasNext ki)
+     (while (and (.hasNext ki) (.hasNext vi))
        (.put rv (.next ki) (.next vi)))
      (persistent! rv))))
 

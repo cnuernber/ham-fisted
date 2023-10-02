@@ -109,6 +109,28 @@ public class HashMap extends HashBase implements IMap, MapSetOps {
     }
     return checkResize(null);
   }
+  public void putAll(Map other) {
+    HashNode[] d = data;
+    int mask = this.mask;
+    for(Object o: other.entrySet()) {
+      Map.Entry ee = (Map.Entry)o;
+      int hashcode = hash(ee);
+      int idx = hashcode & mask;
+      HashNode e;
+      for(e = d[idx]; e != null; e = e.nextNode);
+      if(e != null) {
+	e.v = ee.getValue();
+      }
+      else {
+	HashNode n = newNode(ee.getKey(), hashcode, ee.getValue());
+	n.nextNode = d[idx];
+	d[idx] = n;
+	checkResize(null);
+	d = data;
+	mask = this.mask;
+      }
+    }
+  }
   public Object getOrDefault(Object key, Object dv) {
     for(HashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
       Object k;
@@ -128,7 +150,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps {
   public IMapEntry entryAt(Object key) {
     for(HashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
       Object k;
-      if((k = e.k) == key || equals(k, key))	
+      if((k = e.k) == key || equals(k, key))
 	return MapEntry.create(e.k, e.v);
     }
     return null;
@@ -202,7 +224,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps {
       }
       lastNode = e;
     }
-    return null;    
+    return null;
   }
   public Object reduce(IFn rfn, Object acc) {
     final int l = data.length;
@@ -241,7 +263,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps {
       }
     }
   }
-  
+
   @SuppressWarnings("unchecked")
   public static HashMap union(HashMap rv, Map o, BiFunction bfn) {
     HashNode[] rvd = rv.data;
@@ -274,7 +296,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps {
       this.keySet = new PersistentHashSet(this);
     return this.keySet;
   }
-  
+
   @SuppressWarnings("unchecked")
   public HashMap union(Map o, BiFunction bfn) {
     return new PersistentHashMap(union(shallowClone(), o, bfn));
@@ -296,8 +318,8 @@ public class HashMap extends HashBase implements IMap, MapSetOps {
     }
     return rv;
   }
-  
-  
+
+
   public HashMap intersection(Map o, BiFunction bfn) {
     return new PersistentHashMap(intersection(shallowClone(), o, bfn));
   }

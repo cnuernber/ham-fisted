@@ -117,9 +117,12 @@ public class HashSet extends HashBase implements ISet, SetOps {
     for(Object k: rhs) {
       final int hashcode = rv.hash(k);
       final int rvidx = hashcode & mask;
+      // System.out.println("k " + String.valueOf(k) + " hashcode " + String.valueOf(hashcode) + " rvidx " +
+      // 			 String.valueOf(rvidx) + " mask " + mask );
       HashNode init = rvd[rvidx], e = init;
       for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
       if(e == null) {
+	// System.out.println("E is null, init is" + (init == null ? " null" : " valid"));
 	if(init != null)
 	  rvd[rvidx] = init.assoc(rv, k, hashcode, VALUE);
 	else
@@ -129,7 +132,7 @@ public class HashSet extends HashBase implements ISet, SetOps {
 	rvd = rv.data;
       }
     }
-    return rv;      
+    return rv;
   }
 
   public HashSet intersection(Set rhs) {
@@ -147,7 +150,7 @@ public class HashSet extends HashBase implements ISet, SetOps {
     }
     return rv;
   }
-  
+
   public HashSet difference(Set rhs) {
     HashSet rv = shallowClone();
     final HashNode[] rvd = rv.data;

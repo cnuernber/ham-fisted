@@ -4,11 +4,11 @@
             [clojure.core.protocols :as cl-proto])
   (:import [java.util.concurrent ForkJoinPool ForkJoinTask ArrayBlockingQueue Future
             TimeUnit ConcurrentHashMap]
-           [clojure.lang MapEntry]
+           [clojure.lang MapEntry Box]
            [java.util Iterator Set Map RandomAccess Spliterator BitSet Collection
             Iterator ArrayDeque]
            [java.util.function Supplier]
-           [ham_fisted ParallelOptions BitmapTrieCommon$Box ITypedReduce IFnDef
+           [ham_fisted ParallelOptions ITypedReduce IFnDef
             ICollectionDef ArrayLists$ObjectArrayList Reductions$ReduceConsumer
             Reductions Transformables IFnDef$OLO ArrayLists StringCollection]
            [clojure.lang IteratorSeq IReduceInit PersistentHashMap IFn$OLO IFn$ODO Seqable
@@ -85,8 +85,8 @@
 
 (defn- queue-take
   [^ArrayBlockingQueue queue]
-  (let [^BitmapTrieCommon$Box b (.take queue)
-        v (.-obj b)]
+  (let [^Box b (.take queue)
+        v (.-val b)]
     (if (instance? ErrorRecord v)
       (throw (.-e ^ErrorRecord v))
       v)))
@@ -96,7 +96,7 @@
   [queue v put-timeout-ms]
   ;;You cannot put nil into a queue
   `(let [data# (-> (try ~v (catch Exception e# (ErrorRecord. e#)))
-                   (BitmapTrieCommon$Box.))]
+                   (Box.))]
      (when-not (.offer ~queue data# ~put-timeout-ms TimeUnit/MILLISECONDS)
        (let [msg# (str ":put-timeout-ms " ~put-timeout-ms
                        "ms exceeded")]

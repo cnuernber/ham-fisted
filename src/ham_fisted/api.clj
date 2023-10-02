@@ -44,10 +44,10 @@
                                        long-consumer-accumulator]
              :as hamf-rf]
             [ham-fisted.protocols :as protocols])
-  (:import [ham_fisted MutArrayMap MutHashTable LongMutHashTable MutBitmapTrie HashSet
-            PersistentHashSet HashTable LongHashTable ArrayLists$ArrayOwner
-            BitmapTrieCommon$HashProvider BitmapTrieCommon BitmapTrieCommon$MapSet
-            BitmapTrieCommon$Box ObjArray ImmutValues UpdateValues
+  (:import [ham_fisted UnsharedHashMap UnsharedLongHashMap UnsharedHashSet
+            PersistentHashSet PersistentHashMap PersistentLongHashMap
+            ArrayLists$ArrayOwner
+            HashProvider MapSetOps SetOps ObjArray ImmutValues UpdateValues
             MutList ImmutList StringCollection ArrayImmutList ArrayLists
             ImmutSort IMutList Ranges$LongRange ArrayHelpers
             Ranges$DoubleRange IFnDef Transformables$MapIterable
@@ -63,15 +63,15 @@
             IFnDef$OLO IFnDef$OD IFnDef$OL IFnDef$LD IFnDef$DL IFnDef$OLOO IFnDef$OLDO
             IFnDef$OLLO IFnDef$LongPredicate IFnDef$DoublePredicate IFnDef$Predicate
             Consumers$IncConsumer Reductions$IndexedDoubleAccum Reductions$IndexedLongAccum
-            Reductions$IndexedAccum MutHashTable ImmutHashTable MutableMap
-            ImmutArrayMap MapForward MapBase]
+            Reductions$IndexedAccum MutableMap
+            MapForward]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
             IEditableCollection RT IPersistentMap Associative Util IFn ArraySeq
             Reversible IReduce IReduceInit IFn$DD IFn$DL IFn$DO IFn$LD IFn$LL IFn$LO
             IFn$OD IFn$OL IFn$OLO IFn$ODO IObj Util IReduceInit Seqable IteratorSeq
-            ITransientMap Counted]
+            ITransientMap Counted Box]
            [java.util Map Map$Entry List RandomAccess Set Collection ArrayList Arrays
             Comparator Random Collections Iterator PriorityQueue LinkedHashMap]
            [java.lang.reflect Array]
@@ -90,6 +90,7 @@
             RemovalCause]
            [com.github.benmanes.caffeine.cache.stats CacheStats]
            [java.time Duration]
+           [java.util.logging Logger]
            [java.util.stream IntStream DoubleStream])
   (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize
                             into hash-map
@@ -135,45 +136,16 @@
 
 
 
-(def ^{:tag BitmapTrieCommon$HashProvider
-       :doc "Hash provider based on Clojure's hasheq and equiv pathways - the
-  same algorithm that Clojure's persistent data structures use. This hash
-  provider is somewhat (<2x) slower than the [[equal-hash-provider]]."}
-  equiv-hash-provider BitmapTrieCommon/equivHashProvider)
-(def ^{:tag BitmapTrieCommon$HashProvider
-       :doc "Hash provider based on Object.hashCode and Object.equals - this is
-the same pathway that `java.util.HashMap` uses and is the overall the fastest
-hash provider.  Hash-based data structures based on this hash provider will be
-faster to create and access but will not use the hasheq pathway. This is fine
-for integer keys, strings, keywords, and symbols, but differs for objects such
-as doubles, floats, and BigDecimals. This was the default hash provider."}
-  equal-hash-provider BitmapTrieCommon/equalHashProvider)
-
-(def ^{:tag BitmapTrieCommon$HashProvider
-       :doc "Hash provider opportunistically using IHashEq pathway when provided else
-falling back to mixhash(obj.hashCode).  For equality strictly uses Util.equiv as equality
-has not shown up to be a profiler bottleneck while generating mumur3 compatible hashes has in
-some cases (integers).  This hash provider provides a middle ground offering more performance
-for simple datatypes but still using the more robust equiv pathways for more complex datatypes.
-This is currently the default hash provider for the library."}
-  hybrid-hash-provider BitmapTrieCommon/hybridHashProvider)
+(defn- check-deprecated-provider
+  [options]
+  (when (:hash-provider options)
+    (.warning (Logger/getGlobal) "Hash providers have been deprecated")))
 
 
-(def ^{:tag BitmapTrieCommon$HashProvider
-       :doc "Default hash provider - currently set to the hybrid hash provider."}
-  default-hash-provider BitmapTrieCommon/defaultHashProvider)
-
-
-
-(defn- options->provider
-  ^BitmapTrieCommon$HashProvider [options]
-  (get options :hash-provider default-hash-provider))
-
-
-(def ^{:tag ImmutArrayMap
-       :doc "Constant persistent empty map"} empty-map (.persistent (MutArrayMap. default-hash-provider)))
+(def ^{:tag PersistentHashMap
+       :doc "Constant persistent empty map"} empty-map PersistentHashMap/EMPTY)
 (def ^{:tag PersistentHashSet
-       :doc "Constant persistent empty set"} empty-set (PersistentHashSet. (options->provider nil)))
+       :doc "Constant persistent empty set"} empty-set PersistentHashSet/EMPTY)
 (def ^{:tag ArrayImmutList
        :doc "Constant persistent empty vec"} empty-vec ArrayImmutList/EMPTY)
 
@@ -282,27 +254,20 @@ This is currently the default hash provider for the library."}
   replaceAll and merge.
 
   If data is an object array it is treated as a flat key-value list which is distinctly
-  different than how conj! treats object arrays.  You have been warned.
-
-  Options:
-
-  * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
-  the [[default-hash-provider]]."
-  (^MutHashTable [] (MutHashTable. default-hash-provider))
-  (^MutHashTable [data] (mut-hashtable-map nil nil data))
-  (^MutHashTable [xform data] (mut-hashtable-map xform nil data))
-  (^MutHashTable [xform options data]
+  different than how conj! treats object arrays.  You have been warned."
+  (^UnsharedHashMap [] (UnsharedHashMap. nil))
+  (^UnsharedHashMap [data] (mut-hashtable-map nil nil data))
+  (^UnsharedHashMap [xform data] (mut-hashtable-map xform nil data))
+  (^UnsharedHashMap [xform options data]
    (cond
      (number? data)
-     (MutHashTable. (options->provider options) nil (int data))
+     (UnsharedHashMap. nil (int data))
      (and (nil? xform) (instance? obj-ary-cls data))
-     (MutHashTable/create (options->provider options) true ^objects data)
-     (and (nil? xform) (instance? MutHashTable data))
-     (.clone ^MutHashTable data)
+     (UnsharedHashMap/create data)
+     (and (nil? xform) (instance? UnsharedHashMap data))
+     (.clone ^UnsharedHashMap data)
      :else
-     (tduce xform (transient-map-rf #(MutHashTable. (options->provider nil)
-                                                    nil
-                                                    (get options :init-size 0)))
+     (tduce xform (transient-map-rf #(UnsharedHashMap. nil (get options :init-size 0)))
             data))))
 
 
@@ -313,53 +278,20 @@ This is currently the default hash provider for the library."}
   replaceAll and merge.
 
   If data is an object array it is treated as a flat key-value list which is distinctly
-  different than how conj! treats object arrays.  You have been warned.
-
-  Options:
-
-  * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
-  the [[default-hash-provider]]."
-  (^LongMutHashTable [] (LongMutHashTable.))
-  (^LongMutHashTable [data] (mut-long-hashtable-map nil nil data))
-  (^LongMutHashTable [xform data] (mut-long-hashtable-map xform nil data))
-  (^LongMutHashTable [xform options data]
+  different than how conj! treats object arrays.  You have been warned."
+  (^UnsharedLongHashMap [] (UnsharedLongHashMap. nil))
+  (^UnsharedLongHashMap [data] (mut-long-hashtable-map nil nil data))
+  (^UnsharedLongHashMap [xform data] (mut-long-hashtable-map xform nil data))
+  (^UnsharedLongHashMap [xform options data]
    (cond
      (number? data)
-     (LongMutHashTable. nil (int data))
+     (UnsharedLongHashMap. nil (int data))
      (and (nil? xform) (instance? obj-ary-cls data))
-     (LongMutHashTable/create true ^objects data)
-     (and (nil? xform) (instance? MutHashTable data))
-     (.clone ^LongMutHashTable data)
+     (UnsharedLongHashMap/create data)
+     (and (nil? xform) (instance? UnsharedLongHashMap data))
+     (.clone ^UnsharedLongHashMap data)
      :else
-     (tduce xform (transient-map-rf #(LongMutHashTable.)) data))))
-
-
-(defn mut-trie-map
-  "Create a mutable implementation of java.util.Map.  This object efficiently implements
-  ITransient map so you can use assoc! and persistent! on it but you can additionally use
-  operations such as put!, remove!, compute-at! and compute-if-absent!.  You can create
-  a persistent hashmap via the clojure `persistent!` call.
-
-  If data is an object array it is treated as a flat key-value list which is distinctly
-  different than how conj! treats object arrays.  You have been warned.
-
-  Options:
-
-  * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
-  the [[default-hash-provider]]."
-  (^MutBitmapTrie [] (MutBitmapTrie. (options->provider nil)))
-  (^MutBitmapTrie [data] (mut-trie-map nil nil data))
-  (^MutBitmapTrie [xform data] (mut-trie-map xform nil data))
-  (^MutBitmapTrie [xform options data]
-   (cond
-     (number? data)
-     (MutBitmapTrie. (options->provider nil))
-     (and (nil? xform) (instance? obj-ary-cls data))
-     (MutBitmapTrie/create (options->provider options) true ^objects data)
-     :else
-     (tduce xform
-            (transient-map-rf #(MutBitmapTrie. (options->provider nil)))
-            data))))
+     (tduce xform (transient-map-rf #(UnsharedLongHashMap. nil)) data))))
 
 
 (defn mut-map
@@ -367,28 +299,6 @@ This is currently the default hash provider for the library."}
   (^Map [data] (mut-hashtable-map data))
   (^Map [xform data] (mut-hashtable-map xform data))
   (^Map [xform options data] (mut-hashtable-map xform options data)))
-
-
-(defn ^:no-doc map-data->obj-ary
-  ^objects [data]
-  (if (instance? obj-ary-cls data)
-    data
-    (-> (reduce (fn [^List l d]
-                       (cond
-                         (instance? Map$Entry d)
-                         (do (.add l (.getKey ^Map$Entry d))
-                             (.add l (.getValue ^Map$Entry d)))
-                         (instance? Indexed d)
-                         (do (.add l (.nth ^Indexed d 0))
-                             (.add l (.nth ^Indexed d 1))))
-                       l)
-                     (object-array-list)
-                     data)
-          (object-array))))
-
-(defn ^:no-doc immut-map-via-obj-ary
-  [options data]
-  (MutArrayMap/create (options->provider options) false (map-data->obj-ary data)))
 
 
 (defn constant-countable?
@@ -414,11 +324,6 @@ This is currently the default hash provider for the library."}
   use `(persistent! (mut-map data))` as that avoids the transition from an arraymap
   to a persistent hashmap.
 
-  Options:
-
-  * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
-  the [[default-hash-provider]].
-
   Examples:
 
   ```clojure
@@ -435,10 +340,10 @@ ham-fisted.api> (immut-map [[:a 1][:b 2][:c 3][:d 4][:e 5]])
 ham-fisted.api> (type *1)
 ham_fisted.PersistentHashMap
 ```"
-  (^ImmutHashTable [] empty-map)
-  (^ImmutHashTable [data]
+  (^PersistentHashMap [] empty-map)
+  (^PersistentHashMap [data]
    (immut-map nil data))
-  (^ImmutHashTable [options data]
+  (^PersistentHashMap [options data]
    (-> (mut-map options data)
        (persistent!))))
 
@@ -447,24 +352,60 @@ ham_fisted.PersistentHashMap
   "Drop-in replacement to Clojure's hash-map function."
   ([] empty-map)
   ([a b]
-   (persistent! (MutArrayMap/createKV default-hash-provider a b)))
+   (persistent! (doto (mut-hashtable-map)
+                  (.put a b))))
   ([a b c d]
-   (persistent! (MutArrayMap/createKV default-hash-provider a b c d)))
+   (persistent! (doto (mut-hashtable-map)
+                  (.put a b)
+                  (.put c d))))
   ([a b c d e f]
-   (persistent! (MutArrayMap/createKV default-hash-provider a b c d e f)))
+   (persistent! (doto (mut-hashtable-map)
+                  (.put a b)
+                  (.put c d)
+                  (.put e f))))
   ([a b c d e f g h]
-   (persistent! (MutArrayMap/createKV default-hash-provider a b c d e f g h)))
+   (persistent! (doto (mut-hashtable-map)
+                  (.put a b)
+                  (.put c d)
+                  (.put e f)
+                  (.put g h))))
   ([a b c d e f g h i j]
-   (persistent! (MutArrayMap/createKV default-hash-provider a b c d e f g h i j)))
+   (persistent! (doto (mut-hashtable-map)
+                  (.put a b)
+                  (.put c d)
+                  (.put e f)
+                  (.put g h)
+                  (.put i j))))
   ([a b c d e f g h i j k l]
-   (persistent! (MutArrayMap/createKV default-hash-provider a b c d e f g h i j k l)))
+   (persistent! (doto (mut-hashtable-map)
+                  (.put a b)
+                  (.put c d)
+                  (.put e f)
+                  (.put g h)
+                  (.put i j)
+                  (.put k l))))
   ([a b c d e f g h i j k l m n]
-   (persistent! (MutArrayMap/createKV default-hash-provider a b c d e f g h i j k l m n)))
+   (persistent! (doto (mut-hashtable-map)
+                  (.put a b)
+                  (.put c d)
+                  (.put e f)
+                  (.put g h)
+                  (.put i j)
+                  (.put k l)
+                  (.put m n))))
   ([a b c d e f g h i j k l m n o p]
-   (persistent! (MutArrayMap/createKV default-hash-provider a b c d e f g h i j k l m n o p)))
+   (persistent! (doto (mut-hashtable-map)
+                  (.put a b)
+                  (.put c d)
+                  (.put e f)
+                  (.put g h)
+                  (.put i j)
+                  (.put k l)
+                  (.put m n)
+                  (.put o p))))
   ([a b c d e f g h i j k l m n o p & args]
-   (persistent! (MutArrayMap/create default-hash-provider true
-                                    (ObjArray/createv a b c d e f g h i j k l m n o p (object-array args))))))
+   (persistent! (UnsharedHashMap/create
+                 (ObjArray/createv a b c d e f g h i j k l m n o p (object-array args))))))
 
 
 (defn java-hashmap
@@ -537,9 +478,9 @@ ham_fisted.PersistentHashMap
 
   * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
   the [[default-hash-provider]]."
-  (^HashSet [] (HashSet. (options->provider nil)))
-  (^HashSet [data] (into (HashSet. (options->provider nil)) data))
-  (^HashSet [options data] (into (HashSet. (options->provider options)) data)))
+  (^UnsharedHashSet [] (UnsharedHashSet. nil))
+  (^UnsharedHashSet [data] (into (UnsharedHashSet. nil) data))
+  (^UnsharedHashSet [options data] (into (UnsharedHashSet. nil) data)))
 
 
 (defn immut-set
@@ -551,8 +492,8 @@ ham_fisted.PersistentHashMap
   * `:hash-provider` - An implementation of `BitmapTrieCommon$HashProvider`.  Defaults to
   the [[default-hash-provider]]."
   (^PersistentHashSet [] empty-set)
-  (^PersistentHashSet [data] (into (PersistentHashSet. (options->provider nil)) data))
-  (^PersistentHashSet [options data] (into (PersistentHashSet. (options->provider options)) data)))
+  (^PersistentHashSet [data] (into empty-set data))
+  (^PersistentHashSet [options data] (into empty-set data)))
 
 
 (defn java-hashset
@@ -618,10 +559,20 @@ ham_fisted.PersistentHashMap
   (cond
     (instance? ITransientCollection obj)
     (.conj ^ITransientCollection obj val)
-    (instance? Set obj)
-    (do (.add ^Set obj val) obj)
-    (instance? List obj)
-    (do (.add ^List obj val) obj)
+    (instance? Collection obj)
+    (do (.add ^Collection obj val) obj)
+    (instance? Map obj)
+    (do (cond
+          (instance? Indexed val)
+          (let [^Indexed val val]
+            (.put ^Map obj (.nth val 0) (.nth val 1))
+            obj)
+          (instance? Map$Entry val)
+          (let [^Map$Entry val val]
+            (.put ^Map obj (.getKey val) (.getValue val))
+            obj)
+          :else
+          (throw (RuntimeException. (str "Cannot conj " val " to a map.")))))
     :else
     (throw (Exception. "Item cannot be conj!'d"))))
 
@@ -632,7 +583,7 @@ ham_fisted.PersistentHashMap
   [l1 l2]
   (if (instance? IMutList l1)
     (.addAllReducible ^IMutList l1 l2)
-    (.addAll ^List l1 l2))
+    (.addAll (->collection l1) l2))
   l1)
 
 
@@ -654,10 +605,10 @@ ham_fisted.PersistentHashMap
 
 (defn ^:no-doc map-set?
   [item]
-  (instance? BitmapTrieCommon$MapSet item))
+  (instance? MapSetOps item))
 
 (defn ^:no-doc as-map-set
-  ^BitmapTrieCommon$MapSet [item] item)
+  ^MapSetOps [item] item)
 
 (defn- immut-vals?
   [item]
@@ -713,21 +664,15 @@ ham_fisted.PersistentHashMap
     (identical? map1 map2) map1
     :else
     (let [bfn (->bi-function bfn)]
-      (if (and (map-set? map1) (map-set? map2))
-        (.union (as-map-set map1) (as-map-set map2) bfn)
-        (let [[map1 map2] (if (< (count map1) (count map2))
-                            [map2 map1]
-                            [map1 map2])
-              map1 (cond
-                     (identical? map1 map2)
-                     (mut-map map1)
-                     (mutable-map? map1)
+      (if (map-set? map1)
+        (.union (as-map-set map1) map2 bfn)
+        (let [map1 (if (mutable-map? map1)
                      map1
-                     :else
                      (mut-map map1))]
-          (.forEach ^Map map2 (reify BiConsumer
-                                (accept [this k v]
-                                  (.merge ^Map map1 k v bfn))))
+          (reduce (fn [acc kv]
+                    (.merge ^Map map1 (key kv) (val kv) bfn))
+                  nil
+                  map2)
           map1)))))
 
 
@@ -737,24 +682,37 @@ ham_fisted.PersistentHashMap
   ^java.util.HashMap [bfn ^Map lhs ^Map rhs]
   (map-union bfn (java-hashmap lhs) rhs))
 
+(def ^:no-doc rhs-wins (hamf-fn/bi-function l r r))
 
-(defn- set-map-union-bfn
-  ^BiFunction [s1 s2]
-  (cond
-    (instance? Set s1)
-    HashSet/setValueMapper
-    ;; This ordering allows union to be used in place of merge for maps.
-    (instance? Map s2)
-    BitmapTrieCommon/rhsWins
-    (instance? Map s1)
-    BitmapTrieCommon/lhsWins
-    :else
-    HashSet/setValueMapper))
+
+(defn ^:no-doc map-set-union-fallback
+  [m m2]
+  (-> (reduce (fn [^ITransientMap l e]
+                (.conj l e))
+              (mut-hashtable-map m)
+              m2)
+      (persistent!)))
+
+
+(defn ^:no-doc set-union-fallback
+  [m m2]
+  (-> (reduce (fn [^UnsharedHashSet l e]
+                (.conj l e))
+              (mut-set m)
+              m2)
+      (persistent!)))
+
+
+(defn mutable-map?
+  [m]
+  (and (instance? Map m)
+       (not (instance? IPersistentMap m))
+       (not (instance? ITransientMap m))))
 
 
 (defn union
   "Union of two sets or two maps.  When two maps are provided the right hand side
-  wins in the case of an intersection.
+  wins in the case of an intersection - same as merge.
 
   Result is either a set or a map, depending on if s1 is a set or map."
   [s1 s2]
@@ -762,23 +720,21 @@ ham_fisted.PersistentHashMap
     (nil? s1) s2
     (nil? s2) s1
     (identical? s1 s2) s1
-    (and (map-set? s1) (map-set? s2))
-    (.union (as-map-set s1) (as-map-set s2) (set-map-union-bfn s1 s2))
     (and (instance? Map s1) (instance? Map s2))
-    (map-union BitmapTrieCommon/rhsWins s1 s2)
+    (cond
+      (mutable-map? s1)
+      (do (.putAll ^Map s1 s2) s1)
+      (map-set? s1)
+      (.union (as-map-set s1) ^Map s2 rhs-wins)
+      :else
+      (reduce (fn [acc kv]
+                (assoc! acc (key kv) (val kv)))
+              (transient s1)
+              s2))
+    (instance? SetOps s1)
+    (.union ^SetOps s1 s2)
     :else
-    (let [retval (mut-set s1)]
-      (.forEach ^Collection s2 (reify Consumer
-                                 (accept [this v]
-                                   (.add retval v))))
-      (persistent! retval))))
-
-
-(defn mutable-map?
-  [m]
-  (or (instance? MutableMap m)
-      (and (not (instance? IPersistentMap m))
-           (not (instance? ITransientMap)))))
+    (set-union-fallback s1 s2)))
 
 
 (defn union-reduce-maps
@@ -810,26 +766,33 @@ ham_fisted.PersistentHashMap
   "Take the difference of two maps (or sets) returning a new map.  Return value is a map1
   (or set1) without the keys present in map2."
   [map1 map2]
-  (if (nil? map2)
+  (cond
+    (or (nil? map1) (nil? map2))
     map1
-    (if (and (map-set? map1) (map-set? map2))
-      (.difference (as-map-set map1) (as-map-set map2))
-      (if (instance? Map map1)
-        (let [retval (mut-map)
-              rhs (->set map2)]
-          (.forEach ^Map map1 (reify BiConsumer
-                                (accept [this k v]
-                                  (when-not (.contains rhs k)
-                                    (.put ^Map retval k v)))))
-          (persistent! retval))
-        (let [retval (mut-set)
-              rhs (->set map2)]
-          (.forEach (->collection map1)
-                    (reify Consumer
-                      (accept [this v]
-                        (when-not (.contains rhs v)
-                          (.add retval v)))))
-          (persistent! retval))))))
+    (map-set? map1)
+    (if (instance? Map map2)
+      (.difference (as-map-set map1) ^Map map2)
+      (.difference (as-map-set map1) (->set map2)))
+    (instance? SetOps map1)
+    (.difference ^SetOps map1 (->set map2))
+    (instance? Set map1)
+    (let [map2 (->set map2)]
+      (-> (reduce (fn [^Set acc v]
+                    (when-not (.contains map2 v)
+                      (.add acc v))
+                    acc)
+                  (mut-set)
+                  map1)
+          (persistent!)))
+    (instance? Map map1)
+    (let [map2 (->set map2)]
+      (-> (reduce (fn [^Map acc kv]
+                    (when-not (.contains map2 (key kv))
+                      (.remove acc (key kv)))
+                    acc)
+                  (mut-map)
+                  map1)
+          (persistent!)))))
 
 
 (defn map-intersection
@@ -846,8 +809,10 @@ ham_fisted.PersistentHashMap
   (if (or (nil? map2) (nil? map2))
     empty-map
     (let [bfn (->bi-function bfn)]
-      (if (and (map-set? map1) (map-set? map2))
-        (.intersection (as-map-set map1) (as-map-set map2) bfn)
+      (if (map-set? map1)
+        (if (instance? Map map2)
+          (.intersection (as-map-set map1) ^Map map2 bfn)
+          (.intersection (as-map-set map1) (->set map2)))
         (let [retval (mut-map)]
           (.forEach ^Map map1 (reify BiConsumer
                                 (accept [this k v]
@@ -863,20 +828,25 @@ ham_fisted.PersistentHashMap
   [s1 s2]
   (cond
     (or (nil? s1) (nil? s2)) empty-set
-    (and (map-set? s1) (map-set? s2))
-    (.intersection (as-map-set s1) (as-map-set s2)
-                   (set-map-union-bfn s1 s2))
-    (and (instance? Map s1) (instance? Map s2))
-    (map-intersection BitmapTrieCommon/rhsWins s1 s2)
+    (instance? SetOps s1)
+    (.intersection ^SetOps s1 (if (instance? Map s2)
+                                (.keySet ^Map s2)
+                                s2))
+    (instance? Map s1)
+    (map-intersection rhs-wins s1 s2)
     :else
     (let [retval (mut-set)
+          [s1 s2] (if (< (count s1) (count s2))
+                    [s1 s2]
+                    [s2 s1])
           s2 (->set s2)]
-      (.forEach (->set s1)
-                (reify Consumer
-                  (accept [this v]
+      (-> (reduce (fn [rv v]
                     (when (.contains s2 v)
-                      (.add retval v)))))
-      (persistent! retval))))
+                      (.add ^Set rv v))
+                    rv)
+                  (mut-set)
+                  s1)
+          (persistent!)))))
 
 
 (defn update-values
@@ -1052,16 +1022,13 @@ ham_fisted.PersistentHashMap
   [merge-bifn ^Map l ^Map r]
   (cond
     (identical? l r) l
-    (map-set? l) (map-union merge-bifn l r)
+    (map-set? l) (.union ^MapSetOps l r (->bi-function merge-bifn))
     :else
-    (let [[^Map minm ^Map maxm] (if (< (.size l) (.size r))
-                                  [l r]
-                                  [r l])
-          merge-bifn (->bi-function merge-bifn)]
-      (.forEach minm (bi-consumer
-                      k v
-                      (.merge maxm k v merge-bifn)))
-      maxm)))
+    (let [merge-bifn (->bi-function merge-bifn)]
+      (reduce (fn [acc kv]
+                (.merge ^Map acc (key kv) (val kv) merge-bifn)
+                acc)
+              l r))))
 
 (defn freq-reducer
   "Return a hamf parallel reducer that performs a frequencies operation."
@@ -1080,7 +1047,7 @@ ham_fisted.PersistentHashMap
        (->merge-fn [this] hamf-rf/reducible-merge)
        protocols/Finalize
        (finalize [this v]
-         (if (get options :skip-finalize?)
+         (if sk?
            v
            (update-values v fin-bfn))))))
   ([] (freq-reducer nil)))
@@ -1122,12 +1089,11 @@ ham_fisted.PersistentHashMap
   Returns a new persistent map."
   ([] nil)
   ([m1] m1)
-  ([m1 m2] (map-union BitmapTrieCommon/rhsWins m1 m2))
+  ([m1 m2] (union m1 m2))
   ([m1 m2 & args]
-   ;;I didn't use union-reduce here because it is only faster when you have large maps.
-   ;;Else union is just fine.
-   (reduce #(map-union BitmapTrieCommon/rhsWins %1 %2)
-           (map-union BitmapTrieCommon/rhsWins m1 m2)
+   ;;union on mutable maps can just be putAll.
+   (reduce #(union %1 %2)
+           (union m1 m2)
            args)))
 
 
@@ -1140,8 +1106,7 @@ ham_fisted.PersistentHashMap
   ([f m1] m1)
   ([f m1 m2] (map-union f m1 m2))
   ([f m1 m2 & args]
-   (let [f (->bi-function f)]
-     (union-reduce-maps f (apply-concat [(map-union f m1 m2)] args)))))
+   (union-reduce-maps f (apply-concat [(map-union f m1 m2)] args))))
 
 
 (defn memoize
@@ -1211,7 +1176,7 @@ nil
            eviction-fn
            (.evictionListener (reify com.github.benmanes.caffeine.cache.RemovalListener
                                 (onRemoval [this args v cause]
-                                  (eviction-fn args (.-obj ^BitmapTrieCommon$Box v)
+                                  (eviction-fn args (.-val ^Box v)
                                                (condp identical? cause
                                                  RemovalCause/COLLECTED :collected
                                                  RemovalCause/EXPIRED :expired
@@ -1223,7 +1188,7 @@ nil
          (.build new-builder
                  (proxy [CacheLoader] []
                    (load [args]
-                     (BitmapTrieCommon$Box.
+                     (Box.
                       (case (count args)
                         0 (memo-fn)
                         1 (memo-fn (args 0))
@@ -1231,16 +1196,16 @@ nil
                         3 (memo-fn (args 0) (args 1) (args 2))
                         (.applyTo ^IFn memo-fn (seq args)))))))]
      (-> (fn
-           ([] (.obj ^BitmapTrieCommon$Box (.get cache [])))
-           ([a] (.obj ^BitmapTrieCommon$Box (.get cache [a])))
-           ([a b] (.obj ^BitmapTrieCommon$Box (.get cache [a b])))
-           ([a b c] (.obj ^BitmapTrieCommon$Box (.get cache [a b c])))
+           ([] (.val ^Box (.get cache [])))
+           ([a] (.val ^Box (.get cache [a])))
+           ([a b] (.val ^Box (.get cache [a b])))
+           ([a b c] (.val ^Box (.get cache [a b c])))
            ([a b c & args] (let [^IMutList obj-ary (mut-list)]
                              (.add obj-ary a)
                              (.add obj-ary b)
                              (.add obj-ary c)
                              (.addAllReducible obj-ary args)
-                             (.obj ^BitmapTrieCommon$Box (.get cache (persistent! obj-ary))))))
+                             (.val ^Box (.get cache (persistent! obj-ary))))))
          (with-meta {:cache cache})))))
 
 
