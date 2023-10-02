@@ -109,6 +109,29 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps {
     }
     return checkResize(null);
   }
+  public void putAll(Map other) {
+    LongHashNode[] d = data;
+    int mask = this.mask;
+    for(Object o: other.entrySet()) {
+      Map.Entry ee = (Map.Entry)o;
+      long k = Casts.longCast(ee.getKey());
+      int hashcode = hash(k);
+      int idx = hashcode & mask;
+      LongHashNode e;
+      for(e = d[idx]; e != null && !(k == e.k); e = e.nextNode);
+      if(e != null) {
+	e.v = ee.getValue();
+      }
+      else {
+	LongHashNode n = newNode(k, hashcode, ee.getValue());
+	n.nextNode = d[idx];
+	d[idx] = n;
+	checkResize(null);
+	d = data;
+	mask = this.mask;
+      }
+    }
+  }
   public Object getOrDefault(Object kk, Object dv) {
     long key = Casts.longCast(kk);
     for(LongHashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
@@ -204,7 +227,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps {
       }
       lastNode = e;
     }
-    return null;    
+    return null;
   }
   public Object reduce(IFn rfn, Object acc) {
     final int l = data.length;
@@ -243,7 +266,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps {
       }
     }
   }
-  
+
   @SuppressWarnings("unchecked")
   public static LongHashMap union(LongHashMap rv, Map o, BiFunction bfn) {
     LongHashNode[] rvd = rv.data;
@@ -276,7 +299,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps {
   //     this.keySet = new PersistentHashSet(this);
   //   return this.keySet;
   // }
-  
+
   @SuppressWarnings("unchecked")
   public LongHashMap union(Map o, BiFunction bfn) {
     return new PersistentLongHashMap(union(shallowClone(), o, bfn));
@@ -298,8 +321,8 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps {
     }
     return rv;
   }
-  
-  
+
+
   public LongHashMap intersection(Map o, BiFunction bfn) {
     return new PersistentLongHashMap(intersection(shallowClone(), o, bfn));
   }

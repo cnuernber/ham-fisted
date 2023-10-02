@@ -262,13 +262,17 @@
    (cond
      (number? data)
      (UnsharedHashMap. nil (int data))
-     (and (nil? xform) (instance? obj-ary-cls data))
-     (UnsharedHashMap/create data)
-     (and (nil? xform) (instance? UnsharedHashMap data))
-     (.clone ^UnsharedHashMap data)
+     (nil? xform)
+     (cond
+       (instance? obj-ary-cls data)
+       (UnsharedHashMap/create data)
+       (instance? Map data)
+       (doto (UnsharedHashMap. nil (.size ^Map data))
+         (.putAll data))
+       :else
+       (into (UnsharedHashMap. nil) data))
      :else
-     (tduce xform (transient-map-rf #(UnsharedHashMap. nil (get options :init-size 0)))
-            data))))
+     (into (UnsharedHashMap. nil) xform data))))
 
 
 (defn mut-long-hashtable-map
@@ -286,12 +290,17 @@
    (cond
      (number? data)
      (UnsharedLongHashMap. nil (int data))
-     (and (nil? xform) (instance? obj-ary-cls data))
-     (UnsharedLongHashMap/create data)
-     (and (nil? xform) (instance? UnsharedLongHashMap data))
-     (.clone ^UnsharedLongHashMap data)
+     (nil? xform)
+     (cond
+       (instance? obj-ary-cls data)
+       (UnsharedLongHashMap/create data)
+       (instance? Map data)
+       (doto (UnsharedLongHashMap. nil (.size ^Map data))
+         (.putAll data))
+       :else
+       (into (UnsharedLongHashMap. nil) data))
      :else
-     (tduce xform (transient-map-rf #(UnsharedLongHashMap. nil)) data))))
+     (into (UnsharedLongHashMap. nil) xform data))))
 
 
 (defn mut-map

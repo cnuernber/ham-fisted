@@ -114,15 +114,16 @@ public class HashMap extends HashBase implements IMap, MapSetOps {
     int mask = this.mask;
     for(Object o: other.entrySet()) {
       Map.Entry ee = (Map.Entry)o;
-      int hashcode = hash(ee);
+      Object k = ee.getKey();
+      int hashcode = hash(k);
       int idx = hashcode & mask;
       HashNode e;
-      for(e = d[idx]; e != null; e = e.nextNode);
+      for(e = d[idx]; e != null && !(k == e.k || equals(k,e.k)); e = e.nextNode);
       if(e != null) {
 	e.v = ee.getValue();
       }
       else {
-	HashNode n = newNode(ee.getKey(), hashcode, ee.getValue());
+	HashNode n = newNode(k, hashcode, ee.getValue());
 	n.nextNode = d[idx];
 	d[idx] = n;
 	checkResize(null);
