@@ -10,7 +10,7 @@ import clojure.lang.Indexed;
 
 public class UnsharedLongHashMap
   extends LongHashMap
-  implements IATransientMap {
+  implements MutableMap, IATransientMap {
   public UnsharedLongHashMap() {
     super(null);
   }

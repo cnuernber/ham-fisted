@@ -42,7 +42,7 @@ public class ArrayImmutList
   extends APersistentVector
   implements IMutList, RandomAccess, Indexed, IReduce, IKVReduce,
 	     IHashEq, Seqable, Reversible, ChunkedListOwner, IPersistentVector,
-	     IObj, IEditableCollection, ImmutValues, ArrayLists.ArrayOwner
+	     IObj, IEditableCollection, UpdateValues, ArrayLists.ArrayOwner
 {
   final Object[] data;
   public final int startidx;
@@ -335,18 +335,18 @@ public class ArrayImmutList
     return MutList.create(true, meta(), Arrays.copyOfRange(data, startidx, startidx+nElems));
   }
   @SuppressWarnings("unchecked")
-  public final ArrayImmutList immutUpdateValue(Object key, IFn fn) {
+  public final ArrayImmutList updateValue(Object key, Function fn) {
     int idx = RT.intCast(key);
     if (idx < 0)
       idx = nElems + idx;
     if(idx >= nElems)
       throw new RuntimeException("Index out of range: " + String.valueOf(key));
     final Object[] newD = Arrays.copyOfRange(data, startidx, startidx+nElems);
-    newD[idx] = fn.invoke(newD[idx]);
+    newD[idx] = fn.apply(newD[idx]);
     return new ArrayImmutList(newD, 0, nElems, m);
   }
   @SuppressWarnings("unchecked")
-  public final ArrayImmutList immutUpdateValues(BiFunction fn) {
+  public final ArrayImmutList updateValues(BiFunction fn) {
     final int ne = nElems;
     final Object[] newD = Arrays.copyOfRange(data, startidx, startidx+nElems);
 

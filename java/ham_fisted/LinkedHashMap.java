@@ -76,7 +76,7 @@ public class LinkedHashMap extends HashMap {
   protected void modify(HashNode n) {
     // The algorithm below is lightly tested but currently linkedhashmaps only
     // record insertion and deletion events.
-    
+
     // LinkedHashNode hn = (LinkedHashNode)n;
     // if(firstLink != hn) {
     //   removeLink(hn);
@@ -113,48 +113,5 @@ public class LinkedHashMap extends HashMap {
 	return ((IDeref)acc).deref();
     }
     return acc;
-  }
-
-  @SuppressWarnings("unchecked")
-  public LinkedHashMap union(Map o, BiFunction bfn) {
-    if(!(o instanceof LinkedHashMap))
-      return (LinkedHashMap)HashMap.union(this, o, bfn);
-    LinkedHashMap other = (LinkedHashMap)o;
-    LinkedHashMap rv = this;
-    HashNode[] rvd = rv.data;
-    int mask = rv.mask;
-    for(LinkedHashNode lf = other.lastLink; lf != null; lf = lf.nextLink) {      
-      final int rvidx = lf.hashcode & mask;
-      final Object k = lf.k;
-      HashNode e = rvd[rvidx], lastNode = null;
-      for(;e != null && !(e.k==k || equals(e.k, k)); e = e.nextNode) { lastNode = e; }
-      if(e != null) {
-	e.v = bfn.apply(e.v, lf.v);
-	modify(e);
-      }
-      else {
-	HashNode nn = newNode(lf.k, lf.hashcode, lf.v);
-	if(lastNode != null)
-	  lastNode.nextNode = nn;
-	else
-	  rvd[rvidx] = nn;
-	rv.checkResize(null);
-	mask = rv.mask;
-	rvd = rv.data;
-      }
-    }
-    return rv;
-  }
-
-  public LinkedHashMap intersection(Map o, BiFunction bfn) {
-    return (LinkedHashMap)HashMap.intersection(this, o, bfn);
-  }
-
-  public LinkedHashMap intersection(Set o) {
-    return (LinkedHashMap)HashMap.intersection(this, o);
-  }
-  
-  public LinkedHashMap difference(Set o) {    
-    return (LinkedHashMap)difference(this, o);
   }
 }

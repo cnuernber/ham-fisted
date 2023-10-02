@@ -151,7 +151,7 @@ public class HashSet extends HashBase implements ISet, SetOps {
     return rv;
   }
 
-  public HashSet difference(Set rhs) {
+  public HashSet difference(Collection rhs) {
     HashSet rv = shallowClone();
     final HashNode[] rvd = rv.data;
     final int mask = rv.mask;

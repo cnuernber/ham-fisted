@@ -27,8 +27,8 @@ import clojure.lang.IMapEntry;
 import clojure.lang.MapEntry;
 
 
-public class HashMap extends HashBase implements IMap, MapSetOps {
-  ROHashSet keySet;
+public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
+  Set keySet;
   public HashMap(float loadFactor, int initialCapacity,
 		  int length, HashNode[] data,
 		  IPersistentMap meta) {
@@ -265,6 +265,13 @@ public class HashMap extends HashBase implements IMap, MapSetOps {
     }
   }
 
+
+  public Set keySet() {
+    if(this.keySet  == null )
+      this.keySet = IMap.super.keySet();
+    return this.keySet;
+  }
+
   @SuppressWarnings("unchecked")
   public static HashMap union(HashMap rv, Map o, BiFunction bfn) {
     HashNode[] rvd = rv.data;
@@ -292,15 +299,9 @@ public class HashMap extends HashBase implements IMap, MapSetOps {
     return rv;
   }
 
-  public HashSet keySet() {
-    if(this.keySet  == null )
-      this.keySet = new PersistentHashSet(this);
-    return this.keySet;
-  }
-
   @SuppressWarnings("unchecked")
   public HashMap union(Map o, BiFunction bfn) {
-    return new PersistentHashMap(union(shallowClone(), o, bfn));
+    return union(this, o, bfn);
   }
   @SuppressWarnings("unchecked")
   static HashMap intersection(HashMap rv, Map o, BiFunction bfn) {
@@ -322,7 +323,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps {
 
 
   public HashMap intersection(Map o, BiFunction bfn) {
-    return new PersistentHashMap(intersection(shallowClone(), o, bfn));
+    return intersection(this, o, bfn);
   }
 
   public static HashMap intersection(HashMap rv, Set o) {
@@ -341,12 +342,12 @@ public class HashMap extends HashBase implements IMap, MapSetOps {
     return rv;
   }
   public HashMap intersection(Set o) {
-    return new PersistentHashMap(intersection(shallowClone(), o));
+    return intersection(this, o);
   }
 
 
   @SuppressWarnings("unchecked")
-  static HashMap difference(HashMap rv, Set o) {
+  static HashMap difference(HashMap rv, Collection o) {
     final HashNode[] rvd = rv.data;
     final int mask = rv.mask;
     for (Object k : o) {
@@ -355,14 +356,62 @@ public class HashMap extends HashBase implements IMap, MapSetOps {
       HashNode e = rvd[rvidx];
       for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
       if(e != null) {
-	rvd[rvidx] = rvd[rvidx].dissoc(rv, e.k);
+	rvd[rvidx] = rvd[rvidx].dissoc(rv,k);
       }
     }
     return rv;
   }
 
-  public HashMap difference(Set o) {
-    return difference(shallowClone(), o);
+  public HashMap difference(Collection o) {
+    return difference(this, o);
+  }
+
+  @SuppressWarnings("unchecked")
+  static HashMap updateValues(HashMap rv, BiFunction valueMap) {
+    final HashNode[] d = rv.data;
+    final int nl = d.length;
+    for(int idx = 0; idx < nl; ++idx) {
+      HashNode lf = d[idx];
+      while(lf != null) {
+	HashNode cur = lf;
+	lf = lf.nextNode;
+	Object newv = valueMap.apply(cur.k, cur.v);
+	if(newv != null) {
+	  cur.v = newv;
+	}
+	else {
+	  d[idx] = d[idx].dissoc(rv,cur.k);
+	}
+      }
+    }
+    return rv;
+  }
+  public HashMap updateValues(BiFunction valueMap) {
+    return updateValues(this, valueMap);
+  }
+  @SuppressWarnings("unchecked")
+  static HashMap updateValue(HashMap rv, Object k, Function fn) {
+    final int hc = rv.hash(k);
+    final int idx = hc & rv.mask;
+    final HashNode[] data = rv.data;
+    HashNode e = data[idx];
+    for(; e != null || !((e.k == k) || rv.equals(e.k, k)); e = e.nextNode);
+    final Object newv = e != null ? fn.apply(e.v) : fn.apply(null);
+    if(newv != null) {
+      if(e != null)
+	data[idx] = data[idx].assoc(rv, k, hc, newv);
+      else {
+	data[idx] = rv.newNode(k, hc, newv);
+	rv.checkResize(null);
+      }
+    } else if (e != null) {
+      data[idx] = data[idx].dissoc(rv, k);
+    }
+    return rv;
+  }
+
+  public HashMap updateValue(Object k, Function fn) {
+    return updateValue(this, fn);
   }
 
   public Iterator iterator(Function<Map.Entry,Object> leafFn) {

@@ -6,5 +6,5 @@ import java.util.Collection;
 public interface SetOps {
   Set union(Collection rhs);
   Set intersection(Set rhs);
-  Set difference(Set rhs);
+  Set difference(Collection rhs);
 }

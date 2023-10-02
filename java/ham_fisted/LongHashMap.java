@@ -133,26 +133,32 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps {
     }
   }
   public Object getOrDefault(Object kk, Object dv) {
-    long key = Casts.longCast(kk);
-    for(LongHashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
-      if(e.k == key)
-	return e.v;
+    if(kk instanceof Number) {
+      long key = Casts.longCast(kk);
+      for(LongHashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
+	if(e.k == key)
+	  return e.v;
+      }
     }
     return dv;
   }
   public Object get(Object kk) {
-    long key = Casts.longCast(kk);
-    for(LongHashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
-      if(e.k == key)
-	return e.v;
+    if(kk instanceof Number) {
+      long key = Casts.longCast(kk);
+      for(LongHashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
+	if(e.k == key)
+	  return e.v;
+      }
     }
     return null;
   }
   public IMapEntry entryAt(Object kk) {
-    long key = Casts.longCast(kk);
-    for(LongHashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
-      if(e.k == key)
-	return MapEntry.create(e.k, e.v);
+    if(kk instanceof Number) {
+      long key = Casts.longCast(kk);
+      for(LongHashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
+	if(e.k == key)
+	  return MapEntry.create(e.k, e.v);
+      }
     }
     return null;
   }
@@ -348,7 +354,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps {
 
 
   @SuppressWarnings("unchecked")
-  static LongHashMap difference(LongHashMap rv, Set o) {
+  static LongHashMap difference(LongHashMap rv, Collection o) {
     final LongHashNode[] rvd = rv.data;
     final int mask = rv.mask;
     for (Object kk : o) {
@@ -364,7 +370,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps {
     return rv;
   }
 
-  public LongHashMap difference(Set o) {
+  public LongHashMap difference(Collection o) {
     return difference(shallowClone(), o);
   }
 

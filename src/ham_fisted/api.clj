@@ -714,9 +714,10 @@ ham_fisted.PersistentHashMap
 
 (defn mutable-map?
   [m]
-  (and (instance? Map m)
-       (not (instance? IPersistentMap m))
-       (not (instance? ITransientMap m))))
+  (or (instance? MutableMap m)
+      (and (instance? Map m)
+           (not (instance? IPersistentMap m))
+           (not (instance? ITransientMap m)))))
 
 
 (defn union

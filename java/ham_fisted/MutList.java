@@ -33,7 +33,7 @@ import clojure.lang.IReduceInit;
 
 
 public class MutList<E>
-  implements IMutList<E>, ChunkedListOwner, Cloneable, ITransientVector, ImmutValues
+  implements IMutList<E>, ChunkedListOwner, Cloneable, ITransientVector, UpdateValues
 {
   final ChunkedList data;
   public MutList() { data = new ChunkedList(); }
@@ -494,10 +494,10 @@ public class MutList<E>
     return notFound;
   }
   public ImmutList persistent() { return new ImmutList(0, data.nElems, data); }
-  public ImmutList immutUpdateValues(BiFunction valueMap) {
-    return persistent().immutUpdateValues(valueMap);
+  public ImmutList updateValues(BiFunction valueMap) {
+    return persistent().updateValues(valueMap);
   }
-  public ImmutList immutUpdateValue(Object key, IFn valueMap) {
-    return persistent().immutUpdateValue(key, valueMap);
+  public ImmutList updateValue(Object key, Function valueMap) {
+    return persistent().updateValue(key, valueMap);
   }
 }
