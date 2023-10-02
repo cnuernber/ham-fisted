@@ -11,6 +11,9 @@ import clojure.lang.Indexed;
 public class UnsharedHashMap
   extends HashMap
   implements IATransientMap {
+  public UnsharedHashMap() {
+    super(null);
+  }
   public UnsharedHashMap(IPersistentMap meta) {
     super(meta);
   }

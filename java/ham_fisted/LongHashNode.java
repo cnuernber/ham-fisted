@@ -64,7 +64,7 @@ public class LongHashNode implements Map.Entry, IMutList, IMapEntry {
       if (retval.nextNode != null) {
 	retval.nextNode = retval.nextNode.assoc(nowner, _k, hash, _v);
       } else {
-	retval.nextNode = nowner.newNode(k, hash, _v);
+	retval.nextNode = nowner.newNode(_k, hash, _v);
       }
     }
     return retval;
