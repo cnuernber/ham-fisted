@@ -34,18 +34,20 @@ public class CljHash {
   }
 
   public static boolean nonNullEquiv(Object k1, Object k2) {
-    if( k1 instanceof Long && k2 instanceof Long)
-      return (long)k1 == (long)k2;
+    //Small carveout to accelerate long,long and double,double equivalence.
+    if( k1 instanceof Number) {
+      if( k1 instanceof Long && k2 instanceof Long)
+	return (long)k1 == (long)k2;
 
-    if ( k1 instanceof Double && k2 instanceof Double)
-      return (double)k1 == (double)k2;
+      if ( k1 instanceof Double && k2 instanceof Double)
+	return (double)k1 == (double)k2;
 
-    if(k1 instanceof Number && k2 instanceof Number)
-      return Numbers.equal((Number)k1, (Number)k2);
-
+      if(k2 instanceof Number)
+	return Numbers.equal((Number)k1, (Number)k2);
+      return false;
+    }
     if(k1 instanceof IPersistentCollection || k2 instanceof IPersistentCollection)
       return Util.pcequiv(k1,k2);
-
     return k1.equals(k2);
   }
 
@@ -72,7 +74,7 @@ public class CljHash {
       Set rhsMap = (Set)rhs;
       if (data.size() != rhsMap.size()) return false;
 
-      for(Object obj: rhsMap) {	
+      for(Object obj: rhsMap) {
 	if (data.contains(obj) == false)
 	  return false;
       }

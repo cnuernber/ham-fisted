@@ -27,12 +27,13 @@ public class HashNode implements Map.Entry, IMutList, IMapEntry {
   public HashNode(HashBase _owner, Object _k, int hc) {
     this(_owner, _k, hc, null, null);
   }
-  public HashNode(HashBase _owner, HashNode prev) {
+  // Cloning constructor
+  HashNode(HashBase _owner, HashNode prev) {
     owner = _owner;
     hashcode = prev.hashcode;
     k = prev.k;
     v = prev.v;
-    nextNode = prev.nextNode;
+    nextNode = null;
   }
   public HashNode setOwner(HashBase nowner) {
     if (owner == nowner)
@@ -40,7 +41,7 @@ public class HashNode implements Map.Entry, IMutList, IMapEntry {
     return new HashNode(nowner, this);
   }
   public HashNode clone(HashBase nowner) {
-    HashNode rv = new HashNode(nowner, k, hashcode, v, null);
+    HashNode rv = new HashNode(nowner, this);
     if(nextNode != null)
       rv.nextNode = nextNode.clone(nowner);
     return rv;

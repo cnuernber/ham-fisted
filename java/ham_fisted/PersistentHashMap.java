@@ -18,17 +18,52 @@ public class PersistentHashMap
   public static final PersistentHashMap EMPTY = new PersistentHashMap(new HashMap());
   int _hasheq = 0;
 
-  public PersistentHashMap(HashMap data) {
+  PersistentHashMap(HashMap data) {
     super(data.loadFactor, data.capacity, data.length, data.data, data.meta);
   }
-  public PersistentHashMap(HashMap data, IPersistentMap m) {
+  public PersistentHashMap(HashMap data, boolean marker) {
+    super(data.loadFactor, data.capacity, data.length, data.data.clone(), data.meta);
+  }
+  PersistentHashMap(HashMap data, IPersistentMap m) {
     super(data.loadFactor, data.capacity, data.length, data.data, m);
   }
+
   public int count() { return length; }
   public int hasheq() {
     if (_hasheq == 0)
       _hasheq = super.hasheq();
     return _hasheq;
+  }
+  public PersistentHashMap assoc(Object key, Object val) {
+    final int hashcode = hash(key);
+    final int idx = hashcode & mask;
+    HashNode e, init = data[idx];
+    Object k;
+    for(e = init; e != null && !((k = e.k) == key || equals(k, key)); e = e.nextNode);
+    if(e != null) {
+      if(e.v == val) return this;
+      PersistentHashMap rv = new PersistentHashMap(this, true);
+      rv.data[idx] = init.assoc(rv, key, hashcode, val);
+      return rv;
+    } else {
+      PersistentHashMap rv = new PersistentHashMap(this, true);
+      HashNode newNode = rv.newNode(key, hashcode, val);
+      rv.data[idx] = newNode;
+      newNode.nextNode = init;
+      rv.checkResize(null);
+      return rv;
+    }
+  }
+  public IPersistentMap without(Object key) {
+    final int hashcode = hash(key);
+    final int idx = hashcode & mask;
+    HashNode e, init = data[idx];
+    Object k;
+    for(e = init; e != null && !((k = e.k) == key || equals(k, key)); e = e.nextNode);
+    if(e == null) return this;
+    PersistentHashMap rv = new PersistentHashMap(this, true);
+    rv.data[idx] = init.dissoc(rv, key);
+    return rv;
   }
   public ITransientMap asTransient() {
     return isEmpty() ? new UnsharedHashMap(meta) :

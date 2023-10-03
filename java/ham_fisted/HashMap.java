@@ -89,24 +89,23 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
   }
   public Object put(Object key, Object val) {
     final int hc = hash(key);
-    final int idx = hc & this.mask;
-    HashNode lastNode = null;
-    //Avoid unneeded calls to both equals and checkResize
-    for(HashNode e = this.data[idx]; e != null; e = e.nextNode) {
-      lastNode = e;
-      if(e.k == key || equals(e.k, key)) {
-	Object rv = e.v;
-	e.v = val;
-	modify(e);
-	return rv;
-      }
+    final int idx = hc & mask;
+    final HashNode init = data[idx];
+    if(init != null) {
+      HashNode e = init;
+      do {
+	if(e.k == key || equals(e.k, key)) {
+	  Object rv = e.v;
+	  e.v = val;
+	  modify(e);
+	  return rv;
+	}
+	e = e.nextNode;
+      } while(e != null);
     }
     HashNode lf = newNode(key,hc,val);
-    if(lastNode != null) {
-      lastNode.nextNode = lf;
-    } else {
-      data[idx] = lf;
-    }
+    lf.nextNode = init;
+    data[idx] = lf;
     return checkResize(null);
   }
   public void putAll(Map other) {
@@ -276,24 +275,52 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
   public static HashMap union(HashMap rv, Map o, BiFunction bfn) {
     HashNode[] rvd = rv.data;
     int mask = rv.mask;
-    for(Object ee : o.entrySet()) {
-      Map.Entry lf = (Map.Entry)ee;
-      final Object k = lf.getKey();
-      final int hashcode = rv.hash(k);
-      final int rvidx = hashcode & mask;
-      HashNode init = rvd[rvidx], e = init;
-      for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
-      if(e != null) {
-	rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, lf.getValue()));
+    if(o instanceof HashMap) {
+      final HashMap om = (HashMap)o;
+      final HashNode[] od = om.data;
+      final int l = od.length;
+      for(int idx = 0; idx < l; ++idx) {
+	for(HashNode lf = od[idx]; lf != null; lf = lf.nextNode) {
+	  final Object k = lf.k;
+	  final int hashcode = lf.hashcode;
+	  final int rvidx = hashcode & mask;
+	  HashNode init = rvd[rvidx], e = init;
+	  final Object v = lf.v;
+	  for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
+	  if(e != null) {
+	    rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, v));
+	  }
+	  else {
+	    if(init != null)
+	      rvd[rvidx] = init.assoc(rv, k, hashcode, v);
+	    else
+	      rvd[rvidx] = rv.newNode(k, hashcode, v);
+	    rv.checkResize(null);
+	    mask = rv.mask;
+	    rvd = rv.data;
+	  }
+	}
       }
-      else {
-	if(init != null)
-	  rvd[rvidx] = init.assoc(rv, k, hashcode, lf.getValue());
-	else
-	  rvd[rvidx] = rv.newNode(k, hashcode, lf.getValue());
-	rv.checkResize(null);
-	mask = rv.mask;
-	rvd = rv.data;
+    } else {
+      for(Object ee : o.entrySet()) {
+	Map.Entry lf = (Map.Entry)ee;
+	final Object k = lf.getKey();
+	final int hashcode = rv.hash(k);
+	final int rvidx = hashcode & mask;
+	HashNode init = rvd[rvidx], e = init;
+	for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
+	if(e != null) {
+	  rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, lf.getValue()));
+	}
+	else {
+	  if(init != null)
+	    rvd[rvidx] = init.assoc(rv, k, hashcode, lf.getValue());
+	  else
+	    rvd[rvidx] = rv.newNode(k, hashcode, lf.getValue());
+	  rv.checkResize(null);
+	  mask = rv.mask;
+	  rvd = rv.data;
+	}
       }
     }
     return rv;

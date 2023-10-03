@@ -27,12 +27,11 @@ public class LongHashNode implements Map.Entry, IMutList, IMapEntry {
   public LongHashNode(LongHashBase _owner, long _k, int hc) {
     this(_owner, _k, hc, null, null);
   }
-  public LongHashNode(LongHashBase _owner, LongHashNode prev) {
+  LongHashNode(LongHashBase _owner, LongHashNode prev) {
     owner = _owner;
     hashcode = prev.hashcode;
     k = prev.k;
     v = prev.v;
-    nextNode = prev.nextNode;
   }
   public LongHashNode setOwner(LongHashBase nowner) {
     if (owner == nowner)
@@ -40,7 +39,7 @@ public class LongHashNode implements Map.Entry, IMutList, IMapEntry {
     return new LongHashNode(nowner, this);
   }
   public LongHashNode clone(LongHashBase nowner) {
-    LongHashNode rv = new LongHashNode(nowner, k, hashcode, v, null);
+    LongHashNode rv = new LongHashNode(nowner, this);
     if(nextNode != null)
       rv.nextNode = nextNode.clone(nowner);
     return rv;

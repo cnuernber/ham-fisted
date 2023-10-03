@@ -304,10 +304,31 @@
 
 
 (defn mut-map
-  (^Map [] (mut-hashtable-map))
-  (^Map [data] (mut-hashtable-map data))
-  (^Map [xform data] (mut-hashtable-map xform data))
-  (^Map [xform options data] (mut-hashtable-map xform options data)))
+  "Create a mutable implementation of java.util.Map.  This object efficiently implements
+  ITransient map so you can use assoc! and persistent! on it but you can additionally use
+  the various members of the java.util.Map interface such as put, compute, computeIfAbsent,
+  replaceAll and merge.
+
+  If data is an object array it is treated as a flat key-value list which is distinctly
+  different than how conj! treats object arrays.  You have been warned."
+  (^UnsharedHashMap [] (mut-hashtable-map))
+  (^UnsharedHashMap [data] (mut-hashtable-map data))
+  (^UnsharedHashMap [xform data] (mut-hashtable-map xform data))
+  (^UnsharedHashMap [xform options data] (mut-hashtable-map xform options data)))
+
+
+(defn mut-long-map
+  "Create a mutable implementation of java.util.Map specialized to long keys.  This object
+  efficiently implements ITransient map so you can use assoc! and persistent! on it but you can additionally use
+  the various members of the java.util.Map interface such as put, compute, computeIfAbsent,
+  replaceAll and merge.  Attempting to store any non-numeric value will result in an exception.
+
+  If data is an object array it is treated as a flat key-value list which is distinctly
+  different than how conj! treats object arrays.  You have been warned."
+  (^UnsharedLongHashMap [] (mut-long-hashtable-map))
+  (^UnsharedLongHashMap [data] (mut-long-hashtable-map data))
+  (^UnsharedLongHashMap [xform data] (mut-long-hashtable-map xform data))
+  (^UnsharedLongHashMap [xform options data] (mut-long-hashtable-map xform options data)))
 
 
 (defn constant-countable?
@@ -426,8 +447,10 @@ ham_fisted.PersistentHashMap
    (cond
      (number? data)
      (java.util.HashMap. (int data))
-     (and (nil? xform) (instance? java.util.HashMap data))
-     (.clone ^java.util.HashMap data)
+     (and (nil? xform) (instance? Map data))
+     (if (instance? java.util.HashMap data)
+       (.clone ^java.util.HashMap data)
+       (java.util.HashMap. ^Map data))
      :else
      (tduce xform
             (mut-map-rf #(java.util.HashMap. (long (get options :init-size 0))))
@@ -451,17 +474,13 @@ ham_fisted.PersistentHashMap
 
 
 (defn linked-hashmap
-  "Linked hash map using clojure's equiv pathways.  This hashmap behaves slightly
-  different in that if you put the same value as previously the node isn't marked
-  as modified.  It has an accelerated union pathway (.union member) that will only
-  work if the other arg is also a linked hashmap.  Union will not change the order
-  of the original hashmap but new keys may be added and will appear later in iteration
-  order."
+  "Linked hash map using clojure's equiv pathways.  At this time the node link order reflects
+  insertion order.  Modification and access do not affect the node link order."
   (^ham_fisted.LinkedHashMap [] (ham_fisted.LinkedHashMap.))
   (^ham_fisted.LinkedHashMap [data]
    (let [rv (ham_fisted.LinkedHashMap.)]
      (if (instance? Map data)
-       (.putAll rv data)
+       (do (.putAll rv data) rv)
        (tduce nil (mut-map-rf (constantly rv)) data)))))
 
 
@@ -730,10 +749,11 @@ ham_fisted.PersistentHashMap
       (map-set? s1)
       (.union (as-map-set s1) ^Map s2 rhs-wins)
       :else
-      (reduce (fn [acc kv]
-                (assoc! acc (key kv) (val kv)))
-              (transient s1)
-              s2))
+      (persistent!
+       (reduce (fn [acc kv]
+                 (assoc! acc (key kv) (val kv)))
+               (transient s1)
+               s2)))
     (instance? SetOps s1)
     (.union ^SetOps s1 s2)
     :else

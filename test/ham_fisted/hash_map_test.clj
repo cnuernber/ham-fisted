@@ -60,17 +60,16 @@
         (is (= dissoc-data (set (keys disdata))))
         (is (= data (set (keys alldata))))))
     (testing "hash table mutable"
-      (let [alldata (api/mut-hashtable-map (map #(vector % %)) data)
+      (let [alldata (api/mut-map (map #(vector % %)) data)
             disdata (.clone alldata)
             _ (is (= n-elems (count disdata)))
             _ (reduce #(do (.remove ^Map %1 %2) %1) disdata dissoc-vals)]
         (is (= n-left (count disdata)))
         (is (= n-elems (count alldata)))
         (is (= dissoc-data (set (keys disdata))))
-        (is (= data (set (keys alldata))))
-        ))
-    (testing "bitmap trie mutable"
-      (let [alldata (api/mut-trie-map (map #(vector % %)) data)
+        (is (= data (set (keys alldata))))))
+    (testing "long hash table mutable"
+      (let [alldata (api/mut-long-map (map #(vector % %)) data)
             disdata (.clone alldata)
             _ (is (= n-elems (count disdata)))
             _ (reduce #(do (.remove ^Map %1 %2) %1) disdata dissoc-vals)]
