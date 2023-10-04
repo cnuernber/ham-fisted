@@ -25,6 +25,7 @@ import clojure.lang.IDeref;
 import clojure.lang.IMeta;
 import clojure.lang.IMapEntry;
 import clojure.lang.MapEntry;
+import clojure.lang.IReduceInit;
 
 
 public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
@@ -272,51 +273,27 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
   }
 
   @SuppressWarnings("unchecked")
-  public static HashMap union(HashMap rv, Map o, BiFunction bfn) {
+  public static HashMap hashMapUnion(HashMap rv, HashMap om, BiFunction bfn) {
+    final HashNode[] od = om.data;
+    final int l = od.length;
     HashNode[] rvd = rv.data;
     int mask = rv.mask;
-    if(o instanceof HashMap) {
-      final HashMap om = (HashMap)o;
-      final HashNode[] od = om.data;
-      final int l = od.length;
-      for(int idx = 0; idx < l; ++idx) {
-	for(HashNode lf = od[idx]; lf != null; lf = lf.nextNode) {
-	  final Object k = lf.k;
-	  final int hashcode = lf.hashcode;
-	  final int rvidx = hashcode & mask;
-	  HashNode init = rvd[rvidx], e = init;
-	  final Object v = lf.v;
-	  for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
-	  if(e != null) {
-	    rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, v));
-	  }
-	  else {
-	    if(init != null)
-	      rvd[rvidx] = init.assoc(rv, k, hashcode, v);
-	    else
-	      rvd[rvidx] = rv.newNode(k, hashcode, v);
-	    rv.checkResize(null);
-	    mask = rv.mask;
-	    rvd = rv.data;
-	  }
-	}
-      }
-    } else {
-      for(Object ee : o.entrySet()) {
-	Map.Entry lf = (Map.Entry)ee;
-	final Object k = lf.getKey();
-	final int hashcode = rv.hash(k);
+    for(int idx = 0; idx < l; ++idx) {
+      for(HashNode lf = od[idx]; lf != null; lf = lf.nextNode) {
+	final Object k = lf.k;
+	final int hashcode = lf.hashcode;
 	final int rvidx = hashcode & mask;
 	HashNode init = rvd[rvidx], e = init;
+	final Object v = lf.v;
 	for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
 	if(e != null) {
-	  rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, lf.getValue()));
+	  rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, v));
 	}
 	else {
 	  if(init != null)
-	    rvd[rvidx] = init.assoc(rv, k, hashcode, lf.getValue());
+	    rvd[rvidx] = init.assoc(rv, k, hashcode, v);
 	  else
-	    rvd[rvidx] = rv.newNode(k, hashcode, lf.getValue());
+	    rvd[rvidx] = rv.newNode(k, hashcode, v);
 	  rv.checkResize(null);
 	  mask = rv.mask;
 	  rvd = rv.data;
@@ -324,6 +301,69 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
       }
     }
     return rv;
+  }
+  @SuppressWarnings("unchecked")
+  public static HashMap reduceUnion(HashMap rv, IReduceInit o, BiFunction bfn) {
+    return (HashMap)o.reduce(new IFnDef() {
+	public Object invoke(Object acc, Object v) {
+	  Map.Entry lf = (Map.Entry)v;
+	  final Object k = lf.getKey();
+	  final int hashcode = rv.hash(k);
+	  final int rvidx = hashcode & rv.mask;
+	  final HashNode[] rvd = rv.data;
+	  HashNode init = rvd[rvidx], e = init;
+	  for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
+	  if(e != null) {
+	    rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, lf.getValue()));
+	  }
+	  else {
+	    if(init != null)
+	      rvd[rvidx] = init.assoc(rv, k, hashcode, lf.getValue());
+	    else
+	      rvd[rvidx] = rv.newNode(k, hashcode, lf.getValue());
+	    rv.checkResize(null);
+	  }
+	  return rv;
+	}
+      }, rv);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static HashMap entrySetUnion(HashMap rv, Map o, BiFunction bfn) {
+    int mask = rv.mask;
+    HashNode[] rvd = rv.data;
+    for(Object ee : o.entrySet()) {
+      Map.Entry lf = (Map.Entry)ee;
+      final Object k = lf.getKey();
+      final int hashcode = rv.hash(k);
+      final int rvidx = hashcode & mask;
+      HashNode init = rvd[rvidx], e = init;
+      for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
+      if(e != null) {
+	rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, lf.getValue()));
+      }
+      else {
+	if(init != null)
+	  rvd[rvidx] = init.assoc(rv, k, hashcode, lf.getValue());
+	else
+	  rvd[rvidx] = rv.newNode(k, hashcode, lf.getValue());
+	rv.checkResize(null);
+	mask = rv.mask;
+	rvd = rv.data;
+      }
+    }
+    return rv;
+  }
+
+  public static HashMap union(HashMap rv, Map o, BiFunction bfn) {
+    if(o instanceof HashMap) {
+      return hashMapUnion(rv, (HashMap)o, bfn);
+    } else if (o instanceof IReduceInit) {
+      return reduceUnion(rv, (IReduceInit)o, bfn);
+    }
+    else {
+      return entrySetUnion(rv, o, bfn);
+    }
   }
 
   @SuppressWarnings("unchecked")

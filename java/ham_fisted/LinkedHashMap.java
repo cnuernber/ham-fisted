@@ -11,6 +11,7 @@ import clojure.lang.IFn;
 import clojure.lang.RT;
 import clojure.lang.IPersistentMap;
 import clojure.lang.IDeref;
+import clojure.lang.IReduceInit;
 
 
 public class LinkedHashMap extends HashMap {
@@ -113,5 +114,13 @@ public class LinkedHashMap extends HashMap {
 	return ((IDeref)acc).deref();
     }
     return acc;
+  }
+  public HashMap union(Map o, BiFunction bfn) {
+    // reduce union preserves iteration order over o.
+    if(o instanceof LinkedHashMap) {
+      return reduceUnion(this, (IReduceInit)o, bfn);
+    } else {
+      return super.union(o, bfn);
+    }
   }
 }
