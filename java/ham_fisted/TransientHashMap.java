@@ -1,5 +1,6 @@
 package ham_fisted;
 
+import java.util.function.BiFunction;
 import java.util.Map;
 import clojure.lang.Indexed;
 import clojure.lang.ITransientMap;
@@ -17,6 +18,13 @@ public class TransientHashMap
   }
   public TransientHashMap(TransientHashMap data, IPersistentMap m) {
     super(data.loadFactor, data.capacity, data.length, data.data, m);
+  }
+  public TransientHashMap conj(Object val) {
+    if(val instanceof Map) {
+      return (TransientHashMap)union((Map)val, new BiFunction() { public Object apply(Object v1, Object v2){return v2;}});
+    } else {
+      return (TransientHashMap)IATransientMap.super.conjVal(val);
+    }
   }
   public TransientHashMap assoc(Object key, Object val) {
     int hc = hash(key);
