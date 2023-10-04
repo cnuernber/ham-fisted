@@ -26,6 +26,7 @@ import clojure.lang.IMeta;
 import clojure.lang.IMapEntry;
 import clojure.lang.MapEntry;
 import clojure.lang.IReduceInit;
+import clojure.lang.IKVReduce;
 
 
 public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
@@ -229,8 +230,9 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
   }
   public Object reduce(IFn rfn, Object acc) {
     final int l = data.length;
+    final HashNode[] d = data;
     for(int idx = 0; idx < l; ++idx) {
-      for(HashNode e = this.data[idx]; e != null; e = e.nextNode) {
+      for(HashNode e = d[idx]; e != null; e = e.nextNode) {
 	acc = rfn.invoke(acc, e);
 	if(RT.isReduced(acc))
 	  return ((IDeref)acc).deref();
@@ -329,6 +331,30 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
   }
 
   @SuppressWarnings("unchecked")
+  public static HashMap kvReduceUnion(HashMap rv, IKVReduce o, BiFunction bfn) {
+    return (HashMap)o.kvreduce(new IFnDef() {
+	public Object invoke(Object acc, Object k, Object v) {
+	  final int hashcode = rv.hash(k);
+	  final int rvidx = hashcode & rv.mask;
+	  final HashNode[] rvd = rv.data;
+	  HashNode init = rvd[rvidx], e = init;
+	  for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
+	  if(e != null) {
+	    rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, v));
+	  }
+	  else {
+	    if(init != null)
+	      rvd[rvidx] = init.assoc(rv, k, hashcode, v);
+	    else
+	      rvd[rvidx] = rv.newNode(k, hashcode, v);
+	    rv.checkResize(null);
+	  }
+	  return rv;
+	}
+      }, rv);
+  }
+
+  @SuppressWarnings("unchecked")
   public static HashMap entrySetUnion(HashMap rv, Map o, BiFunction bfn) {
     int mask = rv.mask;
     HashNode[] rvd = rv.data;
@@ -355,11 +381,15 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
     return rv;
   }
 
+
+
   public static HashMap union(HashMap rv, Map o, BiFunction bfn) {
     if(o instanceof HashMap) {
       return hashMapUnion(rv, (HashMap)o, bfn);
     } else if (o instanceof IReduceInit) {
       return reduceUnion(rv, (IReduceInit)o, bfn);
+    } else if (o instanceof IKVReduce) {
+      return kvReduceUnion(rv, (IKVReduce)o, bfn);
     }
     else {
       return entrySetUnion(rv, o, bfn);
