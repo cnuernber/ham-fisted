@@ -750,8 +750,8 @@ ham_fisted.PersistentHashMap
       (.union (as-map-set s1) ^Map s2 rhs-wins)
       :else
       (persistent!
-       (reduce (fn [acc kv]
-                 (assoc! acc (key kv) (val kv)))
+       (reduce-kv (fn [acc k v]
+                 (assoc! acc k v))
                (transient s1)
                s2)))
     (instance? SetOps s1)

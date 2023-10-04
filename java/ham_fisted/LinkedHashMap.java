@@ -115,6 +115,14 @@ public class LinkedHashMap extends HashMap {
     }
     return acc;
   }
+  public Object kvreduce(IFn rfn, Object acc) {
+    for(LinkedHashNode hn = lastLink; hn != null; hn = hn.nextLink) {
+      acc = rfn.invoke(acc, hn.k, hn.v);
+      if(RT.isReduced(acc))
+	return ((IDeref)acc).deref();
+    }
+    return acc;
+  }
   public HashMap union(Map o, BiFunction bfn) {
     // reduce union preserves iteration order over o.
     if(o instanceof LinkedHashMap) {

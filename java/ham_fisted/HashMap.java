@@ -240,6 +240,18 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
     }
     return acc;
   }
+  public Object kvreduce(IFn rfn, Object acc) {
+    final int l = data.length;
+    final HashNode[] d = data;
+    for(int idx = 0; idx < l; ++idx) {
+      for(HashNode e = d[idx]; e != null; e = e.nextNode) {
+	acc = rfn.invoke(acc, e.k, e.v);
+	if(RT.isReduced(acc))
+	  return ((IDeref)acc).deref();
+      }
+    }
+    return acc;
+  }
   public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
 				  ParallelOptions options ) {
     return Reductions.parallelCollectionReduction(initValFn, rfn, mergeFn, this.entrySet(), options);

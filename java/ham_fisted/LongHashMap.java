@@ -238,9 +238,22 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps, Update
   }
   public Object reduce(IFn rfn, Object acc) {
     final int l = data.length;
+    LongHashNode[] d = data;
     for(int idx = 0; idx < l; ++idx) {
-      for(LongHashNode e = this.data[idx]; e != null; e = e.nextNode) {
+      for(LongHashNode e = d[idx]; e != null; e = e.nextNode) {
 	acc = rfn.invoke(acc, e);
+	if(RT.isReduced(acc))
+	  return ((IDeref)acc).deref();
+      }
+    }
+    return acc;
+  }
+  public Object kvreduce(IFn rfn, Object acc) {
+    final int l = data.length;
+    LongHashNode[] d = data;
+    for(int idx = 0; idx < l; ++idx) {
+      for(LongHashNode e = d[idx]; e != null; e = e.nextNode) {
+	acc = rfn.invoke(acc, e.k, e.v);
 	if(RT.isReduced(acc))
 	  return ((IDeref)acc).deref();
       }
