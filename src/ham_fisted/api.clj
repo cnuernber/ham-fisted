@@ -63,7 +63,7 @@
             IFnDef$OLO IFnDef$OD IFnDef$OL IFnDef$LD IFnDef$DL IFnDef$OLOO IFnDef$OLDO
             IFnDef$OLLO IFnDef$LongPredicate IFnDef$DoublePredicate IFnDef$Predicate
             Consumers$IncConsumer Reductions$IndexedDoubleAccum Reductions$IndexedLongAccum
-            Reductions$IndexedAccum MutableMap
+            Reductions$IndexedAccum MutableMap IAMapEntry
             MapForward]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
@@ -244,7 +244,7 @@
   [xform rf data]
   (if xform
     (transduce xform rf data)
-    (reduce-reducer rf data)))
+    (rf (reduce rf (rf) data))))
 
 
 (defn mut-hashtable-map
@@ -661,6 +661,13 @@ ham_fisted.PersistentHashMap
   the returned sequence.  Returned sequence is in same order as `(keys m)`."
   [m]
   (map val m))
+
+(defmacro make-map-entry
+  "Create a dynamic implementation of clojure's IMapEntry class."
+  [k-code v-code]
+  `(reify IAMapEntry
+     (getKey [this#] ~k-code)
+     (getValue [this#] ~v-code)))
 
 
 (defn map-union
