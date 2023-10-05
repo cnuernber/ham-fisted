@@ -1,7 +1,6 @@
 package ham_fisted;
 
 import static ham_fisted.IntegerOps.*;
-import static ham_fisted.BitmapTrieCommon.*;
 
 import java.util.Arrays;
 import java.util.Iterator;
@@ -739,12 +738,13 @@ public final class ChunkedList {
       minC = c.iterator();
     }
     //This set can contain null.
-    HashSet<Object> hc = new HashSet<Object>();
-    while(minC.hasNext()) hc.add(minC.next());
-    while(maxC.hasNext()) {
-      if (!hc.contains(maxC.next()))
-	return false;
-    }
-    return true;
+    // HashSet<Object> hc = new HashSet<Object>();
+    // while(minC.hasNext()) hc.add(minC.next());
+    // while(maxC.hasNext()) {
+    //   if (!hc.contains(maxC.next()))
+    // 	return false;
+    // }
+    // return true;
+    throw new UnsupportedOperationException();
   }
 }

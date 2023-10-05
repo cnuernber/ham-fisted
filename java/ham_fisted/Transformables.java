@@ -1,8 +1,6 @@
 package ham_fisted;
 
 
-import static ham_fisted.BitmapTrieCommon.*;
-
 
 import java.util.List;
 import java.util.AbstractCollection;
@@ -45,6 +43,7 @@ import clojure.lang.IPersistentCollection;
 import clojure.lang.PersistentList;
 import clojure.lang.Reduced;
 import clojure.lang.Delay;
+import clojure.lang.Box;
 import clojure.java.api.Clojure;
 
 
@@ -559,7 +558,7 @@ public class Transformables {
     static class FilterIterator implements Iterator {
       final Iterator iter;
       final IFn pred;
-      Box nextObj = new Box();
+      Box nextObj = new Box(null);
       public FilterIterator(Iterator _i, IFn p) {
 	iter = _i;
 	pred = p;
@@ -569,7 +568,7 @@ public class Transformables {
 	while(iter.hasNext()) {
 	  final Object nobj = iter.next();
 	  if (truthy(pred.invoke(nobj))) {
-	    nextObj.obj = nobj;
+	    nextObj.val = nobj;
 	    return;
 	  }
 	}
@@ -579,7 +578,7 @@ public class Transformables {
       public Object next() {
 	if (nextObj == null)
 	  throw new NoSuchElementException();
-	final Object retval = nextObj.obj;
+	final Object retval = nextObj.val;
 	advance();
 	return retval;
       }

@@ -1,18 +1,19 @@
 package ham_fisted;
 
 import java.util.Map;
+import java.util.Iterator;
 import clojure.lang.IMapEntry;
 import ham_fisted.IMutList;
 
-public class HBNode implements Map.Entry, IMutList, IMapEntry {
-  public final HashMap owner;
+public class HashNode implements Map.Entry, IMutList, IMapEntry {
+  public final HashBase owner;
   public final int hashcode;
   public final Object k;
   //compute-at support means we can modify v.
   Object v;
-  HBNode nextNode;
+  HashNode nextNode;
 
-  public HBNode(HashMap _owner, Object _k, int hc, Object _v, HBNode nn) {
+  public HashNode(HashBase _owner, Object _k, int hc, Object _v, HashNode nn) {
     owner = _owner;
     hashcode = hc;
     k = _k;
@@ -20,26 +21,27 @@ public class HBNode implements Map.Entry, IMutList, IMapEntry {
     nextNode = nn;
     _owner.inc(this);
   }
-  public HBNode(HashMap _owner, Object _k, int hc, Object _v) {
+  public HashNode(HashBase _owner, Object _k, int hc, Object _v) {
     this(_owner, _k, hc, _v, null);
   }
-  public HBNode(HashMap _owner, Object _k, int hc) {
+  public HashNode(HashBase _owner, Object _k, int hc) {
     this(_owner, _k, hc, null, null);
   }
-  public HBNode(HashMap _owner, HBNode prev) {
+  // Cloning constructor
+  HashNode(HashBase _owner, HashNode prev) {
     owner = _owner;
     hashcode = prev.hashcode;
     k = prev.k;
     v = prev.v;
     nextNode = prev.nextNode;
   }
-  public HBNode setOwner(HashMap nowner) {
+  public HashNode setOwner(HashBase nowner) {
     if (owner == nowner)
       return this;
-    return new HBNode(nowner, this);
+    return new HashNode(nowner, this);
   }
-  public HBNode clone(HashMap nowner) {
-    HBNode rv = new HBNode(nowner, k, hashcode, v, null);
+  public HashNode clone(HashBase nowner) {
+    HashNode rv = new HashNode(nowner, this);
     if(nextNode != null)
       rv.nextNode = nextNode.clone(nowner);
     return rv;
@@ -55,28 +57,28 @@ public class HBNode implements Map.Entry, IMutList, IMapEntry {
     if(idx == 1) return v;
     throw new RuntimeException("Index out of range.");
   }
-  public HBNode assoc(HashMap nowner, Object _k, int hash, Object _v) {
-    HBNode retval = setOwner(nowner);
-    if (nowner.equals(_k,k)) {
+  public HashNode assoc(HashBase nowner, Object _k, int hash, Object _v) {
+    HashNode retval = setOwner(nowner);
+    if (k == _k || nowner.equals(_k,k)) {
       retval.setValue(_v);
     } else {
       if (retval.nextNode != null) {
 	retval.nextNode = retval.nextNode.assoc(nowner, _k, hash, _v);
       } else {
-	retval.nextNode = nowner.newNode(k, hash, _v);
+	retval.nextNode = nowner.newNode(_k, hash, _v);
       }
     }
     return retval;
   }
-  public HBNode dissoc(HashMap nowner, Object _k) {
-    if (owner.equals(k, _k)) {
+  public HashNode dissoc(HashBase nowner, Object _k) {
+    if (k == _k || owner.equals(k, _k)) {
       nowner.dec(this);
       return nextNode;
     }
     if (nextNode != null) {
-      HBNode nn = nextNode.dissoc(nowner,_k);
+      HashNode nn = nextNode.dissoc(nowner,_k);
       if (nn != nextNode) {
-	HBNode retval = setOwner(nowner);
+	HashNode retval = setOwner(nowner);
 	retval.nextNode = nn;
 	return retval;
       }

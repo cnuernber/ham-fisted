@@ -1,7 +1,6 @@
 package ham_fisted;
 
 
-import static ham_fisted.BitmapTrieCommon.*;
 import static ham_fisted.ChunkedList.*;
 import java.util.List;
 import java.util.Objects;
@@ -39,7 +38,7 @@ import clojure.lang.APersistentVector;
 public class ImmutList
   extends APersistentVector
   implements IMutList, IHashEq, ChunkedListOwner, IPersistentVector,
-	     IEditableCollection, ImmutValues
+	     IEditableCollection, UpdateValues
 {
   public final int startidx;
   public final int nElems;
@@ -226,7 +225,7 @@ public class ImmutList
   }
 
   @SuppressWarnings("unchecked")
-  public ImmutList immutUpdateValues(BiFunction valueMap) {
+  public ImmutList updateValues(BiFunction valueMap) {
     ChunkedList retval = data.clone(startidx, startidx+nElems, 0, true);
     final Object[][] rd = retval.data;
     final int ne = nElems;
@@ -242,12 +241,12 @@ public class ImmutList
   }
 
   @SuppressWarnings("unchecked")
-  public ImmutList immutUpdateValue(Object key, IFn valueMap) {
+  public ImmutList updateValue(Object key, Function valueMap) {
     if(!Util.isInteger(key))
       throw new RuntimeException("Vector indexes must be integers: " + String.valueOf(key));
     int idx = RT.intCast(key);
     if (idx == nElems)
-      return cons(valueMap.invoke(null));
+      return cons(valueMap.apply(null));
 
 
     indexCheck(idx);
@@ -257,7 +256,7 @@ public class ImmutList
     final int eidx = idx % 32;
     Object[] chunk = mdata[cidx].clone();
     mdata[cidx] = chunk;
-    chunk[eidx] = valueMap.invoke(chunk[eidx]);
+    chunk[eidx] = valueMap.apply(chunk[eidx]);
     return new ImmutList(0, nElems, retval);
   }
 

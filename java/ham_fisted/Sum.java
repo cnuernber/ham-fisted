@@ -4,6 +4,7 @@ package ham_fisted;
 import clojure.lang.IDeref;
 import clojure.lang.Keyword;
 import clojure.lang.IReduceInit;
+import clojure.lang.PersistentArrayMap;
 import java.util.function.DoubleConsumer;
 import java.util.Collection;
 
@@ -75,9 +76,7 @@ public final class Sum implements DoubleConsumer, Reducible, IDeref
   }
 
   public Object deref() {
-    return MutArrayMap.createKV(BitmapTrieCommon.defaultHashProvider,
-				sumKwd, computeFinalSum(),
-				nElemsKwd, nElems).persistent();
+    return new PersistentArrayMap(new Object[] { sumKwd, computeFinalSum(), nElemsKwd, nElems });
   }
 
   public static class SimpleSum implements DoubleConsumer, IDeref, Reducible

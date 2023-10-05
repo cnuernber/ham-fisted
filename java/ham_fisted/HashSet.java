@@ -1,152 +1,169 @@
 package ham_fisted;
 
 
-import static ham_fisted.BitmapTrieCommon.*;
-import static ham_fisted.BitmapTrie.*;
-import java.util.AbstractSet;
-import java.util.Iterator;
-import java.util.Arrays;
-import java.util.Spliterator;
-import java.util.function.Consumer;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import clojure.lang.IObj;
-import clojure.lang.ITransientSet;
 import clojure.lang.IPersistentMap;
-import clojure.lang.ITransientCollection;
-import clojure.lang.Seqable;
-import clojure.lang.ISeq;
-import clojure.lang.IteratorSeq;
-import clojure.lang.ILookup;
-import clojure.lang.IHashEq;
-import clojure.lang.IPersistentCollection;
+import java.util.Iterator;
+import java.util.Set;
+import java.util.Spliterator;
+import java.util.Collection;
+import clojure.lang.RT;
+import clojure.lang.IDeref;
 import clojure.lang.IFn;
-import clojure.lang.IReduce;
 
 
-public class HashSet<E>
-  extends AbstractSet<E>
-  implements IObj, ITransientSet, Seqable,
-	     ILookup, IFnDef, IHashEq, ITypedReduce, IReduce {
-  HashTable hb;
-
-  public static final Object PRESENT = new Object();
-  public static final BiFunction<Object,Object,Object> setValueMapper = (a,b) -> PRESENT;
-
-  public HashSet(){hb = new HashTable(defaultHashProvider);}
-  public HashSet(HashProvider hp) {
-    hb = new HashTable(hp);
+public class HashSet extends HashBase implements ISet, SetOps {
+  public static final Object VALUE = new Object();
+  public HashSet(float loadFactor, int initialCapacity,
+		 int length, HashNode[] data,
+		 IPersistentMap meta) {
+    super(loadFactor, initialCapacity, length, data, meta);
   }
-  HashSet(HashTable _hb) { hb = _hb; }
-  public HashSet<E> clone() { return new HashSet<E>(hb.clone()); }
-  public final int hashCode() {
+  public HashSet() {
+    this(0.75f, 0, 0, null, null);
+  }
+  public HashSet(IPersistentMap m) {
+    this(0.75f, 0, 0, null, m);
+  }
+  public HashSet(HashBase other, IPersistentMap m) {
+    super(other, m);
+  }
+  public HashSet shallowClone() {
+    return new HashSet(loadFactor, capacity, length, data.clone(), meta);
+  }
+  public HashSet clone() {
+    final int l = data.length;
+    HashNode[] newData = new HashNode[l];
+    HashSet retval = new HashSet(loadFactor, capacity, length, newData, meta);
+    for(int idx = 0; idx < l; ++idx) {
+      HashNode orig = data[idx];
+      if(orig != null)
+	newData[idx] = orig.clone(retval);
+    }
+    return retval;
+  }
+  public int hashCode() {
+    return hasheq();
+  }
+  public int hasheq() {
     return CljHash.setHashcode(this);
   }
-  public final int hasheq() {
-    return hashCode();
+  public  boolean equals(Object o) {
+    return equiv(o);
   }
-  public final boolean equals(Object o) {
+  public boolean equiv(Object o) {
     return CljHash.setEquiv(this, o);
   }
-  public final boolean equiv(Object o) {
-    return equals(o);
-  }
-  public final boolean add(E e) {
-    return hb.put(e, PRESENT) == null;
-  }
-  public final void clear() {
-    hb.clear();
-  }
-  public final boolean contains(Object e) {
-    return hb.getNode(e) != null;
-  }
-  public final boolean isEmpty() { return hb.size() == 0; }
-  @SuppressWarnings("unchecked")
-  public final Iterator<E> iterator() {
-    return hb.iterator(keyIterFn);
-  }
-  @SuppressWarnings("unchecked")
-  public final Spliterator<E> spliterator() {
-    return hb.spliterator(keyIterFn);
-  }
-  public final ISeq seq() { return IteratorSeq.create(iterator()); }
-  public final boolean remove(Object k) {
-    Box b = new Box();
-    hb.remove(k,b);
-    return b.obj != null;
-  }
-  public final int size() { return hb.size(); }
-  public final Object[] toArray() {
-    Object[] data = new Object[hb.size()];
-    Iterator iter = iterator();
-    int idx = 0;
-    while(iter.hasNext()) {
-      data[idx] = iter.next();
-      ++idx;
+  public boolean add(Object key) {
+    final int hc = hash(key);
+    final int idx = hc & this.mask;
+    HashNode lastNode = null;
+    //Avoid unneeded calls to both equals and checkResize
+    for(HashNode e = this.data[idx]; e != null; e = e.nextNode) {
+      lastNode = e;
+      if(e.k == key || equals(e.k, key))
+	return false;
     }
-    return data;
-  }
-  @SuppressWarnings("unchecked")
-  public final <T> T[] toArray(T[] ary) {
-    T[] data = Arrays.copyOf(ary, hb.size());
-    Iterator iter = iterator();
-    int idx = 0;
-    while(iter.hasNext()) {
-      data[idx] = (T)iter.next();
-      ++idx;
+    HashNode lf = newNode(key,hc,VALUE);
+    if(lastNode != null) {
+      lastNode.nextNode = lf;
+    } else {
+      data[idx] = lf;
     }
-    return data;
+    checkResize(null);
+    return true;
+  }
+  public boolean remove(Object key) {
+    HashNode lastNode = null;
+    int loc = hash(key) & this.mask;
+    for(HashNode e = this.data[loc]; e != null; e = e.nextNode) {
+      Object k;
+      if((k = e.k) == key || equals(k, key)) {
+	dec(e);
+	if(lastNode != null)
+	  lastNode.nextNode = e.nextNode;
+	else
+	  this.data[loc] = e.nextNode;
+	return true;
+      }
+      lastNode = e;
+    }
+    return false;
+  }
+  public boolean contains(Object key) {
+    return containsNodeKey(key);
+  }
+  public Iterator iterator() {
+    return new HTIter(this.data, (e)->e.getKey());
+  }
+  public Spliterator spliterator() {
+    return new HTSpliterator(this.data, this.length, (e)->e.getKey());
+  }
+  public Object reduce(IFn rfn, Object acc) {
+    final int l = data.length;
+    for(int idx = 0; idx < l; ++idx) {
+      for(HashNode e = this.data[idx]; e != null; e = e.nextNode) {
+	acc = rfn.invoke(acc, e.k);
+	if(RT.isReduced(acc))
+	  return ((IDeref)acc).deref();
+      }
+    }
+    return acc;
   }
 
-
-  public final int count() { return hb.size(); }
-
-  public final IPersistentMap meta() { return hb.meta(); }
-  public final HashSet<E> withMeta(IPersistentMap meta) {
-    return new HashSet<E>(hb.shallowClone(meta));
-  }
-  //Transient implementation
-  public final ITransientSet disjoin(Object key) {
-    remove(key);
-    return this;
-  }
-  public final Object get(Object key) {
-    return contains(key) ? key : null;
-  }
-  @SuppressWarnings("unchecked")
-  public final HashSet conj(Object key) {
-    add((E)key);
-    return this;
-  }
-  public final PersistentHashSet persistent() {
-    return new PersistentHashSet(hb);
-  }
-  public final Object valAt(Object key) {
-    return get(key);
-  }
-  public final Object valAt(Object key, Object notFound) {
-    return contains(key) ? key : notFound;
-  }
-  public final Object invoke(Object key) {
-    return get(key);
-  }
-  public final Object invoke(Object key, Object notFound) {
-    return contains(key) ? key : notFound;
-  }
-  public Object reduce(IFn rfn) {
-    return Reductions.iterReduce(this, rfn);
-  }
-  public Object reduce(IFn rfn, Object init) {
-    return Reductions.iterReduce(this, init, rfn);
+  public HashSet union(Collection rhs) {
+    HashSet rv = shallowClone();
+    HashNode[] rvd = rv.data;
+    int mask = rv.mask;
+    for(Object k: rhs) {
+      final int hashcode = rv.hash(k);
+      final int rvidx = hashcode & mask;
+      // System.out.println("k " + String.valueOf(k) + " hashcode " + String.valueOf(hashcode) + " rvidx " +
+      // 			 String.valueOf(rvidx) + " mask " + mask );
+      HashNode init = rvd[rvidx], e = init;
+      for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
+      if(e == null) {
+	// System.out.println("E is null, init is" + (init == null ? " null" : " valid"));
+	if(init != null)
+	  rvd[rvidx] = init.assoc(rv, k, hashcode, VALUE);
+	else
+	  rvd[rvidx] = rv.newNode(k, hashcode, VALUE);
+	rv.checkResize(null);
+	mask = rv.mask;
+	rvd = rv.data;
+      }
+    }
+    return rv;
   }
 
-  public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
-				  ParallelOptions options ) {
-    return Reductions.parallelCollectionReduction(initValFn, rfn, mergeFn, this, options);
+  public HashSet intersection(Set rhs) {
+    HashSet rv = shallowClone();
+    final HashNode[] rvd = rv.data;
+    final int ne = rvd.length;
+    for (int idx = 0; idx < ne; ++idx) {
+      HashNode lf = rvd[idx];
+      while(lf != null) {
+	final Object k = lf.k;
+	lf = lf.nextNode;
+	if(!rhs.contains(k))
+	  rvd[idx].dissoc(rv, k);
+      }
+    }
+    return rv;
   }
 
-  @SuppressWarnings("unchecked")
-  public void forEach(Consumer c) {
-    ITypedReduce.super.forEach(c);
+  public HashSet difference(Collection rhs) {
+    HashSet rv = shallowClone();
+    final HashNode[] rvd = rv.data;
+    final int mask = rv.mask;
+    for (Object k : rhs) {
+      final int hashcode = rv.hash(k);
+      final int rvidx = hashcode & mask;
+      HashNode e = rvd[rvidx];
+      for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
+      if(e != null) {
+	rvd[rvidx] = rvd[rvidx].dissoc(rv, k);
+      }
+    }
+    return rv;
   }
 }

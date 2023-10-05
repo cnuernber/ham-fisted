@@ -8,13 +8,13 @@ import clojure.lang.IMapEntry;
 import clojure.lang.MapEntry;
 
 
-public class ROHashMap extends HashMap {
-  ROHashMap(float loadFactor, int initialCapacity,
-	     int length, HashNode[] data,
-	     IPersistentMap meta) {
+public class ROLongHashMap extends LongHashMap {
+  ROLongHashMap(float loadFactor, int initialCapacity,
+		int length, LongHashNode[] data,
+		IPersistentMap meta) {
     super(loadFactor, initialCapacity, length, data, meta);
   }
-  ROHashMap(HashMap other, IPersistentMap m) {
+  ROLongHashMap(LongHashMap other, IPersistentMap m) {
     super(other, m);
   }
   public Object remove(Object k) {

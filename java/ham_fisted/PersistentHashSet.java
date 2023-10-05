@@ -1,176 +1,25 @@
 package ham_fisted;
 
-import static ham_fisted.BitmapTrieCommon.*;
-import static ham_fisted.BitmapTrie.*;
-import clojure.lang.APersistentSet;
-import clojure.lang.IPersistentSet;
+
 import clojure.lang.IPersistentMap;
-import clojure.lang.IPersistentCollection;
 import clojure.lang.ITransientSet;
-import clojure.lang.AFn;
-import clojure.lang.IHashEq;
 import clojure.lang.IObj;
-import clojure.lang.IteratorSeq;
-import clojure.lang.ISeq;
-import clojure.lang.IFn;
-import clojure.lang.ILookup;
-import clojure.lang.IEditableCollection;
-import clojure.lang.IReduce;
-import java.io.Serializable;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.Spliterator;
-import java.util.Set;
-import java.util.Arrays;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.Consumer;
 
 
-public class PersistentHashSet
-  implements IPersistentSet, Collection, Set, Serializable, IHashEq, IObj,
-	     ILookup, IEditableCollection, IFnDef, ITypedReduce, IReduce {
-  final HashTable hb;
-  int cachedHash = 0;
-
+public class PersistentHashSet extends ROHashSet implements IAPersistentSet, IObj {
   public static final PersistentHashSet EMPTY = new PersistentHashSet();
-
-  public PersistentHashSet() { hb = new HashTable(defaultHashProvider); }
-  public PersistentHashSet(HashProvider hp) { hb = new HashTable(hp); }
-  PersistentHashSet(HashTable _hb) { hb = _hb; }
-  public final int hashCode() {
-    if (cachedHash == 0) {
-      return cachedHash = CljHash.setHashcode(this);
-    }
-    return cachedHash;
+  public PersistentHashSet() { super(); }
+  public PersistentHashSet(HashBase hb) {
+    super(hb);
   }
-
-  public final int hasheq() {
-    return hashCode();
+  public PersistentHashSet(HashBase hb, IPersistentMap meta) {
+    super(hb,meta);
   }
-
-  public final boolean equals(Object o) {
-    return CljHash.setEquiv(this, o);
+  public PersistentHashSet withMeta(IPersistentMap m) {
+    return new PersistentHashSet(this, m);
   }
-  public final boolean equiv(Object o) {
-    return equals(o);
-  }
-
-  public final int count() { return hb.size(); }
-  public final int size() { return hb.size(); }
-  public final void clear() { hb.clear(); }
-  public final boolean containsAll(Collection values) {
-    boolean retval = true;
-    for (Object e : values)
-      retval = retval && contains(e);
-    return retval;
-  }
-  public final boolean removeAll(Collection values) {
-    throw new RuntimeException("Unimplemented");
-  }
-
-  public final boolean retainAll(Collection values) {
-    throw new RuntimeException("Unimplemented");
-  }
-
-  public final boolean addAll(Collection values) {
-    throw new RuntimeException("Unimplemented");
-  }
-  public final boolean remove(Object e) {
-    throw new RuntimeException("Unimplemented");
-  }
-  public final boolean add(Object e) {
-    throw new RuntimeException("Unimplemented");
-  }
-  public final boolean isEmpty() { return hb.size() == 0; }
-
-  public final IPersistentSet disjoin(Object key) {
-    return new PersistentHashSet(hb.shallowClone().mutDissoc(key));
-  }
-
-  public final boolean contains(Object key) {
-    return hb.getNode(key) != null;
-  }
-
-  public final Object get(Object key) {
-    return contains(key) ? key : null;
-  }
-
-  public final IPersistentSet cons(Object o) {
-    return new PersistentHashSet(hb.shallowClone().mutAssoc(o, HashSet.PRESENT));
-  }
-
-  public final IPersistentCollection empty(){
-    return EMPTY.withMeta(meta());
-  }
-
-  public final IPersistentMap meta() { return hb.meta(); }
-  public final PersistentHashSet withMeta(IPersistentMap meta) {
-    if(meta() == meta)
-      return this;
-    return new PersistentHashSet(hb.shallowClone(meta));
-  }
-
-  public final ISeq seq() { return IteratorSeq.create(iterator()); }
-
-  public final Iterator iterator() { return hb.iterator(keyIterFn); }
-  public final Spliterator spliterator() { return hb.spliterator(keyIterFn); }
-
-  public final Object[] toArray() {
-    Object[] retval = new Object[size()];
-    int idx = 0;
-    for(Object obj: this) {
-      retval[idx] = obj;
-      idx++;
-    }
-    return retval;
-  }
-  public final Object[] toArray(Object[] data) {
-    Object[] retval = Arrays.copyOf(data, size());
-    int idx = 0;
-    for(Object obj: this) {
-      retval[idx] = obj;
-      idx++;
-    }
-    return retval;
-  }
-  public final Object valAt(Object key) {
-    return get(key);
-  }
-  public final Object valAt(Object key, Object notFound) {
-    return contains(key) ? key : notFound;
-  }
-  public final Object invoke(Object key) {
-    return get(key);
-  }
-  public final Object invoke(Object key, Object notFound) {
-    return contains(key) ? key : notFound;
-  }
-
   public ITransientSet asTransient() {
-    if (hb.size() == 0)
-      return new HashSet(equalHashProvider);
-    return new TransientHashSet(hb);
-  }
-  public Object reduce(IFn rfn) {
-    return Reductions.iterReduce(this, rfn);
-  }
-  public Object reduce(IFn rfn, Object init) {
-    return Reductions.iterReduce(this, init, rfn);
-  }
-
-  public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
-				  ParallelOptions options ) {
-    return Reductions.parallelCollectionReduction(initValFn, rfn, mergeFn, this, options);
-  }
-
-  @SuppressWarnings("unchecked")
-  public void forEach(Consumer c) {
-    reduce( new IFnDef() {
-	public Object invoke(Object lhs, Object rhs) {
-	  c.accept(rhs);
-	  return c;
-	}
-      }, c);
-  }
+    return isEmpty() ?  new UnsharedHashSet(meta) : new TransientHashSet(this, meta);    
+  }  
+  public PersistentHashSet empty() { return EMPTY; }
 }

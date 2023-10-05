@@ -1,7 +1,7 @@
 package ham_fisted;
 
 
-public class LinkedHashNode extends HBNode {
+public class LinkedHashNode extends HashNode {
   //Less recently modified
   LinkedHashNode prevLink;
   //More recently modified
@@ -9,27 +9,22 @@ public class LinkedHashNode extends HBNode {
   public LinkedHashNode(LinkedHashMap owner, Object _k, int hc, Object _v, LinkedHashNode nn) {
     super(owner, _k, hc, _v, nn);
   }
-  public LinkedHashNode(LinkedHashMap owner, LinkedHashNode prev) {
-    super(owner, prev);
-    nextLink = prev.nextLink;
-    prevLink = prev.prevLink;
-  }
-  public HBNode clone(HashMap nowner) {
+  public HashNode clone(HashMap nowner) {
     throw new UnsupportedOperationException("LinkedHashNodes cannot clone");
   }
-  public HBNode setOwner(HashMap nowner) {
+  public HashNode setOwner(HashMap nowner) {
     if(nowner != owner)
       throw new RuntimeException("LinkedHashMap nodes cannot be structurally shared");
     return this;
   }
   //Linked node assoc/dissoc are not functional like their counterparts -
   //they just keep the same signature for use in the set algorithms.
-  public final HBNode assoc(HashMap nowner, Object _k, int hash, Object _v) {
+  public final HashNode assoc(HashMap nowner, Object _k, int hash, Object _v) {
     if(nowner != owner)
       throw new RuntimeException("LinkedHashMap assoc called in functional pathway");
-    HBNode retval = this;
+    HashNode retval = this;
     if (owner.equals(_k,k)) {
-      retval.setValue(_v);      
+      retval.setValue(_v);
     } else {
       if (retval.nextNode != null) {
 	retval.nextNode = retval.nextNode.assoc(nowner, _k, hash, _v);
@@ -39,7 +34,7 @@ public class LinkedHashNode extends HBNode {
     }
     return retval;
   }
-  public final HBNode dissoc(HashMap nowner, Object _k) {
+  public final HashNode dissoc(HashMap nowner, Object _k) {
     if(nowner != owner)
       throw new RuntimeException("LinkedHashMap assoc called in functional pathway");
     if (owner.equals(k, _k)) {

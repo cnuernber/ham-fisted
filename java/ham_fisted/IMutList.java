@@ -135,32 +135,34 @@ public interface IMutList<E>
     return true;
   }
   default boolean removeAll(Collection<?> c) {
-    HashSet<Object> hs = new HashSet<Object>();
-    hs.addAll(c);
-    int sz = size();
-    final int osz = sz;
-    for(int idx = 0; idx < sz; ++idx) {
-      if(hs.contains(get(idx))) {
-	remove(idx);
-	--idx;
-	--sz;
-      }
-    }
-    return size() == osz;
+    // HashSet<Object> hs = new HashSet<Object>();
+    // hs.addAll(c);
+    // int sz = size();
+    // final int osz = sz;
+    // for(int idx = 0; idx < sz; ++idx) {
+    //   if(hs.contains(get(idx))) {
+    // 	remove(idx);
+    // 	--idx;
+    // 	--sz;
+    //   }
+    // }
+    // return size() == osz;
+    throw new UnsupportedOperationException();
   }
   default boolean retainAll(Collection<?> c) {
-    HashSet<Object> hs = new HashSet<Object>();
-    hs.addAll(c);
-    int sz = size();
-    final int osz = sz;
-    for(int idx = 0; idx < sz; ++idx) {
-      if(!hs.contains(get(idx))) {
-	remove(idx);
-	--idx;
-	--sz;
-      }
-    }
-    return size() == osz;
+    // HashSet<Object> hs = new HashSet<Object>();
+    // hs.addAll(c);
+    // int sz = size();
+    // final int osz = sz;
+    // for(int idx = 0; idx < sz; ++idx) {
+    //   if(!hs.contains(get(idx))) {
+    // 	remove(idx);
+    // 	--idx;
+    // 	--sz;
+    //   }
+    // }
+    // return size() == osz;
+    throw new UnsupportedOperationException();
   }
 
   public static class MutSubList<E> implements IMutList<E> {
@@ -494,13 +496,14 @@ public interface IMutList<E>
 
   @SuppressWarnings("unimplemented")
   default boolean containsAll(Collection<?> c) {
-    HashSet<Object> hc = new HashSet<Object>();
-    hc.addAll(c);
-    for(E e: this) {
-      if(!hc.contains(e))
-	return false;
-    }
-    return true;
+    // HashSet<Object> hc = new HashSet<Object>();
+    // hc.addAll(c);
+    // for(E e: this) {
+    //   if(!hc.contains(e))
+    // 	return false;
+    // }
+    // return true;
+    throw new UnsupportedOperationException();
   }
 
   default boolean containsKey(Object key) {

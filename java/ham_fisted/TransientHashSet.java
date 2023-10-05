@@ -1,66 +1,23 @@
 package ham_fisted;
 
-
-import static ham_fisted.BitmapTrieCommon.*;
-import static ham_fisted.BitmapTrie.*;
-import clojure.lang.ITransientSet;
-import clojure.lang.IObj;
-import clojure.lang.ILookup;
-import clojure.lang.Seqable;
-import clojure.lang.ISeq;
-import clojure.lang.IteratorSeq;
 import clojure.lang.IPersistentMap;
-import java.util.Iterator;
 
-
-public class TransientHashSet
-  implements ITransientSet, IObj, IFnDef, ILookup, Seqable {
-
-  final HashTable hb;
-  boolean editable;
-
-  TransientHashSet(HashTable _hb) { this.hb = _hb.shallowClone(); editable = true; }
-
-  final void ensureEditable() { if (!editable) throw new RuntimeException("Transient set edited after persistent!"); }
-     
-  public final int count() { return hb.size(); }
-  public final ITransientSet disjoin(Object key) {
-    ensureEditable();
-    hb.mutDissoc(key);
+public class TransientHashSet extends ROHashSet implements IATransientSet {
+  public TransientHashSet(HashBase hb, IPersistentMap meta) { super(hb, meta); }
+  public TransientHashSet conj(Object key) {
+    int hc = hash(key);
+    int idx = hc & mask;
+    HashNode e = data[idx];
+    data[idx] = e != null ? e.assoc(this, key, hc, VALUE) : newNode(key, hc, VALUE);
     return this;
   }
-  public final boolean contains(Object key) {
-    return hb.getNode(key) != null;
-  }
-  public final Object get(Object key) {
-    return contains(key) ? key : null;
-  }
-  public final TransientHashSet conj(Object key) {
-    ensureEditable();
-    hb.mutAssoc(key, HashSet.PRESENT);
+  public TransientHashSet disjoin(Object key) {
+    int hc = hash(key);
+    int idx = hc & mask;
+    HashNode e = data[idx];
+    if(e != null)
+      data[idx] = e.dissoc(this, key);
     return this;
   }
-  public final PersistentHashSet persistent() {
-    editable = false;
-    return new PersistentHashSet(hb);
-  }
-  public final Iterator iterator() { return hb.iterator(keyIterFn); }
-  public final ISeq seq() { return IteratorSeq.create(iterator()); }
-  public final IPersistentMap meta() { return hb.meta(); }
-  public final TransientHashSet withMeta(IPersistentMap meta) {
-    return new TransientHashSet(hb.shallowClone(meta));
-  }
-  public final Object valAt(Object key) {
-    return get(key);
-  }
-  public final Object valAt(Object key, Object notFound) {
-    return contains(key) ? key : notFound;
-  }
-  public final Object invoke(Object key) {
-    return get(key);
-  }
-  public final Object invoke(Object key, Object notFound) {
-    return contains(key) ? key : notFound;
-  }
-  
+  public PersistentHashSet persistent() { return new PersistentHashSet(this, meta); }
 }

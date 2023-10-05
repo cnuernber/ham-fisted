@@ -25,36 +25,34 @@ import clojure.lang.IDeref;
 import clojure.lang.IMeta;
 import clojure.lang.IMapEntry;
 import clojure.lang.MapEntry;
-import clojure.lang.IReduceInit;
-import clojure.lang.IKVReduce;
 
 
-public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
-  Set keySet;
-  public HashMap(float loadFactor, int initialCapacity,
-		  int length, HashNode[] data,
-		  IPersistentMap meta) {
+public class LongHashMap extends LongHashBase implements IMap, MapSetOps, UpdateValues {
+  Set keySet = null;
+  public LongHashMap(float loadFactor, int initialCapacity,
+		 int length, LongHashNode[] data,
+		 IPersistentMap meta) {
     super(loadFactor, initialCapacity, length, data, meta);
   }
-  public HashMap() {
+  public LongHashMap() {
     this(0.75f, 0, 0, null, null);
   }
-  public HashMap(IPersistentMap m) {
+  public LongHashMap(IPersistentMap m) {
     this(0.75f, 0, 0, null, m);
   }
-  public HashMap(HashMap other, IPersistentMap m) {
+  public LongHashMap(LongHashMap other, IPersistentMap m) {
     super(other, m);
   }
 
-  public HashMap shallowClone() {
-    return new HashMap(loadFactor, capacity, length, data.clone(), meta);
+  public LongHashMap shallowClone() {
+    return new LongHashMap(loadFactor, capacity, length, data.clone(), meta);
   }
-  public HashMap clone() {
+  public LongHashMap clone() {
     final int l = data.length;
-    HashNode[] newData = new HashNode[l];
-    HashMap retval = new HashMap(loadFactor, capacity, length, newData, meta);
+    LongHashNode[] newData = new LongHashNode[l];
+    LongHashMap retval = new LongHashMap(loadFactor, capacity, length, newData, meta);
     for(int idx = 0; idx < l; ++idx) {
-      HashNode orig = data[idx];
+      LongHashNode orig = data[idx];
       if(orig != null)
 	newData[idx] = orig.clone(retval);
     }
@@ -89,42 +87,44 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
 	}, new StringBuilder().append("{"));
     return b.append("}").toString();
   }
-  public Object put(Object key, Object val) {
+  public Object put(Object kk, Object val) {
+    long key = Casts.longCast(kk);
     final int hc = hash(key);
-    final int idx = hc & mask;
-    final HashNode init = data[idx];
-    if(init != null) {
-      HashNode e = init;
-      do {
-	if(e.k == key || equals(e.k, key)) {
-	  Object rv = e.v;
-	  e.v = val;
-	  modify(e);
-	  return rv;
-	}
-	e = e.nextNode;
-      } while(e != null);
+    final int idx = hc & this.mask;
+    LongHashNode lastNode = null;
+    //Avoid unneeded calls to both equals and checkResize
+    for(LongHashNode e = this.data[idx]; e != null; e = e.nextNode) {
+      lastNode = e;
+      if(e.k == key || equals(e.k, key)) {
+	Object rv = e.v;
+	e.v = val;
+	modify(e);
+	return rv;
+      }
     }
-    HashNode lf = newNode(key,hc,val);
-    lf.nextNode = init;
-    data[idx] = lf;
+    LongHashNode lf = newNode(key,hc,val);
+    if(lastNode != null) {
+      lastNode.nextNode = lf;
+    } else {
+      data[idx] = lf;
+    }
     return checkResize(null);
   }
   public void putAll(Map other) {
-    HashNode[] d = data;
+    LongHashNode[] d = data;
     int mask = this.mask;
     for(Object o: other.entrySet()) {
       Map.Entry ee = (Map.Entry)o;
-      Object k = ee.getKey();
+      long k = Casts.longCast(ee.getKey());
       int hashcode = hash(k);
       int idx = hashcode & mask;
-      HashNode e;
-      for(e = d[idx]; e != null && !(k == e.k || equals(k,e.k)); e = e.nextNode);
+      LongHashNode e;
+      for(e = d[idx]; e != null && !(k == e.k); e = e.nextNode);
       if(e != null) {
 	e.v = ee.getValue();
       }
       else {
-	HashNode n = newNode(k, hashcode, ee.getValue());
+	LongHashNode n = newNode(k, hashcode, ee.getValue());
 	n.nextNode = d[idx];
 	d[idx] = n;
 	checkResize(null);
@@ -133,27 +133,33 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
       }
     }
   }
-  public Object getOrDefault(Object key, Object dv) {
-    for(HashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
-      Object k;
-      if((k = e.k) == key || equals(k, key))
-	return e.v;
+  public Object getOrDefault(Object kk, Object dv) {
+    if(kk instanceof Number) {
+      long key = Casts.longCast(kk);
+      for(LongHashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
+	if(e.k == key)
+	  return e.v;
+      }
     }
     return dv;
   }
-  public Object get(Object key) {
-    for(HashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
-      Object k;
-      if((k = e.k) == key || equals(k, key))
-	return e.v;
+  public Object get(Object kk) {
+    if(kk instanceof Number) {
+      long key = Casts.longCast(kk);
+      for(LongHashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
+	if(e.k == key)
+	  return e.v;
+      }
     }
     return null;
   }
-  public IMapEntry entryAt(Object key) {
-    for(HashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
-      Object k;
-      if((k = e.k) == key || equals(k, key))
-	return MapEntry.create(e.k, e.v);
+  public IMapEntry entryAt(Object kk) {
+    if(kk instanceof Number) {
+      long key = Casts.longCast(kk);
+      for(LongHashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
+	if(e.k == key)
+	  return MapEntry.create(e.k, e.v);
+      }
     }
     return null;
   }
@@ -161,11 +167,12 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
     return containsNodeKey(key);
   }
   @SuppressWarnings("unchecked")
-  public Object compute(Object k, BiFunction bfn) {
+  public Object compute(Object kk, BiFunction bfn) {
+    long k = Casts.longCast(kk);
     final int hash = hash(k);
-    final HashNode[] d = this.data;
+    final LongHashNode[] d = this.data;
     final int idx = hash & this.mask;
-    HashNode e = d[idx], ee = null;
+    LongHashNode e = d[idx], ee = null;
     for(; e != null && !(e.k == k || equals(e.k, k)); e = e.nextNode) {
       ee = e;
     }
@@ -178,7 +185,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
       else
 	remove(k, null);
     } else if(newV != null) {
-      HashNode nn = newNode(k, hash, newV);
+      LongHashNode nn = newNode(k, hash, newV);
       if(ee != null)
 	ee.nextNode = nn;
       else
@@ -188,11 +195,12 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
     return newV;
   }
   @SuppressWarnings("unchecked")
-  public Object computeIfAbsent(Object k, Function afn) {
+  public Object computeIfAbsent(Object kk, Function afn) {
+    long k = Casts.longCast(kk);
     final int hash = hash(k);
-    final HashNode[] d = this.data;
+    final LongHashNode[] d = this.data;
     final int idx = hash & this.mask;
-    HashNode e = d[idx], ee = null;
+    LongHashNode e = d[idx], ee = null;
     for(; e != null && !(e.k == k || equals(e.k, k)); e = e.nextNode) {
       ee = e;
     }
@@ -201,7 +209,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
     } else {
       final Object newv = afn.apply(k);
       if(newv != null) {
-	HashNode nn = newNode(k, hash, newv);
+	LongHashNode nn = newNode(k, hash, newv);
 	if(ee != null)
 	  ee.nextNode = nn;
 	else
@@ -211,12 +219,12 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
       return newv;
     }
   }
-  public Object remove(Object key) {
-    HashNode lastNode = null;
+  public Object remove(Object kk) {
+    long key = Casts.longCast(kk);
     int loc = hash(key) & this.mask;
-    for(HashNode e = this.data[loc]; e != null; e = e.nextNode) {
-      Object k;
-      if((k = e.k) == key || equals(k, key)) {
+    LongHashNode lastNode = null;
+    for(LongHashNode e = this.data[loc]; e != null; e = e.nextNode) {
+      if(e.k == key) {
 	dec(e);
 	if(lastNode != null)
 	  lastNode.nextNode = e.nextNode;
@@ -230,9 +238,9 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
   }
   public Object reduce(IFn rfn, Object acc) {
     final int l = data.length;
-    final HashNode[] d = data;
+    LongHashNode[] d = data;
     for(int idx = 0; idx < l; ++idx) {
-      for(HashNode e = d[idx]; e != null; e = e.nextNode) {
+      for(LongHashNode e = d[idx]; e != null; e = e.nextNode) {
 	acc = rfn.invoke(acc, e);
 	if(RT.isReduced(acc))
 	  return ((IDeref)acc).deref();
@@ -242,9 +250,9 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
   }
   public Object kvreduce(IFn rfn, Object acc) {
     final int l = data.length;
-    final HashNode[] d = data;
+    LongHashNode[] d = data;
     for(int idx = 0; idx < l; ++idx) {
-      for(HashNode e = d[idx]; e != null; e = e.nextNode) {
+      for(LongHashNode e = d[idx]; e != null; e = e.nextNode) {
 	acc = rfn.invoke(acc, e.k, e.v);
 	if(RT.isReduced(acc))
 	  return ((IDeref)acc).deref();
@@ -260,8 +268,8 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
   public void replaceAll(BiFunction bfn) {
     final int l = data.length;
     for(int idx = 0; idx < l; ++idx) {
-      HashNode lastNode = null;
-      for(HashNode e = this.data[idx]; e != null; e = e.nextNode) {
+      LongHashNode lastNode = null;
+      for(LongHashNode e = this.data[idx]; e != null; e = e.nextNode) {
 	Object newv = bfn.apply(e.k, e.v);
 	if(newv != null) {
 	  e.v = newv;
@@ -279,103 +287,22 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
     }
   }
 
-
   public Set keySet() {
     if(this.keySet  == null )
       this.keySet = IMap.super.keySet();
     return this.keySet;
-  }
+   }
 
   @SuppressWarnings("unchecked")
-  public static HashMap hashMapUnion(HashMap rv, HashMap om, BiFunction bfn) {
-    final HashNode[] od = om.data;
-    final int l = od.length;
-    HashNode[] rvd = rv.data;
+  public static LongHashMap union(LongHashMap rv, Map o, BiFunction bfn) {
+    LongHashNode[] rvd = rv.data;
     int mask = rv.mask;
-    for(int idx = 0; idx < l; ++idx) {
-      for(HashNode lf = od[idx]; lf != null; lf = lf.nextNode) {
-	final Object k = lf.k;
-	final int hashcode = lf.hashcode;
-	final int rvidx = hashcode & mask;
-	HashNode init = rvd[rvidx], e = init;
-	final Object v = lf.v;
-	for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
-	if(e != null) {
-	  rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, v));
-	}
-	else {
-	  if(init != null)
-	    rvd[rvidx] = init.assoc(rv, k, hashcode, v);
-	  else
-	    rvd[rvidx] = rv.newNode(k, hashcode, v);
-	  rv.checkResize(null);
-	  mask = rv.mask;
-	  rvd = rv.data;
-	}
-      }
-    }
-    return rv;
-  }
-  @SuppressWarnings("unchecked")
-  public static HashMap reduceUnion(HashMap rv, IReduceInit o, BiFunction bfn) {
-    return (HashMap)o.reduce(new IFnDef() {
-	public Object invoke(Object acc, Object v) {
-	  Map.Entry lf = (Map.Entry)v;
-	  final Object k = lf.getKey();
-	  final int hashcode = rv.hash(k);
-	  final int rvidx = hashcode & rv.mask;
-	  final HashNode[] rvd = rv.data;
-	  HashNode init = rvd[rvidx], e = init;
-	  for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
-	  if(e != null) {
-	    rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, lf.getValue()));
-	  }
-	  else {
-	    if(init != null)
-	      rvd[rvidx] = init.assoc(rv, k, hashcode, lf.getValue());
-	    else
-	      rvd[rvidx] = rv.newNode(k, hashcode, lf.getValue());
-	    rv.checkResize(null);
-	  }
-	  return rv;
-	}
-      }, rv);
-  }
-
-  @SuppressWarnings("unchecked")
-  public static HashMap kvReduceUnion(HashMap rv, IKVReduce o, BiFunction bfn) {
-    return (HashMap)o.kvreduce(new IFnDef() {
-	public Object invoke(Object acc, Object k, Object v) {
-	  final int hashcode = rv.hash(k);
-	  final int rvidx = hashcode & rv.mask;
-	  final HashNode[] rvd = rv.data;
-	  HashNode init = rvd[rvidx], e = init;
-	  for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
-	  if(e != null) {
-	    rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, v));
-	  }
-	  else {
-	    if(init != null)
-	      rvd[rvidx] = init.assoc(rv, k, hashcode, v);
-	    else
-	      rvd[rvidx] = rv.newNode(k, hashcode, v);
-	    rv.checkResize(null);
-	  }
-	  return rv;
-	}
-      }, rv);
-  }
-
-  @SuppressWarnings("unchecked")
-  public static HashMap entrySetUnion(HashMap rv, Map o, BiFunction bfn) {
-    int mask = rv.mask;
-    HashNode[] rvd = rv.data;
     for(Object ee : o.entrySet()) {
       Map.Entry lf = (Map.Entry)ee;
-      final Object k = lf.getKey();
+      final long k = Casts.longCast(lf.getKey());
       final int hashcode = rv.hash(k);
       final int rvidx = hashcode & mask;
-      HashNode init = rvd[rvidx], e = init;
+      LongHashNode init = rvd[rvidx], e = init;
       for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
       if(e != null) {
 	rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, lf.getValue()));
@@ -393,33 +320,18 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
     return rv;
   }
 
-
-
-  public static HashMap union(HashMap rv, Map o, BiFunction bfn) {
-    if(o instanceof HashMap) {
-      return hashMapUnion(rv, (HashMap)o, bfn);
-    } else if (o instanceof IReduceInit) {
-      return reduceUnion(rv, (IReduceInit)o, bfn);
-    } else if (o instanceof IKVReduce) {
-      return kvReduceUnion(rv, (IKVReduce)o, bfn);
-    }
-    else {
-      return entrySetUnion(rv, o, bfn);
-    }
-  }
-
   @SuppressWarnings("unchecked")
-  public HashMap union(Map o, BiFunction bfn) {
+  public LongHashMap union(Map o, BiFunction bfn) {
     return union(this, o, bfn);
   }
   @SuppressWarnings("unchecked")
-  static HashMap intersection(HashMap rv, Map o, BiFunction bfn) {
-    final HashNode[] rvd = rv.data;
+  static LongHashMap intersection(LongHashMap rv, Map o, BiFunction bfn) {
+    final LongHashNode[] rvd = rv.data;
     final int ne = rvd.length;
     for (int idx = 0; idx < ne; ++idx) {
-      HashNode lf = rvd[idx];
+      LongHashNode lf = rvd[idx];
       while(lf != null) {
-	final HashNode curlf = lf;
+	final LongHashNode curlf = lf;
 	lf = lf.nextNode;
 	final Object v = o.get(curlf.k);
 	rvd[idx] = (v != null)
@@ -431,18 +343,18 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
   }
 
 
-  public HashMap intersection(Map o, BiFunction bfn) {
+  public LongHashMap intersection(Map o, BiFunction bfn) {
     return intersection(this, o, bfn);
   }
 
-  public static HashMap intersection(HashMap rv, Set o) {
-    final HashNode[] rvd = rv.data;
+  public static LongHashMap intersection(LongHashMap rv, Set o) {
+    final LongHashNode[] rvd = rv.data;
     final int ne = rvd.length;
     for (int idx = 0; idx < ne; ++idx) {
-      HashNode lf = rvd[idx];
+      LongHashNode lf = rvd[idx];
       while(lf != null) {
-	final HashNode curlf = lf;
-	final Object k = curlf.k;
+	final LongHashNode curlf = lf;
+	final long k = curlf.k;
 	lf = lf.nextNode;
 	if(!o.contains(k))
 	  rvd[idx] = rvd[idx].dissoc(rv,k);
@@ -450,39 +362,40 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
     }
     return rv;
   }
-  public HashMap intersection(Set o) {
+  public LongHashMap intersection(Set o) {
     return intersection(this, o);
   }
 
 
   @SuppressWarnings("unchecked")
-  static HashMap difference(HashMap rv, Collection o) {
-    final HashNode[] rvd = rv.data;
+  static LongHashMap difference(LongHashMap rv, Collection o) {
+    final LongHashNode[] rvd = rv.data;
     final int mask = rv.mask;
-    for (Object k : o) {
+    for (Object kk : o) {
+      long k = Casts.longCast(kk);
       final int hashcode = rv.hash(k);
       final int rvidx = hashcode & mask;
-      HashNode e = rvd[rvidx];
-      for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
+      LongHashNode e = rvd[rvidx];
+      for(;e != null && !(e.k==k); e = e.nextNode);
       if(e != null) {
-	rvd[rvidx] = rvd[rvidx].dissoc(rv,k);
+	rvd[rvidx] = rvd[rvidx].dissoc(rv, e.k);
       }
     }
     return rv;
   }
 
-  public HashMap difference(Collection o) {
+  public LongHashMap difference(Collection o) {
     return difference(this, o);
   }
 
   @SuppressWarnings("unchecked")
-  static HashMap updateValues(HashMap rv, BiFunction valueMap) {
-    final HashNode[] d = rv.data;
+  static LongHashMap updateValues(LongHashMap rv, BiFunction valueMap) {
+    final LongHashNode[] d = rv.data;
     final int nl = d.length;
     for(int idx = 0; idx < nl; ++idx) {
-      HashNode lf = d[idx];
+      LongHashNode lf = d[idx];
       while(lf != null) {
-	HashNode cur = lf;
+	LongHashNode cur = lf;
 	lf = lf.nextNode;
 	Object newv = valueMap.apply(cur.k, cur.v);
 	d[idx] = newv == null ? d[idx].dissoc(rv, cur.k) :
@@ -491,23 +404,24 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
     }
     return rv;
   }
-  public HashMap updateValues(BiFunction valueMap) {
+  public LongHashMap updateValues(BiFunction valueMap) {
     return updateValues(this, valueMap);
   }
   @SuppressWarnings("unchecked")
-  static HashMap updateValue(HashMap rv, Object k, Function fn) {
+  static LongHashMap updateValue(LongHashMap rv, Object kk, Function fn) {
+    long k = Casts.longCast(kk);
     final int hc = rv.hash(k);
     final int idx = hc & rv.mask;
-    final HashNode[] data = rv.data;
-    HashNode e = data[idx];
-    for(; e != null && !((e.k == k) || rv.equals(e.k, k)); e = e.nextNode);
+    final LongHashNode[] data = rv.data;
+    LongHashNode e = data[idx];
+    for(; e != null && !((e.k == k)); e = e.nextNode);
     final Object newv = e != null ? fn.apply(e.v) : fn.apply(null);
     data[idx] = newv == null ? data[idx].dissoc(rv, k) : data[idx].assoc(rv, k, hc, newv);
     if(newv != null && e == null) rv.checkResize(null);
     return rv;
   }
 
-  public HashMap updateValue(Object k, Function fn) {
+  public LongHashMap updateValue(Object k, Function fn) {
     return updateValue(this, fn);
   }
 
