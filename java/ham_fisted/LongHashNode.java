@@ -32,6 +32,7 @@ public class LongHashNode implements Map.Entry, IMutList, IMapEntry {
     hashcode = prev.hashcode;
     k = prev.k;
     v = prev.v;
+    nextNode = prev.nextNode;
   }
   public LongHashNode setOwner(LongHashBase nowner) {
     if (owner == nowner)

@@ -33,7 +33,7 @@ public class HashNode implements Map.Entry, IMutList, IMapEntry {
     hashcode = prev.hashcode;
     k = prev.k;
     v = prev.v;
-    nextNode = null;
+    nextNode = prev.nextNode;
   }
   public HashNode setOwner(HashBase nowner) {
     if (owner == nowner)
@@ -59,7 +59,7 @@ public class HashNode implements Map.Entry, IMutList, IMapEntry {
   }
   public HashNode assoc(HashBase nowner, Object _k, int hash, Object _v) {
     HashNode retval = setOwner(nowner);
-    if (nowner.equals(_k,k)) {
+    if (k == _k || nowner.equals(_k,k)) {
       retval.setValue(_v);
     } else {
       if (retval.nextNode != null) {

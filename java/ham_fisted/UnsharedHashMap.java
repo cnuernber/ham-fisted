@@ -1,6 +1,7 @@
 package ham_fisted;
 
 
+import java.util.List;
 import java.util.Map;
 import clojure.lang.IPersistentMap;
 import clojure.lang.ITransientMap;
@@ -39,8 +40,32 @@ public class UnsharedHashMap
 	lf.v = v;
       } else {
 	final HashNode newNode = rv.newNode(k, hc, v);
-	newNode.nextNode = d[idx];
-	d[idx] = newNode;
+	newNode.nextNode = d[didx];
+	d[didx] = newNode;
+      }
+    }
+    return rv;
+  }
+  public static UnsharedHashMap createInterleaved(List data) {
+    final int l = data.size();
+    if((l%2) != 0)
+      throw new RuntimeException("Data length not evenly divisible by 2");
+    final UnsharedHashMap rv = new UnsharedHashMap(null, l/2);
+    final HashNode[] d = rv.data;
+    final int m = rv.mask;
+    for(int idx = 0; idx < l; idx += 2) {
+      final Object k = data.get(idx);
+      final Object v = data.get(idx+1);
+      final int hc = rv.hash(k);
+      final int didx = hc & m;
+      HashNode lf, init = d[didx];
+      for(lf = init; lf != null && !(lf.k == k || rv.equals(lf.k, k)); lf = lf.nextNode);
+      if(lf != null) {
+	lf.v = v;
+      } else {
+	final HashNode newNode = rv.newNode(k, hc, v);
+	newNode.nextNode = d[didx];
+	d[didx] = newNode;
       }
     }
     return rv;

@@ -8,7 +8,7 @@
   (:import [java.util ArrayList Collections Map Collection]
            [java.util.function BiFunction BiConsumer]
            [java.util.concurrent ForkJoinPool Future Callable]
-           [ham_fisted MutHashTable LongMutHashTable ImmutHashTable LongImmutHashTable]))
+           [ham_fisted MutHashTable LongMutHashTable PersistentHashMap PersistentLongHashMap]))
 
 (defonce orig api/empty-map)
 
@@ -186,14 +186,14 @@
 
 
 (defn- indexed-map
-  ^ImmutHashTable [data]
+  ^PersistentHashMap [data]
   (persistent! (api/mut-map (map-indexed #(vector %2 %1) data))))
 
 
 (deftest union-test
   (let [n-elems 100
         hn-elems (quot n-elems 2)
-        src-data (repeatedly n-elems #(rand-int 100000000))
+        src-data (take n-elems (distinct (repeatedly #(rand-int 1000000))))
         lhs (->array-list (take hn-elems src-data))
         rhs (->array-list (drop hn-elems src-data))
         hm1 (indexed-map lhs)
@@ -203,7 +203,9 @@
         un2 (.union un1 hm2 bfn)
         single-sum (reduce + (range hn-elems))]
     (is (= (count un1) n-elems))
-    (is (= (set src-data) (set (keys un1))))
+    (is (= (set src-data) (set (keys un1))),
+        (str (set/difference (set src-data) (set (keys un1)))
+             (set/difference (set (keys un1)) (set src-data))))
     (is (= (count un2) n-elems))
     (is (= (* 2 single-sum) (reduce + (vals un1))))
     (is (= (* 3 single-sum) (reduce + (vals un2))))))
@@ -247,7 +249,7 @@
 
 
 (defn- long-indexed-map
-  ^LongImmutHashTable [data]
+  ^PersistentLongHashMap [data]
   (persistent! (api/mut-long-hashtable-map (map-indexed #(vector %2 %1) data))))
 
 

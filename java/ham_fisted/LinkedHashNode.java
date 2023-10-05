@@ -9,11 +9,6 @@ public class LinkedHashNode extends HashNode {
   public LinkedHashNode(LinkedHashMap owner, Object _k, int hc, Object _v, LinkedHashNode nn) {
     super(owner, _k, hc, _v, nn);
   }
-  public LinkedHashNode(LinkedHashMap owner, LinkedHashNode prev) {
-    super(owner, prev);
-    nextLink = prev.nextLink;
-    prevLink = prev.prevLink;
-  }
   public HashNode clone(HashMap nowner) {
     throw new UnsupportedOperationException("LinkedHashNodes cannot clone");
   }
@@ -29,7 +24,7 @@ public class LinkedHashNode extends HashNode {
       throw new RuntimeException("LinkedHashMap assoc called in functional pathway");
     HashNode retval = this;
     if (owner.equals(_k,k)) {
-      retval.setValue(_v);      
+      retval.setValue(_v);
     } else {
       if (retval.nextNode != null) {
 	retval.nextNode = retval.nextNode.assoc(nowner, _k, hash, _v);
