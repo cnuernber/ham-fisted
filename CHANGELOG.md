@@ -1,3 +1,8 @@
+# 2.000
+ * Rebuilt hashmaps on faster foundation especially for micro benchmarks.
+ * Removed bits and pieces that do not provide enough return on investment.
+ * For more in-depth comments see [PR-7](https://github.com/cnuernber/ham-fisted/pull/7).
+ 
 # 1.009
  * new linked hashmap implementation with equiv-semantics and fast union op.
 
