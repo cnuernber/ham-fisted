@@ -58,7 +58,7 @@ public class LongHashNode implements Map.Entry, IMutList, IMapEntry {
   }
   public LongHashNode assoc(LongHashBase nowner, long _k, int hash, Object _v) {
     LongHashNode retval = setOwner(nowner);
-    if (nowner.equals(_k,k)) {
+    if (k == _k) {
       retval.setValue(_v);
     } else {
       if (retval.nextNode != null) {
@@ -70,7 +70,7 @@ public class LongHashNode implements Map.Entry, IMutList, IMapEntry {
     return retval;
   }
   public LongHashNode dissoc(LongHashBase nowner, long _k) {
-    if (owner.equals(k, _k)) {
+    if (k == _k) {
       nowner.dec(this);
       return nextNode;
     }

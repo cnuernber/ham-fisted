@@ -71,7 +71,7 @@ public class HashNode implements Map.Entry, IMutList, IMapEntry {
     return retval;
   }
   public HashNode dissoc(HashBase nowner, Object _k) {
-    if (owner.equals(k, _k)) {
+    if (k == _k || owner.equals(k, _k)) {
       nowner.dec(this);
       return nextNode;
     }
