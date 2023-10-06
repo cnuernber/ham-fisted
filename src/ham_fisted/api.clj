@@ -1648,7 +1648,9 @@ nil
 
 
 (defn shuffle
-  "shuffle values returning random access container.
+  "shuffle values returning random access container.  If you are calling this repeatedly
+   on the same collection you should call [[->random-access]] on the collection *before*
+   you start as shuffle internally only works on random access collections.
 
   Options:
 
