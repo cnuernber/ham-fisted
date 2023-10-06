@@ -21,7 +21,7 @@ public class TransientHashMap
   }
   public TransientHashMap conj(Object val) {
     if(val instanceof Map) {
-      return (TransientHashMap)union((Map)val, new BiFunction() { public Object apply(Object v1, Object v2){return v2;}});
+      return (TransientHashMap)union((Map)val, BiFunctions.rhsWins);
     } else {
       return (TransientHashMap)IATransientMap.super.conjVal(val);
     }
