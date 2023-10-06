@@ -4,7 +4,7 @@
             [ham-fisted.reduce :as hamf-rf]
             [ham-fisted.function :as hamf-fn]
             [ham-fisted.lazy-noncaching :as lznc]
-            [ham-fisted.set])
+            [ham-fisted.set :as hamf-set])
   (:import [java.util BitSet]))
 
 
@@ -136,3 +136,8 @@
   (let [m1 (hamf/immut-map {:age 2, :sex 1, "salary (binned)" 4, :job 0, :salary 3})
         m2 (assoc m1 :tech.v3.dataset.reductions/_tmp_col 5)]
     (is (= (set (keys m1)) #{:age :sex "salary (binned)" :job :salary}))))
+
+(deftest set-api-compat
+  (is (= #{:a} (disj (hamf-set/difference (hamf/immut-set [:a :b :c])
+                                          (hamf/immut-set [:c :d :e]))
+                     :b))))

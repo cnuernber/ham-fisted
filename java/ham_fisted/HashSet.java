@@ -9,6 +9,7 @@ import java.util.Collection;
 import clojure.lang.RT;
 import clojure.lang.IDeref;
 import clojure.lang.IFn;
+import clojure.lang.IReduceInit;
 
 
 public class HashSet extends HashBase implements ISet, SetOps {
@@ -26,6 +27,9 @@ public class HashSet extends HashBase implements ISet, SetOps {
   }
   public HashSet(HashBase other, IPersistentMap m) {
     super(other, m);
+  }
+  public HashSet(HashBase other) {
+    super(other, null);
   }
   public HashSet shallowClone() {
     return new HashSet(loadFactor, capacity, length, data.clone(), meta);
@@ -110,33 +114,51 @@ public class HashSet extends HashBase implements ISet, SetOps {
     return acc;
   }
 
-  public HashSet union(Collection rhs) {
-    HashSet rv = shallowClone();
-    HashNode[] rvd = rv.data;
-    int mask = rv.mask;
-    for(Object k: rhs) {
-      final int hashcode = rv.hash(k);
-      final int rvidx = hashcode & mask;
-      // System.out.println("k " + String.valueOf(k) + " hashcode " + String.valueOf(hashcode) + " rvidx " +
-      // 			 String.valueOf(rvidx) + " mask " + mask );
-      HashNode init = rvd[rvidx], e = init;
-      for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
-      if(e == null) {
-	// System.out.println("E is null, init is" + (init == null ? " null" : " valid"));
-	if(init != null)
-	  rvd[rvidx] = init.assoc(rv, k, hashcode, VALUE);
-	else
-	  rvd[rvidx] = rv.newNode(k, hashcode, VALUE);
-	rv.checkResize(null);
-	mask = rv.mask;
-	rvd = rv.data;
+  public static HashSet union(HashSet rv, Collection rhs) {
+    if(rhs instanceof IReduceInit) {
+      return (HashSet)((IReduceInit)rhs).reduce(new IFnDef() {
+	  public Object invoke(Object acc, Object k) {
+	    final int hashcode = rv.hash(k);
+	    final int rvidx = hashcode & rv.mask;
+	    HashNode init = rv.data[rvidx], e = init;
+	    for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
+	    if(e == null) {
+	      if(init != null)
+		rv.data[rvidx] = init.assoc(rv, k, hashcode, VALUE);
+	      else
+		rv.data[rvidx] = rv.newNode(k, hashcode, VALUE);
+	      rv.checkResize(null);
+	    }
+	    return rv;
+	  }
+	}, rv);
+    } else {
+      HashNode[] rvd = rv.data;
+      int mask = rv.mask;
+      for(Object k: rhs) {
+	final int hashcode = rv.hash(k);
+	final int rvidx = hashcode & mask;
+	HashNode init = rvd[rvidx], e = init;
+	for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
+	if(e == null) {
+	  if(init != null)
+	    rvd[rvidx] = init.assoc(rv, k, hashcode, VALUE);
+	  else
+	    rvd[rvidx] = rv.newNode(k, hashcode, VALUE);
+	  rv.checkResize(null);
+	  mask = rv.mask;
+	  rvd = rv.data;
+	}
       }
     }
     return rv;
   }
 
-  public HashSet intersection(Set rhs) {
-    HashSet rv = shallowClone();
+  public HashSet union(Collection rhs) {
+    return union(this, rhs);
+  }
+
+  public static HashSet intersection(HashSet rv, Set rhs) {
     final HashNode[] rvd = rv.data;
     final int ne = rvd.length;
     for (int idx = 0; idx < ne; ++idx) {
@@ -146,6 +168,40 @@ public class HashSet extends HashBase implements ISet, SetOps {
 	lf = lf.nextNode;
 	if(!rhs.contains(k))
 	  rvd[idx].dissoc(rv, k);
+      }
+    }
+    return rv;
+  }
+
+  public HashSet intersection(Set rhs) {
+    return intersection(this, rhs);
+  }
+
+  public static HashSet difference(HashSet rv, Collection rhs) {
+    final HashNode[] rvd = rv.data;
+    final int mask = rv.mask;
+    if(rhs instanceof IReduceInit) {
+      return (HashSet)((IReduceInit)rhs).reduce(new IFnDef() {
+	  public Object invoke(Object acc, Object k) {
+	    final int hashcode = rv.hash(k);
+	    final int rvidx = hashcode & mask;
+	    HashNode e = rvd[rvidx];
+	    for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
+	    if(e != null) {
+	      rvd[rvidx] = rvd[rvidx].dissoc(rv, k);
+	    }
+	    return rv;
+	  }
+	}, rv);
+    } else {
+      for (Object k : rhs) {
+	final int hashcode = rv.hash(k);
+	final int rvidx = hashcode & mask;
+	HashNode e = rvd[rvidx];
+	for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
+	if(e != null) {
+	  rvd[rvidx] = rvd[rvidx].dissoc(rv, k);
+	}
       }
     }
     return rv;

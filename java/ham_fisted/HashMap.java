@@ -278,11 +278,22 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
       }
     }
   }
-
+  public static class HashSetKeySet extends MapKeySet implements SetOps {
+    public HashSetKeySet(HashMap hm) { super(hm); }
+    public PersistentHashSet union(Collection c) {
+      return new PersistentHashSet( new HashSet(((HashMap)data).shallowClone()).union(c) );
+    }
+    public PersistentHashSet intersection(Set c) {
+      return new PersistentHashSet( new HashSet(((HashMap)data).shallowClone()).intersection(c) );
+    }
+    public PersistentHashSet difference(Collection c) {
+      return new PersistentHashSet( new HashSet(((HashMap)data).shallowClone()).difference(c) );
+    }
+  }
 
   public Set keySet() {
     if(this.keySet  == null )
-      this.keySet = IMap.super.keySet();
+      this.keySet = new HashSetKeySet(this);
     return this.keySet;
   }
 
@@ -301,7 +312,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
 	final Object v = lf.v;
 	for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
 	if(e != null) {
-	  rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, v));
+	  rvd[rvidx] = init.assoc(rv, e.k, hashcode, bfn.apply(e.v, v));
 	}
 	else {
 	  if(init != null)
@@ -328,7 +339,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
 	  HashNode init = rvd[rvidx], e = init;
 	  for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
 	  if(e != null) {
-	    rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, lf.getValue()));
+	    rvd[rvidx] = init.assoc(rv, e.k, hashcode, bfn.apply(e.v, lf.getValue()));
 	  }
 	  else {
 	    if(init != null)
@@ -352,7 +363,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
 	  HashNode init = rvd[rvidx], e = init;
 	  for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
 	  if(e != null) {
-	    rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, v));
+	    rvd[rvidx] = init.assoc(rv, e.k, hashcode, bfn.apply(e.v, v));
 	  }
 	  else {
 	    if(init != null)
@@ -378,7 +389,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
       HashNode init = rvd[rvidx], e = init;
       for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
       if(e != null) {
-	rvd[rvidx] = init.assoc(rv, k, hashcode, bfn.apply(e.v, lf.getValue()));
+	rvd[rvidx] = init.assoc(rv, e.k, hashcode, bfn.apply(e.v, lf.getValue()));
       }
       else {
 	if(init != null)

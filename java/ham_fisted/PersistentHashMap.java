@@ -43,7 +43,8 @@ public class PersistentHashMap
     if(e != null) {
       if(e.v == val) return this;
       PersistentHashMap rv = new PersistentHashMap(this, true);
-      rv.data[idx] = init.assoc(rv, key, hashcode, val);
+      // We use e.k here for identity short circuiting in HashNode assoc
+      rv.data[idx] = init.assoc(rv, e.k, hashcode, val);
       return rv;
     } else {
       PersistentHashMap rv = new PersistentHashMap(this, true);

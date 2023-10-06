@@ -5,7 +5,7 @@
             [ham-fisted.reduce :as hamf-rf]
             [ham-fisted.impl]
             [clojure.set :as cset])
-  (:import [ham_fisted HashSet PersistentHashSet Ranges$LongRange IMutList]
+  (:import [ham_fisted UnsharedHashSet PersistentHashSet Ranges$LongRange IMutList]
            [java.util BitSet Set Map Collection]
            [java.util.concurrent ConcurrentHashMap]
            [clojure.lang APersistentSet])
@@ -28,16 +28,17 @@
 
 (defn mut-set
   "Return a mutable set."
-  (^Set [] (HashSet.))
+  (^Set [] (UnsharedHashSet. nil))
   (^Set [data]
-   (set-add-all (HashSet.) data)))
+   (doto (UnsharedHashSet. nil)
+     (.addAll data))))
 
 
 (defn set
   "Return an immutable set"
-  (^Set [] (PersistentHashSet.))
+  (^Set [] PersistentHashSet/EMPTY)
   (^Set [data]
-   (if (instance? PersistentHashSet data)
+   (if (instance? clojure.lang.IPersistentSet data)
      data
      (-> (mut-set data)
          (persistent!)))))
