@@ -476,7 +476,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
       HashNode e = rvd[rvidx];
       for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
       if(e != null) {
-	rvd[rvidx] = rvd[rvidx].dissoc(rv,k);
+	rvd[rvidx] = rvd[rvidx].dissoc(rv,e.k);
       }
     }
     return rv;

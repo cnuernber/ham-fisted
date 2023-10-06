@@ -167,7 +167,7 @@ public class HashSet extends HashBase implements ISet, SetOps {
 	final Object k = lf.k;
 	lf = lf.nextNode;
 	if(!rhs.contains(k))
-	  rvd[idx].dissoc(rv, k);
+	  rvd[idx] = rvd[idx].dissoc(rv, k);
       }
     }
     return rv;
@@ -188,7 +188,7 @@ public class HashSet extends HashBase implements ISet, SetOps {
 	    HashNode e = rvd[rvidx];
 	    for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
 	    if(e != null) {
-	      rvd[rvidx] = rvd[rvidx].dissoc(rv, k);
+	      rvd[rvidx] = rvd[rvidx].dissoc(rv, e.k);
 	    }
 	    return rv;
 	  }
@@ -200,7 +200,7 @@ public class HashSet extends HashBase implements ISet, SetOps {
 	HashNode e = rvd[rvidx];
 	for(;e != null && !(e.k==k || rv.equals(e.k, k)); e = e.nextNode);
 	if(e != null) {
-	  rvd[rvidx] = rvd[rvidx].dissoc(rv, k);
+	  rvd[rvidx] = rvd[rvidx].dissoc(rv, e.k);
 	}
       }
     }

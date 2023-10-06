@@ -140,4 +140,5 @@
 (deftest set-api-compat
   (is (= #{:a} (disj (hamf-set/difference (hamf/immut-set [:a :b :c])
                                           (hamf/immut-set [:c :d :e]))
-                     :b))))
+                     :b)))
+  (is (= #{} (hamf/intersection (hamf/immut-set #{:a :b}) #{}))))
