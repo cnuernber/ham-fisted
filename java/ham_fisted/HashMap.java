@@ -286,7 +286,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
     public PersistentHashSet intersection(Set c) {
       return new PersistentHashSet( new HashSet(((HashMap)data).shallowClone()).intersection(c) );
     }
-    public PersistentHashSet difference(Collection c) {
+    public PersistentHashSet difference(Set c) {
       return new PersistentHashSet( new HashSet(((HashMap)data).shallowClone()).difference(c) );
     }
   }

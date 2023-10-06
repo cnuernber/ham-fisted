@@ -30,7 +30,7 @@ public class PersistentHashSet extends ROHashSet implements IAPersistentSet, IOb
   public PersistentHashSet intersection(Set rhs) {
     return new PersistentHashSet(intersection(shallowClone(), rhs));
   }
-  public PersistentHashSet difference(Collection rhs) {
+  public PersistentHashSet difference(Set rhs) {
     return new PersistentHashSet(difference(shallowClone(), rhs));
   }
 }

@@ -177,7 +177,7 @@ public class HashSet extends HashBase implements ISet, SetOps {
     return intersection(this, rhs);
   }
 
-  public static HashSet difference(HashSet rv, Collection rhs) {
+  public static HashSet difference(HashSet rv, Set rhs) {
     final HashNode[] rvd = rv.data;
     final int mask = rv.mask;
     if(rhs instanceof IReduceInit) {
@@ -207,7 +207,7 @@ public class HashSet extends HashBase implements ISet, SetOps {
     return rv;
   }
 
-  public HashSet difference(Collection rhs) {
+  public HashSet difference(Set rhs) {
     HashSet rv = shallowClone();
     final HashNode[] rvd = rv.data;
     final int mask = rv.mask;
