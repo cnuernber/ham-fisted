@@ -861,7 +861,7 @@ ham_fisted.PersistentHashMap
     (instance? SetOps s1)
     (.intersection ^SetOps s1 (if (instance? Map s2)
                                 (.keySet ^Map s2)
-                                s2))
+                                (->set s2)))
     (instance? Map s1)
     (map-intersection rhs-wins s1 s2)
     :else
@@ -2322,19 +2322,14 @@ ham-fisted.api> (binary-search data 1.1 nil)
       0 #{}
       1 (sets 0)
       (let [min-idx (mmin-idx (fn ^long [arg] (.size ^Set arg)) sets)]
-        (-> (reduce (fn [^Set rv val]
-                      (when (reduce (fn [rv ^long idx]
-                                      (if (== idx min-idx)
-                                        rv
-                                        (if-not (.contains ^Set (sets idx) val)
-                                          (reduced false)
-                                          true)))
-                                    true
-                                    (range ns))
-                        (.add rv val))
-                      rv)
-                    (mut-set)
-                    (sets min-idx)))))))
+        (-> (reduce (fn [^Set rv ^long idx]
+                      (cond
+                        (.isEmpty rv) (reduced rv)
+                        (== idx min-idx) rv
+                        :else (intersection rv (sets idx))))
+                    (transient (sets min-idx))
+                    (range ns))
+            (persistent!))))))
 
 
 
