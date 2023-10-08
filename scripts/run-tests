@@ -1,4 +1,4 @@
 #!/bin/bash
 
 scripts/compile
-clj -A:dev -M:test
+clojure -A:dev -M:test
