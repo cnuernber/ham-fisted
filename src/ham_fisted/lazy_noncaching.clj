@@ -473,10 +473,16 @@ ham-fisted.api> (shift -2 (range 10))
 
 
 (deftype ^:private PartitionOuterIter [^Iterator iter
+                                       ignore-leftover?
                                        f
                                        ^:unsynchronized-mutable last-iter]
   Iterator
-  (hasNext [this] (if last-iter (boolean @last-iter) (.hasNext iter)))
+  (hasNext [this] (if last-iter
+                    (do (when (and (not ignore-leftover?)
+                                   (.hasNext ^Iterator last-iter))
+                          (throw (RuntimeException. "Sub-collection was not completely iterated through")))
+                        (boolean @last-iter))
+                    (.hasNext iter)))
   (next [this]
     (if last-iter
       (let [piter-data @last-iter
@@ -492,7 +498,7 @@ ham-fisted.api> (shift -2 (range 10))
         rv))))
 
 
-(deftype ^:private PartitionBy [f coll
+(deftype ^:private PartitionBy [f coll ignore-leftover?
                                 ^{:unsynchronized-mutable true
                                   :tag long} _hasheq]
   ITypedReduce
@@ -504,6 +510,9 @@ ham-fisted.api> (shift -2 (range 10))
                fv (f v)]
           (let [piter (PartitionInnerIter. citer f fv true v fv)
                 acc (rfn acc piter)
+                _ (when (and (not ignore-leftover?)
+                             (.hasNext piter))
+                    (throw (RuntimeException. "Sub-collection was not entirely consumed.")))
                 piter-data @piter]
             (if (reduced? acc)
               @acc
@@ -513,6 +522,7 @@ ham-fisted.api> (shift -2 (range 10))
         acc)))
   Iterable
   (iterator [this] (PartitionOuterIter. (.iterator ^Iterable (protocols/->iterable coll))
+                                        ignore-leftover?
                                         f
                                         nil))
   Seqable
@@ -550,13 +560,17 @@ ham-fisted.api> (shift -2 (range 10))
   Each sub-collection must be iterated through entirely before the next method of the parent iterator
   else the result will not be correct.
 
+  Options:
+
+  * `:ignore-leftover?` - When true leftover items in the previous iteration do not cause an exception.
+  Defaults to false.
+
 
 ```clojure
 user> ;;incorrect - inner items not iterated and non-caching!
 user> (into [] (lznc/partition-by identity [1 1 1 2 2 2 3 3 3]))
-[#<PartitionInnerIter@59c12258: [2 2]>
- #<PartitionInnerIter@7fba2751: [3 3]>
- #<PartitionInnerIter@7066ef31: nil>]
+Execution error at ham_fisted.lazy_noncaching.PartitionBy/reduce (lazy_noncaching.clj:514).
+Sub-collection was not entirely consumed.
 
 user> ;;correct - transducing form of into calls vec on each sub-collection
 user> ;;thus iterating through it entirely.
@@ -581,10 +595,11 @@ user> (crit/quick-bench (into [] (comp (clojure.core/partition-by identity)
   ...
 ```"
   ([f] (clojure.core/partition-by f))
-  ([f coll]
+  ([f coll] (partition-by f nil coll))
+  ([f options coll]
    (if (empty? coll)
      PersistentList/EMPTY
-     (PartitionBy. f coll 0))))
+     (PartitionBy. f coll (boolean (get options :ignore-leftover?)) 0))))
 
 
 (pp/implement-tostring-print PartitionBy)
