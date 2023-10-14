@@ -9,14 +9,14 @@
             ArrayImmutList ArrayLists$ObjectArrayList IMutList TypedList LongMutList
             DoubleMutList ReindexList Transformables$IndexedMapper
             IFnDef$OLO IFnDef$ODO Reductions Reductions$IndexedAccum
-            IFnDef$OLOO ArrayHelpers]
+            IFnDef$OLOO ArrayHelpers ITypedReduce]
            [java.lang.reflect Array]
            [it.unimi.dsi.fastutil.ints IntArrays]
-           [java.util RandomAccess Collection Map List Random Set]
+           [java.util RandomAccess Collection Map List Random Set Iterator]
            [clojure.lang RT IPersistentMap IReduceInit IReduce PersistentList
-            IFn$OLO IFn$ODO Counted])
+            IFn$OLO IFn$ODO Counted IDeref Seqable])
   (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle object-array
-                            remove map-indexed]))
+                            remove map-indexed partition-by]))
 
 
 (set! *warn-on-reflection* true)
@@ -411,3 +411,180 @@ ham-fisted.api> (shift -2 (range 10))
      (if (instance? IMutList coll)
        (.immutShuffle ^IMutList coll random)
        (reindex coll (IntArrays/shuffle (ArrayLists/iarange 0 (.size coll) 1) random))))))
+
+(definterface ^:private IAdvance
+  (advance []))
+
+
+(deftype ^:private PartitionInnerIter [^Iterator iter
+                                       f
+                                       fv
+                                       ^:unsynchronized-mutable last-v-valid?
+                                       ^:unsynchronized-mutable last-v
+                                       ^:unsynchronized-mutable last-fv]
+  IAdvance
+  (advance [this]
+    (let [rv last-v
+          src-hn? (.hasNext iter)
+          vv (when src-hn? (.next iter))
+          fvv (when src-hn? (f vv))]
+      (set! last-v-valid? src-hn?)
+      (set! last-v vv)
+      (set! last-fv fvv)
+      rv))
+  ITypedReduce
+  (reduce [this rfn acc]
+    (if-not (.hasNext this)
+      acc
+      (loop [acc acc
+             vv last-v
+             fvv last-fv]
+        (let [acc (rfn acc vv)]
+          (if (reduced? acc)
+            (do
+              (.advance this)
+              @acc)
+            (if (.hasNext iter)
+              (let [vv (.next iter)
+                    fvv (f vv)]
+                (if (or (identical? fv fvv) (= fv fvv))
+                  (recur acc vv fvv)
+                  (do
+                    (set! last-v-valid? true)
+                    (set! last-v vv)
+                    (set! last-fv fvv)
+                    acc)))
+              (do
+                (set! last-v-valid? false)
+                acc)))))))
+  Iterator
+  (hasNext [this] (and last-v-valid? (or (identical? fv last-fv) (= fv last-fv))))
+  (next [this]
+    (when-not last-v-valid? (throw (java.util.NoSuchElementException.)))
+    (.advance this))
+  Seqable
+  (seq [this] (RT/chunkIteratorSeq this))
+  IDeref
+  (deref [this]
+    ;;Ensure we have iterated through all our elements.
+    (.reduce this (fn [acc v] v) nil)
+    ;;Then return the last values.
+    (when last-v-valid? [last-v last-fv])))
+
+
+(deftype ^:private PartitionOuterIter [^Iterator iter
+                                       f
+                                       ^:unsynchronized-mutable last-iter]
+  Iterator
+  (hasNext [this] (if last-iter (boolean @last-iter) (.hasNext iter)))
+  (next [this]
+    (if last-iter
+      (let [piter-data @last-iter
+            v (piter-data 0)
+            fv (piter-data 1)
+            rv (PartitionInnerIter. iter f fv true v fv)]
+        (set! last-iter rv)
+        rv)
+      (let [v (.next iter)
+            fv (f v)
+            rv (PartitionInnerIter. iter f fv true v fv)]
+        (set! last-iter rv)
+        rv))))
+
+
+(deftype ^:private PartitionBy [f coll
+                                ^{:unsynchronized-mutable true
+                                  :tag long} _hasheq]
+  ITypedReduce
+  (reduce [this rfn acc]
+    (let [citer (.iterator ^Iterable (protocols/->iterable coll))]
+      (if (.hasNext citer)
+        (loop [acc acc
+               v (.next citer)
+               fv (f v)]
+          (let [piter (PartitionInnerIter. citer f fv true v fv)
+                acc (rfn acc piter)
+                piter-data @piter]
+            (if (reduced? acc)
+              @acc
+              (if piter-data
+                (recur acc (piter-data 0) (piter-data 1))
+                acc))))
+        acc)))
+  Iterable
+  (iterator [this] (PartitionOuterIter. (.iterator ^Iterable (protocols/->iterable coll))
+                                        f
+                                        nil))
+  Seqable
+  (seq [this] (clojure.core/map vec (clojure.lang.IteratorSeq/create (.iterator this))))
+  clojure.lang.IHashEq
+  (hasheq [this]
+    (when (== _hasheq 0)
+      (set! _hasheq (long (hash (seq this)))))
+    _hasheq)
+  clojure.lang.IPersistentCollection
+  (count [this] (count (seq this)))
+  (cons [this o] (cons (seq this) o))
+  (empty [this] PersistentList/EMPTY)
+  (equiv [this o]
+    (if (identical? this o)
+      true
+      (if (instance? clojure.lang.IPersistentCollection o)
+        (clojure.lang.Util/pcequiv (seq this) o)
+        false)))
+  Object
+  (toString [this] (.toString ^Object (map vec this)))
+  (hashCode [this] (.hasheq this))
+  (equals [this o] (.equiv this o)))
+
+
+
+(defn partition-by
+  "Lazy noncaching version of partition-by.  For reducing partitions into a singular value please see
+  [[apply-concat]].  Return value most efficiently implements reduce with a slightly less efficient
+  implementation of Iterable.
+
+  Unlike clojure.core/partition this partition does not store intermediate elements nor does it build
+  up intermediate containers.  This makes it somewhat faster in most contexts.
+
+  Each sub-collection must be iterated through entirely before the next method of the parent iterator
+  else the result will not be correct.
+
+
+```clojure
+user> ;;incorrect - inner items not iterated and non-caching!
+user> (into [] (lznc/partition-by identity [1 1 1 2 2 2 3 3 3]))
+[#<PartitionInnerIter@59c12258: [2 2]>
+ #<PartitionInnerIter@7fba2751: [3 3]>
+ #<PartitionInnerIter@7066ef31: nil>]
+
+user> ;;correct - transducing form of into calls vec on each sub-collection
+user> ;;thus iterating through it entirely.
+user> (into [] (map vec) (lznc/partition-by identity [1 1 1 2 2 2 3 3 3]))
+[[1 1 1] [2 2 2] [3 3 3]]
+
+
+user> (crit/quick-bench (mapv hamf/sum-fast (lznc/partition-by identity init-data)))
+  ...
+             Execution time mean : 386.184130 µs
+  ...
+nil
+user> (crit/quick-bench (mapv hamf/sum-fast (clojure.core/partition-by identity init-data)))
+  ...
+             Execution time mean : 6.976666 ms
+  ...
+nil
+user> (crit/quick-bench (into [] (comp (clojure.core/partition-by identity)
+                                       (map hamf/sum-fast)) init-data))
+  ...
+             Execution time mean : 1.881506 ms
+  ...
+```"
+  ([f] (clojure.core/partition-by f))
+  ([f coll]
+   (if (empty? coll)
+     PersistentList/EMPTY
+     (PartitionBy. f coll 0))))
+
+
+(pp/implement-tostring-print PartitionBy)
