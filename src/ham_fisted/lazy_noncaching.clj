@@ -554,7 +554,7 @@ ham-fisted.api> (shift -2 (range 10))
   [[apply-concat]].  Return value most efficiently implements reduce with a slightly less efficient
   implementation of Iterable.
 
-  Unlike clojure.core/partition this partition does not store intermediate elements nor does it build
+  Unlike clojure.core/partition-by this does not store intermediate elements nor does it build
   up intermediate containers.  This makes it somewhat faster in most contexts.
 
   Each sub-collection must be iterated through entirely before the next method of the parent iterator
@@ -579,18 +579,15 @@ user> (into [] (map vec) (lznc/partition-by identity [1 1 1 2 2 2 3 3 3]))
 
 
 user> (crit/quick-bench (mapv hamf/sum-fast (lznc/partition-by identity init-data)))
-  ...
              Execution time mean : 386.184130 µs
   ...
 nil
 user> (crit/quick-bench (mapv hamf/sum-fast (clojure.core/partition-by identity init-data)))
-  ...
              Execution time mean : 6.976666 ms
   ...
 nil
 user> (crit/quick-bench (into [] (comp (clojure.core/partition-by identity)
                                        (map hamf/sum-fast)) init-data))
-  ...
              Execution time mean : 1.881506 ms
   ...
 ```"
