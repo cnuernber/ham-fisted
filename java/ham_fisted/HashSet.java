@@ -113,7 +113,7 @@ public class HashSet extends HashBase implements ISet, SetOps {
 	}
       }
     }
-    return sz == length;
+    return sz != length;
   }
   public boolean remove(Object key) {
     HashNode lastNode = null;
