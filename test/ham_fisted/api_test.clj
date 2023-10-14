@@ -142,3 +142,14 @@
                                           (hamf/immut-set [:c :d :e]))
                      :b)))
   (is (= #{} (hamf/intersection (hamf/immut-set #{:a :b}) #{}))))
+
+
+(deftest test-partition-by
+  (is (= [[1 1 1] [2 2 2] [3 3 3]]
+         (vec (map vec (lznc/partition-by identity [1 1 1 2 2 2 3 3 3])))))
+  (is (= [[1 1 1] [2 2 2] [3 3 3]]
+         (hamf/mapv vec (lznc/partition-by identity [1 1 1 2 2 2 3 3 3]))))
+  (is (= (clojure.core/partition-by identity [])
+         (lznc/partition-by identity [])))
+  (is (= (clojure.core/partition-by identity nil)
+         (lznc/partition-by identity nil))))
