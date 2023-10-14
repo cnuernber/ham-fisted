@@ -76,6 +76,45 @@ public class HashSet extends HashBase implements ISet, SetOps {
     checkResize(null);
     return true;
   }
+  public boolean addAll(Collection c) {
+    int sz = length;
+    if(c instanceof IReduceInit) {
+      ((IReduceInit)c).reduce(new IFnDef() {
+	  public Object invoke(Object acc, Object k) {
+	    HashSet rv = (HashSet)acc;
+	    int hc = rv.hash(k);
+	    int idx = hc & rv.mask;
+	    HashNode e = rv.data[idx];
+	    for(; e != null && !(k == e.k || rv.equals(k,e.k)); e = e.nextNode);
+	    if(e == null) {
+	      HashNode lf = rv.newNode(k, hc, VALUE);
+	      lf.nextNode = rv.data[idx];
+	      rv.data[idx] = lf;
+	      rv.checkResize(null);
+	    }
+	    return rv;
+	  }
+	}, this);
+    } else {
+      HashNode[] d = data;
+      int m = mask;
+      for(Object k: c) {
+	int hc = hash(k);
+	int idx = hc & m;
+	HashNode e = d[idx];
+	for(; e != null && !(k == e.k || equals(k,e.k)); e = e.nextNode);
+	if(e == null) {
+	  HashNode lf = newNode(k, hc, VALUE);
+	  lf.nextNode = d[idx];
+	  d[idx] = lf;
+	  checkResize(null);
+	  d = data;
+	  m = mask;
+	}
+      }
+    }
+    return sz == length;
+  }
   public boolean remove(Object key) {
     HashNode lastNode = null;
     int loc = hash(key) & this.mask;
