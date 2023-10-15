@@ -9,7 +9,7 @@
             ArrayImmutList ArrayLists$ObjectArrayList IMutList TypedList LongMutList
             DoubleMutList ReindexList Transformables$IndexedMapper
             IFnDef$OLO IFnDef$ODO Reductions Reductions$IndexedAccum
-            IFnDef$OLOO ArrayHelpers ITypedReduce]
+            IFnDef$OLOO ArrayHelpers ITypedReduce PartitionByInner]
            [java.lang.reflect Array]
            [it.unimi.dsi.fastutil.ints IntArrays]
            [java.util RandomAccess Collection Map List Random Set Iterator]
@@ -412,65 +412,6 @@ ham-fisted.api> (shift -2 (range 10))
        (.immutShuffle ^IMutList coll random)
        (reindex coll (IntArrays/shuffle (ArrayLists/iarange 0 (.size coll) 1) random))))))
 
-(definterface ^:private IAdvance
-  (advance []))
-
-
-(deftype ^:private PartitionInnerIter [^Iterator iter
-                                       f
-                                       fv
-                                       ^:unsynchronized-mutable last-v-valid?
-                                       ^:unsynchronized-mutable last-v
-                                       ^:unsynchronized-mutable last-fv]
-  IAdvance
-  (advance [this]
-    (let [rv last-v
-          src-hn? (.hasNext iter)
-          vv (when src-hn? (.next iter))
-          fvv (when src-hn? (f vv))]
-      (set! last-v-valid? src-hn?)
-      (set! last-v vv)
-      (set! last-fv fvv)
-      rv))
-  ITypedReduce
-  (reduce [this rfn acc]
-    (if-not (.hasNext this)
-      acc
-      (loop [acc acc
-             vv last-v
-             fvv last-fv]
-        (let [acc (rfn acc vv)]
-          (if (reduced? acc)
-            (do
-              (.advance this)
-              @acc)
-            (if (.hasNext iter)
-              (let [vv (.next iter)
-                    fvv (f vv)]
-                (if (or (identical? fv fvv) (= fv fvv))
-                  (recur acc vv fvv)
-                  (do
-                    (set! last-v-valid? true)
-                    (set! last-v vv)
-                    (set! last-fv fvv)
-                    acc)))
-              (do
-                (set! last-v-valid? false)
-                acc)))))))
-  Iterator
-  (hasNext [this] (and last-v-valid? (or (identical? fv last-fv) (= fv last-fv))))
-  (next [this]
-    (when-not last-v-valid? (throw (java.util.NoSuchElementException.)))
-    (.advance this))
-  Seqable
-  (seq [this] (RT/chunkIteratorSeq this))
-  IDeref
-  (deref [this]
-    ;;Ensure we have iterated through all our elements.
-    (.reduce this (fn [acc v] v) nil)
-    ;;Then return the last values.
-    (when last-v-valid? [last-v last-fv])))
-
 
 (deftype ^:private PartitionOuterIter [^Iterator iter
                                        ignore-leftover?
@@ -508,7 +449,9 @@ ham-fisted.api> (shift -2 (range 10))
         (loop [acc acc
                v (.next citer)
                fv (f v)]
-          (let [piter (PartitionInnerIter. citer f fv true v fv)
+          (let [
+                piter (PartitionByInner. citer f v)
+                ;;piter (PartitionInnerIter. citer f fv true v fv)
                 acc (rfn acc piter)
                 _ (when (and (not ignore-leftover?)
                              (.hasNext piter))
@@ -577,18 +520,19 @@ user> ;;thus iterating through it entirely.
 user> (into [] (map vec) (lznc/partition-by identity [1 1 1 2 2 2 3 3 3]))
 [[1 1 1] [2 2 2] [3 3 3]]
 
-
+user> (def init-data (vec (lznc/apply-concat (lznc/map #(repeat 100 %) (range 1000)))))
+#'user/init-data
 user> (crit/quick-bench (mapv hamf/sum-fast (lznc/partition-by identity init-data)))
-             Execution time mean : 386.184130 µs
+             Execution time mean : 366.915796 µs
   ...
 nil
 user> (crit/quick-bench (mapv hamf/sum-fast (clojure.core/partition-by identity init-data)))
-             Execution time mean : 6.976666 ms
+             Execution time mean : 6.699424 ms
   ...
 nil
 user> (crit/quick-bench (into [] (comp (clojure.core/partition-by identity)
                                        (map hamf/sum-fast)) init-data))
-             Execution time mean : 1.881506 ms
+             Execution time mean : 1.705864 ms
   ...
 ```"
   ([f] (clojure.core/partition-by f))

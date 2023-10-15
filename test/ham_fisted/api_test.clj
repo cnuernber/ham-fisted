@@ -152,4 +152,6 @@
   (is (= (clojure.core/partition-by identity [])
          (lznc/partition-by identity [])))
   (is (= (clojure.core/partition-by identity nil)
-         (lznc/partition-by identity nil))))
+         (lznc/partition-by identity nil)))
+  ;;Ensure we catch incorrect usage when possible
+  (is (thrown? RuntimeException (into [] (lznc/partition-by identity [1 1 1 2 2 2 3 3 3])))))
