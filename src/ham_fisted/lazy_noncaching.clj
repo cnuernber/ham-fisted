@@ -429,12 +429,12 @@ ham-fisted.api> (shift -2 (range 10))
       (let [piter-data @last-iter
             v (piter-data 0)
             fv (piter-data 1)
-            rv (PartitionInnerIter. iter f fv true v fv)]
+            rv (PartitionByInner. iter f v)]
         (set! last-iter rv)
         rv)
       (let [v (.next iter)
             fv (f v)
-            rv (PartitionInnerIter. iter f fv true v fv)]
+            rv (PartitionByInner. iter f v)]
         (set! last-iter rv)
         rv))))
 
