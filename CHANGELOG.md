@@ -1,3 +1,6 @@
+# 2.002
+ * slightly faster partition-by - inner loop written in java.
+
 # 2.001
  * Added lazy-noncaching partition-by.  This method has somewhat higher performance than
    clojure.core/partition-by as it does not make intermediate containers and is strictly
