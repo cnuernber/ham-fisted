@@ -5,7 +5,10 @@
             [ham-fisted.function :as hamf-fn]
             [ham-fisted.lazy-noncaching :as lznc]
             [ham-fisted.set :as hamf-set])
-  (:import [java.util BitSet]))
+  (:import [java.util BitSet]
+           [java.util.function Consumer DoubleConsumer LongConsumer]
+           [clojure.lang IDeref]
+           [ham_fisted Reducible]))
 
 
 
@@ -155,3 +158,52 @@
          (lznc/partition-by identity nil)))
   ;;Ensure we catch incorrect usage when possible
   (is (thrown? RuntimeException (into [] (lznc/partition-by identity [1 1 1 2 2 2 3 3 3])))))
+
+
+(deftype ^:private LongAccum [^:unsynchronized-mutable v]
+  LongConsumer
+  (accept [this val] (set! v (+ val v)))
+  Reducible
+  (reduce [this o] (+ v @o))
+  IDeref
+  (deref [this] v))
+
+
+(deftype ^:private DoubleAccum [^:unsynchronized-mutable v]
+  DoubleConsumer
+  (accept [this val] (set! v (+ val v)))
+  Reducible
+  (reduce [this o] (+ v @o))
+  IDeref
+  (deref [this] v))
+
+
+(deftype ^:private Accum [^:unsynchronized-mutable v]
+  Consumer
+  (accept [this val] (set! v (+ val v)))
+  Reducible
+  (reduce [this o] (+ v @o))
+  IDeref
+  (deref [this] v))
+
+
+(defn filter-sum-reducer
+  [type]
+  (case type
+    :int64 (hamf-rf/long-consumer-reducer #(LongAccum. 0))
+    :float64 (hamf-rf/double-consumer-reducer #(DoubleAccum. 0))
+    (hamf-rf/consumer-reducer #(Accum. 0.0))))
+
+
+(deftest compose-reducers
+  (is (= {:a 49995000}
+         (hamf-rf/preduce-reducers {:a (filter-sum-reducer :int64)}
+                                   {:rfn-datatype :int64}
+                                   (range 10000))))
+  (is (= {:a 49995000.0}
+         (hamf-rf/preduce-reducers {:a (filter-sum-reducer :float64)}
+                                   {:rfn-datatype :float64}
+                                   (range 10000))))
+  (is (= {:a 49995000.0}
+         (hamf-rf/preduce-reducers {:a (filter-sum-reducer nil)}
+                                   (range 10000)))))

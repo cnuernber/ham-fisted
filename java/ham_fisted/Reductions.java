@@ -295,7 +295,7 @@ public class Reductions {
     return new DoubleCompose(nVals, rfns);
   }
 
-  static class ObjCompose implements IFnDef.ODO {
+  static class ObjCompose implements IFnDef {
     final int nVals;
     final IFn[] rfns;
     public ObjCompose(int nVals, Object[] rfns) {
@@ -305,7 +305,7 @@ public class Reductions {
 	this.rfns[idx] = (IFn)rfns[idx];
       }
     }
-    public Object invokePrim(Object acc, double val) {
+    public Object invoke(Object acc, Object val) {
       final int nv = nVals;
       final Object[] objs = (Object[])acc;
       final IFn[] rfs = this.rfns;
