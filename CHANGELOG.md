@@ -1,3 +1,6 @@
+# 2.003
+ * Major issue in compose-reducers - object composition was typed to double reduction.
+ 
 # 2.002
  * slightly faster partition-by - inner loop written in java.
 
