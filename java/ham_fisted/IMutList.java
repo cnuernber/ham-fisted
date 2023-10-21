@@ -644,9 +644,9 @@ public interface IMutList<E>
   default void sort(Comparator<? super E> c) {
     final Object[] data = toArray();
     if(c == null) {
-      Arrays.sort(data);
+      ObjectArrays.parallelQuickSort(data);
     } else {
-      Arrays.sort(data, (Comparator<? super Object>)c);
+      ObjectArrays.parallelQuickSort(data, (Comparator<? super Object>)c);
     }
     fillRange(0, ArrayLists.toList(data));
   }

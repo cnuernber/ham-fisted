@@ -265,9 +265,9 @@ public class ArrayLists {
     }
     public void sort(Comparator<? super Object> c) {
       if(c == null)
-	Arrays.sort(data, sidx, eidx);
+	ObjectArrays.parallelQuickSort(data, sidx, eidx);
       else
-	Arrays.sort(data, sidx, eidx, c);
+	ObjectArrays.parallelQuickSort(data, sidx, eidx, c);
     }
     public void shuffle(Random r) {
       ObjectArrays.shuffle(data, sidx, eidx, r);

@@ -1,3 +1,6 @@
+# 2.004
+ * Faster sort implemented as default in several places.
+
 # 2.003
  * Major issue in compose-reducers - object composition was typed to double reduction.
  
