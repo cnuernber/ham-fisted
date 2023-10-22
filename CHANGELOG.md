@@ -1,6 +1,9 @@
 # 2.004
  * Faster sort implemented as default in several places.
-
+# 2.004
+ * Ensure all object sorting is done with parallelQuickSort.
+ * Small fix to array macros to use l2i instead of RT.intCast.
+ 
 # 2.003
  * Major issue in compose-reducers - object composition was typed to double reduction.
  
