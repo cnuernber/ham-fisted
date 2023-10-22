@@ -11,6 +11,7 @@
                 kixi/stats {:mvn/version "0.5.5"}
                 org.clojure/data.int-map {:mvn/version "1.2.0"}
                 techascent/tech.viz {:mvn/version "6.00-beta-16-2"}
+                com.clojure-goes-fast/clj-java-decompiler {:mvn/version "0.3.4"}
                 com.clojure-goes-fast/clj-memory-meter {:mvn/version "0.2.2"}}
    :extra-paths ["dev/src" "test"]}
   :jdk-19 {:jvm-opts ["-Djdk.attach.allowAttachSelf=true" "--illegal-access=permit"]}

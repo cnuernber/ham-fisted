@@ -1892,7 +1892,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
        (do
          ~@(->> (range (count data))
                 (map (fn [^long idx]
-                       `(ArrayHelpers/aset ~'ary ~idx (~elem-cast ~(data idx))))))
+                       `(ArrayHelpers/aset ~'ary (unchecked-int ~idx) (~elem-cast ~(data idx))))))
          ~'ary))
     :else
     `(~vecfn ~data)))
@@ -1993,6 +1993,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
     (.toFloatArray ^IMutList data)
     (do-make-array #(ArrayLists/floatArray %) #(ArrayLists/toList ^floats %)
                    float-array-list data)))
+
 
 (defmacro float-array
   ([] `(ArrayLists/floatArray 0))
