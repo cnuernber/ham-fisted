@@ -2,6 +2,7 @@
   (:require [ham-fisted.iterator :as iterator]
             [ham-fisted.alists :as alists]
             [ham-fisted.protocols :as protocols]
+            [ham-fisted.function :as hamf-fn]
             [ham-fisted.print :as pp])
   (:import [ham_fisted Transformables$MapIterable Transformables$FilterIterable
             Transformables$CatIterable Transformables$MapList Transformables$IMapable
@@ -468,6 +469,7 @@ ham-fisted.api> (shift -2 (range 10))
 (deftype ^:private PartitionOuterIter [^Iterator iter
                                        ignore-leftover?
                                        f
+                                       binary-predicate
                                        ^:unsynchronized-mutable last-iter]
   Iterator
   (hasNext [this] (if last-iter
@@ -481,17 +483,18 @@ ham-fisted.api> (shift -2 (range 10))
       (let [piter-data @last-iter
             v (piter-data 0)
             fv (piter-data 1)
-            rv (PartitionByInner. iter f v)]
+            rv (PartitionByInner. iter f v binary-predicate)]
         (set! last-iter rv)
         rv)
       (let [v (.next iter)
             fv (f v)
-            rv (PartitionByInner. iter f v)]
+            rv (PartitionByInner. iter f v binary-predicate)]
         (set! last-iter rv)
         rv))))
 
 
 (deftype ^:private PartitionBy [f coll ignore-leftover? m
+                                binary-predicate
                                 ^{:unsynchronized-mutable true
                                   :tag long} _hasheq]
   ITypedReduce
@@ -502,7 +505,7 @@ ham-fisted.api> (shift -2 (range 10))
                v (.next citer)
                fv (f v)]
           (let [
-                piter (PartitionByInner. citer f v)
+                piter (PartitionByInner. citer f v binary-predicate)
                 ;;piter (PartitionInnerIter. citer f fv true v fv)
                 acc (rfn acc piter)
                 _ (when (and (not ignore-leftover?)
@@ -519,6 +522,7 @@ ham-fisted.api> (shift -2 (range 10))
   (iterator [this] (PartitionOuterIter. (.iterator ^Iterable (protocols/->iterable coll))
                                         ignore-leftover?
                                         f
+                                        binary-predicate
                                         nil))
   Seqable
   (seq [this] (clojure.core/map vec (clojure.lang.IteratorSeq/create (.iterator this))))
@@ -539,7 +543,7 @@ ham-fisted.api> (shift -2 (range 10))
         false)))
   IObj
   (meta [this] m)
-  (withMeta [this mm] (PartitionBy. f coll ignore-leftover? mm 0))
+  (withMeta [this mm] (PartitionBy. f coll ignore-leftover? mm binary-predicate 0))
   Object
   (toString [this] (.toString ^Object (map vec this)))
   (hashCode [this] (.hasheq this))
@@ -564,6 +568,8 @@ ham-fisted.api> (shift -2 (range 10))
 
   * `:ignore-leftover?` - When true leftover items in the previous iteration do not cause an exception.
   Defaults to false.
+  * `:binary-predicate` - When provided, use this for equality semantics.  Defaults to equiv semantics
+     but in a numeric context it may be useful to have '(== ##NaN ##Nan).
 
 
 ```clojure
@@ -576,6 +582,19 @@ user> ;;correct - transducing form of into calls vec on each sub-collection
 user> ;;thus iterating through it entirely.
 user> (into [] (map vec) (lznc/partition-by identity [1 1 1 2 2 2 3 3 3]))
 [[1 1 1] [2 2 2] [3 3 3]]
+user> ;;filter,collect NaN out of sequence
+user> (lznc/map hamf/vec (lznc/partition-by identity {:binary-predicate (hamf-fn/binary-predicate
+                                                                         x y (let [x (double x)
+                                                                                   y (double y)]
+                                                                               (cond
+                                                                                 (Double/isNaN x)
+                                                                                 (if (Double/isNaN y)
+                                                                                   true
+                                                                                   false)
+                                                                                 (Double/isNaN y) false
+                                                                                 :else true))) }
+                                            [1 2 3 ##NaN ##NaN 3 4 5]))
+([1 2 3] [NaN NaN] [3 4 5])
 
 user> (def init-data (vec (lznc/apply-concat (lznc/map #(repeat 100 %) (range 1000)))))
 #'user/init-data
@@ -597,7 +616,9 @@ user> (crit/quick-bench (into [] (comp (clojure.core/partition-by identity)
   ([f options coll]
    (if (empty? coll)
      PersistentList/EMPTY
-     (PartitionBy. f coll (boolean (get options :ignore-leftover?)) nil 0))))
+     (PartitionBy. f coll (boolean (get options :ignore-leftover?)) nil
+                   (hamf-fn/binary-predicate-or-null (get options :binary-predicate))
+                   0))))
 
 
 (deftype ^:private PartitionAllInner [^{:unsynchronized-mutable true

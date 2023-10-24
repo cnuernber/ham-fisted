@@ -1,3 +1,6 @@
+# 2.006
+ * partition-by accepts a predicate function in options - example in docs.
+
 # 2.005
  * implemented lazy noncaching partition-all - similar perf to partition-by.
  * Faster default dispatch for pgroups, upgroups.

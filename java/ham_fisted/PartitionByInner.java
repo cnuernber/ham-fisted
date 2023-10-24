@@ -3,6 +3,7 @@ package ham_fisted;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.function.BiPredicate;
 import clojure.lang.IFn;
 import clojure.lang.Seqable;
 import clojure.lang.ISeq;
@@ -20,11 +21,12 @@ public class PartitionByInner implements ITypedReduce, Iterator, Seqable, IDeref
   public final Iterator iter;
   public final IFn f;
   public final Object fv;
+  public final BiPredicate pred;
   boolean lastVValid;
   Object lastV;
   Object lastFV;
 
-  public PartitionByInner(Iterator i, IFn f, Object v) {
+  public PartitionByInner(Iterator i, IFn f, Object v, BiPredicate pred) {
     this.iter = i;
     this.f = f;
     this.lastV = v;
@@ -32,6 +34,7 @@ public class PartitionByInner implements ITypedReduce, Iterator, Seqable, IDeref
     final Object fv = f.invoke(v);
     this.fv = fv;
     this.lastFV = fv;
+    this.pred = pred == null ? (x,y)->CljHash.equiv(x,y) : pred;
   }
 
   Object advance() {
@@ -49,6 +52,7 @@ public class PartitionByInner implements ITypedReduce, Iterator, Seqable, IDeref
     return rv;
   }
 
+  @SuppressWarnings("unchecked")
   public Object reduce(IFn rfn, Object acc) {
     final Iterator iter = this.iter;
     final IFn ff = f;
@@ -68,14 +72,16 @@ public class PartitionByInner implements ITypedReduce, Iterator, Seqable, IDeref
       }
       vv = iter.next();
       fvv = ff.invoke(vv);
-    } while(ffv == fvv || CljHash.equiv(ffv, fvv));
+    } while(ffv == fvv || pred.test(ffv, fvv));
     lastVValid = true;
     lastV = vv;
     lastFV = fvv;
     return acc;
   }
+
+  @SuppressWarnings("unchecked")
   public boolean hasNext() {
-    return lastVValid && (fv == lastFV || CljHash.equiv(fv, lastFV));
+    return lastVValid && (fv == lastFV || pred.test(fv, lastFV));
   }
   public Object next() {
     if(!lastVValid) throw new NoSuchElementException();

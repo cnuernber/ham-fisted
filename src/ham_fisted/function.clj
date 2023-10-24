@@ -5,7 +5,8 @@
             IFnDef$DoublePredicate IFnDef$DD IFnDef$LL IFnDef IFnDef$LD IFnDef$DL IFnDef$OD
             IFnDef$LO Casts IFnDef$Predicate IFnDef$LLL IFnDef$DDD]
            [java.util.function BiFunction BiConsumer Function DoublePredicate LongPredicate Predicate
-            Consumer LongConsumer DoubleConsumer LongBinaryOperator DoubleBinaryOperator]
+            Consumer LongConsumer DoubleConsumer LongBinaryOperator DoubleBinaryOperator
+            BiPredicate]
            [java.util Comparator]
            [clojure.lang Util]
            [it.unimi.dsi.fastutil.longs LongComparator]
@@ -330,3 +331,22 @@
      IFnDef$LLL
      (invokePrim [this# l# r#]
        (.applyAsLong this# l# r#))))
+
+
+(defmacro binary-predicate
+  "Create a java.util.function.BiPredicate"
+  [xvar yvar code]
+  `(reify
+     BiPredicate
+     (test [this# ~xvar ~yvar] (boolean ~code))
+     IFnDef
+     (invoke [this# ~xvar ~yvar] (boolean ~code))))
+
+
+(defn binary-predicate-or-null
+  "If f is null, return null.  Else return f as a java.util.function.BiPredicate."
+  ^BiPredicate [f]
+  (when f
+    (if (instance? BiPredicate f)
+      f
+      (binary-predicate x y (f x y)))))
