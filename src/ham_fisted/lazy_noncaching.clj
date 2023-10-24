@@ -94,7 +94,7 @@
                               " to an object array"))))))
 
 
-(defn as-random-acces
+(defn as-random-access
   "If item implements RandomAccess, return List interface."
   ^List [item]
   (when (instance? RandomAccess item) item))
@@ -546,6 +546,8 @@ ham-fisted.api> (shift -2 (range 10))
   (equals [this o] (.equiv this o)))
 
 
+(pp/implement-tostring-print PartitionBy)
+
 
 (defn partition-by
   "Lazy noncaching version of partition-by.  For reducing partitions into a singular value please see
@@ -596,8 +598,6 @@ user> (crit/quick-bench (into [] (comp (clojure.core/partition-by identity)
    (if (empty? coll)
      PersistentList/EMPTY
      (PartitionBy. f coll (boolean (get options :ignore-leftover?)) nil 0))))
-
-(pp/implement-tostring-print PartitionBy)
 
 
 (deftype ^:private PartitionAllInner [^{:unsynchronized-mutable true
@@ -693,10 +693,12 @@ user> (crit/quick-bench (into [] (comp (clojure.core/partition-by identity)
 
 
 (deftype ^:private PartitionAll [^long n ^long step ^Iterable coll
-                                 ignore-leftover? m]
+                                 ignore-leftover? m
+                                 ^{:unsynchronized-mutable true
+                                   :tag long} _hasheq]
   IObj
   (meta [this] m)
-  (withMeta [this mm] (PartitionAll. n step coll ignore-leftover? mm))
+  (withMeta [this mm] (PartitionAll. n step coll ignore-leftover? mm 0))
   ITypedReduce
   (reduce [this rfn acc]
     (let [iter (.iterator coll)]
@@ -714,11 +716,53 @@ user> (crit/quick-bench (into [] (comp (clojure.core/partition-by identity)
                   (recur)
                   acc))))))))
   Iterable
-  (iterator [this] (PartitionAllOuter. (.iterator coll) n step ignore-leftover? nil)))
+  (iterator [this] (PartitionAllOuter. (.iterator coll) n step ignore-leftover? nil))
+  Seqable
+  (seq [this] (clojure.core/map vec (clojure.lang.IteratorSeq/create (.iterator this))))
+  clojure.lang.IHashEq
+  (hasheq [this]
+    (when (== _hasheq 0)
+      (set! _hasheq (long (hash (seq this)))))
+    _hasheq)
+  clojure.lang.IPersistentCollection
+  (count [this] (count (seq this)))
+  (cons [this o] (cons (seq this) o))
+  (empty [this] PersistentList/EMPTY)
+  (equiv [this o]
+    (if (identical? this o)
+      true
+      (if (instance? clojure.lang.IPersistentCollection o)
+        (clojure.lang.Util/pcequiv (seq this) o)
+        false)))
+  Object
+  (toString [this] (.toString ^Object (map vec this)))
+  (hashCode [this] (.hasheq this))
+  (equals [this o] (.equiv this o)))
+
+
+(pp/implement-tostring-print PartitionAll)
 
 
 (defn partition-all
-  "Lazy noncaching version of partition-all.  When input is random access returns random access result."
+  "Lazy noncaching version of partition-all.  When input is random access returns random access result.
+
+  Similar to [[partition-by]] but only if input is not random access each sub-collection must be entirely
+  iterated through before requesting the next sub-collection.
+
+
+```clojure
+user> (crit/quick-bench (mapv hamf/sum-fast (lznc/partition-all 100 (range 100000))))
+             Execution time mean : 335.821098 µs
+nil
+user> (crit/quick-bench (mapv hamf/sum-fast (partition-all 100 (range 100000))))
+             Execution time mean : 6.831242 ms
+nil
+user> (crit/quick-bench (into [] (comp (partition-all 100)
+                                       (map hamf/sum-fast))
+                              (range 100000)))
+             Execution time mean : 1.645954 ms
+nil
+```"
   ([n] (clojure.core/partition-all n))
   ([n coll] (partition-all n 1 coll))
   ([^long n ^long step coll]
@@ -748,4 +792,4 @@ user> (crit/quick-bench (into [] (comp (clojure.core/partition-by identity)
                      (size [this] (unchecked-int batch-n))
                      (get [this inner]
                        (.get coll (+ batch-start (* inner step))))))))))
-         (PartitionAll. n step (protocols/->iterable coll) false nil))))))
+         (PartitionAll. n step (protocols/->iterable coll) false nil 0))))))
