@@ -1610,22 +1610,6 @@ nil
          (ArrayLists/toList a 0 (alength a) ^IPersistentMap (meta coll)))))))
 
 
-(defn type-single-arg-ifn
-  "Categorize the return type of a single argument ifn.  May be :float64, :int64, or :object."
-  [ifn]
-  (cond
-    (or (instance? IFn$DD ifn)
-        (instance? IFn$LD ifn)
-        (instance? IFn$OD ifn))
-    :float64
-    (or (instance? IFn$DL ifn)
-        (instance? IFn$LL ifn)
-        (instance? IFn$OL ifn))
-    :int64
-    :else
-    :object))
-
-
 (defn sort-by
   "Sort a collection by keyfn.  Typehinting the return value of keyfn will somewhat increase
   the speed of the sort :-)."
@@ -1637,7 +1621,7 @@ nil
          ;;Arraylists are faster to create because they do not have to be sized exactly
          ;;to the collection.  They have very fast addAllReducible pathways that specialize
          ;;for constant sized containers.
-         data (case (type-single-arg-ifn keyfn)
+         data (case (lznc/type-single-arg-ifn keyfn)
                 :float64
                 (double-array-list data)
                 :int64

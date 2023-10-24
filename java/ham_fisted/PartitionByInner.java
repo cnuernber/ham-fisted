@@ -8,11 +8,15 @@ import clojure.lang.Seqable;
 import clojure.lang.ISeq;
 import clojure.lang.IDeref;
 import clojure.lang.Util;
+import clojure.lang.IMeta;
 import clojure.lang.RT;
+import clojure.lang.IPersistentMap;
+import clojure.lang.PersistentArrayMap;
+import clojure.lang.Keyword;
 
 
 
-public class PartitionByInner implements ITypedReduce, Iterator, Seqable, IDeref {
+public class PartitionByInner implements ITypedReduce, Iterator, Seqable, IDeref, IMeta {
   public final Iterator iter;
   public final IFn f;
   public final Object fv;
@@ -25,7 +29,8 @@ public class PartitionByInner implements ITypedReduce, Iterator, Seqable, IDeref
     this.f = f;
     this.lastV = v;
     this.lastVValid = true;
-    this.fv = f.invoke(v);
+    final Object fv = f.invoke(v);
+    this.fv = fv;
     this.lastFV = fv;
   }
 
@@ -81,5 +86,8 @@ public class PartitionByInner implements ITypedReduce, Iterator, Seqable, IDeref
     if(hasNext())
       reduce(new IFnDef() { public Object invoke(Object acc, Object v) { return v; } }, null);
     return lastVValid ? ImmutList.create(true, null, lastV, lastFV) : null;
+  }
+  public IPersistentMap meta() {
+    return new PersistentArrayMap(new Object[] { Keyword.intern("fv"), fv });
   }
 }

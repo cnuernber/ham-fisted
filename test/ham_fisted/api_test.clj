@@ -207,3 +207,10 @@
   (is (= {:a 49995000.0}
          (hamf-rf/preduce-reducers {:a (filter-sum-reducer nil)}
                                    (range 10000)))))
+
+
+(deftest test-partition-all
+  (is (= [[0 1 2] [3 4 5] [6 7 8] [9]]
+         (vec (map vec (lznc/partition-all 3 (range 10))))))
+  ;;Ensure we catch incorrect usage when possible
+  (is (thrown? RuntimeException (into [] (lznc/partition-all 3 (range 10))))))

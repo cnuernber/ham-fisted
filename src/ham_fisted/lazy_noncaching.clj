@@ -9,14 +9,16 @@
             ArrayImmutList ArrayLists$ObjectArrayList IMutList TypedList LongMutList
             DoubleMutList ReindexList Transformables$IndexedMapper
             IFnDef$OLO IFnDef$ODO Reductions Reductions$IndexedAccum
-            IFnDef$OLOO ArrayHelpers ITypedReduce PartitionByInner]
+            IFnDef$OLOO ArrayHelpers ITypedReduce PartitionByInner Casts
+            IMutList]
            [java.lang.reflect Array]
            [it.unimi.dsi.fastutil.ints IntArrays]
            [java.util RandomAccess Collection Map List Random Set Iterator]
            [clojure.lang RT IPersistentMap IReduceInit IReduce PersistentList
-            IFn$OLO IFn$ODO Counted IDeref Seqable])
+            IFn$OLO IFn$ODO IFn$DD IFn$LD IFn$OD
+            IFn$DL IFn$LL IFn$OL IFn$D IFn$L Counted IDeref Seqable IObj])
   (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle object-array
-                            remove map-indexed partition-by]))
+                            remove map-indexed partition-by partition-all]))
 
 
 (set! *warn-on-reflection* true)
@@ -90,6 +92,12 @@
       :else
       (throw (Exception. (str "Unable to coerce item of type: " (type item)
                               " to an object array"))))))
+
+
+(defn as-random-access
+  "If item implements RandomAccess, return List interface."
+  ^List [item]
+  (when (instance? RandomAccess item) item))
 
 
 (defn ->random-access
@@ -312,12 +320,56 @@
             (get [this# ~idxvar] ~read-code))))))
 
 
+(defn type-single-arg-ifn
+  "Categorize the return type of a single argument ifn.  May be :float64, :int64, or :object."
+  [ifn]
+  (cond
+    (or (instance? IFn$DD ifn)
+        (instance? IFn$LD ifn)
+        (instance? IFn$OD ifn))
+    :float64
+    (or (instance? IFn$DL ifn)
+        (instance? IFn$LL ifn)
+        (instance? IFn$OL ifn))
+    :int64
+    :else
+    :object))
+
+
+(defn type-zero-arg-ifn
+  "Categorize the return type of a single argument ifn.  May be :float64, :int64, or :object."
+  [ifn]
+  (cond
+    (instance? IFn$D ifn)
+    :float64
+    (instance? IFn$L ifn)
+    :int64
+    :else
+    :object))
+
+
 (defn repeatedly
   "When called with one argument, produce infinite list of calls to v.
   When called with two arguments, produce a random access list of length n of calls to v."
   ([f] (clojure.core/repeatedly f))
-  (^List [n f] (repeatedly n f nil))
-  (^List [n f opts] (make-readonly-list n idx (f))))
+  (^IMutList [n f]
+   (let [n (int n)]
+     (case (type-zero-arg-ifn f)
+       :int64
+       (reify TypedList
+         (containedType [this] Long/TYPE)
+         LongMutList
+         (size [this] (unchecked-int n))
+         (getLong [this idx] (Casts/longCast (f))))
+       :float64
+       (reify TypedList
+         (containedType [this] Double/TYPE)
+         DoubleMutList
+         (size [this] (unchecked-int n))
+         (getDouble [this idx] (Casts/doubleCast (f))))
+       (reify IMutList
+         (size [this] (int n))
+         (get [this idx] (f)))))))
 
 
 (defn ^:no-doc contained-type
@@ -439,7 +491,7 @@ ham-fisted.api> (shift -2 (range 10))
         rv))))
 
 
-(deftype ^:private PartitionBy [f coll ignore-leftover?
+(deftype ^:private PartitionBy [f coll ignore-leftover? m
                                 ^{:unsynchronized-mutable true
                                   :tag long} _hasheq]
   ITypedReduce
@@ -485,11 +537,16 @@ ham-fisted.api> (shift -2 (range 10))
       (if (instance? clojure.lang.IPersistentCollection o)
         (clojure.lang.Util/pcequiv (seq this) o)
         false)))
+  IObj
+  (meta [this] m)
+  (withMeta [this mm] (PartitionBy. f coll ignore-leftover? mm 0))
   Object
   (toString [this] (.toString ^Object (map vec this)))
   (hashCode [this] (.hasheq this))
   (equals [this o] (.equiv this o)))
 
+
+(pp/implement-tostring-print PartitionBy)
 
 
 (defn partition-by
@@ -540,7 +597,199 @@ user> (crit/quick-bench (into [] (comp (clojure.core/partition-by identity)
   ([f options coll]
    (if (empty? coll)
      PersistentList/EMPTY
-     (PartitionBy. f coll (boolean (get options :ignore-leftover?)) 0))))
+     (PartitionBy. f coll (boolean (get options :ignore-leftover?)) nil 0))))
 
 
-(pp/implement-tostring-print PartitionBy)
+(deftype ^:private PartitionAllInner [^{:unsynchronized-mutable true
+                                        :tag long} n
+                                      ^long step
+                                      ^Iterator iter
+                                      m]
+  ITypedReduce
+  (reduce [this rfn acc]
+    (if-not (.hasNext this)
+      acc
+      (let [ss (unchecked-dec step)]
+        (loop [nn n
+               continue? true]
+          (if (and (> nn 0) continue?)
+            (let [acc (rfn acc (.next iter))]
+              (if (reduced? acc)
+                (do
+                  (set! n (unchecked-dec nn))
+                  (deref acc))
+                (do
+                  (dotimes [s ss] (when (.hasNext iter) (.next iter)))
+                  (recur (unchecked-dec nn) (.hasNext iter)))))
+            (do
+              (set! n nn)
+              acc))))))
+  Iterator
+  (hasNext [this] (and (> n 0) (.hasNext iter)))
+  (next [this]
+    (when-not (.hasNext iter)
+      (throw (java.util.NoSuchElementException.)))
+    (let [nval (.next iter)]
+      (dotimes [s (unchecked-dec step)] (when (.hasNext iter) (.next iter)))
+      (set! n (unchecked-dec n))
+      nval))
+  IObj
+  (meta [this] m)
+  (withMeta [this mm] (PartitionAllInner. n step iter mm)))
+
+(deftype ^:private PartitionAllSingle [^{:unsynchronized-mutable true
+                                         :tag long} n
+                                       ^Iterator iter
+                                       m]
+  ITypedReduce
+  (reduce [this rfn acc]
+    (if-not (.hasNext this)
+      acc
+      (loop [nn n
+             continue? true]
+        (if (and (> nn 0) continue?)
+          (let [acc (rfn acc (.next iter))]
+            (if (reduced? acc)
+              (do
+                (set! n (unchecked-dec nn))
+                (deref acc))
+              (do
+                (recur (unchecked-dec nn) (.hasNext iter)))))
+          (do
+            (set! n nn)
+            acc)))))
+  Iterator
+  (hasNext [this] (and (> n 0) (.hasNext iter)))
+  (next [this]
+    (when-not (.hasNext iter)
+      (throw (java.util.NoSuchElementException.)))
+    (let [nval (.next iter)]
+      (set! n (unchecked-dec n))
+      nval))
+  IObj
+  (meta [this] m)
+  (withMeta [this mm] (PartitionAllSingle. n iter mm)))
+
+(defn ^:no-doc partition-all-inner
+  ^Iterator [^long n ^long step iter]
+  (if (== step 1)
+    (PartitionAllSingle. n iter nil)
+    (PartitionAllInner. n step iter nil)))
+
+(deftype ^:private PartitionAllOuter [^Iterator iter
+                                      n
+                                      step
+                                      ignore-leftover?
+                                      ^:unsynchronized-mutable last-iter]
+  Iterator
+  (hasNext [this]
+    (when (and (not ignore-leftover?) last-iter (.hasNext ^Iterator last-iter))
+      (throw (RuntimeException. "Sub-collection not completely iterated")))
+    (.hasNext ^Iterator iter))
+  (next [this]
+    (let [rv (partition-all-inner n step iter)]
+      (set! last-iter rv)
+      rv)))
+
+
+(deftype ^:private PartitionAll [^long n ^long step ^Iterable coll
+                                 ignore-leftover? m
+                                 ^{:unsynchronized-mutable true
+                                   :tag long} _hasheq]
+  IObj
+  (meta [this] m)
+  (withMeta [this mm] (PartitionAll. n step coll ignore-leftover? mm 0))
+  ITypedReduce
+  (reduce [this rfn acc]
+    (let [iter (.iterator coll)]
+      (if-not (.hasNext iter)
+        acc
+        (loop []
+          (let [^Iterator sub-iter (partition-all-inner n step iter)
+                acc (rfn acc sub-iter)]
+            (if (reduced? acc)
+              @acc
+              (do
+                (when (and (not ignore-leftover?) (.hasNext sub-iter))
+                  (throw (RuntimeException. "Sub-collection not completely consumed")))
+                (if (.hasNext iter)
+                  (recur)
+                  acc))))))))
+  Iterable
+  (iterator [this] (PartitionAllOuter. (.iterator coll) n step ignore-leftover? nil))
+  Seqable
+  (seq [this] (clojure.core/map vec (clojure.lang.IteratorSeq/create (.iterator this))))
+  clojure.lang.IHashEq
+  (hasheq [this]
+    (when (== _hasheq 0)
+      (set! _hasheq (long (hash (seq this)))))
+    _hasheq)
+  clojure.lang.IPersistentCollection
+  (count [this] (count (seq this)))
+  (cons [this o] (cons (seq this) o))
+  (empty [this] PersistentList/EMPTY)
+  (equiv [this o]
+    (if (identical? this o)
+      true
+      (if (instance? clojure.lang.IPersistentCollection o)
+        (clojure.lang.Util/pcequiv (seq this) o)
+        false)))
+  Object
+  (toString [this] (.toString ^Object (map vec this)))
+  (hashCode [this] (.hasheq this))
+  (equals [this o] (.equiv this o)))
+
+
+(pp/implement-tostring-print PartitionAll)
+
+
+(defn partition-all
+  "Lazy noncaching version of partition-all.  When input is random access returns random access result.
+
+  Similar to [[partition-by]] but only if input is not random access each sub-collection must be entirely
+  iterated through before requesting the next sub-collection.
+
+
+```clojure
+user> (crit/quick-bench (mapv hamf/sum-fast (lznc/partition-all 100 (range 100000))))
+             Execution time mean : 335.821098 µs
+nil
+user> (crit/quick-bench (mapv hamf/sum-fast (partition-all 100 (range 100000))))
+             Execution time mean : 6.831242 ms
+nil
+user> (crit/quick-bench (into [] (comp (partition-all 100)
+                                       (map hamf/sum-fast))
+                              (range 100000)))
+             Execution time mean : 1.645954 ms
+nil
+```"
+  ([n] (clojure.core/partition-all n))
+  ([n coll] (partition-all n 1 coll))
+  ([^long n ^long step coll]
+   (if (empty? coll)
+     '()
+     (let [ns (* n step)]
+       (if-let [coll (as-random-access coll)]
+         (let [n-elems (.size coll)
+               n-batches (quot (+ n-elems (dec ns)) ns)]
+           (if (== 1 step)
+             (reify IMutList
+               (size [this] (unchecked-int n-batches))
+               (get [this outer]
+                 (when-not (and (>= outer 0) (< outer n-batches))
+                   (throw (IndexOutOfBoundsException.)))
+                 (let [sidx (* outer ns)
+                       eidx (min n-elems (+ sidx n))]
+                   (.subList coll sidx eidx))))
+             (reify IMutList
+               (size [this] (unchecked-int n-batches))
+               (get [this outer]
+                 (when-not (and (>= outer 0) (< outer n-batches))
+                   (throw (IndexOutOfBoundsException.)))
+                 (let [batch-start (* outer ns)
+                       batch-n (long (min n (quot (- n-elems batch-start) step)))]
+                   (reify IMutList
+                     (size [this] (unchecked-int batch-n))
+                     (get [this inner]
+                       (.get coll (+ batch-start (* inner step))))))))))
+         (PartitionAll. n step (protocols/->iterable coll) false nil 0))))))
