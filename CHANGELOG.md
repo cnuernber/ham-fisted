@@ -1,5 +1,7 @@
 # 2.005
- * implemented lazy noncaching partition-all.
+ * implemented lazy noncaching partition-all - similar perf to partition-by.
+ * Faster default dispatch for pgroups, upgroups.
+ * Faster sum-fast if input is random access.
 
 # 2.004
  * Faster sort implemented as default in several places.

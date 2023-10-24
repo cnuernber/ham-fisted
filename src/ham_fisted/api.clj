@@ -946,6 +946,9 @@ ham_fisted.PersistentHashMap
   (ForkJoinTask/inForkJoinPool))
 
 
+(def ^:private default-pgroup-opts (options->parallel-options {:ordered? true}))
+
+
 (defn pgroups
   "Run y index groups across n-elems.   Y is common pool parallelism.
 
@@ -966,7 +969,10 @@ ham_fisted.PersistentHashMap
   ([n-elems body-fn options]
    (impl/pgroups n-elems body-fn (options->parallel-options (assoc options :ordered? true))))
   ([n-elems body-fn]
-   (pgroups n-elems body-fn nil)))
+   (impl/pgroups n-elems body-fn default-pgroup-opts)))
+
+
+(def ^:private default-upgroup-opts (options->parallel-options {:ordered? false}))
 
 
 (defn upgroups
@@ -978,6 +984,9 @@ ham_fisted.PersistentHashMap
 
   Before using this primitive please see if [[ham-fisted.reduce/preduce]] will work.
 
+  You *must* wrap this in something that realizes the results if you need the parallelization
+  to finish by a particular point in the program - `(dorun (hamf/upgroups ...))`.
+
   Options:
 
   * `:pgroup-min` - when provided n-elems must be more than this value for the computation
@@ -986,7 +995,7 @@ ham_fisted.PersistentHashMap
   ([n-elems body-fn options]
    (impl/pgroups n-elems body-fn (options->parallel-options (assoc options :ordered? false))))
   ([n-elems body-fn]
-   (upgroups n-elems body-fn nil)))
+   (impl/pgroups n-elems body-fn default-upgroup-opts)))
 
 
 (defn pmap
@@ -2094,13 +2103,30 @@ ham-fisted.api> (binary-search data 1.1 nil)
   (ovec (filter pred coll)))
 
 
-
 (defn sum-fast
-  "Fast simple serial double summation.  Does not do any nan checking or summation
+  "Fast simple double summation.  Does not do any nan checking or summation
   compensation."
   ^double [coll]
-  ;;Using raw reduce call as opposed to reduce-reducer to avoid protocol dispatch.
-  @(reduce double-consumer-accumulator (Sum$SimpleSum.) coll))
+  (if-let [coll (lznc/as-random-access coll)]
+    (->> (pgroups
+          (.size coll)
+          ;;Really hard to beat simple/stupid/direct pathway
+          (if (instance? IMutList coll)
+            (fn [^long sidx ^long eidx]
+              (loop [sidx sidx
+                     sum 0.0]
+                (if (< sidx eidx)
+                  (recur (unchecked-inc sidx) (+ sum (.getDouble ^IMutList coll (unchecked-int sidx))))
+                  sum)))
+            (fn [^long sidx ^long eidx]
+              (loop [sidx sidx
+                     sum 0.0]
+                (if (< sidx eidx)
+                  (recur (unchecked-inc sidx) (+ sum (Casts/doubleCast (.get coll (unchecked-int sidx)))))
+                  sum)))))
+         (reduce (hamf-fn/double-binary-operator x y (+ x y)) 0.0))
+    ;;Using raw reduce call as opposed to reduce-reducer to avoid protocol dispatch for small N
+    @(reduce double-consumer-accumulator (Sum$SimpleSum.) coll)))
 
 
 
