@@ -1,3 +1,7 @@
+2.007
+* reduce namespace now has helper to create a parallel reducer.
+* hashset has optimized addall pathway when input is another hashset.
+
 # 2.006
  * partition-by accepts a predicate function in options - example in docs.
 
