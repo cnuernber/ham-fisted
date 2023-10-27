@@ -544,6 +544,25 @@ nil
     (->merge-fn [r] reducible-merge)))
 
 
+(defn parallel-reducer
+  ([init-fn rfn merge-fn fin-fn]
+   (reify
+     protocols/Reducer
+     (->init-val-fn [this] init-fn)
+     (->rfn [r] rfn)
+     protocols/ParallelReducer
+     (->merge-fn [r] merge-fn)
+     protocols/Finalize
+     (finalize [r v] (fin-fn v))))
+  ([init-fn rfn merge-fn]
+   (reify
+     protocols/Reducer
+     (->init-val-fn [this] init-fn)
+     (->rfn [r] rfn)
+     protocols/ParallelReducer
+     (->merge-fn [r] merge-fn))))
+
+
 (defn consumer-preducer
   "Bind a consumer as a parallel reducer.
 

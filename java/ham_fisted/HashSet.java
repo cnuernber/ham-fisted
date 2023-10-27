@@ -78,7 +78,31 @@ public class HashSet extends HashBase implements ISet, SetOps {
   }
   public boolean addAll(Collection c) {
     int sz = length;
-    if(c instanceof IReduceInit) {
+    if(c instanceof HashSet) {
+      HashSet other = (HashSet) c;
+      HashNode[] d = data;
+      int m = mask;
+      final HashNode[] od = other.data;
+      final int odl = od.length;
+      for (int idx = 0; idx < odl; ++idx) {
+	for (HashNode e = od[idx]; e != null; e = e.nextNode) {
+	  // Its tempting to use the hashcode here but we don't know if
+	  // the other hashset has overridden hash or not.
+	  int hc = hash(e.k);
+	  int didx = hc & m;
+	  HashNode ee = d[didx];
+	  for(; ee != null && !(ee.k == e.k || equals(ee.k, e.k)); ee = ee.nextNode);
+	  if( ee == null) {
+	    HashNode n = newNode(e.k, hc, e.v);
+	    n.nextNode = d[didx];
+	    d[didx] = n;
+	    checkResize(null);
+	    d = data;
+	    m = mask;
+	  }
+	}
+      }
+    } else if(c instanceof IReduceInit) {
       ((IReduceInit)c).reduce(new IFnDef() {
 	  public Object invoke(Object acc, Object k) {
 	    HashSet rv = (HashSet)acc;
