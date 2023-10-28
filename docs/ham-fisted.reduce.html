@@ -8,7 +8,7 @@
 </div></div><div class="public anchor" id="var--.3Econsumer"><h3>-&gt;consumer</h3><div class="usage"><code>(-&gt;consumer cfn)</code></div><div class="doc"><div class="markdown"><p>Return an instance of a consumer, double consumer, or long consumer.</p>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L472">view source</a></div></div><div class="public anchor" id="var-bind-double-consumer-reducer.21"><h3>bind-double-consumer-reducer!</h3><div class="usage"><code>(bind-double-consumer-reducer! cls-type ctor)</code><code>(bind-double-consumer-reducer! ctor)</code></div><div class="doc"><div class="markdown"><p>Bind a classtype as a double consumer parallel reducer - the consumer must implement
 DoubleConsumer, ham_fisted.Reducible, and IDeref.</p>
-</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L588">view source</a></div></div><div class="public anchor" id="var-compose-reducers"><h3>compose-reducers</h3><div class="usage"><code>(compose-reducers reducers)</code><code>(compose-reducers options reducers)</code></div><div class="doc"><div class="markdown"><p>Given a map or sequence of reducers return a new reducer that produces a map or
+</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L607">view source</a></div></div><div class="public anchor" id="var-compose-reducers"><h3>compose-reducers</h3><div class="usage"><code>(compose-reducers reducers)</code><code>(compose-reducers options reducers)</code></div><div class="doc"><div class="markdown"><p>Given a map or sequence of reducers return a new reducer that produces a map or
 vector of results.</p>
 <p>If data is a sequence then context is guaranteed to be an object array.</p>
 <p>Options:</p>
@@ -27,9 +27,9 @@ ham_fisted.Reducible and clojure.lang.IDeref.</p>
 <p>Returns instance of type bound.</p>
 <p>See documentation for <a href="declare-double-consumer-preducer!">declare-double-consumer-preducer!</a>.</p>
 <pre><code></code></pre>
-</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L566">view source</a></div></div><div class="public anchor" id="var-consumer-reducer"><h3>consumer-reducer</h3><div class="usage"><code>(consumer-reducer ctor)</code></div><div class="doc"><div class="markdown"><p>Make a parallel double consumer reducer given a function that takes no arguments and is
+</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L585">view source</a></div></div><div class="public anchor" id="var-consumer-reducer"><h3>consumer-reducer</h3><div class="usage"><code>(consumer-reducer ctor)</code></div><div class="doc"><div class="markdown"><p>Make a parallel double consumer reducer given a function that takes no arguments and is
 guaranteed to produce a double consumer which also implements Reducible and IDeref</p>
-</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L635">view source</a></div></div><div class="public anchor" id="var-double-accumulator"><h3>double-accumulator</h3><h4 class="type">macro</h4><div class="usage"><code>(double-accumulator accvar varvar &amp; code)</code></div><div class="doc"><div class="markdown"><p>Type-hinted double reduction accumulator.
+</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L654">view source</a></div></div><div class="public anchor" id="var-double-accumulator"><h3>double-accumulator</h3><h4 class="type">macro</h4><div class="usage"><code>(double-accumulator accvar varvar &amp; code)</code></div><div class="doc"><div class="markdown"><p>Type-hinted double reduction accumulator.
 consumer:</p>
 <pre><code class="language-clojure">  ham-fisted.api&gt; (reduce (double-accumulator acc v (+ (double acc) v))
                              0.0
@@ -76,7 +76,7 @@ nil
 </code></pre>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L505">view source</a></div></div><div class="public anchor" id="var-double-consumer-reducer"><h3>double-consumer-reducer</h3><div class="usage"><code>(double-consumer-reducer ctor)</code></div><div class="doc"><div class="markdown"><p>Make a parallel double consumer reducer given a function that takes no arguments and is
 guaranteed to produce a double consumer which also implements Reducible and IDeref</p>
-</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L607">view source</a></div></div><div class="public anchor" id="var-immut-map-kv"><h3>immut-map-kv</h3><div class="usage"><code>(immut-map-kv keyfn valfn data)</code><code>(immut-map-kv ks vs)</code></div><div class="doc"><div class="markdown"></div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L179">view source</a></div></div><div class="public anchor" id="var-indexed-accum"><h3>indexed-accum</h3><h4 class="type">macro</h4><div class="usage"><code>(indexed-accum accvar idxvar varvar &amp; code)</code></div><div class="doc"><div class="markdown"><p>Create an indexed accumulator that recieves and additional long index
+</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L626">view source</a></div></div><div class="public anchor" id="var-immut-map-kv"><h3>immut-map-kv</h3><div class="usage"><code>(immut-map-kv keyfn valfn data)</code><code>(immut-map-kv ks vs)</code></div><div class="doc"><div class="markdown"></div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L179">view source</a></div></div><div class="public anchor" id="var-indexed-accum"><h3>indexed-accum</h3><h4 class="type">macro</h4><div class="usage"><code>(indexed-accum accvar idxvar varvar &amp; code)</code></div><div class="doc"><div class="markdown"><p>Create an indexed accumulator that recieves and additional long index
 during a reduction:</p>
 <pre><code class="language-clojure">ham-fisted.api&gt; (reduce (indexed-accum
                          acc idx v (conj acc [idx v]))
@@ -120,7 +120,7 @@ ham-fisted.api&gt; @*1
 </code></pre>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L389">view source</a></div></div><div class="public anchor" id="var-long-consumer-reducer"><h3>long-consumer-reducer</h3><div class="usage"><code>(long-consumer-reducer ctor)</code></div><div class="doc"><div class="markdown"><p>Make a parallel double consumer reducer given a function that takes no arguments and is
 guaranteed to produce a double consumer which also implements Reducible and IDeref</p>
-</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L621">view source</a></div></div><div class="public anchor" id="var-options-.3Eparallel-options"><h3>options-&gt;parallel-options</h3><div class="usage"><code>(options-&gt;parallel-options options)</code></div><div class="doc"><div class="markdown"><p>Convert an options map to a parallel options object.</p>
+</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L640">view source</a></div></div><div class="public anchor" id="var-options-.3Eparallel-options"><h3>options-&gt;parallel-options</h3><div class="usage"><code>(options-&gt;parallel-options options)</code></div><div class="doc"><div class="markdown"><p>Convert an options map to a parallel options object.</p>
 <p>Options:</p>
 <ul>
 <li><code>:pool</code> - supply the forkjoinpool to use.</li>
@@ -141,7 +141,24 @@ but instead return the sequence of partially reduced results.</li>
 <li><code>:n-lookahead</code> - How for to look ahead for pmap and upmap to add new jobs to the queue.  Defaults
 to `(* 2 parallelism).</li>
 </ul>
-</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L24">view source</a></div></div><div class="public anchor" id="var-parallel-reducer"><h3>parallel-reducer</h3><div class="usage"><code>(parallel-reducer init-fn rfn merge-fn fin-fn)</code><code>(parallel-reducer init-fn rfn merge-fn)</code></div><div class="doc"><div class="markdown"></div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L547">view source</a></div></div><div class="public anchor" id="var-preduce"><h3>preduce</h3><div class="usage"><code>(preduce init-val-fn rfn merge-fn coll)</code><code>(preduce init-val-fn rfn merge-fn options coll)</code></div><div class="doc"><div class="markdown"><p>Parallelized reduction.  Currently coll must either be random access or a lznc map/filter
+</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L24">view source</a></div></div><div class="public anchor" id="var-parallel-reducer"><h3>parallel-reducer</h3><div class="usage"><code>(parallel-reducer init-fn rfn merge-fn fin-fn)</code><code>(parallel-reducer init-fn rfn merge-fn)</code></div><div class="doc"><div class="markdown"><p>Implement a parallel reducer by explicitly passing in the various required functions.</p>
+<ul>
+<li>'init-fn' - Takes no argumenst and returns a new accumulation target.</li>
+<li>'rfn' - clojure rf function - takes two arguments, the accumulation target and a new value
+and produces a new accumulation target.</li>
+<li>'merge-fn' - Given two accumulation targets returns a new combined accumulation target.</li>
+<li>'fin-fn' - optional - Given an accumulation target returns the desired final type.</li>
+</ul>
+<pre><code class="language-clojure">user&gt; (hamf-rf/preduce-reducer
+       (hamf-rf/parallel-reducer
+        hamf/mut-set
+        #(do (.add ^java.util.Set %1 %2) %1)
+        hamf/union
+        hamf/sort)
+       (lznc/map (fn ^long [^long v] (rem v 13)) (hamf/range 1000000)))
+[0 1 2 3 4 5 6 7 8 9 10 11 12]
+</code></pre>
+</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/reduce.clj#L547">view source</a></div></div><div class="public anchor" id="var-preduce"><h3>preduce</h3><div class="usage"><code>(preduce init-val-fn rfn merge-fn coll)</code><code>(preduce init-val-fn rfn merge-fn options coll)</code></div><div class="doc"><div class="markdown"><p>Parallelized reduction.  Currently coll must either be random access or a lznc map/filter
 chain based on one or more random access entities, hashmaps and sets from this library or
 any java.util set, hashmap or concurrent versions of these.  If input cannot be
 parallelized this lowers to a normal serial reduction.</p>

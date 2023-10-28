@@ -545,6 +545,25 @@ nil
 
 
 (defn parallel-reducer
+  "Implement a parallel reducer by explicitly passing in the various required functions.
+
+  * 'init-fn' - Takes no argumenst and returns a new accumulation target.
+  * 'rfn' - clojure rf function - takes two arguments, the accumulation target and a new value
+     and produces a new accumulation target.
+  * 'merge-fn' - Given two accumulation targets returns a new combined accumulation target.
+  * 'fin-fn' - optional - Given an accumulation target returns the desired final type.
+
+```clojure
+user> (hamf-rf/preduce-reducer
+       (hamf-rf/parallel-reducer
+        hamf/mut-set
+        #(do (.add ^java.util.Set %1 %2) %1)
+        hamf/union
+        hamf/sort)
+       (lznc/map (fn ^long [^long v] (rem v 13)) (hamf/range 1000000)))
+[0 1 2 3 4 5 6 7 8 9 10 11 12]
+```
+"
   ([init-fn rfn merge-fn fin-fn]
    (reify
      protocols/Reducer
