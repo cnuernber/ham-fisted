@@ -302,6 +302,16 @@ public class ArrayLists {
 	    }}), data, v);
       }
     }
+    public Object reduce(IFn rfn, Object acc) {
+      final int ee = eidx;
+      final Object[] d = data;
+      for(int idx = sidx; idx < ee; ++idx ) {
+	acc = rfn.invoke(acc, d[idx]);
+	if(RT.isReduced(acc))
+	  return ((IDeref)acc).deref();
+      }
+      return acc;
+    }
     public IPersistentVector immut() {
       return ArrayImmutList.create(true, data, sidx, eidx, meta());
     }

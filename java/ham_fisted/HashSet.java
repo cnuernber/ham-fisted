@@ -76,6 +76,26 @@ public class HashSet extends HashBase implements ISet, SetOps {
     checkResize(null);
     return true;
   }
+
+  public void addAllReduceGeneric(IReduceInit r) {
+    final HashBase rv = this;
+    r.reduce(new IFnDef() {
+	public Object invoke(Object acc, Object k) {
+	  final int hc = rv.hash(k);
+	  final int idx = hc & rv.mask;
+	  final HashNode[] d = rv.data;
+	  HashNode e = d[idx];
+	  for(; e != null && !(k == e.k || rv.equals(k,e.k)); e = e.nextNode);
+	  if(e == null) {
+	    final HashNode lf = rv.newNode(k, hc, VALUE);
+	    lf.nextNode = d[idx];
+	    d[idx] = lf;
+	    rv.checkResize(null);
+	  }
+	  return this;
+	}
+      }, this);
+  }
   public boolean addAll(Collection c) {
     int sz = length;
     if(c instanceof HashSet) {
@@ -103,22 +123,7 @@ public class HashSet extends HashBase implements ISet, SetOps {
 	}
       }
     } else if(c instanceof IReduceInit) {
-      ((IReduceInit)c).reduce(new IFnDef() {
-	  public Object invoke(Object acc, Object k) {
-	    HashSet rv = (HashSet)acc;
-	    int hc = rv.hash(k);
-	    int idx = hc & rv.mask;
-	    HashNode e = rv.data[idx];
-	    for(; e != null && !(k == e.k || rv.equals(k,e.k)); e = e.nextNode);
-	    if(e == null) {
-	      HashNode lf = rv.newNode(k, hc, VALUE);
-	      lf.nextNode = rv.data[idx];
-	      rv.data[idx] = lf;
-	      rv.checkResize(null);
-	    }
-	    return rv;
-	  }
-	}, this);
+      addAllReduceGeneric((IReduceInit)c);
     } else {
       HashNode[] d = data;
       int m = mask;
