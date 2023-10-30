@@ -2078,21 +2078,25 @@ ham-fisted.api> (binary-search data 1.1 nil)
 
 
 (defmacro dnth
+  "nth operation returning a primitive double.  Efficient when obj is a double array."
   [obj idx]
   `(TypedNth/dnth ~obj ~idx))
 
 
 (defmacro lnth
+  "nth operation returning a primitive long.  Efficient when obj is a long array."
   [obj idx]
   `(TypedNth/lnth ~obj ~idx))
 
 
 (defmacro fnth
+  "nth operation returning a primitive float.  Efficient when obj is a float array."
   [obj idx]
   `(TypedNth/fnth ~obj ~idx))
 
 
 (defmacro inth
+  "nth operation returning a primitive int.  Efficient when obj is an int array."
   [obj idx]
   `(TypedNth/inth ~obj ~idx))
 
