@@ -1,7 +1,12 @@
+2.009
+ * typed 'nth' methods efficient for primitive manipulations - 'dnth', 'fnth', 'inth', 'lnth'.
+ 
+ 
 # 2.008
  * Custom reduce implemented for object array wrappers.
 
-# 2.007
+ 
+2.007
 * reduce namespace now has helper to create a parallel reducer.
 * hashset has optimized addall pathway when input is another hashset.
 
