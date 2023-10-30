@@ -128,4 +128,12 @@ public class Casts {
   public static double doubleCast(boolean obj) {
     return obj ? 1.0 : 0.0;
   }
+  public static float floatCast(float obj) { return obj; }
+  public static float floatCast(Object obj) {
+    return (obj instanceof Float) ? ((Float)obj).floatValue() : (float)doubleCast(obj);
+  }
+  public static int intCast(int obj) { return obj; }
+  public static int intCast(Object obj) {
+    return (obj instanceof Integer) ? ((Integer)obj).intValue() : (int)longCast(obj);
+  }
 }

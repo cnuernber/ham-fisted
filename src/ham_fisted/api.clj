@@ -63,8 +63,7 @@
             IFnDef$OLO IFnDef$OD IFnDef$OL IFnDef$LD IFnDef$DL IFnDef$OLOO IFnDef$OLDO
             IFnDef$OLLO IFnDef$LongPredicate IFnDef$DoublePredicate IFnDef$Predicate
             Consumers$IncConsumer Reductions$IndexedDoubleAccum Reductions$IndexedLongAccum
-            Reductions$IndexedAccum MutableMap IAMapEntry
-            MapForward]
+            Reductions$IndexedAccum MutableMap IAMapEntry MapForward TypedNth]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
@@ -100,6 +99,10 @@
                             drop-last sort-by repeat repeatedly shuffle into-array
                             empty? reverse byte-array short-array char-array boolean-array
                             keys vals persistent! rest transient update-vals]))
+
+(comment
+  (require '[clj-java-decompiler.core :refer [disassemble]])
+  )
 
 
 (set! *warn-on-reflection* true)
@@ -2072,6 +2075,26 @@ ham-fisted.api> (binary-search data 1.1 nil)
      `(ArrayImmutList. (obj-ary ~@data) 0 ~(count data) ~(meta data))
      :else
      `(ovec-v ~data))))
+
+
+(defmacro dnth
+  [obj idx]
+  `(TypedNth/dnth ~obj ~idx))
+
+
+(defmacro lnth
+  [obj idx]
+  `(TypedNth/lnth ~obj ~idx))
+
+
+(defmacro fnth
+  [obj idx]
+  `(TypedNth/fnth ~obj ~idx))
+
+
+(defmacro inth
+  [obj idx]
+  `(TypedNth/inth ~obj ~idx))
 
 
 (defn mapv
