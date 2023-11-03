@@ -77,11 +77,15 @@ user> (hlet [[a b] (dbls [1 2])] (+ a b))
   (let [lvec (code 0)
         rdata (second (code 1))]
     (if (vector? lvec)
-      (let [rtemp (gensym "__dbls")]
+      (let [rtemp (if (symbol? rdata)
+                    rdata
+                    (gensym "__dbls"))]
         (-> (reduce (hamf-rf/indexed-accum
                      acc idx lv-entry
                      (add-all! acc [lv-entry `(~nth-symbol ~rtemp ~idx)]))
-                    (hamf/mut-list [rtemp rdata])
+                    (hamf/mut-list (if (identical? rtemp rdata)
+                                     nil
+                                     [rtemp rdata]))
                     lvec)
             (persistent!)))
       [lvec '(double rdata)])))
