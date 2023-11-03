@@ -64,8 +64,16 @@ user> (hlet [[a b] (dbls [1 2])] (+ a b))
 
 
 (defmacro let
-  "Extensible let intended to allow typed destructuring of arbitrary datatypes such as primitive vectors
-  or point types.  Falls back to normal let after extension process."
+  "Extensible let intended to allow typed destructuring of arbitrary datatypes such as primitive arrays
+  or point types.  Falls back to normal let after extension process.  Two extensions are registered by default -
+  `dbls` and `lngs` which destructure into primitive doubles and primitive longs, respectively.
+
+```clojure
+user> (h/let [[x y] (dbls (hamf/double-array [1 2]))]
+        (+ x y))
+3.0
+```
+  "
   [bindings & body]
   (when-not (== 0 (rem (count bindings) 2))
     (throw (RuntimeException. "Bindings must be divisible by 2")))
