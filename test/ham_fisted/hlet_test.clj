@@ -13,7 +13,9 @@
   (h/let [[x y] (dbls (if true
                         (hamf/double-array [1 2])
                         (hamf/double-array [3 4])))
-          look-fn (pi/->ddd (fn ^double [^double a ^double b] (+ a b)))]
+          look-fn (pi/->ddd (fn ^double [^double a ^double b] (+ a b)))
+          ;;test singular case
+          sx (dbls (rand-int 100))]
     (is (= 3.0 (pi/ddd look-fn x y)))))
 
 

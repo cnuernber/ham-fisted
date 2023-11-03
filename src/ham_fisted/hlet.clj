@@ -1,8 +1,8 @@
 (ns ham-fisted.hlet
-  "Extensible let to allow efficient typed destructuring.  Two extensions are registered - dlbs and lngs which
+  "Extensible let to allow efficient typed destructuring.  Two extensions are registered - dbls and lngs which
   do an efficient typed nth operation resulting in primitive longs and doubles respectively.
 
-  dlbs and lngs will most efficiently destructure java primitive arrays and fall back to casting the result
+  dbls and lngs will most efficiently destructure java primitive arrays and fall back to casting the result
   of clojure.lang.RT/nth if input is not a double or long array.
 
   This can significantly reduce boxing in tight loops without needing to result in really verbose pathways.
@@ -82,7 +82,7 @@ user> (h/let [[x y] (dbls (hamf/double-array [1 2]))]
 
 
 (defn ^:no-doc typed-nth-destructure
-  [nth-symbol code]
+  [nth-symbol scalar-cast code]
   (clojure.core/let [lvec (code 0)
                      rdata (second (code 1))]
     (if (vector? lvec)
@@ -97,16 +97,16 @@ user> (h/let [[x y] (dbls (hamf/double-array [1 2]))]
                                      [rtemp rdata]))
                     lvec)
             (persistent!)))
-      [lvec '(double rdata)])))
+      [lvec `(~scalar-cast ~rdata)])))
 
 
 (extend-let
  'dbls
- #(typed-nth-destructure 'ham-fisted.api/dnth %))
+ #(typed-nth-destructure 'ham-fisted.api/dnth double %))
 
 (extend-let
  'lngs
- #(typed-nth-destructure 'ham-fisted.api/lnth %))
+ #(typed-nth-destructure 'ham-fisted.api/lnth long %))
 
 
 (defn let-extension-names
