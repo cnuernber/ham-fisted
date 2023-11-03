@@ -1884,7 +1884,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
     `(~ctor ~data)
     ;;16 chosen arbitrarily
     (and (vector? data) (< (count data) 16))
-    `(let [~'ary (~ctor ~(count data))]
+    `(let [~'ary (~ctor (unchecked-int ~(count data)))]
        (do
          ~@(->> (range (count data))
                 (map (fn [^long idx]
@@ -1952,10 +1952,16 @@ ham-fisted.api> (binary-search data 1.1 nil)
      (doto (ArrayLists$LongArrayList.)
        (.addAllReducible (->reducible cap-or-data))))))
 
+(def ^:no-doc long-array-cls (Class/forName "[J"))
+
 (defn ^:no-doc long-array-v
   ^longs [data]
-  (if (instance? IMutList data)
+  (cond
+    (instance? long-array-cls data)
+    data
+    (instance? IMutList data)
     (.toLongArray ^IMutList data)
+    :else
     (do-make-array #(ArrayLists/longArray %) #(ArrayLists/toList ^longs %)
                    long-array-list data)))
 
@@ -2015,10 +2021,17 @@ ham-fisted.api> (binary-search data 1.1 nil)
        (.addAllReducible (->reducible cap-or-data))))))
 
 
+(def dbl-ary-cls (Class/forName "[D"))
+
+
 (defn ^:no-doc double-array-v
   ^doubles [data]
-  (if (instance? IMutList data)
+  (cond
+    (instance? dbl-ary-cls data)
+    data
+    (instance? IMutList data)
     (.toDoubleArray ^IMutList data)
+    :else
     (do-make-array #(ArrayLists/doubleArray %) #(ArrayLists/toList ^doubles %)
                    double-array-list data)))
 

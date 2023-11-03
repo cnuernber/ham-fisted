@@ -60,14 +60,18 @@
   or returned from if-statements and then you need to explicitly call the primitive overload - this makes
   that pathway less verbose.\")\n\n"))
     (doseq [sig ifn-sigs]
-      (let [sname (apply str (map name sig))]
-        (.write w (str "(defn as-" sname " ^clojure.lang.IFn$" (.toUpperCase sname) "[f] f)\n"))
+      (let [sname (apply str (map name sig))
+            ifn-name (str "clojure.lang.IFn$" (.toUpperCase sname))]
+        (.write w (str "(defn ->" sname " ^" ifn-name " [f]
+  (if (instance? " ifn-name " f)
+    f
+    (throw (RuntimeException. (str f \" is not an instance of" ifn-name "\")))))\n"))
         (.write w (str "(defmacro " sname " [f"))
         (dotimes [i (dec (count sig))]
           (.write w (str " "))
           (.write w (str "arg" i)))
         (.write w "]\n")
-        (.write w (str "`(.invokePrim (as-" sname " ~f)"))
+        (.write w (str "`(.invokePrim ~f"))
         (dotimes [i (dec (count sig))]
           (.write w (str " "))
           (.write w (str "~arg" i)))
