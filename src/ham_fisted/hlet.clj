@@ -8,7 +8,7 @@
   This can significantly reduce boxing in tight loops without needing to result in really verbose pathways.
 
 ```clojure
-user> (hlet [[a b] (dbls [1 2])] (+ a b))
+user> (h/let [[a b] (dbls [1 2])] (+ a b))
 3.0
 ```
   See also [[ham-fisted.primitive-invoke]], [[ham-fisted.api/dnth]] [[ham-fisted.api/lnth]]."
