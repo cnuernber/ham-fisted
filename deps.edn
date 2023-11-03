@@ -33,7 +33,7 @@
    :exec-fn codox.main/-main
    :exec-args {:group-id "com.cnuernber"
                :artifact-id "ham-fisted"
-               :version "2.010-SNAPSHOT"
+               :version "2.010"
                :name "Ham-Fisted"
                :description "High Performance Clojure Primitives"
                :metadata {:doc/format :markdown}
@@ -55,7 +55,9 @@
                             ham-fisted.set
                             ham-fisted.function
                             ham-fisted.mut-map
-                            ham-fisted.reduce]}}
+                            ham-fisted.reduce
+                            ham-fisted.hlet
+                            ham-fisted.primitive-invoke]}}
   :deploy
   {:replace-deps {slipset/deps-deploy {:mvn/version "0.1.5"}}
    :exec-fn deps-deploy.deps-deploy/deploy
