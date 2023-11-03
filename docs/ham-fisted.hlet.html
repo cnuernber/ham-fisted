@@ -13,10 +13,10 @@ of clojure.lang.RT/nth if input is not a double or long array.</p>
 3.0
 </code></pre>
 <p>See also <a href="ham-fisted.primitive-invoke.html">ham-fisted.primitive-invoke</a>, <a href="ham-fisted.api.html#var-dnth">ham-fisted.api/dnth</a> <a href="ham-fisted.api.html#var-lnth">ham-fisted.api/lnth</a>.</p>
-</div></div><div class="public anchor" id="var-extend-let"><h3>extend-let</h3><div class="usage"><code>(extend-let sym-name code)</code></div><div class="doc"><div class="markdown"><p>Code must take two arguments, left and right hand sides and return
+</div></div><div class="public anchor" id="var-extend-let"><h3>extend-let</h3><div class="usage"><code>(extend-let sym-name code)</code></div><div class="doc"><div class="markdown"><p>Code gets a tuple of <a href="lhs rhs">lhs rhs</a> must return
 a flattened sequence of left and right hand sides.
 This uses a special symbol that will look like a function call on the
-right hand side.</p>
+right hand side as the dispatch mechanism.</p>
 <p>See source code of this file for example extensions.</p>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/hlet.clj#L26">view source</a></div></div><div class="public anchor" id="var-let"><h3>let</h3><h4 class="type">macro</h4><div class="usage"><code>(let bindings &amp; body)</code></div><div class="doc"><div class="markdown"><p>Extensible let intended to allow typed destructuring of arbitrary datatypes such as primitive vectors
 or point types.  Falls back to normal let after extension process.</p>
