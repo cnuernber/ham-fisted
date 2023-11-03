@@ -24,10 +24,10 @@ user> (hlet [[a b] (dbls [1 2])] (+ a b))
 
 
 (defn extend-let
-  "Code must take two arguments, left and right hand sides and return
+  "Code gets a tuple of [lhs rhs] must return
   a flattened sequence of left and right hand sides.
   This uses a special symbol that will look like a function call on the
-  right hand side.
+  right hand side as the dispatch mechanism.
 
   See source code of this file for example extensions."
   [sym-name code]
@@ -56,7 +56,7 @@ user> (hlet [[a b] (dbls [1 2])] (+ a b))
                (clojure.core/let [new-pairs (code pair)]
                  (when-not (== 0 (rem (count new-pairs) 2))
                    (throw (RuntimeException. (str "Code for symbol " (first (pair 1)) " returned uneven number of results"))))
-                 (add-all!  acc new-pairs))
+                 (add-all! acc new-pairs))
                (add-all! acc pair)))
            (hamf/mut-list)
            (lznc/partition-all 2 (vec bindings)))
