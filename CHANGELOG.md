@@ -1,6 +1,6 @@
 2.010
  * Extensible let - hlet and helpers make using the primitive overloads of clojure functions easier.
-   See the ham-fisted.hlet and ham-fisted.primtive-invoke interfaces.
+   See the ham-fisted.hlet and ham-fisted.primtive-invoke namespaces.
 
 2.009
  * typed 'nth' methods efficient for primitive manipulations - 'dnth', 'fnth', 'inth', 'lnth'.
