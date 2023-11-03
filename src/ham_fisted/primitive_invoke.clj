@@ -2,7 +2,14 @@
 "For statically traced calls the Clojure compiler calls the primitive version of type-hinted functions
   and this makes quite a difference in tight loops.  Often times, however, functions are passed by values
   or returned from if-statements and then you need to explicitly call the primitive overload - this makes
-  that pathway less verbose.")
+  that pathway less verbose.
+
+  invoke methods are named after their lowercase signatures with 'd' being double, 'l' being long and 'o' being
+  object.  Arguments are named left to right with the return value last so for example the function
+  `(fn test [^double a ^double b] (+ a b))` can be called in a primitive manner with the 'ddo' macro.
+
+  Again this is unnecessary if the compiler can see the static definition of the function but it is necessary
+  if functions are assigned to local variables or passed around to other functions.")
 
 (defn as-l ^clojure.lang.IFn$L[f] f)
 (defmacro l [f]
