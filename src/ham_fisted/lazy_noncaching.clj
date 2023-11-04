@@ -17,9 +17,9 @@
            [java.util RandomAccess Collection Map List Random Set Iterator]
            [clojure.lang RT IPersistentMap IReduceInit IReduce PersistentList
             IFn$OLO IFn$ODO IFn$DD IFn$LD IFn$OD
-            IFn$DL IFn$LL IFn$OL IFn$D IFn$L Counted IDeref Seqable IObj])
+            IFn$DL IFn$LL IFn$OL IFn$D IFn$L IFn$LO IFn$DO Counted IDeref Seqable IObj])
   (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle object-array
-                            remove map-indexed partition-by partition-all]))
+                            remove map-indexed partition-by partition-all every?]))
 
 
 (set! *warn-on-reflection* true)
@@ -28,7 +28,7 @@
 
 (def ^{:tag ArrayImmutList} empty-vec ArrayImmutList/EMPTY)
 
-(declare concat map-reducible)
+(declare concat map-reducible every?)
 
 (defn ->collection
   "Ensure an item implements java.util.Collection.  This is inherently true for seqs and any
@@ -94,11 +94,18 @@
       (throw (Exception. (str "Unable to coerce item of type: " (type item)
                               " to an object array"))))))
 
+(def ^:no-doc long-array-cls (Class/forName "[J"))
+(def ^:no-doc double-array-cls (Class/forName "[D"))
+(def ^:no-doc obj-array-cls (Class/forName "[Ljava.lang.Object;"))
+
 
 (defn as-random-access
   "If item implements RandomAccess, return List interface."
   ^List [item]
-  (when (instance? RandomAccess item) item))
+  (cond (instance? RandomAccess item) item
+        (instance? long-array-cls item) (ArrayLists/toList ^longs item)
+        (instance? double-array-cls item) (ArrayLists/toList ^doubles item)
+        (instance? obj-array-cls item) (ArrayLists/toList ^objects item)))
 
 
 (defn ->random-access
@@ -814,3 +821,81 @@ nil
                      (get [this inner]
                        (.get coll (+ batch-start (* inner step))))))))))
          (PartitionAll. n step (protocols/->iterable coll) false nil 0))))))
+
+
+(defn every?
+  "Faster (in most circumstances) implementation of clojure.core/every?.  This can be much faster in the case
+  of primitive arrays of values.  Type-hinted functions are best if coll is primitive array - see example.
+
+```clojure
+user> (type data)
+[J
+user> (count data)
+100
+user> (def vdata (vec data))
+#'user/vdata
+user> (crit/quick-bench (every? (fn [^long v] (> v 80)) data))
+             Execution time mean : 40.248868 ns
+nil
+user> (crit/quick-bench (lznc/every? (fn [^long v] (> v 80)) data))
+             Execution time mean : 7.601190 ns
+nil
+user> (crit/quick-bench (every? (fn [^long v] (< v 80)) vdata))
+             Execution time mean : 1.269582 µs
+nil
+user> (crit/quick-bench (lznc/every? (fn [^long v] (< v 80)) vdata))
+             Execution time mean : 211.645613 ns
+nil
+user>
+```"
+  [pred coll]
+  (if-let [coll (as-random-access coll)]
+    (let [ne (.size coll)
+          pred-type (if (instance? IMutList coll)
+                      (cond (instance? IFn$LO pred) :int64
+                            (instance? IFn$DO pred) :float64
+                            :else :object)
+                      :object)]
+      (case pred-type
+        :int64
+        (loop [idx 0]
+          (if (< idx ne)
+            (if (.invokePrim ^IFn$LO pred (.getLong ^IMutList coll (unchecked-int idx)))
+              (recur (unchecked-inc idx))
+              false)
+            true))
+        :float64
+        (loop [idx 0]
+          (if (< idx ne)
+            (if (.invokePrim ^IFn$DO pred (.getDouble ^IMutList coll (unchecked-int idx)))
+              (recur (unchecked-inc idx))
+              false)
+            true))
+        (loop [idx 0]
+          (if (< idx ne)
+            (if (pred (.get coll (unchecked-int idx)))
+              (recur (unchecked-inc idx))
+              false)
+            true))))
+    (cond
+      (instance? IFn$LO pred)
+      (reduce (fn [acc ^long v]
+                (if-not (.invokePrim ^IFn$LO pred v)
+                  (reduced false)
+                  true))
+              true
+              coll)
+      (instance? IFn$DO pred)
+      (reduce (fn [acc ^double v]
+                (if-not (.invokePrim ^IFn$DO pred v)
+                  (reduced false)
+                  true))
+              true
+              coll)
+      :else
+      (reduce (fn [acc v]
+              (if-not (pred v)
+                (reduced false)
+                true))
+            true
+            coll))))

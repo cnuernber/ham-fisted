@@ -1,8 +1,11 @@
-2.010
+# 2.011
+ * Much faster every? implementation esp. for primitive arrays and persistent vectors.
+
+# 2.010
  * Extensible let - hlet and helpers make using the primitive overloads of clojure functions easier.
    See the ham-fisted.hlet and ham-fisted.primtive-invoke namespaces.
 
-2.009
+# 2.009
  * typed 'nth' methods efficient for primitive manipulations - 'dnth', 'fnth', 'inth', 'lnth'.
 
 
