@@ -16,7 +16,7 @@
            [it.unimi.dsi.fastutil.ints IntArrays]
            [java.util RandomAccess Collection Map List Random Set Iterator]
            [clojure.lang RT IPersistentMap IReduceInit IReduce PersistentList
-            IFn$OLO IFn$ODO IFn$DD IFn$LD IFn$OD
+            IFn$OLO IFn$ODO IFn$DD IFn$LD IFn$OD IFn ArraySeq
             IFn$DL IFn$LL IFn$OL IFn$D IFn$L IFn$LO IFn$DO Counted IDeref Seqable IObj])
   (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle object-array
                             remove map-indexed partition-by partition-all every?]))
@@ -51,6 +51,12 @@
           (protocols/reducible? item))
     item
     (->collection item)))
+
+
+(defn ->iterable
+  ^Iterable [a]
+  (if (instance? Iterable a) a
+      (protocols/->iterable a)))
 
 
 (def ^:private obj-ary-cls (Class/forName "[Ljava.lang.Object;"))
@@ -230,7 +236,7 @@
                                            (mfn)))
                                      coll))))
     :else
-    (Transformables$IndexedMapper. map-fn (protocols/->iterable coll) nil)))
+    (Transformables$IndexedMapper. map-fn (->iterable coll) nil)))
 
 
 (pp/implement-tostring-print Transformables$IndexedMapper)
@@ -899,3 +905,137 @@ user>
                 true))
             true
             coll))))
+
+
+
+(defn cartesian-map
+  "Create a new sequence that is the cartesian join of the input sequence passed through f."
+  ([f] '())
+  ([f a] (map f a))
+  ([f a b]
+   (let [ar (as-random-access a)
+         br (as-random-access b)
+         reducer (fn [rfn acc]
+                   (if (instance? IReduceInit b)
+                     (reduce (fn [acc aa]
+                               ;;In very tight loops the reduce dispatch can take some time.
+                               (.reduce ^IReduceInit b
+                                        (fn [acc bb]
+                                          (rfn acc (f aa bb)))
+                                        acc))
+                             acc a)
+                     (reduce (fn [acc aa]
+                               (reduce (fn [acc bb]
+                                         (rfn acc (f aa bb)))
+                                       acc b))
+                             acc a)))]
+     (if (and ar br)
+       (let [as (.size ar)
+             bs (.size br)
+             ne (* as bs)]
+         (reify IMutList
+           (size [this] ne)
+           (get [this idx]
+             (let [aidx (quot idx bs)
+                   bidx (rem idx bs)]
+               (f (.get ar (unchecked-int aidx)) (.get br (unchecked-int bidx)))))
+           (reduce [this rfn acc]
+             (reducer rfn acc))))
+       (reify
+         Iterable
+         (iterator [this]
+           (let [a (->iterable a)
+                 b (->iterable b)
+                 ia (.iterator a)
+                 ib (clojure.lang.Box. (.iterator b))
+                 a-v? (clojure.lang.Box. (.hasNext ia))
+                 a-v (clojure.lang.Box. (when (.-val a-v?) (.next ia)))]
+             (reify Iterator
+               (hasNext [this] (and (.-val a-v?)
+                                    (.hasNext ^Iterator (.-val ib))))
+               (next [this]
+                 (let [^Iterator iib (.-val ib)
+                       rv (f (.-val a-v)
+                             (.next iib))]
+                   (when-not (.hasNext iib)
+                     (set! (.-val a-v?) (.hasNext ia))
+                     (when (.-val a-v?)
+                       (set! (.-val a-v) (.next ia))
+                       (set! (.-val ib) (.iterator b))))
+                   rv)))))
+         ITypedReduce
+         (reduce [this rfn acc]
+           (reducer rfn acc))))))
+  ([f a b & args]
+   (let [args (vec (concat [a b] args))
+         nargs (count args)
+         dnargs (dec nargs)]
+     (reify
+       Iterable
+       (iterator [this]
+         (let [iterables (mapv ->iterable args)
+               iterators (ArrayLists/toList (object-array (map #(.iterator ^Iterable %) iterables)))
+               values-valid? (clojure.lang.Box. false)
+               values (object-array nargs)
+               val-seq (ArraySeq/create values)
+               lidx
+               (long (loop [idx 0]
+                       (if (and (< idx dnargs) (.hasNext ^Iterator (iterators idx)))
+                         (do
+                           (aset values idx (.next ^Iterator (iterators idx)))
+                           (recur (unchecked-inc idx)))
+                         idx)))]
+           (set! (.-val values-valid?) (== lidx dnargs))
+           (reify
+             Iterator
+             (hasNext [this] (and (.-val values-valid?)
+                                  (.hasNext ^Iterator (iterators dnargs))))
+             (next [this]
+               (let [last-iter ^Iterator (iterators dnargs)
+                     _ (aset values dnargs (.next last-iter))
+                     rv (.applyTo ^IFn f val-seq)]
+                 (when-not (.hasNext last-iter)
+                   ;;Find the first iterator seaching backward that does have a valid next item
+                   (let [nidx (long (loop [idx 1]
+                                      (if (< idx nargs)
+                                        (let [ridx (- dnargs idx)
+                                              ^Iterator iter (iterators ridx)]
+                                          (if (.hasNext iter)
+                                            ridx
+                                            (recur (unchecked-inc idx))))
+                                        -1)))]
+                     (if (not (== nidx -1))
+                       (do
+                         (aset values nidx (.next ^Iterator (iterators nidx)))
+                         (loop [idx (unchecked-inc nidx)]
+                           (when (< idx nargs)
+                             (let [iter (.iterator ^Iterable (iterables idx))]
+                               (.set iterators idx iter)
+                               (when (< idx dnargs)
+                                 (aset values idx (.next iter)))
+                               (recur (unchecked-inc idx))))))
+                       ;;If there are no more valid iterators
+                       (set! (.-val values-valid?) false))))
+                 rv)))))
+       ITypedReduce
+       (reduce [this rfn acc]
+         (let [values (object-array nargs)
+               val-seq (ArraySeq/create values)
+               reducer (reduce (fn [rrfn ^long idx]
+                                (let [ridx (- dnargs idx)
+                                      reduce-target (args ridx)]
+                                  (fn reduce-wrapper [rfn ^objects values val-seq]
+                                    (let [inner-reducer (if (== idx 0)
+                                                          (fn final-reducer [acc v]
+                                                            (ArrayHelpers/aset values (unchecked-int ridx) v)
+                                                            (rfn acc (.applyTo ^IFn f val-seq)))
+                                                          (let [rr (rrfn rfn values val-seq)]
+                                                            (fn intermediate-reducer [acc v]
+                                                              (ArrayHelpers/aset values (unchecked-int ridx) v)
+                                                              (rr acc))))]
+                                      (if (instance? IReduceInit reduce-target)
+                                        #(.reduce ^IReduceInit reduce-target inner-reducer %)
+                                        #(reduce inner-reducer % reduce-target))))))
+                               nil
+                               (range nargs))]
+           ((reducer rfn values val-seq) acc)))))))

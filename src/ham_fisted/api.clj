@@ -2147,26 +2147,8 @@ ham-fisted.api> (binary-search data 1.1 nil)
   "Fast simple double summation.  Does not do any nan checking or summation
   compensation."
   ^double [coll]
-  (if-let [coll (lznc/as-random-access coll)]
-    (->> (pgroups
-          (.size coll)
-          ;;Really hard to beat simple/stupid/direct pathway
-          (if (instance? IMutList coll)
-            (fn [^long sidx ^long eidx]
-              (loop [sidx sidx
-                     sum 0.0]
-                (if (< sidx eidx)
-                  (recur (unchecked-inc sidx) (+ sum (.getDouble ^IMutList coll (unchecked-int sidx))))
-                  sum)))
-            (fn [^long sidx ^long eidx]
-              (loop [sidx sidx
-                     sum 0.0]
-                (if (< sidx eidx)
-                  (recur (unchecked-inc sidx) (+ sum (Casts/doubleCast (.get coll (unchecked-int sidx)))))
-                  sum)))))
-         (reduce (hamf-fn/double-binary-operator x y (+ x y)) 0.0))
-    ;;Using raw reduce call as opposed to reduce-reducer to avoid protocol dispatch for small N
-    @(reduce double-consumer-accumulator (Sum$SimpleSum.) coll)))
+  ;;Using raw reduce call as opposed to reduce-reducer to avoid protocol dispatch for small N
+  @(reduce double-consumer-accumulator (Sum$SimpleSum.) coll))
 
 
 
