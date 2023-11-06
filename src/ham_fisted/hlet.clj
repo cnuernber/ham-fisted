@@ -79,8 +79,10 @@ user> (hamf/sum-fast (lznc/cartesian-map
 
 (defmacro let
   "Extensible let intended to allow typed destructuring of arbitrary datatypes such as primitive arrays
-  or point types.  Falls back to normal let after extension process.  Two extensions are registered by default -
-  `dbls` and `lngs` which destructure into primitive doubles and primitive longs, respectively.
+  or point types.  Falls back to normal let after extension process.  Four extensions are registered by default -
+  * `dbls` and `lngs` which destructure into primitive doubles and primitive longs, respectively.
+  * `dlb-fns` and `lng-fns` which destructure into primitive doubls and longs but use the often faster IFn overloads
+     to get the data - avoiding RT.nth calls.
 
 ```clojure
 user> (h/let [[x y] (dbls (hamf/double-array [1 2]))]

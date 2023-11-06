@@ -31,11 +31,15 @@ This uses a special symbol that will look like a function call on the
 right hand side as the dispatch mechanism.</p>
 <p>See source code of this file for example extensions.</p>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/hlet.clj#L40">view source</a></div></div><div class="public anchor" id="var-let"><h3>let</h3><h4 class="type">macro</h4><div class="usage"><code>(let bindings &amp; body)</code></div><div class="doc"><div class="markdown"><p>Extensible let intended to allow typed destructuring of arbitrary datatypes such as primitive arrays
-or point types.  Falls back to normal let after extension process.  Two extensions are registered by default -
-<code>dbls</code> and <code>lngs</code> which destructure into primitive doubles and primitive longs, respectively.</p>
+or point types.  Falls back to normal let after extension process.  Four extensions are registered by default -</p>
+<ul>
+<li><code>dbls</code> and <code>lngs</code> which destructure into primitive doubles and primitive longs, respectively.</li>
+<li><code>dlb-fns</code> and <code>lng-fns</code> which destructure into primitive doubls and longs but use the often faster IFn overloads
+to get the data - avoiding RT.nth calls.</li>
+</ul>
 <pre><code class="language-clojure">user&gt; (h/let [[x y] (dbls (hamf/double-array [1 2]))]
         (+ x y))
 3.0
 </code></pre>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/hlet.clj#L80">view source</a></div></div><div class="public anchor" id="var-let-extension-names"><h3>let-extension-names</h3><div class="usage"><code>(let-extension-names)</code></div><div class="doc"><div class="markdown"><p>Return the current extension names.</p>
-</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/hlet.clj#L149">view source</a></div></div></div></body></html>
+</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/hlet.clj#L151">view source</a></div></div></div></body></html>
