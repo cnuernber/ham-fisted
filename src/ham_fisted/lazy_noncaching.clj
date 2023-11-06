@@ -203,7 +203,7 @@
    (let [args (concat [arg] args)]
      (if (every? #(instance? RandomAccess %) args)
        (Transformables$MapList/create f nil (into-array List args))
-       (Transformables$MapIterable. f nil (object-array args))))))
+       (Transformables$MapIterable. f nil (.toArray ^Collection args))))))
 
 
 (pp/implement-tostring-print Transformables$SingleMapList)
@@ -911,28 +911,37 @@ user>
 (defn cartesian-map
   "Create a new sequence that is the cartesian join of the input sequence passed through f.
   Unlike map, f is passed the arguments as a single persistent vector.  This is to enable much
-  higher efficiency in the higher-arity applications."
+  higher efficiency in the higher-arity applications.  For tight numeric loops, see [[ham_fisted.hlet/let]].
+```clojure
+user> (hamf/sum-fast (lznc/cartesian-map
+                      #(h/let [[a b c d](lng-fns %)]
+                         (-> (+ a b) (+ c) (+ d)))
+                      [1 2 3]
+                      [4 5 6]
+                      [7 8 9]
+                      [10 11 12 13 14]))
+3645.0
+```"
   ([f] '())
   ([f a] (map #(f [%]) a))
   ([f a b]
    (let [ar (as-random-access a)
          br (as-random-access b)
          reducer (fn [rfn acc]
-                   (let [values (object-array 2)
+                   (let [values (ArrayLists/objectArray (unchecked-int 2))
                          val-seq (ArrayLists/toList values)
                          inner-reducer (fn [acc bb]
                                          (ArrayHelpers/aset values 1 bb)
-                                         (rfn acc (f val-seq)))]
-                     (if (instance? IReduceInit b)
-                       (reduce (fn [acc aa]
-                                 (ArrayHelpers/aset values 0 aa)
-                                 ;;In very tight loops the reduce dispatch can take some time.
-                                 (.reduce ^IReduceInit b inner-reducer acc))
-                               acc a)
-                       (reduce (fn [acc aa]
-                                 (ArrayHelpers/aset values 0 aa)
-                                 (reduce inner-reducer acc b))
-                               acc a))))]
+                                         (rfn acc (f val-seq)))
+                         outer-reducer (if (instance? IReduceInit b)
+                                         (fn [acc aa]
+                                           (ArrayHelpers/aset values 0 aa)
+                                           ;;In very tight loops the reduce dispatch can take some time.
+                                           (.reduce ^IReduceInit b inner-reducer acc))
+                                         (fn [acc aa]
+                                           (ArrayHelpers/aset values 0 aa)
+                                           (reduce inner-reducer acc b)))]
+                     (reduce outer-reducer acc a)))]
      (if (and ar br)
        (let [as (.size ar)
              bs (.size br)
@@ -953,20 +962,25 @@ user>
                  ia (.iterator a)
                  ib (clojure.lang.Box. (.iterator b))
                  a-v? (clojure.lang.Box. (.hasNext ia))
-                 a-v (clojure.lang.Box. (when (.-val a-v?) (.next ia)))]
+                 values (ArrayLists/objectArray (unchecked-int 2))
+                 val-seq (ArrayLists/toList values)]
+             (when (.-val a-v?)
+               (aset values (unchecked-int 0) (.next ia)))
              (reify Iterator
                (hasNext [this] (and (.-val a-v?)
                                     (.hasNext ^Iterator (.-val ib))))
                (next [this]
                  (let [^Iterator iib (.-val ib)
-                       rv (f (.-val a-v)
-                             (.next iib))]
+                       _ (aset values (unchecked-int 1) (.next iib))
+                       rv (f val-seq)]
                    (when-not (.hasNext iib)
                      (set! (.-val a-v?) (.hasNext ia))
                      (when (.-val a-v?)
-                       (set! (.-val a-v) (.next ia))
+                       (aset values (unchecked-int 0) (.next ia))
                        (set! (.-val ib) (.iterator b))))
                    rv)))))
+         Seqable
+         (seq [this] (RT/chunkIteratorSeq (.iterator this)))
          ITypedReduce
          (reduce [this rfn acc]
            (reducer rfn acc))))))
@@ -978,9 +992,9 @@ user>
        Iterable
        (iterator [this]
          (let [iterables (mapv ->iterable args)
-               iterators (ArrayLists/toList (object-array (map #(.iterator ^Iterable %) iterables)))
+               iterators (ArrayLists/toList (.toArray ^Collection (map #(.iterator ^Iterable %) iterables)))
                values-valid? (clojure.lang.Box. false)
-               values (object-array nargs)
+               values (ArrayLists/objectArray (unchecked-int nargs))
                val-seq (ArrayLists/toList values)
                lidx
                (long (loop [idx 0]
@@ -1021,27 +1035,27 @@ user>
                        ;;If there are no more valid iterators
                        (set! (.-val values-valid?) false))))
                  rv)))))
+       Seqable
+       (seq [this] (RT/chunkIteratorSeq (.iterator this)))
        ITypedReduce
        (reduce [this rfn acc]
-         (let [values (object-array nargs)
+         (let [values (ArrayLists/objectArray (unchecked-int nargs))
                val-seq (ArrayLists/toList values)
-               ;;We could cache the reducer but it wouldn't in most cases as people aren't going to cache the
+               ;;We could cache the reducer but it wouldn't help in most cases as people aren't going to cache the
                ;;cartesian map object.
                reducer (reduce (fn [rrfn ^long idx]
                                 (let [ridx (- dnargs idx)
-                                      reduce-target (args ridx)]
-                                  (fn reduce-wrapper [rfn ^objects values val-seq]
-                                    (let [inner-reducer (if (== idx 0)
-                                                          (fn final-reducer [acc v]
-                                                            (ArrayHelpers/aset values (unchecked-int ridx) v)
-                                                            (rfn acc (f val-seq)))
-                                                          (let [rr (rrfn rfn values val-seq)]
-                                                            (fn intermediate-reducer [acc v]
-                                                              (ArrayHelpers/aset values (unchecked-int ridx) v)
-                                                              (rr acc))))]
-                                      (if (instance? IReduceInit reduce-target)
-                                        #(.reduce ^IReduceInit reduce-target inner-reducer %)
-                                        #(reduce inner-reducer % reduce-target))))))
+                                      reduce-target (args ridx)
+                                      inner-reducer (if (== idx 0)
+                                                      (fn final-reducer [acc v]
+                                                        (ArrayHelpers/aset values (unchecked-int ridx) v)
+                                                        (rfn acc (f val-seq)))
+                                                      (fn intermediate-reducer [acc v]
+                                                        (ArrayHelpers/aset values (unchecked-int ridx) v)
+                                                        (rrfn acc)))]
+                                  (if (instance? IReduceInit reduce-target)
+                                    #(.reduce ^IReduceInit reduce-target inner-reducer %)
+                                    #(reduce inner-reducer % reduce-target))))
                                nil
                                (range nargs))]
-           ((reducer rfn values val-seq) acc)))))))
+           (reducer acc)))))))

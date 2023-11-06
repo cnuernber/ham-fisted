@@ -1,21 +1,35 @@
 (ns ham-fisted.hlet
-  "Extensible let to allow efficient typed destructuring.  Two extensions are registered - dbls and lngs which
-  do an efficient typed nth operation resulting in primitive longs and doubles respectively.
+  "Extensible let to allow efficient typed destructuring.  A few extensions are registered - `dbls`, `lngs`
+  `dbl-fns` and `lng-fns`  which do an efficient typed nth operation resulting in
+  primitive longs and doubles respectively.
 
-  dbls and lngs will most efficiently destructure java primitive arrays and fall back to casting the result
+  `dbls` and `lngs` will most efficiently destructure java primitive arrays and fall back to casting the result
   of clojure.lang.RT/nth if input is not a double or long array.
+
+  `dlb-fns` and `lng-fns` call the object's IFn interface with no interface checking.  This will *not* work
+   with a raw array but is the fastest way - faster than RT.nth - to get data out of a persistent-vector or map
+   like object.
 
   This can significantly reduce boxing in tight loops without needing to result in really verbose pathways.
 
 ```clojure
 user> (h/let [[a b] (dbls [1 2])] (+ a b))
-3.0
+  3.0
+user> (hamf/sum-fast (lznc/cartesian-map
+                      #(h/let [[a b c d](lng-fns %)]
+                         (-> (+ a b) (+ c) (+ d)))
+                      [1 2 3]
+                      [4 5 6]
+                      [7 8 9]
+                      [10 11 12 13 14]))
+3645.0
 ```
   See also [[ham-fisted.primitive-invoke]], [[ham-fisted.api/dnth]] [[ham-fisted.api/lnth]]."
   (:require [ham-fisted.api :as hamf]
             [ham-fisted.lazy-noncaching :as lznc]
             [ham-fisted.reduce :as hamf-rf])
-  (:import [java.util List])
+  (:import [java.util List]
+           [ham_fisted Casts])
   (:refer-clojure :exclude [let]))
 
 
@@ -102,11 +116,34 @@ user> (h/let [[x y] (dbls (hamf/double-array [1 2]))]
 
 (extend-let
  'dbls
- #(typed-nth-destructure 'ham-fisted.api/dnth double %))
+ #(typed-nth-destructure 'ham-fisted.api/dnth 'ham_fisted.Casts/doubleCast %))
 
 (extend-let
  'lngs
- #(typed-nth-destructure 'ham-fisted.api/lnth long %))
+ #(typed-nth-destructure 'ham-fisted.api/lnth 'ham_fisted.Casts/longCast %))
+
+
+(defn ^:no-doc typed-fn-destructure
+  [scalar-cast code]
+  (clojure.core/let [lvec (code 0)
+                     rdata (second (code 1))]
+    (if (vector? lvec)
+      (let [rtemp (if (symbol? rdata)
+                    rdata
+                    (gensym "__dbls"))]
+        (-> (reduce (hamf-rf/indexed-accum
+                     acc idx lv-entry
+                     (add-all! acc [lv-entry `(~scalar-cast (~rtemp ~idx))]))
+                    (hamf/mut-list (if (identical? rtemp rdata)
+                                     nil
+                                     [rtemp rdata]))
+                    lvec)
+            (persistent!)))
+      [lvec `(~scalar-cast ~rdata)])))
+
+
+(extend-let 'lng-fns #(typed-fn-destructure 'ham_fisted.Casts/longCast %))
+(extend-let 'dbl-fns #(typed-fn-destructure 'ham_fisted.Casts/doubleCast %))
 
 
 (defn let-extension-names
