@@ -476,13 +476,31 @@ public class ArrayLists {
 
   @SuppressWarnings("unchecked")
   public static Object[] toArray(Collection c) {
-    final ObjectArrayList res = new ObjectArrayList();
-    res.addAllReducible(c);
-    return res.toArray();
+    if( c instanceof RandomAccess ) {
+      List l = (List)c;
+      final int ne = l.size();
+      Object[] rv = new Object[l.size()];
+      for(int idx = 0; idx < ne; ++idx)
+	rv[idx] = l.get(idx);
+      return rv;
+    } else {
+      final ObjectArrayList res = new ObjectArrayList();
+      res.addAllReducible(c);
+      return res.toArray();
+    }
   }
 
   @SuppressWarnings("unchecked")
   public static <T> T[] toArray(Collection c, T[] d) {
+    if(c instanceof RandomAccess) {
+      List l = (List)c;
+      final int ne = l.size();
+      final T[] rv = Arrays.copyOf(d, ne);
+      for(int idx = 0; idx < ne; ++idx) {
+	rv[idx] = (T)l.get(idx);
+      }
+      return rv;
+    }
     final ObjectArrayList res = ObjectArrayList.wrap(d, 0, null);
     res.addAllReducible(c);
     return (T[])res.toArray();
