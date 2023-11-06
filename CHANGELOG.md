@@ -1,5 +1,19 @@
 # 2.011
  * Much faster every? implementation esp. for primitive arrays and persistent vectors.
+ * More hlet extensions - `lng-fns` and `dbl-fns` which are faster in the general case
+   then `lngs` and `dbls` as they avoid RT/nth.
+ * efficient `cartesian-map` which does a cartesian join across its inputs and calls f on
+   each value.
+```clojure
+user> (hamf/sum-fast (lznc/cartesian-map
+                      #(h/let [[a b c d](lng-fns %)]
+                         (-> (+ a b) (+ c) (+ d)))
+                      [1 2 3]
+                      [4 5 6]
+                      [7 8 9]
+                      [10 11 12 13 14]))
+3645.0
+```
 
 # 2.010
  * Extensible let - hlet and helpers make using the primitive overloads of clojure functions easier.
