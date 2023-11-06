@@ -780,9 +780,8 @@ user> (crit/quick-bench (into [] (comp (clojure.core/partition-by identity)
 (defn partition-all
   "Lazy noncaching version of partition-all.  When input is random access returns random access result.
 
-  Similar to [[partition-by]] but only if input is not random access each sub-collection must be entirely
+  If input is not random access then similar to [[partition-by]] each sub-collection must be entirely
   iterated through before requesting the next sub-collection.
-
 
 ```clojure
 user> (crit/quick-bench (mapv hamf/sum-fast (lznc/partition-all 100 (range 100000))))
