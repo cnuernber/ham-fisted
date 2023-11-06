@@ -909,26 +909,30 @@ user>
 
 
 (defn cartesian-map
-  "Create a new sequence that is the cartesian join of the input sequence passed through f."
+  "Create a new sequence that is the cartesian join of the input sequence passed through f.
+  Unlike map, f is passed the arguments as a single persistent vector.  This is to enable much
+  higher efficiency in the higher-arity applications."
   ([f] '())
-  ([f a] (map f a))
+  ([f a] (map #(f [%]) a))
   ([f a b]
    (let [ar (as-random-access a)
          br (as-random-access b)
          reducer (fn [rfn acc]
-                   (if (instance? IReduceInit b)
-                     (reduce (fn [acc aa]
-                               ;;In very tight loops the reduce dispatch can take some time.
-                               (.reduce ^IReduceInit b
-                                        (fn [acc bb]
-                                          (rfn acc (f aa bb)))
-                                        acc))
-                             acc a)
-                     (reduce (fn [acc aa]
-                               (reduce (fn [acc bb]
-                                         (rfn acc (f aa bb)))
-                                       acc b))
-                             acc a)))]
+                   (let [values (object-array 2)
+                         val-seq (ArrayLists/toList values)
+                         inner-reducer (fn [acc bb]
+                                         (ArrayHelpers/aset values 1 bb)
+                                         (rfn acc (f val-seq)))]
+                     (if (instance? IReduceInit b)
+                       (reduce (fn [acc aa]
+                                 (ArrayHelpers/aset values 0 aa)
+                                 ;;In very tight loops the reduce dispatch can take some time.
+                                 (.reduce ^IReduceInit b inner-reducer acc))
+                               acc a)
+                       (reduce (fn [acc aa]
+                                 (ArrayHelpers/aset values 0 aa)
+                                 (reduce inner-reducer acc b))
+                               acc a))))]
      (if (and ar br)
        (let [as (.size ar)
              bs (.size br)
@@ -938,7 +942,7 @@ user>
            (get [this idx]
              (let [aidx (quot idx bs)
                    bidx (rem idx bs)]
-               (f (.get ar (unchecked-int aidx)) (.get br (unchecked-int bidx)))))
+               (f [(.get ar (unchecked-int aidx)) (.get br (unchecked-int bidx))])))
            (reduce [this rfn acc]
              (reducer rfn acc))))
        (reify
@@ -977,7 +981,7 @@ user>
                iterators (ArrayLists/toList (object-array (map #(.iterator ^Iterable %) iterables)))
                values-valid? (clojure.lang.Box. false)
                values (object-array nargs)
-               val-seq (ArraySeq/create values)
+               val-seq (ArrayLists/toList values)
                lidx
                (long (loop [idx 0]
                        (if (and (< idx dnargs) (.hasNext ^Iterator (iterators idx)))
@@ -993,7 +997,7 @@ user>
              (next [this]
                (let [last-iter ^Iterator (iterators dnargs)
                      _ (aset values dnargs (.next last-iter))
-                     rv (.applyTo ^IFn f val-seq)]
+                     rv (f val-seq)]
                  (when-not (.hasNext last-iter)
                    ;;Find the first iterator seaching backward that does have a valid next item
                    (let [nidx (long (loop [idx 1]
@@ -1020,7 +1024,9 @@ user>
        ITypedReduce
        (reduce [this rfn acc]
          (let [values (object-array nargs)
-               val-seq (ArraySeq/create values)
+               val-seq (ArrayLists/toList values)
+               ;;We could cache the reducer but it wouldn't in most cases as people aren't going to cache the
+               ;;cartesian map object.
                reducer (reduce (fn [rrfn ^long idx]
                                 (let [ridx (- dnargs idx)
                                       reduce-target (args ridx)]
@@ -1028,7 +1034,7 @@ user>
                                     (let [inner-reducer (if (== idx 0)
                                                           (fn final-reducer [acc v]
                                                             (ArrayHelpers/aset values (unchecked-int ridx) v)
-                                                            (rfn acc (.applyTo ^IFn f val-seq)))
+                                                            (rfn acc (f val-seq)))
                                                           (let [rr (rrfn rfn values val-seq)]
                                                             (fn intermediate-reducer [acc v]
                                                               (ArrayHelpers/aset values (unchecked-int ridx) v)
