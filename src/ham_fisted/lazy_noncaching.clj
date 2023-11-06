@@ -1,4 +1,13 @@
 (ns ham-fisted.lazy-noncaching
+  "Lazy, noncaching implementation of many clojure.core functions.  There are several benefits of carefully
+   constructed lazy noncaching versions:
+
+   1. No locking - better multithreading/green thread performance.
+   2. Higher performance generally.
+   3. More datatype flexibility - if map is passed a single randomly addressible or generically
+   parallelizable container the result is still randomly addressible or generically perallelizable.
+   For instance (map key {:a 1 :b 2}) returns in the generic case something that can still be parallelizable
+   as the entry set of a map implements spliterator."
   (:require [ham-fisted.iterator :as iterator]
             [ham-fisted.alists :as alists]
             [ham-fisted.protocols :as protocols]
@@ -364,7 +373,7 @@
 
 (defn repeatedly
   "When called with one argument, produce infinite list of calls to v.
-  When called with two arguments, produce a random access list of length n of calls to v."
+  When called with two arguments, produce a non-caching random access list of length n of calls to v."
   ([f] (clojure.core/repeatedly f))
   (^IMutList [n f]
    (let [n (int n)]
@@ -374,13 +383,13 @@
          (containedType [this] Long/TYPE)
          LongMutList
          (size [this] (unchecked-int n))
-         (getLong [this idx] (Casts/longCast (f))))
+         (getLong [this idx] (.invokePrim ^IFn$L f)))
        :float64
        (reify TypedList
          (containedType [this] Double/TYPE)
          DoubleMutList
          (size [this] (unchecked-int n))
-         (getDouble [this idx] (Casts/doubleCast (f))))
+         (getDouble [this idx] (.invokePrim ^IFn$D f)))
        (reify IMutList
          (size [this] (int n))
          (get [this idx] (f)))))))

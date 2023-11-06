@@ -1,14 +1,17 @@
 (ns ham-fisted.hlet
-  "Extensible let to allow efficient typed destructuring.  A few extensions are registered - `dbls`, `lngs`
-  `dbl-fns` and `lng-fns`  which do an efficient typed nth operation resulting in
-  primitive longs and doubles respectively.
+  "Extensible let to allow efficient typed destructuring.
+
+  Registered Extensions:
 
   `dbls` and `lngs` will most efficiently destructure java primitive arrays and fall back to casting the result
   of clojure.lang.RT/nth if input is not a double or long array.
 
   `dlb-fns` and `lng-fns` call the object's IFn interface with no interface checking.  This will *not* work
-   with a raw array but is the fastest way - faster than RT.nth - to get data out of a persistent-vector or map
+   with a raw array but is the fastest way - faster than RT/nth - to get data out of a persistent-vector or map
    like object.
+
+  `obj-fns` - fast IFn-based destructuring to objects - does not work with object arrays.  Often much faster
+   than RT/nth.
 
   This can significantly reduce boxing in tight loops without needing to result in really verbose pathways.
 
@@ -61,6 +64,15 @@ user> (hamf/sum-fast (lznc/cartesian-map
   (.addAll ^List a bs)
   a)
 
+(defn- add!
+  ([a b]
+   (.add ^List a b)
+   a)
+  ([a b c]
+   (.add ^List a b)
+   (.add ^List a c)
+   a))
+
 
 (defn- process-bindings
   [bindings]
@@ -79,10 +91,11 @@ user> (hamf/sum-fast (lznc/cartesian-map
 
 (defmacro let
   "Extensible let intended to allow typed destructuring of arbitrary datatypes such as primitive arrays
-  or point types.  Falls back to normal let after extension process.  Four extensions are registered by default -
+  or point types.  Falls back to normal let after extension process.  Several extensions are registered by default -
   * `dbls` and `lngs` which destructure into primitive doubles and primitive longs, respectively.
   * `dlb-fns` and `lng-fns` which destructure into primitive doubls and longs but use the often faster IFn overloads
      to get the data - avoiding RT.nth calls.
+  * `obj-fns` which destructure into objects using the IFn interface.
 
 ```clojure
 user> (h/let [[x y] (dbls (hamf/double-array [1 2]))]
@@ -96,56 +109,53 @@ user> (h/let [[x y] (dbls (hamf/double-array [1 2]))]
   `(clojure.core/let ~(process-bindings bindings)
      ~@body))
 
-
-(defn ^:no-doc typed-nth-destructure
-  [nth-symbol scalar-cast code]
+(defn ^:no-doc typed-destructure
+  [code scalar-fn nth-fn]
   (clojure.core/let [lvec (code 0)
                      rdata (second (code 1))]
     (if (vector? lvec)
       (let [rtemp (if (symbol? rdata)
                     rdata
-                    (gensym "__dbls"))]
+                    (gensym "__tmp"))]
         (-> (reduce (hamf-rf/indexed-accum
                      acc idx lv-entry
-                     (add-all! acc [lv-entry `(~nth-symbol ~rtemp ~idx)]))
+                     (nth-fn rtemp acc idx lv-entry))
                     (hamf/mut-list (if (identical? rtemp rdata)
                                      nil
                                      [rtemp rdata]))
                     lvec)
             (persistent!)))
-      [lvec `(~scalar-cast ~rdata)])))
+      (scalar-fn lvec rdata))))
 
 
-(extend-let
- 'dbls
- #(typed-nth-destructure 'ham-fisted.api/dnth 'ham_fisted.Casts/doubleCast %))
+(defn ^:no-doc typed-nth-destructure
+  [nth-symbol scalar-cast code]
+  (typed-destructure code
+                     (fn [lvec rdata]
+                       [lvec `(~scalar-cast ~rdata)])
+                     (fn [rtemp acc ^long idx lv-entry]
+                       (add! acc lv-entry `(~nth-symbol ~rtemp ~idx)))))
 
-(extend-let
- 'lngs
- #(typed-nth-destructure 'ham-fisted.api/lnth 'ham_fisted.Casts/longCast %))
+(extend-let 'dbls #(typed-nth-destructure 'ham-fisted.api/dnth 'ham_fisted.Casts/doubleCast %))
+(extend-let 'lngs #(typed-nth-destructure 'ham-fisted.api/lnth 'ham_fisted.Casts/longCast %))
 
 
 (defn ^:no-doc typed-fn-destructure
   [scalar-cast code]
-  (clojure.core/let [lvec (code 0)
-                     rdata (second (code 1))]
-    (if (vector? lvec)
-      (let [rtemp (if (symbol? rdata)
-                    rdata
-                    (gensym "__dbls"))]
-        (-> (reduce (hamf-rf/indexed-accum
-                     acc idx lv-entry
-                     (add-all! acc [lv-entry `(~scalar-cast (~rtemp ~idx))]))
-                    (hamf/mut-list (if (identical? rtemp rdata)
-                                     nil
-                                     [rtemp rdata]))
-                    lvec)
-            (persistent!)))
-      [lvec `(~scalar-cast ~rdata)])))
+  (typed-destructure code
+                     (fn [lvec rdata]
+                       [lvec `(~scalar-cast ~rdata)])
+                     (fn [rtemp acc ^long idx lv-entry]
+                       (add! acc lv-entry `(~scalar-cast (~rtemp ~idx))))))
 
 
 (extend-let 'lng-fns #(typed-fn-destructure 'ham_fisted.Casts/longCast %))
 (extend-let 'dbl-fns #(typed-fn-destructure 'ham_fisted.Casts/doubleCast %))
+(extend-let 'obj-fns #(typed-destructure %
+                                         (fn [lvec rdata]
+                                           [lvec `~rdata])
+                                         (fn [rtemp acc ^long idx lv-entry]
+                                           (add! acc lv-entry `(~rtemp ~idx)))))
 
 
 (defn let-extension-names
