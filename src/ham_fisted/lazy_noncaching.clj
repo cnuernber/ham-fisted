@@ -28,7 +28,7 @@
             IFn$OLO IFn$ODO IFn$DD IFn$LD IFn$OD IFn ArraySeq
             IFn$DL IFn$LL IFn$OL IFn$D IFn$L IFn$LO IFn$DO Counted IDeref Seqable IObj])
   (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle object-array
-                            remove map-indexed partition-by partition-all every?]))
+                            remove map-indexed partition-by partition-all every? apply]))
 
 
 (set! *warn-on-reflection* true)
@@ -123,6 +123,49 @@
         (instance? obj-array-cls item) (ArrayLists/toList ^objects item)))
 
 
+(defn apply
+  ([f] (.invoke ^clojure.lang.IFn f))
+  ([f args] (.applyTo ^clojure.lang.IFn f args))
+  ([f x args]
+   (let [arglist (if-let [argsl (as-random-access args)]
+                   (let [ne (.size argsl)]
+                     (reify IMutList
+                       (size [this] (+ ne 1))
+                       (get [this idx]
+                         (if (== idx 0)
+                           x
+                           (.get argsl (unchecked-dec idx))))))
+                   (list* x (seq args)))]
+     (.applyTo ^clojure.lang.IFn f arglist)))
+  ([f x y args]
+   (let [arglist (if-let [argsl (as-random-access args)]
+                   (let [ne (.size argsl)]
+                     (reify IMutList
+                       (size [this] (+ ne 2))
+                       (get [this idx]
+                         (case idx
+                           0 x
+                           1 y
+                           (.get argsl (- idx 2))))))
+                   (list* x y (seq args)))]
+     (.applyTo ^clojure.lang.IFn f arglist)))
+  ([f x y z args]
+   (let [arglist (if-let [argsl (as-random-access args)]
+                   (let [ne (.size argsl)]
+                     (reify IMutList
+                       (size [this] (+ ne 3))
+                       (get [this idx]
+                         (case idx
+                           0 x
+                           1 y
+                           2 z
+                           (.get argsl (- idx 3))))))
+                   (list* x y z (seq args)))]
+     (.applyTo ^clojure.lang.IFn f arglist)))
+  ([f x y z w & args]
+   (.applyTo ^clojure.lang.IFn f )))
+
+
 (defn ->random-access
   ^List [item]
   (if (instance? RandomAccess item)
@@ -181,16 +224,12 @@
          (reify IFnDef$OLO
            (invoke [this] (rf))
            (invoke [this result] (rf result))
-           (invokePrim [this acc v] (.invokePrim ^IFn$OLO rf acc v))
-           (applyTo [this args]
-             (rf (first args) (apply f (rest args)))))
+           (invokePrim [this acc v] (.invokePrim ^IFn$OLO rf acc v)))
          (instance? IFn$ODO rf)
          (reify IFnDef$ODO
            (invoke [this] (rf))
            (invoke [this result] (rf result))
-           (invokePrim [this acc v] (.invokePrim ^IFn$ODO rf acc v))
-           (applyTo [this args]
-             (rf (first args) (apply f (rest args)))))
+           (invokePrim [this acc v] (.invokePrim ^IFn$ODO rf acc v)))
          :else
          (fn
            ([] (rf))
@@ -198,7 +237,7 @@
            ([result input]
             (rf result input))
            ([result input & inputs]
-            (apply rf result input inputs)))))))
+            (clojure.core/apply rf result input inputs)))))))
   ([f arg]
    (cond
      (nil? arg) PersistentList/EMPTY
