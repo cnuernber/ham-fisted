@@ -1067,3 +1067,18 @@ user> (hamf/sum-fast (lznc/cartesian-map
                                nil
                                (range nargs))]
            (reducer acc)))))))
+
+(comment
+
+  (defn lplus
+        (^long [^long a ^long b](+ a b))
+        (^long [^long a ^long b ^long c] (-> (+ a b) (+ c)))
+        (^long [^long a ^long b ^long c ^long d] (-> (+ a b) (+ c) (+ d)))
+        ([a b c d e](-> (+ (long a) (long b))
+                        (+ (long c))
+                        (+ (long d))
+                        (+ (long e)))))
+
+  (def data (hamf/range 200))
+
+  )
