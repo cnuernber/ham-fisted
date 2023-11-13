@@ -435,7 +435,7 @@ public class Transformables {
 	      Object[] args = new Object[ss];
 	      for (int idx = 0; idx < ss; ++idx)
 		args[idx] = iterators[idx].next();
-	      return fn.applyTo(ArrayLists.toList(args));
+	      return fn.applyTo(ArraySeq.create(args));
 	    }
 	  }
 	};
@@ -1023,7 +1023,7 @@ public class Transformables {
 	Object[] args = new Object[ls];
 	for (int aidx = 0; aidx < ls; ++aidx)
 	  args[aidx] = lists[aidx].get(idx);
-	return fn.applyTo(ArrayLists.toList(args));
+	return fn.applyTo(ArraySeq.create(args));
       }
     }
     public Object reduce(IFn rfn, Object acc) {
@@ -1038,7 +1038,7 @@ public class Transformables {
       }
       //fallthrough
       final Object[] args = new Object[ls];
-      final List arglist = ArrayLists.toList(args);
+      final ISeq arglist = ArraySeq.create(args);
       for(int oidx = 0; oidx < ne; ++oidx) {
 	for (int aidx = 0; aidx < ls; ++aidx)
 	  args[aidx] = lists[aidx].get(oidx);

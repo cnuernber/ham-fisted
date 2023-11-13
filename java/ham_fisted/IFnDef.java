@@ -6,6 +6,9 @@ import clojure.lang.ISeq;
 import clojure.lang.Util;
 import clojure.lang.RT;
 import clojure.lang.ArityException;
+import java.util.List;
+import java.util.RandomAccess;
+import java.util.ArrayList;
 import java.util.function.Supplier;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
@@ -155,284 +158,111 @@ public interface IFnDef extends IFn
     return ifaceApplyToHelper(this, Util.ret1(arglist,arglist = null));
   }
 
-  default Object ifaceApplyToHelper(IFn ifn, ISeq arglist) {
-    switch(RT.boundedLength(arglist, 20))
-      {
-      case 0:
-	arglist = null;
-	return ifn.invoke();
-      case 1:
-	return ifn.invoke(Util.ret1(arglist.first(),arglist = null));
-      case 2:
-	return ifn.invoke(arglist.first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 3:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 4:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 5:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 6:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 7:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 8:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 9:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 10:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 11:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 12:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 13:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 14:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 15:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 16:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 17:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 18:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 19:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      case 20:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , Util.ret1((arglist = arglist.next()).first(),arglist = null)
-			  );
-      default:
-	return ifn.invoke(arglist.first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , (arglist = arglist.next()).first()
-			  , RT.seqToArray(Util.ret1(arglist.next(),arglist = null)));
+  static public List asRandomAccess(Object arglist) {
+    if(arglist instanceof RandomAccess)
+      return (List)arglist;
+    else if (arglist instanceof Object[])
+      return ArrayLists.toList((Object[])arglist);
+    else
+      return null;
+  }
+  @SuppressWarnings("unchecked")
+  static public Object ifaceApplyToHelper(IFn ifn, Object arglist) {
+    List args = null;
+    if( arglist != null ) {
+      args = asRandomAccess(arglist);
+      if(args == null) {
+	ISeq c = RT.seq(arglist);
+	if(c != null) {
+	  ArrayList al = new ArrayList();
+	  for(; c != null; c = c.next()) {
+	    al.add(c.first());
+	  }
+	  args = al;
+	}
       }
+      arglist = null;
+    }
+    switch(args != null ? args.size() : 0) {
+    case 0:
+      return ifn.invoke();
+    case 1:
+      return ifn.invoke(args.get(0));
+    case 2:
+      return ifn.invoke(args.get(0), args.get(1));
+    case 3:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2));
+    case 4:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3));
+    case 5:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3), args.get(4));
+    case 6:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3), args.get(4),
+			args.get(5));
+    case 7:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3), args.get(4),
+			args.get(5), args.get(6));
+    case 8:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3), args.get(4),
+			args.get(5), args.get(6), args.get(7));
+    case 9:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3), args.get(4),
+			args.get(5), args.get(6), args.get(7), args.get(8));
+    case 10:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3), args.get(4),
+			args.get(5), args.get(6), args.get(7), args.get(8), args.get(9));
+    case 11:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3), args.get(4),
+			args.get(5), args.get(6), args.get(7), args.get(8), args.get(9),
+			args.get(10));
+    case 12:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3), args.get(4),
+			args.get(5), args.get(6), args.get(7), args.get(8), args.get(9),
+			args.get(10), args.get(11));
+    case 13:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3), args.get(4),
+			args.get(5), args.get(6), args.get(7), args.get(8), args.get(9),
+			args.get(10), args.get(11), args.get(12));
+    case 14:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3), args.get(4),
+			args.get(5), args.get(6), args.get(7), args.get(8), args.get(9),
+			args.get(10), args.get(11), args.get(12), args.get(13));
+    case 15:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3), args.get(4),
+			args.get(5), args.get(6), args.get(7), args.get(8), args.get(9),
+			args.get(10), args.get(11), args.get(12), args.get(13), args.get(14));
+    case 16:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3), args.get(4),
+			args.get(5), args.get(6), args.get(7), args.get(8), args.get(9),
+			args.get(10), args.get(11), args.get(12), args.get(13), args.get(14),
+			args.get(15));
+    case 17:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3), args.get(4),
+			args.get(5), args.get(6), args.get(7), args.get(8), args.get(9),
+			args.get(10), args.get(11), args.get(12), args.get(13), args.get(14),
+			args.get(15), args.get(16));
+    case 18:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3), args.get(4),
+			args.get(5), args.get(6), args.get(7), args.get(8), args.get(9),
+			args.get(10), args.get(11), args.get(12), args.get(13), args.get(14),
+			args.get(15), args.get(16), args.get(17));
+    case 19:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3), args.get(4),
+			args.get(5), args.get(6), args.get(7), args.get(8), args.get(9),
+			args.get(10), args.get(11), args.get(12), args.get(13), args.get(14),
+			args.get(15), args.get(16), args.get(17), args.get(18));
+    case 20:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3), args.get(4),
+			args.get(5), args.get(6), args.get(7), args.get(8), args.get(9),
+			args.get(10), args.get(11), args.get(12), args.get(13), args.get(14),
+			args.get(15), args.get(16), args.get(17), args.get(18), args.get(19));
+    default:
+      return ifn.invoke(args.get(0), args.get(1), args.get(2), args.get(3), args.get(4),
+			args.get(5), args.get(6), args.get(7), args.get(8), args.get(9),
+			args.get(10), args.get(11), args.get(12), args.get(13), args.get(14),
+			args.get(15), args.get(16), args.get(17), args.get(18), args.get(19),
+			args.subList(20, args.size()).toArray());
+    }
   }
 
   default Object throwArity(int n){

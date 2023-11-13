@@ -11,6 +11,7 @@ import clojure.lang.IFn;
 import clojure.lang.IDeref;
 import clojure.lang.Util;
 import clojure.lang.Reduced;
+import clojure.lang.ISeq;
 
 
 
@@ -80,6 +81,7 @@ public class Ranges {
       ChunkedList.sublistCheck(sidx, eidx, nElems);
       return new LongRange(start + sidx*step, start + eidx*step, step, meta);
     }
+    public ISeq seq() { return new SublistSeq(this, 0, null); }
     public LongMutList subList(int sidx, int eidx) {
       return subList((long)sidx, (long)eidx);
     }
@@ -184,6 +186,7 @@ public class Ranges {
 				   " size: " + String.valueOf(sz));
       return start + step*idx;
     }
+    public ISeq seq() { return new SublistSeq(this, 0, null); }
     public double getDouble(int idx) { return lgetDouble(idx); }
     public int[] toIntArray() {
       final int st = RT.intCast(step);

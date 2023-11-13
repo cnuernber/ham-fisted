@@ -562,7 +562,86 @@ public interface IMutList<E>
   default boolean equiv(Object other) {
     return CljHash.listEquiv(this, other);
   }
-  static class IndexSeq extends ASeq {
+  //Pure functional lists can use sublistSeq - no locking
+  //and no temporary storage.
+  static class SublistSeq extends ASeq implements IChunkedSeq {
+    final List l;
+    final int idx;
+    final int ssz;
+    final Object v;
+    public SublistSeq(List _l, int _idx, IPersistentMap m) {
+      super(m);
+      l = _l;
+      idx = _idx;
+      ssz = l.size() - 1;
+      v = l.get(idx);
+    }
+    public SublistSeq(SublistSeq other, IPersistentMap m) {
+      super(m);
+      l = other.l;
+      idx = other.idx;
+      ssz = other.ssz;
+      v = other.v;
+    }
+    public int size() { return ssz - idx +1; }
+    public Object first() { return v; }
+    public ISeq next() {
+      if (idx >= ssz) return null;
+      return new SublistSeq(l, idx+1, meta());
+    }
+    public SublistSeq withMeta(IPersistentMap m) {
+      return new SublistSeq(this, m);
+    }
+
+    public static IChunk sublistToChunk(List data) {
+      final int nElems = data.size();
+      if(nElems > 0) {
+	return new IChunk() {
+	  public int count() { return nElems; }
+	  public Object nth(int idx, Object defVal) {
+	    return (idx < nElems) ? data.get(idx) : defVal;
+	  }
+	  public Object nth(int idx) {
+	    if(idx < nElems)
+	      return data.get(idx);
+	    throw new IndexOutOfBoundsException();
+	  }
+	  public IChunk dropFirst() {
+	    return sublistToChunk(data);
+	  }
+	  public Object reduce(IFn rfn, Object acc) {
+	    final int ne = nElems;
+	    for(int idx = 0; idx < ne; ++idx) {
+	      acc = rfn.invoke(acc, data.get(idx));
+	      if(RT.isReduced(acc))
+		return ((IDeref)acc).deref();
+	    }
+	    return acc;
+	  }
+	};
+      }
+      return null;
+    }
+
+    public IChunk chunkedFirst(){
+      return sublistToChunk(l.subList(idx, idx+Math.min(32, size())));
+    }
+
+    public ISeq chunkedNext(){
+      return chunkedMore().seq();
+    }
+
+    public ISeq chunkedMore() {
+      if(size() < 32)
+	return PersistentList.EMPTY;
+      return new SublistSeq(l, idx+32, null);
+    }
+
+    public Object[] toArray() {
+      return l.subList(idx, idx + size()).toArray();
+    }
+  }
+  static class IndexSeq extends ASeq implements IChunkedSeq {
     final List l;
     final int idx;
     final int ssz;
@@ -620,7 +699,7 @@ public interface IMutList<E>
 	  public Object reduce(IFn rfn, Object acc) {
 	    final int ne = nElems;
 	    for(int idx = 0; idx < ne; ++idx) {
-	      acc = rfn.invoke(acc, data[idx]);
+	      acc = rfn.invoke(acc, data[idx+sidx]);
 	      if(RT.isReduced(acc))
 		return ((IDeref)acc).deref();
 	    }
@@ -654,6 +733,10 @@ public interface IMutList<E>
 	  chunkedRest = new IndexSeq(l, idx+32, null);
       }
       return chunkedRest;
+    }
+
+    public Object[] toArray() {
+      return l.subList(idx, idx + size()).toArray();
     }
   }
   static class RIndexSeq extends ASeq {
