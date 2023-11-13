@@ -908,11 +908,11 @@ user>
               coll)
       :else
       (reduce (fn [acc v]
-              (if-not (pred v)
-                (reduced false)
-                true))
-            true
-            coll))))
+                (if-not (pred v)
+                  (reduced false)
+                  true))
+              true
+              coll))))
 
 
 
@@ -920,6 +920,10 @@ user>
   "Create a new sequence that is the cartesian join of the input sequence passed through f.
   Unlike map, f is passed the arguments as a single persistent vector.  This is to enable much
   higher efficiency in the higher-arity applications.  For tight numeric loops, see [[ham-fisted.hlet/let]].
+
+  The argument vector is mutably updated between function calls so you can't cache it.  Use `(into [] args)`
+  or some variation thereof to cache the arguments as is.
+
 ```clojure
 user> (hamf/sum-fast (lznc/cartesian-map
                       #(h/let [[a b c d](lng-fns %)]
