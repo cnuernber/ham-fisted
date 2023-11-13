@@ -933,9 +933,7 @@ user> (hamf/sum-fast (lznc/cartesian-map
   ([f] '())
   ([f a] (map #(f [%]) a))
   ([f a b]
-   (let [ar (as-random-access a)
-         br (as-random-access b)
-         reducer (fn [rfn acc]
+   (let [reducer (fn [rfn acc]
                    (let [values (ArrayLists/objectArray (unchecked-int 2))
                          val-seq (ArrayLists/toList values)
                          inner-reducer (fn [acc bb]
@@ -950,48 +948,36 @@ user> (hamf/sum-fast (lznc/cartesian-map
                                            (ArrayHelpers/aset values 0 aa)
                                            (reduce inner-reducer acc b)))]
                      (reduce outer-reducer acc a)))]
-     (if (and ar br)
-       (let [as (.size ar)
-             bs (.size br)
-             ne (* as bs)]
-         (reify IMutList
-           (size [this] ne)
-           (get [this idx]
-             (let [aidx (quot idx bs)
-                   bidx (rem idx bs)]
-               (f [(.get ar (unchecked-int aidx)) (.get br (unchecked-int bidx))])))
-           (reduce [this rfn acc]
-             (reducer rfn acc))))
-       (reify
-         Iterable
-         (iterator [this]
-           (let [a (->iterable a)
-                 b (->iterable b)
-                 ia (.iterator a)
-                 ib (clojure.lang.Box. (.iterator b))
-                 a-v? (clojure.lang.Box. (.hasNext ia))
-                 values (ArrayLists/objectArray (unchecked-int 2))
-                 val-seq (ArrayLists/toList values)]
-             (when (.-val a-v?)
-               (aset values (unchecked-int 0) (.next ia)))
-             (reify Iterator
-               (hasNext [this] (and (.-val a-v?)
-                                    (.hasNext ^Iterator (.-val ib))))
-               (next [this]
-                 (let [^Iterator iib (.-val ib)
-                       _ (aset values (unchecked-int 1) (.next iib))
-                       rv (f val-seq)]
-                   (when-not (.hasNext iib)
-                     (set! (.-val a-v?) (.hasNext ia))
-                     (when (.-val a-v?)
-                       (aset values (unchecked-int 0) (.next ia))
-                       (set! (.-val ib) (.iterator b))))
-                   rv)))))
-         Seqable
-         (seq [this] (RT/chunkIteratorSeq (.iterator this)))
-         ITypedReduce
-         (reduce [this rfn acc]
-           (reducer rfn acc))))))
+     (reify
+       Iterable
+       (iterator [this]
+         (let [a (->iterable a)
+               b (->iterable b)
+               ia (.iterator a)
+               ib (clojure.lang.Box. (.iterator b))
+               a-v? (clojure.lang.Box. (.hasNext ia))
+               values (ArrayLists/objectArray (unchecked-int 2))
+               val-seq (ArrayLists/toList values)]
+           (when (.-val a-v?)
+             (aset values (unchecked-int 0) (.next ia)))
+           (reify Iterator
+             (hasNext [this] (and (.-val a-v?)
+                                  (.hasNext ^Iterator (.-val ib))))
+             (next [this]
+               (let [^Iterator iib (.-val ib)
+                     _ (aset values (unchecked-int 1) (.next iib))
+                     rv (f val-seq)]
+                 (when-not (.hasNext iib)
+                   (set! (.-val a-v?) (.hasNext ia))
+                   (when (.-val a-v?)
+                     (aset values (unchecked-int 0) (.next ia))
+                     (set! (.-val ib) (.iterator b))))
+                 rv)))))
+       Seqable
+       (seq [this] (RT/chunkIteratorSeq (.iterator this)))
+       ITypedReduce
+       (reduce [this rfn acc]
+         (reducer rfn acc)))))
   ([f a b & args]
    (let [args (vec (concat [a b] args))
          nargs (count args)
@@ -1067,18 +1053,3 @@ user> (hamf/sum-fast (lznc/cartesian-map
                                nil
                                (range nargs))]
            (reducer acc)))))))
-
-(comment
-
-  (defn lplus
-        (^long [^long a ^long b](+ a b))
-        (^long [^long a ^long b ^long c] (-> (+ a b) (+ c)))
-        (^long [^long a ^long b ^long c ^long d] (-> (+ a b) (+ c) (+ d)))
-        ([a b c d e](-> (+ (long a) (long b))
-                        (+ (long c))
-                        (+ (long d))
-                        (+ (long e)))))
-
-  (def data (hamf/range 200))
-
-  )

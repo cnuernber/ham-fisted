@@ -51,6 +51,9 @@ import clojure.lang.IObj;
 import clojure.lang.ASeq;
 import clojure.lang.IReduceInit;
 import clojure.lang.Associative;
+import clojure.lang.IChunk;
+import clojure.lang.IChunkedSeq;
+import clojure.lang.PersistentList;
 
 
 public interface IMutList<E>
@@ -565,6 +568,8 @@ public interface IMutList<E>
     final int ssz;
     final Object v;
     ISeq rest;
+    ISeq chunkedRest;
+    IChunk chunk;
     public IndexSeq(List _l, int _idx, IPersistentMap m) {
       super(m);
       l = _l;
@@ -594,6 +599,61 @@ public interface IMutList<E>
     }
     public IndexSeq withMeta(IPersistentMap m) {
       return new IndexSeq(this, m);
+    }
+
+    public static IChunk arrayToChunk(Object[] data, int sidx) {
+      final int nElems = data.length - sidx;
+      if(nElems > 0) {
+	return new IChunk() {
+	  public int count() { return nElems; }
+	  public Object nth(int idx, Object defVal) {
+	    return (idx < nElems) ? data[idx+sidx] : defVal;
+	  }
+	  public Object nth(int idx) {
+	    if(idx < nElems)
+	      return data[idx+sidx];
+	    throw new IndexOutOfBoundsException();
+	  }
+	  public IChunk dropFirst() {
+	    return arrayToChunk(data, sidx+1);
+	  }
+	  public Object reduce(IFn rfn, Object acc) {
+	    final int ne = nElems;
+	    for(int idx = 0; idx < ne; ++idx) {
+	      acc = rfn.invoke(acc, data[idx]);
+	      if(RT.isReduced(acc))
+		return ((IDeref)acc).deref();
+	    }
+	    return acc;
+	  }
+	};
+      }
+      return null;
+    }
+
+    public IChunk chunkedFirst(){
+      synchronized(this) {
+	if(chunk == null) {
+	  final int nElems = Math.min(32, size());
+	  final Object[] data = l.subList(idx, idx+nElems).toArray();
+	  chunk = arrayToChunk(data, 0);
+	}
+      }
+      return chunk;
+    }
+
+    public ISeq chunkedNext(){
+      return chunkedMore().seq();
+    }
+
+    public ISeq chunkedMore() {
+      if(size() < 32)
+	return PersistentList.EMPTY;
+      synchronized(this) {
+	if(chunkedRest == null)
+	  chunkedRest = new IndexSeq(l, idx+32, null);
+      }
+      return chunkedRest;
     }
   }
   static class RIndexSeq extends ASeq {

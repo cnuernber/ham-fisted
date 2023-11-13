@@ -152,7 +152,7 @@ public class Transformables {
       public Object invoke(Object lhs, Object rhs) {
 	return rfn.invoke(lhs, mapFn.invoke(rhs));
       }
-      public Object applyTo(ISeq arglist) {
+      public Object applyTo(Object arglist) {
 	return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
       }
     };
@@ -167,7 +167,7 @@ public class Transformables {
 	public Object invoke(Object lhs, Object v) {
 	  return rr.invokePrim(lhs, mfn.invokePrim(v));
 	}
-	public Object applyTo(ISeq arglist) {
+	public Object applyTo(Object arglist) {
 	  return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
 	}
       };
@@ -179,7 +179,7 @@ public class Transformables {
 	public Object invokePrim(Object lhs, long v) {
 	  return rr.invokePrim(lhs, mfn.invokePrim(v));
 	}
-	public Object applyTo(ISeq arglist) {
+	public Object applyTo(Object arglist) {
 	  return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
 	}
       };
@@ -191,7 +191,7 @@ public class Transformables {
 	public Object invokePrim(Object lhs, double v) {
 	  return rr.invokePrim(lhs, mfn.invokePrim(v));
 	}
-	public Object applyTo(ISeq arglist) {
+	public Object applyTo(Object arglist) {
 	  return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
 	}
       };
@@ -209,7 +209,7 @@ public class Transformables {
 	  public Object invokePrim(Object lhs, long v) {
 	    return rr.invokePrim(lhs, mfn.invokePrim(v));
 	  }
-	  public Object applyTo(ISeq arglist) {
+	  public Object applyTo(Object arglist) {
 	    return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
 	  }
 	};
@@ -224,7 +224,7 @@ public class Transformables {
 	  public Object invoke(Object lhs, Object v) {
 	    return rr.invokePrim(lhs, mfn.invokePrim(v));
 	  }
-	  public Object applyTo(ISeq arglist) {
+	  public Object applyTo(Object arglist) {
 	    return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
 	  }
 	};
@@ -239,7 +239,7 @@ public class Transformables {
 	  public Object invokePrim(Object lhs, double rhs) {
 	    return rr.invokePrim(lhs, mfn.invokePrim(rhs));
 	  }
-	  public Object applyTo(ISeq arglist) {
+	  public Object applyTo(Object arglist) {
 	    return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
 	  }
 	};
@@ -254,7 +254,7 @@ public class Transformables {
 	  public Object invoke(Object lhs, Object v) {
 	    return rr.invokePrim(lhs, mfn.invokePrim(v));
 	  }
-	  public Object applyTo(ISeq arglist) {
+	  public Object applyTo(Object arglist) {
 	    return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
 	  }
 	};
@@ -269,7 +269,7 @@ public class Transformables {
 	  public Object invokePrim(Object lhs, double v) {
 	    return rr.invokePrim(lhs, mfn.invokePrim(v));
 	  }
-	  public Object applyTo(ISeq arglist) {
+	  public Object applyTo(Object arglist) {
 	    return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
 	  }
 	};
@@ -284,7 +284,7 @@ public class Transformables {
 	  public Object invokePrim(Object lhs, long v) {
 	    return rr.invokePrim(lhs, mfn.invokePrim(v));
 	  }
-	  public Object applyTo(ISeq arglist) {
+	  public Object applyTo(Object arglist) {
 	    return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
 	  }
 	};
@@ -306,7 +306,7 @@ public class Transformables {
       public Object invoke(Object lhs, Object v) {
 	return rfn.invoke(lhs, mapFn.invoke(v));
       }
-      public Object applyTo(ISeq arglist) {
+      public Object applyTo(Object arglist) {
 	return rfn.invoke(RT.first(arglist), mapFn.applyTo(RT.next(arglist)));
       }
     };
@@ -435,7 +435,7 @@ public class Transformables {
 	      Object[] args = new Object[ss];
 	      for (int idx = 0; idx < ss; ++idx)
 		args[idx] = iterators[idx].next();
-	      return fn.applyTo(ArraySeq.create(args));
+	      return fn.applyTo(ArrayLists.toList(args));
 	    }
 	  }
 	};
@@ -1023,7 +1023,7 @@ public class Transformables {
 	Object[] args = new Object[ls];
 	for (int aidx = 0; aidx < ls; ++aidx)
 	  args[aidx] = lists[aidx].get(idx);
-	return fn.applyTo(ArraySeq.create(args));
+	return fn.applyTo(ArrayLists.toList(args));
       }
     }
     public Object reduce(IFn rfn, Object acc) {
@@ -1038,10 +1038,11 @@ public class Transformables {
       }
       //fallthrough
       final Object[] args = new Object[ls];
+      final List arglist = ArrayLists.toList(args);
       for(int oidx = 0; oidx < ne; ++oidx) {
 	for (int aidx = 0; aidx < ls; ++aidx)
 	  args[aidx] = lists[aidx].get(oidx);
-	acc = rfn.applyTo(ArraySeq.create(args));
+	acc = rfn.applyTo(arglist);
 	if(RT.isReduced(acc))
 	  return ((IDeref)acc).deref();
       }
