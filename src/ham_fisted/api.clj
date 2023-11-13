@@ -1079,7 +1079,7 @@ ham_fisted.PersistentHashMap
                        (.inc ^Consumers$IncConsumer (.computeIfAbsent ^Map acc v cfn))
                        acc))
        protocols/ParallelReducer
-       (->merge-fn [this] hamf-rf/reducible-merge)
+       (->merge-fn [this] #(map-union hamf-rf/reducible-merge %1 %2))
        protocols/Finalize
        (finalize [this v]
          (if sk?

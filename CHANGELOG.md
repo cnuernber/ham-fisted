@@ -1,3 +1,8 @@
+# 2.013
+ * `cartesian-map` no longer has a random access variant.  The cooler version of this uses the tensor
+   address mechanism to allow parallel redution.
+ * fixed major issue with parallel frequencies.
+
 # 2.011
  * Much faster every? implementation esp. for primitive arrays and persistent vectors.
  * More hlet extensions - `lng-fns` and `dbl-fns` which are faster in the general case
