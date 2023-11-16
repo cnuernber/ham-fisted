@@ -54,6 +54,8 @@ import clojure.lang.Associative;
 import clojure.lang.IChunk;
 import clojure.lang.IChunkedSeq;
 import clojure.lang.PersistentList;
+import clojure.lang.ChunkedCons;
+import clojure.lang.ArrayChunk;
 
 
 public interface IMutList<E>
@@ -562,224 +564,79 @@ public interface IMutList<E>
   default boolean equiv(Object other) {
     return CljHash.listEquiv(this, other);
   }
-  //Pure functional lists can use sublistSeq - no locking
-  //and no temporary storage.
-  static class SublistSeq extends ASeq implements IChunkedSeq {
-    final List l;
-    final int idx;
-    final int ssz;
-    final Object v;
-    public SublistSeq(List _l, int _idx, IPersistentMap m) {
-      super(m);
-      l = _l;
-      idx = _idx;
-      ssz = l.size() - 1;
-      v = l.get(idx);
-    }
-    public SublistSeq(SublistSeq other, IPersistentMap m) {
-      super(m);
-      l = other.l;
-      idx = other.idx;
-      ssz = other.ssz;
-      v = other.v;
-    }
-    public int size() { return ssz - idx +1; }
-    public Object first() { return v; }
-    public ISeq next() {
-      if (idx >= ssz) return null;
-      return new SublistSeq(l, idx+1, meta());
-    }
-    public SublistSeq withMeta(IPersistentMap m) {
-      return new SublistSeq(this, m);
-    }
 
-    public static IChunk sublistToChunk(List data) {
-      final int nElems = data.size();
-      if(nElems > 0) {
-	return new IChunk() {
-	  public int count() { return nElems; }
-	  public Object nth(int idx, Object defVal) {
-	    return (idx < nElems) ? data.get(idx) : defVal;
+  public static IChunk sublistAsChunk(List data, int sidx) {
+    final int nElems = data.size();
+    final int len = nElems - sidx;
+    if(len > 0) {
+      return new IChunk() {
+	public int count() { return len; }
+	public Object nth(int idx, Object defVal) {
+	  return (idx < len) ? data.get(idx+sidx) : defVal;
+	}
+	public Object nth(int idx) {
+	  if(idx < len)
+	    return data.get(idx);
+	  throw new IndexOutOfBoundsException();
+	}
+	public IChunk dropFirst() {
+	  return len > 1 ? sublistAsChunk(data, sidx+1) : null;
+	}
+	public Object reduce(IFn rfn, Object acc) {
+	  final int ne = len;
+	  for(int idx = 0; idx < ne; ++idx) {
+	    acc = rfn.invoke(acc, data.get(idx+sidx));
+	    if(RT.isReduced(acc))
+	      return ((IDeref)acc).deref();
 	  }
-	  public Object nth(int idx) {
-	    if(idx < nElems)
-	      return data.get(idx);
-	    throw new IndexOutOfBoundsException();
+	  return acc;
+	}
+      };
+    }
+    return null;
+  }
+
+  public static IChunkedSeq inplaceSublistSeq(List l, int sidx, int eidx) {
+    final int ne = eidx - sidx;
+    if(ne > 0) {
+      final int len = Math.min(32, ne);
+      return new LazyChunkedSeq(new IFnDef() {
+	  public Object invoke() {
+	    return new ChunkedCons(sublistAsChunk(l.subList(sidx, sidx + len), 0),
+				   (ne - len) <= 0 ? null : inplaceSublistSeq(l, sidx+len, eidx));
 	  }
-	  public IChunk dropFirst() {
-	    return sublistToChunk(data);
-	  }
-	  public Object reduce(IFn rfn, Object acc) {
-	    final int ne = nElems;
-	    for(int idx = 0; idx < ne; ++idx) {
-	      acc = rfn.invoke(acc, data.get(idx));
-	      if(RT.isReduced(acc))
-		return ((IDeref)acc).deref();
-	    }
-	    return acc;
-	  }
-	};
-      }
+	});
+    } else {
       return null;
     }
-
-    public IChunk chunkedFirst(){
-      return sublistToChunk(l.subList(idx, idx+Math.min(32, size())));
-    }
-
-    public ISeq chunkedNext(){
-      return chunkedMore().seq();
-    }
-
-    public ISeq chunkedMore() {
-      if(size() < 32)
-	return PersistentList.EMPTY;
-      return new SublistSeq(l, idx+32, null);
-    }
-
-    public Object[] toArray() {
-      return l.subList(idx, idx + size()).toArray();
-    }
   }
-  static class IndexSeq extends ASeq implements IChunkedSeq {
-    final List l;
-    final int idx;
-    final int ssz;
-    final Object v;
-    ISeq rest;
-    ISeq chunkedRest;
-    IChunk chunk;
-    public IndexSeq(List _l, int _idx, IPersistentMap m) {
-      super(m);
-      l = _l;
-      idx = _idx;
-      ssz = l.size() - 1;
-      v = l.get(idx);
-    }
-    public IndexSeq(IndexSeq other, IPersistentMap m) {
-      super(m);
-      l = other.l;
-      idx = other.idx;
-      ssz = other.ssz;
-      v = other.v;
-      rest = other.rest;
-    }
-    public int size() { return ssz - idx +1; }
-    public Object first() { return v; }
-    public ISeq next() {
-      if (rest != null) return rest;
-      if (idx >= ssz) return null;
-      synchronized(this) {
-	if(rest == null) {
-	  rest = new IndexSeq(l, idx+1, meta());
-	}
-      }
-      return rest;
-    }
-    public IndexSeq withMeta(IPersistentMap m) {
-      return new IndexSeq(this, m);
-    }
 
-    public static IChunk arrayToChunk(Object[] data, int sidx) {
-      final int nElems = data.length - sidx;
-      if(nElems > 0) {
-	return new IChunk() {
-	  public int count() { return nElems; }
-	  public Object nth(int idx, Object defVal) {
-	    return (idx < nElems) ? data[idx+sidx] : defVal;
+  default IChunkedSeq inplaceSublistSeq() {
+    if(isEmpty()) return null; return inplaceSublistSeq(this, 0, size());
+  }
+
+  public static IChunkedSeq copyingArraySeq(List l, int sidx, int eidx) {
+    final int ne = eidx - sidx;
+    if(ne > 0) {
+      final int len = Math.min(32, ne);
+      return new LazyChunkedSeq(new IFnDef() {
+	  public Object invoke() {
+	    return new ChunkedCons(new ArrayChunk(l.subList(sidx, sidx + len).toArray()),
+				   (ne - len) <= 0 ? null : inplaceSublistSeq(l, sidx+len, eidx));
 	  }
-	  public Object nth(int idx) {
-	    if(idx < nElems)
-	      return data[idx+sidx];
-	    throw new IndexOutOfBoundsException();
-	  }
-	  public IChunk dropFirst() {
-	    return arrayToChunk(data, sidx+1);
-	  }
-	  public Object reduce(IFn rfn, Object acc) {
-	    final int ne = nElems;
-	    for(int idx = 0; idx < ne; ++idx) {
-	      acc = rfn.invoke(acc, data[idx+sidx]);
-	      if(RT.isReduced(acc))
-		return ((IDeref)acc).deref();
-	    }
-	    return acc;
-	  }
-	};
-      }
+	});
+    } else {
       return null;
     }
-
-    public IChunk chunkedFirst(){
-      synchronized(this) {
-	if(chunk == null) {
-	  final int nElems = Math.min(32, size());
-	  final Object[] data = l.subList(idx, idx+nElems).toArray();
-	  chunk = arrayToChunk(data, 0);
-	}
-      }
-      return chunk;
-    }
-
-    public ISeq chunkedNext(){
-      return chunkedMore().seq();
-    }
-
-    public ISeq chunkedMore() {
-      if(size() < 32)
-	return PersistentList.EMPTY;
-      synchronized(this) {
-	if(chunkedRest == null)
-	  chunkedRest = new IndexSeq(l, idx+32, null);
-      }
-      return chunkedRest;
-    }
-
-    public Object[] toArray() {
-      return l.subList(idx, idx + size()).toArray();
-    }
   }
-  static class RIndexSeq extends ASeq {
-    final List l;
-    final int idx;
-    final int ssz;
-    final Object v;
-    ISeq rest;
-    public RIndexSeq(List _l, int _idx, IPersistentMap m) {
-      super(m);
-      l = _l;
-      idx = _idx;
-      ssz = l.size() - 1;
-      v = l.get(ssz - idx);
-    }
-    public RIndexSeq(RIndexSeq other, IPersistentMap m) {
-      super(m);
-      l = other.l;
-      idx = other.idx;
-      ssz = other.ssz;
-      v = other.v;
-      rest = other.rest;
-    }
-    public boolean isEmpty() { return false; }
-    public int size() { return ssz - idx +1; }
-    public Object first() { return v; }
-    public ISeq next() {
-      if (rest != null) return rest;
-      if (idx >= ssz) return null;
-      synchronized(this) {
-	if(rest == null) {
-	  rest = new RIndexSeq(l, idx+1, meta());
-	}
-      }
-      return rest;
-    }
-    public RIndexSeq withMeta(IPersistentMap m) {
-      return new RIndexSeq(this, m);
-    }
+  default IChunkedSeq copyingArraySeq() {
+    if(isEmpty()) return null; return copyingArraySeq(this, 0, size());
+  }
+  default ISeq seq() { return copyingArraySeq(); }
+  default ISeq rseq() {
+    return isEmpty() ? null : new ReverseList(this, meta()).seq();
   }
 
-  default ISeq seq() { if(isEmpty()) return null; return new IndexSeq(this, 0, meta()); }
-  default ISeq rseq() { if(isEmpty()) return null; return new RIndexSeq(this, 0, meta()); }
   default IPersistentMap meta() { return null; }
   default IObj withMeta(IPersistentMap meta ) { throw new UnsupportedOperationException("Unimplemented"); }
 

@@ -87,7 +87,7 @@ public class PartitionByInner implements ITypedReduce, Iterator, Seqable, IDeref
     if(!lastVValid) throw new NoSuchElementException();
     return advance();
   }
-  public ISeq seq() { return RT.chunkIteratorSeq(this); }
+  public ISeq seq() { return LazyChunkedSeq.chunkIteratorSeq(this); }
   public Object deref() {
     if(hasNext())
       reduce(new IFnDef() { public Object invoke(Object acc, Object v) { return v; } }, null);

@@ -62,7 +62,7 @@ public class LazyChunkedSeq extends ASeq implements IChunkedSeq {
     IChunkedSeq s = lockedUnwrap();
     return s != null ? s.first() : null;
   }
-  public ISeq next() {    
+  public ISeq next() {
     IChunkedSeq s = lockedUnwrap();
     return s != null ? s.next() : null;
   }
@@ -70,7 +70,7 @@ public class LazyChunkedSeq extends ASeq implements IChunkedSeq {
     ISeq rv = next();
     return rv != null ? rv : PersistentList.EMPTY;
   }
-  public IChunk chunkedFirst() {    
+  public IChunk chunkedFirst() {
     IChunkedSeq s = lockedUnwrap();
     return s != null ? s.chunkedFirst() : null;
   }
@@ -83,7 +83,7 @@ public class LazyChunkedSeq extends ASeq implements IChunkedSeq {
     return rv != null ? rv : PersistentList.EMPTY;
   }
 
-  public static IChunkedSeq fromIterator(Iterator i) {
+  public static IChunkedSeq chunkIteratorSeq(Iterator i) {
     if(i.hasNext()) {
       return new LazyChunkedSeq(new IFnDef() {
 	  public Object invoke() {
@@ -91,7 +91,7 @@ public class LazyChunkedSeq extends ASeq implements IChunkedSeq {
 	    int idx;
 	    for(idx = 0; idx < 32 && i.hasNext(); ++idx)
 	      ar[idx] = i.next();
-	    return new ChunkedCons(new ArrayChunk(ar, 0, idx), create(i));
+	    return new ChunkedCons(new ArrayChunk(ar, 0, idx), chunkIteratorSeq(i));
 	  }
 	});
     } else {

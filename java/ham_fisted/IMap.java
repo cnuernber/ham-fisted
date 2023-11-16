@@ -66,7 +66,7 @@ public interface IMap extends Map, ITypedReduce, ILookup, IFnDef, Iterable, IMap
       }, init);
   }
   default ISeq seq() {
-    return RT.chunkIteratorSeq(iterator());
+    return LazyChunkedSeq.chunkIteratorSeq(iterator());
   }
   public static class MapKeySet extends AbstractSet implements ITypedReduce, IFnDef, Counted {
     public final IMap data;
@@ -144,7 +144,7 @@ public interface IMap extends Map, ITypedReduce, ILookup, IFnDef, Iterable, IMap
       data.clear();
     }
     public final Iterator iterator() {
-      return data.valIterator(); 
+      return data.valIterator();
     }
     @SuppressWarnings("unchecked")
     public final Spliterator spliterator() {
@@ -164,7 +164,7 @@ public interface IMap extends Map, ITypedReduce, ILookup, IFnDef, Iterable, IMap
 				    ParallelOptions options ) {
       return data.parallelReduction(initValFn, wrapRfn(rfn), mergeFn, options);
     }
-    
+
     @SuppressWarnings("unchecked")
     public void forEach(Consumer c) {
       reduce( new IFnDef() {

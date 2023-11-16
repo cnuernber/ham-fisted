@@ -107,7 +107,7 @@ public class MapForward<K,V>
     return getOrDefault(arg1, (V)notFound);
   }
   public ISeq seq() {
-    return RT.chunkIteratorSeq(iterator());
+    return LazyChunkedSeq.chunkIteratorSeq(iterator());
   }
   public IPersistentMap meta() { return meta; }
   public MapForward<K,V> withMeta(IPersistentMap m) { return new MapForward<K,V>(ht, m); }

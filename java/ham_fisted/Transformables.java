@@ -354,7 +354,7 @@ public class Transformables {
     default void forEach(Consumer c) {
       ITypedReduce.super.forEach(c);
     }
-    default ISeq seq() { return RT.chunkIteratorSeq(iterator()); }
+    default ISeq seq() { return LazyChunkedSeq.chunkIteratorSeq(iterator()); }
   }
 
   public static class MapIterable
@@ -442,7 +442,7 @@ public class Transformables {
       }
     }
     public ISeq seq() {
-      return RT.chunkIteratorSeq(iterator());
+      return LazyChunkedSeq.chunkIteratorSeq(iterator());
     }
     public boolean equals(Object o) { return equiv(o); }
     public int hashCode(){ return hasheq(); }
@@ -492,7 +492,7 @@ public class Transformables {
 	    if(RT.isReduced(acc)) return ((IDeref)acc).deref();
 	  }
 	  break;
-	}		
+	}
 	default: {
 	  boolean hn = true;
 	  for(int idx = 0; idx < nLists && hn; ++idx) {
@@ -644,7 +644,7 @@ public class Transformables {
     public int hashCode(){ return hasheq(); }
     public boolean equals(Object o) { return equiv(o); }
     public ISeq seq() {
-      return RT.chunkIteratorSeq(iterator());
+      return LazyChunkedSeq.chunkIteratorSeq(iterator());
     }
     public IMapable filter(IFn nfn) {
       return new FilterIterable(PredFn.create(pred, nfn), meta(), src);
@@ -810,7 +810,7 @@ public class Transformables {
       newd[dlen] = _iters;
       return new CatIterable(meta(), newd);
     }
-    public ISeq seq() { return RT.chunkIteratorSeq(iterator()); }
+    public ISeq seq() { return LazyChunkedSeq.chunkIteratorSeq(iterator()); }
     public IPersistentMap meta() { return meta; }
     public CatIterable withMeta(IPersistentMap m) {
       return new CatIterable(this, m);
@@ -1104,7 +1104,7 @@ public class Transformables {
       if(idx < 0 || idx >= nElems)
 	throw new RuntimeException("Index out of range.");
       return getter.invokePrim(idx);
-      
+
     }
     public Object reduce(IFn rfn, Object acc) {
       final int ne = nElems;
@@ -1226,7 +1226,7 @@ public class Transformables {
       return seq.updateAndGet(new UnaryOperator<ISeq>() {
 	  public ISeq apply(ISeq v) {
 	    if(v != null) return v;
-	    return src instanceof Seqable ? ((Seqable)src).seq() : RT.chunkIteratorSeq(src.iterator());
+	    return src instanceof Seqable ? ((Seqable)src).seq() : LazyChunkedSeq.chunkIteratorSeq(src.iterator());
 	  }
 	});
     }

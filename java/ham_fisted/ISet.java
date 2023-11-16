@@ -48,7 +48,7 @@ public interface ISet extends Set, ITypedReduce, IFnDef, Counted, Seqable {
     }
     return sz == size();
   }
-  default ISeq seq() { return RT.chunkIteratorSeq(iterator()); }
+  default ISeq seq() { return LazyChunkedSeq.chunkIteratorSeq(iterator()); }
   default boolean isEmpty() { return size() == 0; }
   default Object[] toArray() { return ArrayLists.toArray(this); }
   default Object[] toArray(Object[] d) {

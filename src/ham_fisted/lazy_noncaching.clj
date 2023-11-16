@@ -20,7 +20,7 @@
             DoubleMutList ReindexList Transformables$IndexedMapper
             IFnDef$OLO IFnDef$ODO Reductions Reductions$IndexedAccum
             IFnDef$OLOO ArrayHelpers ITypedReduce PartitionByInner Casts
-            IMutList]
+            IMutList LazyChunkedSeq]
            [java.lang.reflect Array]
            [it.unimi.dsi.fastutil.ints IntArrays]
            [java.util RandomAccess Collection Map List Random Set Iterator]
@@ -289,7 +289,7 @@
                (hasNext [this] (.hasNext citer))
                (next [this] (f [(.next citer)])))))
          Seqable
-         (seq [this] (RT/chunkIteratorSeq (.iterator this)))
+         (seq [this] (LazyChunkedSeq/chunkIteratorSeq (.iterator this)))
          ITypedReduce
          (reduce [this rfn acc]
            (rdc rfn acc))))))
@@ -307,7 +307,7 @@
              (next [this]
                (f [(.next c1-iter) (.next c2-iter)])))))
        Seqable
-       (seq [this] (RT/chunkIteratorSeq (.iterator this)))
+       (seq [this] (LazyChunkedSeq/chunkIteratorSeq (.iterator this)))
        ITypedReduce
        (reduce [this rfn acc]
          (Reductions/iterReduce this acc rfn)))))
@@ -322,7 +322,7 @@
                      (if (< idx nargs)
                        (let [^Iterator iter (iters idx)]
                          (if (.hasNext iter)
-                           (do 
+                           (do
                              (ArrayHelpers/aset args (unchecked-int idx) (.next iter))
                              (recur (unchecked-inc idx)))
                            false))
@@ -332,7 +332,7 @@
                  (loop [acc acc
                         args (ArrayLists/objectArray nargs)
                         next? (next-fn iters args)]
-                   (if next? 
+                   (if next?
                      (let [acc (rfn acc (f (ArrayLists/toList ^objects args)))]
                        (if (reduced? acc)
                          (deref acc)
@@ -350,7 +350,7 @@
              (hasNext [this] (next-fn iters args))
              (next [this] (f argvec)))))
        Seqable
-       (seq [this] (RT/chunkIteratorSeq (.iterator this)))
+       (seq [this] (LazyChunkedSeq/chunkIteratorSeq (.iterator this)))
        ITypedReduce
        (reduce [this rfn acc]
          (rdc rfn acc))))))
@@ -1066,7 +1066,7 @@ user> (hamf/sum-fast (lznc/cartesian-map
                      (set! (.-val ib) (.iterator b))))
                  rv)))))
        Seqable
-       (seq [this] (RT/chunkIteratorSeq (.iterator this)))
+       (seq [this] (LazyChunkedSeq/chunkIteratorSeq (.iterator this)))
        ITypedReduce
        (reduce [this rfn acc]
          (reducer rfn acc)))))
@@ -1122,7 +1122,7 @@ user> (hamf/sum-fast (lznc/cartesian-map
                        (set! (.-val values-valid?) false))))
                  rv)))))
        Seqable
-       (seq [this] (RT/chunkIteratorSeq (.iterator this)))
+       (seq [this] (LazyChunkedSeq/chunkIteratorSeq (.iterator this)))
        ITypedReduce
        (reduce [this rfn acc]
          (let [values (ArrayLists/objectArray (unchecked-int nargs))
