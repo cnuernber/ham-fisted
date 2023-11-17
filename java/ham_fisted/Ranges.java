@@ -81,7 +81,7 @@ public class Ranges {
       ChunkedList.sublistCheck(sidx, eidx, nElems);
       return new LongRange(start + sidx*step, start + eidx*step, step, meta);
     }
-    public ISeq seq() { return new SublistSeq(this, 0, null); }
+    public ISeq seq() { return inplaceSublistSeq(); }
     public LongMutList subList(int sidx, int eidx) {
       return subList((long)sidx, (long)eidx);
     }
@@ -186,7 +186,7 @@ public class Ranges {
 				   " size: " + String.valueOf(sz));
       return start + step*idx;
     }
-    public ISeq seq() { return new SublistSeq(this, 0, null); }
+    public ISeq seq() { return inplaceSublistSeq(); }
     public double getDouble(int idx) { return lgetDouble(idx); }
     public int[] toIntArray() {
       final int st = RT.intCast(step);

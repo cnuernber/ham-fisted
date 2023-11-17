@@ -354,7 +354,7 @@ public class Transformables {
     default void forEach(Consumer c) {
       ITypedReduce.super.forEach(c);
     }
-    default ISeq seq() { return RT.chunkIteratorSeq(iterator()); }
+    default ISeq seq() { return LazyChunkedSeq.chunkIteratorSeq(iterator()); }
   }
 
   public static class MapIterable
@@ -442,7 +442,7 @@ public class Transformables {
       }
     }
     public ISeq seq() {
-      return RT.chunkIteratorSeq(iterator());
+      return LazyChunkedSeq.chunkIteratorSeq(iterator());
     }
     public boolean equals(Object o) { return equiv(o); }
     public int hashCode(){ return hasheq(); }
@@ -454,14 +454,68 @@ public class Transformables {
     public MapIterable withMeta(IPersistentMap m) {
       return new MapIterable(this, m);
     }
-    public Object reduce(IFn fn) {
-      return Reductions.iterReduce(this, fn);
-    }
-    public Object reduce(IFn rfn, Object init) {
-      if(iterables.length == 1)
-	return singleMapReduce(iterables[0], rfn, fn, init);
-      else
-	return Reductions.iterReduce(this, init, rfn);
+    public Object reduce(IFn rfn, Object acc) {
+      final int nLists = iterables.length;
+      if(nLists == 1) {
+	return singleMapReduce(iterables[0], rfn, fn, acc);
+      } else {
+	final Iterator[] iterators = new Iterator[nLists];
+	for(int idx = 0; idx < nLists; ++idx)
+	  iterators[idx] = toIterable(iterables[idx]).iterator();
+	switch(iterables.length) {
+	case 2: {
+	  final Iterator l = iterators[0];
+	  final Iterator r = iterators[1];
+	  while(l.hasNext() && r.hasNext()) {
+	    acc = rfn.invoke(acc, fn.invoke(l.next(), r.next()));
+	    if(RT.isReduced(acc)) return ((IDeref)acc).deref();
+	  }
+	  break;
+	}
+	case 3: {
+	  final Iterator x = iterators[0];
+	  final Iterator y = iterators[1];
+	  final Iterator z = iterators[2];
+	  while(x.hasNext() && y.hasNext() && z.hasNext()) {
+	    acc = rfn.invoke(acc, fn.invoke(x.next(), y.next(), z.next()));
+	    if(RT.isReduced(acc)) return ((IDeref)acc).deref();
+	  }
+	  break;
+	}
+	case 4: {
+	  final Iterator x = iterators[0];
+	  final Iterator y = iterators[1];
+	  final Iterator z = iterators[2];
+	  final Iterator w = iterators[3];
+	  while(x.hasNext() && y.hasNext() && z.hasNext() && w.hasNext()) {
+	    acc = rfn.invoke(acc, fn.invoke(x.next(), y.next(), z.next(), w.next()));
+	    if(RT.isReduced(acc)) return ((IDeref)acc).deref();
+	  }
+	  break;
+	}
+	default: {
+	  boolean hn = true;
+	  for(int idx = 0; idx < nLists && hn; ++idx) {
+	    hn = hn && iterators[idx].hasNext();
+	  }
+	  if(hn) {
+	    final Object[] args = new Object[nLists];
+	    final ISeq argSeq = ArraySeq.create(args);
+	    while(hn) {
+	      for(int idx = 0; idx < nLists && hn; ++idx) {
+		args[idx] = iterators[idx].next();
+	      }
+	      acc = rfn.invoke(acc, fn.applyTo(argSeq));
+	      if(RT.isReduced(acc)) return ((IDeref)acc).deref();
+	      for(int idx = 0; idx < nLists && hn; ++idx) {
+		hn = hn && iterators[idx].hasNext();
+	      }
+	    }
+	  }
+	}
+	}
+      }
+      return acc;
     }
     public Object parallelReduction(IFn initValFn, IFn rfn, IFn mergeFn,
 				    ParallelOptions options) {
@@ -590,7 +644,7 @@ public class Transformables {
     public int hashCode(){ return hasheq(); }
     public boolean equals(Object o) { return equiv(o); }
     public ISeq seq() {
-      return RT.chunkIteratorSeq(iterator());
+      return LazyChunkedSeq.chunkIteratorSeq(iterator());
     }
     public IMapable filter(IFn nfn) {
       return new FilterIterable(PredFn.create(pred, nfn), meta(), src);
@@ -756,7 +810,7 @@ public class Transformables {
       newd[dlen] = _iters;
       return new CatIterable(meta(), newd);
     }
-    public ISeq seq() { return RT.chunkIteratorSeq(iterator()); }
+    public ISeq seq() { return LazyChunkedSeq.chunkIteratorSeq(iterator()); }
     public IPersistentMap meta() { return meta; }
     public CatIterable withMeta(IPersistentMap m) {
       return new CatIterable(this, m);
@@ -973,24 +1027,61 @@ public class Transformables {
     final List[] lists;
     final IFn fn;
     final IPersistentMap meta;
+    final IFn.LO getter;
     public MapList(IFn _fn, IPersistentMap _meta, List... _lists) {
-      final int ll = _lists.length;
-      if(ll == 0)
+      final int nLists = _lists.length;
+      if(nLists == 0)
 	nElems = 0;
       else {
 	int ne = _lists[0].size();
-	for(int idx = 1; idx < ll; ++idx)
+	for(int idx = 1; idx < nLists; ++idx)
 	  ne = Math.min(ne, _lists[idx].size());
 	nElems = ne;
       }
       lists = _lists;
       fn = _fn;
       meta = _meta;
+      IFn.LO getter = null;
+      final List[] ll = lists;
+      switch(nLists) {
+      case 1: getter = new IFnDef.LO() {
+	  public Object invokePrim(long idx) { return fn.invoke(ll[0].get((int)idx));
+	  } };
+	break;
+      case 2:  getter = new IFnDef.LO() {
+	  public Object invokePrim(long idx) { return fn.invoke(ll[0].get((int)idx), ll[1].get((int)idx));
+	  } };
+	break;
+      case 3:  getter = new IFnDef.LO() {
+	  public Object invokePrim(long lidx) { final int idx = (int)lidx; return fn.invoke(ll[0].get(idx), ll[1].get(idx), ll[2].get(idx));
+	  } };
+	break;
+      case 4:
+	getter = new IFnDef.LO() {
+	  public Object invokePrim(long lidx) { final int idx = (int)lidx; return fn.invoke(ll[0].get(idx),
+											    ll[1].get(idx),
+											    ll[2].get(idx),
+											    ll[3].get(idx));
+	  } };
+	break;
+      default:
+	getter = new IFnDef.LO() {
+	    public Object invokePrim(long lidx) {
+	      final int idx = (int)lidx;
+	      Object[] args = new Object[nLists];
+	      for (int aidx = 0; aidx < nLists; ++aidx)
+		args[aidx] = lists[aidx].get(idx);
+	      return fn.applyTo(ArraySeq.create(args));
+	    }
+	  };
+      }
+      this.getter = getter;
     }
     public MapList(MapList other, IPersistentMap m) {
       nElems = other.nElems;
       lists = other.lists;
       fn = other.fn;
+      getter = other.getter;
       meta = m;
     }
     public static IMutList create(IFn fn, IPersistentMap meta, List... lists) {
@@ -1012,19 +1103,8 @@ public class Transformables {
 	idx += nElems;
       if(idx < 0 || idx >= nElems)
 	throw new RuntimeException("Index out of range.");
-      final List[] ll = lists;
-      final int ls = ll.length;
-      switch(ls) {
-      case 1: return fn.invoke(ll[0].get(idx));
-      case 2: return fn.invoke(ll[0].get(idx), ll[1].get(idx));
-      case 3: return fn.invoke(ll[0].get(idx), ll[1].get(idx), ll[2].get(idx));
-      case 4: return fn.invoke(ll[0].get(idx), ll[1].get(idx), ll[2].get(idx), ll[3].get(idx));
-      default:
-	Object[] args = new Object[ls];
-	for (int aidx = 0; aidx < ls; ++aidx)
-	  args[aidx] = lists[aidx].get(idx);
-	return fn.applyTo(ArraySeq.create(args));
-      }
+      return getter.invokePrim(idx);
+
     }
     public Object reduce(IFn rfn, Object acc) {
       final int ne = nElems;
@@ -1032,9 +1112,25 @@ public class Transformables {
       final int ls = ll.length;
       switch(ls) {
       case 1: return Reductions.serialReduction( mapReducer(rfn, this.fn), acc, ll[0] );
-      case 2: return IMutList.super.reduce(rfn, acc);
-      case 3: return IMutList.super.reduce(rfn, acc);
-      case 4: return IMutList.super.reduce(rfn, acc);
+      case 2:
+	for (int idx = 0; idx < ne; ++idx) {
+	  acc = rfn.invoke(acc, fn.invoke(lists[0].get(idx), lists[1].get(idx)));
+	  if(RT.isReduced(acc)) return ((IDeref)acc).deref();
+	}
+	return acc;
+      case 3:
+	for (int idx = 0; idx < ne; ++idx) {
+	  acc = rfn.invoke(acc, fn.invoke(lists[0].get(idx), lists[1].get(idx), lists[2].get(idx)));
+	  if(RT.isReduced(acc)) return ((IDeref)acc).deref();
+	}
+	return acc;
+      case 4:
+	for (int idx = 0; idx < ne; ++idx) {
+	  acc = rfn.invoke(acc, fn.invoke(lists[0].get(idx), lists[1].get(idx),
+					  lists[2].get(idx), lists[3].get(idx)));
+	  if(RT.isReduced(acc)) return ((IDeref)acc).deref();
+	}
+	return acc;
       }
       //fallthrough
       final Object[] args = new Object[ls];
@@ -1042,7 +1138,7 @@ public class Transformables {
       for(int oidx = 0; oidx < ne; ++oidx) {
 	for (int aidx = 0; aidx < ls; ++aidx)
 	  args[aidx] = lists[aidx].get(oidx);
-	acc = rfn.applyTo(arglist);
+	acc = rfn.invoke(acc, fn.applyTo(arglist));
 	if(RT.isReduced(acc))
 	  return ((IDeref)acc).deref();
       }
@@ -1130,7 +1226,7 @@ public class Transformables {
       return seq.updateAndGet(new UnaryOperator<ISeq>() {
 	  public ISeq apply(ISeq v) {
 	    if(v != null) return v;
-	    return src instanceof Seqable ? ((Seqable)src).seq() : RT.chunkIteratorSeq(src.iterator());
+	    return src instanceof Seqable ? ((Seqable)src).seq() : LazyChunkedSeq.chunkIteratorSeq(src.iterator());
 	  }
 	});
     }

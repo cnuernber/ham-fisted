@@ -20,7 +20,7 @@
             DoubleMutList ReindexList Transformables$IndexedMapper
             IFnDef$OLO IFnDef$ODO Reductions Reductions$IndexedAccum
             IFnDef$OLOO ArrayHelpers ITypedReduce PartitionByInner Casts
-            IMutList]
+            IMutList LazyChunkedSeq]
            [java.lang.reflect Array]
            [it.unimi.dsi.fastutil.ints IntArrays]
            [java.util RandomAccess Collection Map List Random Set Iterator]
@@ -253,7 +253,7 @@
 
 (defn map-reducible
   "Map a function over r - r need only be reducible.  Returned value does not implement
-  seq but is countable when r is countable countable."
+  seq but is countable when r is countable."
   [f r]
   (if-let [c (constant-count r)]
     (reify
@@ -268,13 +268,101 @@
         (Reductions/serialReduction (Transformables/typedMapReducer rfn f) acc r)))))
 
 
+(defn tuple-map
+  "Lazy nonaching map but f simply gets a single random-access list of arguments.
+  The argument list may be mutably updated between calls."
+  ([f c1]
+   (let [rdc (fn [rfn acc] (reduce c1 (fn [acc v] (rfn acc (f [v])))))]
+     (if-let [c1 (as-random-access c1)]
+       (reify IMutList
+         (size [this] (.size c1))
+         (get [this idx] (f [(.get c1 idx)]))
+         (subList [this sidx eidx]
+           (tuple-map f (.subList c1 sidx eidx)))
+         (reduce [this rfn acc]
+           (rdc rfn acc)))
+       (reify
+         Iterable
+         (iterator [this]
+           (let [citer (.iterator (->iterable c1))]
+             (reify Iterator
+               (hasNext [this] (.hasNext citer))
+               (next [this] (f [(.next citer)])))))
+         Seqable
+         (seq [this] (LazyChunkedSeq/chunkIteratorSeq (.iterator this)))
+         ITypedReduce
+         (reduce [this rfn acc]
+           (rdc rfn acc))))))
+  ([f c1 c2]
+   (let [c1 (->iterable c1)
+         c2 (->iterable c2)]
+     (reify
+       Iterable
+       (iterator [this]
+         (let [c1-iter (.iterator c1)
+               c2-iter (.iterator c2)]
+           (reify Iterator
+             (hasNext [this] (and (.hasNext c1-iter)
+                                  (.hasNext c2-iter)))
+             (next [this]
+               (f [(.next c1-iter) (.next c2-iter)])))))
+       Seqable
+       (seq [this] (LazyChunkedSeq/chunkIteratorSeq (.iterator this)))
+       ITypedReduce
+       (reduce [this rfn acc]
+         (Reductions/iterReduce this acc rfn)))))
+  ([f c1 c2 & cs]
+   (let [cs (doto (ArrayLists$ObjectArrayList.)
+              (.add c1)
+              (.add c2)
+              (.addAll cs))
+         nargs (.size cs)
+         next-fn (fn next-fn [iters ^objects args]
+                   (loop [idx 0]
+                     (if (< idx nargs)
+                       (let [^Iterator iter (iters idx)]
+                         (if (.hasNext iter)
+                           (do
+                             (ArrayHelpers/aset args (unchecked-int idx) (.next iter))
+                             (recur (unchecked-inc idx)))
+                           false))
+                       true)))
+         rdc (fn [rfn acc]
+               (let [iters (mapv #(.iterator (->iterable %)) cs)]
+                 (loop [acc acc
+                        args (ArrayLists/objectArray nargs)
+                        next? (next-fn iters args)]
+                   (if next?
+                     (let [acc (rfn acc (f (ArrayLists/toList ^objects args)))]
+                       (if (reduced? acc)
+                         (deref acc)
+                         (let [args (ArrayLists/objectArray nargs)]
+                           (recur acc args (next-fn iters args)))))
+                     acc))))]
+     (reify
+       Iterable
+       (iterator [this]
+         (let [args (ArrayLists/objectArray nargs)
+               argvec (ArrayLists/toList args)
+               iters (mapv #(.iterator (->iterable %)) cs)]
+           (reify
+             Iterator
+             (hasNext [this] (next-fn iters args))
+             (next [this] (f argvec)))))
+       Seqable
+       (seq [this] (LazyChunkedSeq/chunkIteratorSeq (.iterator this)))
+       ITypedReduce
+       (reduce [this rfn acc]
+         (rdc rfn acc))))))
+
+
 (defn concat
   ([] PersistentList/EMPTY)
   ([a] (if a a PersistentList/EMPTY))
   ([a & args]
    (if (instance? Transformables$IMapable a)
-    (.cat ^Transformables$IMapable a args)
-    (Transformables$CatIterable. (cons a args)))))
+     (.cat ^Transformables$IMapable a args)
+     (Transformables$CatIterable. (cons a args)))))
 
 
 (pp/implement-tostring-print Transformables$CatIterable)
@@ -978,7 +1066,7 @@ user> (hamf/sum-fast (lznc/cartesian-map
                      (set! (.-val ib) (.iterator b))))
                  rv)))))
        Seqable
-       (seq [this] (RT/chunkIteratorSeq (.iterator this)))
+       (seq [this] (LazyChunkedSeq/chunkIteratorSeq (.iterator this)))
        ITypedReduce
        (reduce [this rfn acc]
          (reducer rfn acc)))))
@@ -1034,7 +1122,7 @@ user> (hamf/sum-fast (lznc/cartesian-map
                        (set! (.-val values-valid?) false))))
                  rv)))))
        Seqable
-       (seq [this] (RT/chunkIteratorSeq (.iterator this)))
+       (seq [this] (LazyChunkedSeq/chunkIteratorSeq (.iterator this)))
        ITypedReduce
        (reduce [this rfn acc]
          (let [values (ArrayLists/objectArray (unchecked-int nargs))

@@ -281,8 +281,8 @@ public class ArrayImmutList
     }
     return Reductions.unreduce(init);
   }
-  public final ISeq seq() { return RT.chunkIteratorSeq(iterator()); }
-  public final ISeq rseq() { return RT.chunkIteratorSeq(riterator()); }
+  public final ISeq seq() { return LazyChunkedSeq.chunkIteratorSeq(iterator()); }
+  public final ISeq rseq() { return LazyChunkedSeq.chunkIteratorSeq(riterator()); }
   public final IPersistentVector cons(Object obj) {
     final int ne = nElems;
     switch(ne){
