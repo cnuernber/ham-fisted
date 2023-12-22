@@ -1074,7 +1074,7 @@ ham_fisted.PersistentHashMap
          fin-bfn (when-not sk? (bi-function k v (deref v)))]
      (reify
        protocols/Reducer
-       (->init-val-fn [this] mut-map)
+       (->init-val-fn [this] map-fn)
        (->rfn [this] (fn [acc v]
                        (.inc ^Consumers$IncConsumer (.computeIfAbsent ^Map acc v cfn))
                        acc))

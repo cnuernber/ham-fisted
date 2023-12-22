@@ -1,3 +1,6 @@
+# 2.014
+ * frequencies respects map-fn option to allow concurrent hashmaps to be used.
+ 
 # 2.013
  * `cartesian-map` no longer has a random access variant.  The cooler version of this uses the tensor
    address mechanism to allow parallel redution.
