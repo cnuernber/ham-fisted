@@ -1,4 +1,8 @@
-(ns ham-fisted.protocol
+(ns ham-fisted.defprotocol
+  "Alternative protocol implementation that has better semantics w/r/t runtime startup times
+  and overall work done during extension and lookup.  We want to avoid dynamic variable definitions
+  and prefer normal def, defn definitions which themselves respond to static linking.  This continues
+  work on cnuernber/clojure attempting to dramatically decrease startup times."
   (:refer-clojure :exclude [defprotocol extend extend-type extend-protocol extends? satisfies?
                             find-protocol-method extenders])
   (:import [ham_fisted MethodImplCache]))
@@ -114,6 +118,7 @@
         name (if-let [proto-doc (:doc opts)]
                (with-meta name {:doc proto-doc})
                name)]
+    (println "UPDATES!!")
     `(do
        (gen-interface :name ~iname :methods ~meths)
        ~@(mapcat (fn [{:keys [methodk ns-methodk cache-sym iface-sym arglists]
@@ -154,19 +159,18 @@
                                   :sigs (fn [sigmap]
                                           (->> sigmap
                                                (map (fn [e]
-                                                      [(key e) (-> (update (val e) :arglists
+                                                      [(key e) (-> (select-keys (val e) [:name :doc :arglists :tag])
+                                                                   (update :arglists
                                                                            (fn [arglists]
                                                                              (mapv (fn [arglist]
                                                                                      (mapv (fn [sym]
                                                                                              (list 'quote sym))
                                                                                            arglist))
                                                                                    arglists)))
-                                                                   (update :cache-sym #(list 'quote %))
-                                                                   (update :iface-sym #(list 'quote %))
                                                                    (update :name #(list 'quote %)))]))
                                                (into {}))))
                           :method-caches (->> (map (fn [{:keys [methodk cache-sym]}]
-                                                     [methodk cache-sym])
+                                                     [methodk (list 'var  cache-sym)])
                                                    (vals sigs))
                                               (into {}))
                           ;;No more alter-var-root -- unnecessary
@@ -281,14 +285,16 @@
       (throw (IllegalArgumentException. 
               (str atype " already directly implements " (:on-interface proto)))))
     (let [impls (:impls proto)
-          method-caches (:method-caches proto)]
+          method-caches (:method-caches proto)
+          mmap-iter (.iterator (.entrySet ^java.util.Map mmap))]
       (swap! impls assoc atype mmap)
-      (reduce (fn [_ e]
-                (if-let [cache (get method-caches (key e))]
-                  (.extend ^MethodImplCache cache atype (val e))
-                  (throw (RuntimeException. (str "Unable to find protocol method for " (key e))))))
-              nil
-             mmap))))
+      (loop [c? (.hasNext mmap-iter)]
+        (when c?
+          (let [e (.next mmap-iter)]            
+            (if-let [cache (get method-caches (key e))]
+              (.extend ^MethodImplCache @cache atype (val e))
+              (throw (RuntimeException. (str "Unable to find protocol method for " (key e)))))
+            (recur (.hasNext mmap-iter))))))))
 
 (defn- emit-impl [[p fs]]
   [p (zipmap (map #(-> % first keyword) fs)
