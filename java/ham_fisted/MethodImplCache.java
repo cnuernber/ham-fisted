@@ -52,7 +52,10 @@ public final class MethodImplCache {
       if(c == null)
 	nullExtension = fn;
       else {
-	extensions.put(c, fn);
+	if(fn == null)
+	  extensions.remove(c);
+	else
+	  extensions.put(c, fn);
       }
     } finally {
       extLock.unlock();
