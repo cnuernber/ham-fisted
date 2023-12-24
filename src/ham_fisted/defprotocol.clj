@@ -100,14 +100,19 @@
                            (when (m (keyword mname))
                              (throw (IllegalArgumentException. (str "Function " mname " in protocol " name " was redefined. Specify all arities in single definition."))))
                            (assoc m (keyword mname)
-                                  {:name (vary-meta mname assoc :doc doc :arglists arglists)
-                                   :methodk name-kwd
-                                   :ns-methodk (keyword (clojure.core/name (.-name *ns*))
-                                                        (clojure.core/name mname))
-                                   :arglists arglists
-                                   :doc doc
-                                   :cache-sym (symbol (str "-" mname "-cache"))
-                                   :iface-sym (symbol (str "-" mname "-iface"))})))
+                                  (merge name-meta 
+                                         {:name (vary-meta mname assoc :doc doc :arglists arglists
+                                                           :tag (when-let [t (:tag name-meta)]
+                                                                  (if (instance? Class t)
+                                                                    t
+                                                                    (list 'quote t))))
+                                          :methodk name-kwd
+                                          :ns-methodk (keyword (clojure.core/name (.-name *ns*))
+                                                               (clojure.core/name mname))
+                                          :arglists arglists
+                                          :doc doc
+                                          :cache-sym (symbol (str "-" mname "-cache"))
+                                          :iface-sym (symbol (str "-" mname "-iface"))}))))
                        {} sigs))
         meths (mapcat (fn [sig]
                         (let [m (munge (:name sig))]
@@ -118,13 +123,13 @@
         name (if-let [proto-doc (:doc opts)]
                (with-meta name {:doc proto-doc})
                name)]
-    (println "UPDATES!!")
     `(do
        (gen-interface :name ~iname :methods ~meths)
-       ~@(mapcat (fn [{:keys [methodk ns-methodk cache-sym iface-sym arglists]
+       ~@(mapcat (fn [{:keys [methodk ns-methodk cache-sym iface-sym arglists tag]
                        mname :name}]
                    [`(defn ~(with-meta iface-sym
-                              {:private true})
+                              {:private true
+                               :tag (list 'quote tag)})
                        ~@(map (fn [args]
                                 (let [args (vec args) #_(mapv #(gensym (str %)) args)
                                       target (first args)]
@@ -167,6 +172,7 @@
                                                                                              (list 'quote sym))
                                                                                            arglist))
                                                                                    arglists)))
+                                                                   (update :tag (fn [t] (when t (list 'quote t))))
                                                                    (update :name #(list 'quote %)))]))
                                                (into {}))))
                           :method-caches (->> (map (fn [{:keys [methodk cache-sym]}]
@@ -285,16 +291,15 @@
       (throw (IllegalArgumentException. 
               (str atype " already directly implements " (:on-interface proto)))))
     (let [impls (:impls proto)
-          method-caches (:method-caches proto)
-          mmap-iter (.iterator (.entrySet ^java.util.Map mmap))]
+          method-caches (:method-caches proto)]
       (swap! impls assoc atype mmap)
-      (loop [c? (.hasNext mmap-iter)]
-        (when c?
-          (let [e (.next mmap-iter)]            
-            (if-let [cache (get method-caches (key e))]
-              (.extend ^MethodImplCache @cache atype (val e))
-              (throw (RuntimeException. (str "Unable to find protocol method for " (key e)))))
-            (recur (.hasNext mmap-iter))))))))
+      (loop [^clojure.lang.ISeq es (clojure.lang.RT/seq method-caches)]
+        (when es
+          (let [e (.first es)
+                methodk (key e)]
+            ;;Note the method cache has to handle potentially nil values.
+            (.extend ^MethodImplCache @(val e) (mmap methodk))
+            (recur (.next es))))))))
 
 (defn- emit-impl [[p fs]]
   [p (zipmap (map #(-> % first keyword) fs)
