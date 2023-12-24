@@ -10,20 +10,65 @@
 
 (ns ham-fisted.defprotocol-test
   (:require [ham-fisted.defprotocol-test.examples :refer :all]
-            [ham-fisted.defprotocol :refer [defprotocol extend-type extend extend-protocol]]
+            [ham-fisted.defprotocol-test.more-examples :as other]
+            [ham-fisted.defprotocol :refer [defprotocol extend-type extend extend-protocol satisfies? extends?]]
             [clojure.set :as set]
-            [clojure.test :refer [deftest testing are is]])
+            [clojure.test :refer [deftest testing are is do-report assert-expr report]])
   (:import [ham_fisted.defprotocol_test.examples ExampleInterface])
-  (:refer-clojure :exclude [defprotocol extend-type extend])
+  (:refer-clojure :exclude [defprotocol extend-type extend extend-protocol satisfies? extends?])
   )
+
+(defn causes
+  [^Throwable throwable]
+  (loop [causes []
+         t throwable]
+    (if t (recur (conj causes t) (.getCause t)) causes)))
+
+;; this is how I wish clojure.test/thrown? worked...
+;; Does body throw expected exception, anywhere in the .getCause chain?
+(defmethod assert-expr 'fails-with-cause?
+  [msg [_ exception-class msg-re & body :as form]]
+  `(try
+   ~@body
+   (report {:type :fail, :message ~msg, :expected '~form, :actual nil})
+   (catch Throwable t#
+     (if (some (fn [cause#]
+                 (and
+                  (= ~exception-class (class cause#))
+                  (re-find ~msg-re (.getMessage cause#))))
+               (causes t#))
+       (report {:type :pass, :message ~msg,
+                :expected '~form, :actual t#})
+       (report {:type :fail, :message ~msg,
+                :expected '~form, :actual t#})))))
+
+
+(defmethod clojure.test/assert-expr 'thrown-with-cause-msg? [msg form]
+  ;; (is (thrown-with-cause-msg? c re expr))
+  ;; Asserts that evaluating expr throws an exception of class c.
+  ;; Also asserts that the message string of the *cause* exception matches
+  ;; (with re-find) the regular expression re.
+  (let [klass (nth form 1)
+        re (nth form 2)
+        body (nthnext form 3)]
+    `(try ~@body
+          (do-report {:type :fail, :message ~msg, :expected '~form, :actual nil})
+          (catch ~klass e#
+            (let [m# (if (.getCause e#) (.. e# getCause getMessage) (.getMessage e#))]
+              (if (re-find ~re m#)
+                (do-report {:type :pass, :message ~msg,
+                            :expected '~form, :actual e#})
+                (do-report {:type :fail, :message ~msg,
+                            :expected '~form, :actual e#})))
+            e#))))
 
 
 (defn method-names
   "return sorted list of method names on a class"
   [c]
   (->> (.getMethods c)
-     (map #(.getName %))
-     (sort)))
+       (map #(.getName %))
+       (sort)))
 
 (defrecord EmptyRecord [])
 (defrecord TestRecord [a b])
@@ -38,9 +83,10 @@
 (deftest protocols-test
   (testing "protocol fns have useful metadata"
     (let [common-meta {:ns (find-ns 'ham-fisted.defprotocol-test.examples)
-                       :protocol #'ExampleProtocol :tag nil}]
+                       :tag nil}]
       (are [m f] (= (merge common-meta m)
-                    (meta (var f)))
+                    (dissoc (meta (var f))
+                            :line :column :file :hamf-protocol))
            {:name 'foo :arglists '([a]) :doc "method with one arg"} foo
            {:name 'bar :arglists '([a b]) :doc "method with two args"} bar
            {:name 'baz :arglists '([a] [a b]) :doc "method with multiple arities" :tag 'java.lang.String} baz
@@ -48,7 +94,7 @@
   (testing "protocol fns throw IllegalArgumentException if no impl matches"
     (is (thrown-with-msg?
           IllegalArgumentException
-          #"No implementation of method: :foo of protocol: #'clojure.test-clojure.protocols.examples/ExampleProtocol found for class: java.lang.Long"
+          #"No implementation of method: :foo of protocol: #'ham-fisted.defprotocol-test.examples/ExampleProtocol found for class: java.lang.Long"
           (foo 10))))
   (testing "protocols generate a corresponding interface using _ instead of - for method names"
     (is (= ["bar" "baz" "baz" "foo" "with_quux"] (method-names ham_fisted.defprotocol_test.examples.ExampleProtocol))))
@@ -120,456 +166,17 @@
      {:foo (fn [this] (str "widget " (.name this)))})
     (is (= "widget z" (foo (ExtendTestWidget. "z"))))))
 
-(deftest record-marker-interfaces
-  (testing "record? and type? return expected result for IRecord and IType"
-    (let [r (TestRecord. 1 2)]
-      (is (record? r)))))
-
 (deftest illegal-extending
   (testing "you cannot extend a protocol to a type that implements the protocol inline"
     (is (fails-with-cause? IllegalArgumentException #".*HasProtocolInline already directly implements interface"
-          (eval '(extend clojure.test_clojure.protocols.HasProtocolInline
-                         clojure.test-clojure.protocols.examples/ExampleProtocol
+          (eval '(extend ham_fisted.defprotocol_test.HasProtocolInline
+                         ham-fisted.defprotocol-test.examples/ExampleProtocol
                          {:foo (fn [_] :extended)})))))
   (testing "you cannot extend to an interface"
     (is (fails-with-cause? IllegalArgumentException #"interface ham_fisted.defprotocol_test.examples.ExampleProtocol is not a protocol"
-          (eval '(extend clojure.test_clojure.protocols.HasProtocolInline
+          (eval '(extend ham_fisted.defprotocol_test.HasProtocolInline
                          ham_fisted.defprotocol_test.examples.ExampleProtocol
                          {:foo (fn [_] :extended)}))))))
-
-
-(defrecord DefrecordObjectMethodsWidgetA [a])
-(defrecord DefrecordObjectMethodsWidgetB [a])
-(deftest defrecord-object-methods-test
-  (testing "= depends on fields and type"
-    (is (true? (= (DefrecordObjectMethodsWidgetA. 1) (DefrecordObjectMethodsWidgetA. 1))))
-    (is (false? (= (DefrecordObjectMethodsWidgetA. 1) (DefrecordObjectMethodsWidgetA. 2))))
-    (is (false? (= (DefrecordObjectMethodsWidgetA. 1) (DefrecordObjectMethodsWidgetB. 1))))))
-
-(deftest defrecord-acts-like-a-map
-  (let [rec (r 1 2)]
-    (is (.equals (r 1 3 {} {:c 4}) (merge rec {:b 3 :c 4})))
-    (is (.equals {:foo 1 :b 2} (set/rename-keys rec {:a :foo})))
-    (is (.equals {:a 11 :b 2 :c 10} (merge-with + rec {:a 10 :c 10})))))
-
-(deftest degenerate-defrecord-test
-  (let [empty (EmptyRecord.)]
-    (is (nil? (seq empty)))
-    (is (not (.containsValue empty :a)))))
-
-(deftest defrecord-interfaces-test
-  (testing "java.util.Map"
-    (let [rec (r 1 2)]
-      (is (= 2 (.size rec)))
-      (is (= 3 (.size (assoc rec :c 3))))
-      (is (not (.isEmpty rec)))
-      (is (.isEmpty (EmptyRecord.)))
-      (is (.containsKey rec :a))
-      (is (not (.containsKey rec :c)))
-      (is (.containsValue rec 1))
-      (is (not (.containsValue rec 3)))
-      (is (= 1 (.get rec :a)))
-      (is (thrown? UnsupportedOperationException (.put rec :a 1)))
-      (is (thrown? UnsupportedOperationException (.remove rec :a)))
-      (is (thrown? UnsupportedOperationException (.putAll rec {})))
-      (is (thrown? UnsupportedOperationException (.clear rec)))
-      (is (= #{:a :b} (.keySet rec)))
-      (is (= #{1 2} (set (.values rec))))
-      (is (= #{[:a 1] [:b 2]} (.entrySet rec)))
-      
-      ))
-  (testing "IPersistentCollection"
-    (testing ".cons"
-      (let [rec (r 1 2)]
-        (are [x] (= rec (.cons rec x))
-             nil {})
-        (is (= (r 1 3) (.cons rec {:b 3})))
-        (is (= (r 1 4) (.cons rec [:b 4])))
-        (is (= (r 1 5) (.cons rec (MapEntry. :b 5))))))))
-
-(defrecord RecordWithSpecificFieldNames [this that k m o])
-(deftest defrecord-with-specific-field-names
-  (let [rec (new RecordWithSpecificFieldNames 1 2 3 4 5)]
-    (is (= rec rec))
-    (is (= 1 (:this (with-meta rec {:foo :bar}))))
-    (is (= 3 (get rec :k)))
-    (is (= (seq rec) '([:this 1] [:that 2] [:k 3] [:m 4] [:o 5])))
-    (is (= (dissoc rec :k) {:this 1, :that 2, :m 4, :o 5}))))
-
-(defrecord RecordToTestStatics1 [a])
-(defrecord RecordToTestStatics2 [a b])
-(defrecord RecordToTestStatics3 [a b c])
-(defrecord RecordToTestBasis [a b c])
-(defrecord RecordToTestBasisHinted [^String a ^Long b c])
-(defrecord RecordToTestHugeBasis [a b c d e f g h i j k l m n o p q r s t u v w x y z])
-(defrecord TypeToTestBasis [a b c])
-(defrecord TypeToTestBasisHinted [^String a ^Long b c])
-
-(deftest test-statics
-  (testing "that a record has its generated static methods"
-    (let [r1 (RecordToTestStatics1. 1)
-          r2 (RecordToTestStatics2. 1 2)
-          r3 (RecordToTestStatics3. 1 2 3)
-          rn (RecordToTestStatics3. 1 nil nil)]
-      (testing "that a record created with the ctor equals one by the static factory method"
-        (is (= r1    (RecordToTestStatics1/create {:a 1})))
-        (is (= r2    (RecordToTestStatics2/create {:a 1 :b 2})))
-        (is (= r3    (RecordToTestStatics3/create {:a 1 :b 2 :c 3})))
-        (is (= rn    (RecordToTestStatics3/create {:a 1}))))
-      (testing "that a literal record equals one by the static factory method"
-        (is (= #clojure.test_clojure.protocols.RecordToTestStatics1{:a 1} (RecordToTestStatics1/create {:a 1})))
-        (is (= #clojure.test_clojure.protocols.RecordToTestStatics2{:a 1 :b 2} (RecordToTestStatics2/create {:a 1 :b 2})))
-        (is (= #clojure.test_clojure.protocols.RecordToTestStatics3{:a 1 :b 2 :c 3} (RecordToTestStatics3/create {:a 1 :b 2 :c 3})))
-        (is (= #clojure.test_clojure.protocols.RecordToTestStatics3{:a 1} (RecordToTestStatics3/create {:a 1})))
-        (is (= #clojure.test_clojure.protocols.RecordToTestStatics3{:a 1 :b nil :c nil} (RecordToTestStatics3/create {:a 1}))))))
-  (testing "that records and types have a sane generated basis method"
-    (let [rb  (clojure.test_clojure.protocols.RecordToTestBasis/getBasis)
-          rbh (clojure.test_clojure.protocols.RecordToTestBasisHinted/getBasis)
-          rhg (clojure.test_clojure.protocols.RecordToTestHugeBasis/getBasis)
-          tb (clojure.test_clojure.protocols.TypeToTestBasis/getBasis)
-          tbh (clojure.test_clojure.protocols.TypeToTestBasisHinted/getBasis)]
-      (is (= '[a b c] rb))
-      (is (= '[a b c] rb))
-      (is (= '[a b c d e f g h i j k l m n o p q r s t u v w x y z] rhg))
-      (testing "that record basis hinting looks as we expect"
-        (is (= (:tag (meta (rbh 0))) 'String))
-        (is (= (:tag (meta (rbh 1))) 'Long))
-        (is (nil? (:tag (meta (rbh 2))))))
-      (testing "that type basis hinting looks as we expect"
-        (is (= (:tag (meta (tbh 0))) 'String))
-        (is (= (:tag (meta (tbh 1))) 'Long))
-        (is (nil? (:tag (meta (tbh 2)))))))))
-
-(defrecord RecordToTestFactories [a b c])
-(defrecord RecordToTestA [a])
-(defrecord RecordToTestB [b])
-(defrecord RecordToTestHugeFactories [a b c d e f g h i j k l m n o p q r s t u v w x y z])
-(defrecord RecordToTestDegenerateFactories [])
-
-(deftest test-record-factory-fns
-  (testing "if the definition of a defrecord generates the appropriate factory functions"
-    (let [r    (RecordToTestFactories. 1 2 3)
-          r-n  (RecordToTestFactories. nil nil nil)
-          huge (RecordToTestHugeFactories. 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26)
-          r-a  (map->RecordToTestA {:a 1 :b 2})
-          r-b  (map->RecordToTestB {:a 1 :b 2})
-          r-d  (RecordToTestDegenerateFactories.)]
-      (testing "that a record created with the ctor equals one by the positional factory fn"
-        (is (= r    (->RecordToTestFactories 1 2 3)))
-        (is (= huge (->RecordToTestHugeFactories 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26))))
-      (testing "that a record created with the ctor equals one by the map-> factory fn"
-        (is (= r    (map->RecordToTestFactories {:a 1 :b 2 :c 3})))
-        (is (= r-n  (map->RecordToTestFactories {})))
-        (is (= r    (map->RecordToTestFactories (map->RecordToTestFactories {:a 1 :b 2 :c 3}))))
-        (is (= r-n  (map->RecordToTestFactories (map->RecordToTestFactories {}))))
-        (is (= r-d  (map->RecordToTestDegenerateFactories {})))
-        (is (= r-d  (map->RecordToTestDegenerateFactories
-                     (map->RecordToTestDegenerateFactories {})))))
-      (testing "that ext maps work correctly"
-        (is (= (assoc r :xxx 42)  (map->RecordToTestFactories {:a 1 :b 2 :c 3 :xxx 42})))
-        (is (= (assoc r :xxx 42)  (map->RecordToTestFactories (map->RecordToTestFactories
-                                                               {:a 1 :b 2 :c 3 :xxx 42}))))
-        (is (= (assoc r-n :xxx 42) (map->RecordToTestFactories {:xxx 42})))
-        (is (= (assoc r-n :xxx 42) (map->RecordToTestFactories (map->RecordToTestFactories
-  {:xxx 42}))))
-        (is (= (assoc r-d :xxx 42) (map->RecordToTestDegenerateFactories {:xxx 42})))
-        (is (= (assoc r-d :xxx 42) (map->RecordToTestDegenerateFactories
-                                    (map->RecordToTestDegenerateFactories {:xxx 42})))))
-      (testing "record equality"
-        (is (not= r-a r-b))
-        (is (= (into {} r-a) (into {} r-b)))
-        (is (not= (into {} r-a) r-b))
-        (is (= (map->RecordToTestA {:a 1 :b 2})
-               (map->RecordToTestA (map->RecordToTestB {:a 1 :b 2}))))
-        (is (= (map->RecordToTestA {:a 1 :b 2 :c 3})
-               (map->RecordToTestA (map->RecordToTestB {:a 1 :b 2 :c 3}))))
-        (is (= (map->RecordToTestA {:a 1 :d 4})
-               (map->RecordToTestA (map->RecordToTestDegenerateFactories {:a 1 :d 4}))))
-        (is (= r-n (map->RecordToTestFactories (java.util.HashMap.))))
-        (is (= r-a (map->RecordToTestA (into {} r-b))))
-        (is (= r-a (map->RecordToTestA r-b)))
-        (is (not= r-a (map->RecordToTestB r-a)))
-        (is (= r (assoc r-n :a 1 :b 2 :c 3)))
-        (is (not= r-a (assoc r-n :a 1 :b 2)))
-        (is (not= (assoc r-b :c 3 :d 4) (assoc r-n :a 1 :b 2 :c 3 :d 4)))
-        (is (= (into {} (assoc r-b :c 3 :d 4)) (into {} (assoc r-n :a 1 :b 2 :c 3 :d 4))))
-        (is (= (assoc r :d 4) (assoc r-n :a 1 :b 2 :c 3 :d 4))))
-      (testing "that factory functions have docstrings"
-        ;; just test non-nil to avoid overspecifiying what's in the docstring
-        (is (false? (-> ->RecordToTestFactories var meta :doc nil?)))
-        (is (false? (->  map->RecordToTestFactories var meta :doc nil?))))
-      (testing "that a literal record equals one by the positional factory fn"
-        (is (= #clojure.test_clojure.protocols.RecordToTestFactories{:a 1 :b 2 :c 3} (->RecordToTestFactories 1 2 3)))
-        (is (= #clojure.test_clojure.protocols.RecordToTestFactories{:a 1 :b nil :c nil} (->RecordToTestFactories 1 nil nil)))
-        (is (= #clojure.test_clojure.protocols.RecordToTestFactories{:a [] :b {} :c ()} (->RecordToTestFactories [] {} ()))))      
-      (testing "that a literal record equals one by the map-> factory fn"
-        (is (= #clojure.test_clojure.protocols.RecordToTestFactories{:a 1 :b 2 :c 3} (map->RecordToTestFactories {:a 1 :b 2 :c 3})))
-        (is (= #clojure.test_clojure.protocols.RecordToTestFactories{:a 1 :b nil :c nil} (map->RecordToTestFactories {:a 1})))
-        (is (= #clojure.test_clojure.protocols.RecordToTestFactories{:a nil :b nil :c nil} (map->RecordToTestFactories {})))))))
-
-(defn compare-huge-types
-  [hugeL hugeR]
-  (and
-   (= (.a hugeL) (.a hugeR))
-   (= (.b hugeL) (.b hugeR))
-   (= (.c hugeL) (.c hugeR))
-   (= (.d hugeL) (.d hugeR))
-   (= (.e hugeL) (.e hugeR))
-   (= (.f hugeL) (.f hugeR))
-   (= (.g hugeL) (.g hugeR))
-   (= (.h hugeL) (.h hugeR))
-   (= (.i hugeL) (.i hugeR))
-   (= (.j hugeL) (.j hugeR))
-   (= (.k hugeL) (.k hugeR))
-   (= (.l hugeL) (.l hugeR))
-   (= (.m hugeL) (.m hugeR))
-   (= (.n hugeL) (.n hugeR))
-   (= (.o hugeL) (.o hugeR))
-   (= (.p hugeL) (.p hugeR))
-   (= (.q hugeL) (.q hugeR))
-   (= (.r hugeL) (.r hugeR))
-   (= (.s hugeL) (.s hugeR))
-   (= (.t hugeL) (.t hugeR))
-   (= (.u hugeL) (.u hugeR))
-   (= (.v hugeL) (.v hugeR))
-   (= (.w hugeL) (.w hugeR))
-   (= (.x hugeL) (.x hugeR))
-   (= (.y hugeL) (.y hugeR))
-   (= (.z hugeL) (.z hugeR))))
-
-(deftype TypeToTestFactory [a])
-(defrecord TypeToTestHugeFactories [a b c d e f g h i j k l m n o p q r s t u v w x y z])
-
-(deftest deftype-factory-fn
-  (testing "that the ->T factory is gen'd for a deftype and that it works"
-    (is (= (.a (TypeToTestFactory. 42)) (.a (->TypeToTestFactory 42))))
-    (is (compare-huge-types
-         (TypeToTestHugeFactories.  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26)
-         (->TypeToTestHugeFactories 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26))))
-  (testing "that the generated factory checks arity constraints"
-    (is (thrown? clojure.lang.ArityException (->TypeToTestHugeFactories 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25)))
-    (is (thrown? clojure.lang.ArityException (->TypeToTestHugeFactories 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27)))))
-
-(deftest test-ctor-literals
-  (testing "that constructor calls to print-dup'able classes are supported as literals"
-    (is (= "Hi" #java.lang.String["Hi"]))
-    (is (= 42 #java.lang.Long[42]))
-    (is (= 42 #java.lang.Long["42"]))
-    (is (= [:a 42] #clojure.lang.MapEntry[:a 42])))
-  (testing "that constructor literals are embeddable"
-    (is (= 42 #java.lang.Long[#java.lang.String["42"]])))
-  (testing "that constructor literals work for deftypes too"
-    (is (= (.a (TypeToTestFactory. 42)) (.a #clojure.test_clojure.protocols.TypeToTestFactory[42])))
-    (is (compare-huge-types
-         (TypeToTestHugeFactories.  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26)
-         #clojure.test_clojure.protocols.TypeToTestHugeFactories[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26]))))
-
-(defrecord RecordToTestLiterals [a])
-(defrecord TestNode [v l r])
-(deftype TypeToTestLiterals [a])
-(def lang-str "en")
-(deftest exercise-literals
-  (testing "that ctor literals can be used in common 'places'"
-    (is (= (RecordToTestLiterals. ()) #clojure.test_clojure.protocols.RecordToTestLiterals[()]))
-    (is (= (.a (TypeToTestLiterals. ())) (.a #clojure.test_clojure.protocols.TypeToTestLiterals[()])))
-    (is (= (RecordToTestLiterals. 42) (into #clojure.test_clojure.protocols.RecordToTestLiterals[0] {:a 42})))
-    (is (= (RecordToTestLiterals. (RecordToTestLiterals. 42))  (RecordToTestLiterals. #clojure.test_clojure.protocols.RecordToTestLiterals[42])))
-    (is (= (RecordToTestLiterals. (RecordToTestLiterals. 42))  (->RecordToTestLiterals #clojure.test_clojure.protocols.RecordToTestLiterals[42])))
-    (is (= (RecordToTestLiterals. (RecordToTestLiterals. 42))
-           #clojure.test_clojure.protocols.RecordToTestLiterals[#clojure.test_clojure.protocols.RecordToTestLiterals[42]]))
-    (is (= (TestNode. 1
-                      (TestNode. 2
-                                 (TestNode. 3
-                                            nil
-                                            nil)
-                                 nil)
-                      (TestNode. 4
-                                 (TestNode. 5
-                                            (TestNode. 6
-                                                       nil
-                                                       nil)
-                                            nil)
-                                 (TestNode. 7
-                                            nil
-                                            nil)))
-           #clojure.test_clojure.protocols.TestNode{:v 1
-                                                    :l #clojure.test_clojure.protocols.TestNode{:v 2
-                                                                                                :l #clojure.test_clojure.protocols.TestNode{:v 3 :l nil :r nil}
-                                                                                                :r nil}
-                                                    :r #clojure.test_clojure.protocols.TestNode{:v 4
-                                                                                                :l #clojure.test_clojure.protocols.TestNode{:v 5
-                                                                                                                                            :l #clojure.test_clojure.protocols.TestNode{:v 6 :l nil :r nil}
-                                                                                                                                            :r nil}
-                                                                                                :r #clojure.test_clojure.protocols.TestNode{:v 7 :l nil :r nil}}})))
-
-  (testing "that records and types are evalable"
-    (is (= (RecordToTestLiterals. 42) (eval #clojure.test_clojure.protocols.RecordToTestLiterals[42])))
-    (is (= (RecordToTestLiterals. 42) (eval #clojure.test_clojure.protocols.RecordToTestLiterals{:a 42})))
-    (is (= (RecordToTestLiterals. 42) (eval (RecordToTestLiterals. 42))))
-    (is (= (RecordToTestLiterals. (RecordToTestLiterals. 42))
-           (eval #clojure.test_clojure.protocols.RecordToTestLiterals[#clojure.test_clojure.protocols.RecordToTestLiterals[42]])))
-    (is (= (RecordToTestLiterals. (RecordToTestLiterals. 42))
-           (eval #clojure.test_clojure.protocols.RecordToTestLiterals[#clojure.test_clojure.protocols.RecordToTestLiterals{:a 42}])))
-    (is (= (RecordToTestLiterals. (RecordToTestLiterals. 42))
-           (eval #clojure.test_clojure.protocols.RecordToTestLiterals{:a #clojure.test_clojure.protocols.RecordToTestLiterals[42]})))
-    (is (= 42 (.a (eval #clojure.test_clojure.protocols.TypeToTestLiterals[42])))))
-  
-  (testing "that ctor literals only work with constants or statics"
-    (is (thrown? Exception (read-string "#java.util.Locale[(str 'en)]")))
-    (is (thrown? Exception (read-string "(let [s \"en\"] #java.util.Locale[(str 'en)])")))
-    (is (thrown? Exception (read-string "#clojure.test_clojure.protocols.RecordToTestLiterals{(keyword \"a\") 42}"))))
-  
-  (testing "that ctors can have whitespace after class name but before {"
-    (is (= (RecordToTestLiterals. 42)
-           (read-string "#clojure.test_clojure.protocols.RecordToTestLiterals   {:a 42}"))))
-
-  (testing "that the correct errors are thrown with malformed literals"
-    (is (thrown-with-msg?
-          Exception
-          #"Unreadable constructor form.*"
-          (read-string "#java.util.Locale(\"en\")")))
-    (is (thrown-with-msg?
-          Exception
-          #"Unexpected number of constructor arguments.*"
-          (read-string "#java.util.Locale[\"\" \"\" \"\" \"\"]")))
-    (is (thrown? Exception (read-string "#java.util.Nachos(\"en\")")))))
-
-(defrecord RecordToTestPrinting [a b])
-(deftest defrecord-printing
-  (testing "that the default printer gives the proper representation"
-    (let [r   (RecordToTestPrinting. 1 2)]
-      (is (= "#clojure.test_clojure.protocols.RecordToTestPrinting{:a 1, :b 2}"
-             (pr-str r)))
-      (is (= "#clojure.test_clojure.protocols.RecordToTestPrinting[1, 2]"
-             (binding [*print-dup* true] (pr-str r))))
-      (is (= "#clojure.test_clojure.protocols.RecordToTestPrinting{:a 1, :b 2}"
-             (binding [*print-dup* true *verbose-defrecords* true] (pr-str r)))))))
-
-(defrecord RecordToTest__ [__a ___b])
-(defrecord TypeToTest__   [__a ___b])
-
-(deftest test-record-and-type-field-names
-  (testing "that types and records allow names starting with double-underscore.
-            This is a regression test for CLJ-837."
-    (let [r (RecordToTest__. 1 2)
-          t (TypeToTest__. 3 4)]
-      (are [x y] (= x y)
-           1 (:__a r)
-           2 (:___b r)
-           3 (.__a t)
-           4 (.___b t)))))
-
-(defrecord RecordToTestLongHint [^long a])
-(defrecord RecordToTestByteHint [^byte a])
-(defrecord RecordToTestBoolHint [^boolean a])
-(defrecord RecordToTestCovariantHint [^String a]) ;; same for arrays also
-(deftype TypeToTestLongHint [^long a])
-(deftype TypeToTestByteHint [^byte a])
-
-(deftest hinting-test
-  (testing "that primitive hinting requiring no coercion works as expected"
-    (is (= (RecordToTestLongHint. 42) #clojure.test_clojure.protocols.RecordToTestLongHint{:a 42}))
-    (is (= (RecordToTestLongHint. 42) #clojure.test_clojure.protocols.RecordToTestLongHint[42]))
-    (is (= (RecordToTestLongHint. 42) (clojure.test_clojure.protocols.RecordToTestLongHint/create {:a 42})))
-    (is (= (RecordToTestLongHint. 42) (map->RecordToTestLongHint {:a 42})))
-    (is (= (RecordToTestLongHint. 42) (->RecordToTestLongHint 42)))
-    (is (= (.a (TypeToTestLongHint. 42)) (.a (->TypeToTestLongHint (long 42)))))
-    (testing "that invalid primitive types on hinted defrecord fields fails"
-      (is (thrown?
-            ClassCastException
-            (read-string "#clojure.test_clojure.protocols.RecordToTestLongHint{:a \"\"}")))
-      (is (thrown?
-            IllegalArgumentException
-            (read-string "#clojure.test_clojure.protocols.RecordToTestLongHint[\"\"]")))
-      (is (thrown?
-            IllegalArgumentException
-            (read-string "#clojure.test_clojure.protocols.TypeToTestLongHint[\"\"]")))
-      (is (thrown?
-            ClassCastException
-            (clojure.test_clojure.protocols.RecordToTestLongHint/create {:a ""})))
-      (is (thrown?
-            ClassCastException
-            (map->RecordToTestLongHint {:a ""})))
-      (is (thrown?
-            ClassCastException
-            (->RecordToTestLongHint "")))))
-  (testing "that primitive hinting requiring coercion works as expected"
-    (is (= (RecordToTestByteHint. 42) (clojure.test_clojure.protocols.RecordToTestByteHint/create {:a (byte 42)})))
-    (is (= (RecordToTestByteHint. 42) (map->RecordToTestByteHint {:a (byte 42)})))
-    (is (= (RecordToTestByteHint. 42) (->RecordToTestByteHint (byte 42))))
-    (is (= (.a (TypeToTestByteHint. 42)) (.a (->TypeToTestByteHint (byte 42))))))
-  (testing "that primitive hinting for non-numerics works as expected"
-    (is (= (RecordToTestBoolHint. true) #clojure.test_clojure.protocols.RecordToTestBoolHint{:a true}))
-    (is (= (RecordToTestBoolHint. true) #clojure.test_clojure.protocols.RecordToTestBoolHint[true]))
-    (is (= (RecordToTestBoolHint. true) (clojure.test_clojure.protocols.RecordToTestBoolHint/create {:a true})))
-    (is (= (RecordToTestBoolHint. true) (map->RecordToTestBoolHint {:a true})))
-    (is (= (RecordToTestBoolHint. true) (->RecordToTestBoolHint true))))
-  (testing "covariant hints -- deferred"))
-
-(deftest reify-test
-  (testing "of an interface"
-    (let [s :foo
-          r (reify
-             java.util.List
-             (contains [_ o] (= s o)))]
-      (testing "implemented methods"
-        (is (true? (.contains r :foo)))
-        (is (false? (.contains r :bar))))
-      (testing "unimplemented methods"
-        (is (thrown? AbstractMethodError (.add r :baz))))))
-  (testing "of two interfaces"
-    (let [r (reify
-             java.util.List
-             (contains [_ o] (= :foo o))
-             java.util.Collection
-             (isEmpty [_] false))]
-      (is (true? (.contains r :foo)))
-      (is (false? (.contains r :bar)))
-      (is (false? (.isEmpty r)))))
-  (testing "you can't define a method twice"
-    (is (thrown? Exception
-         (eval '(reify
-                 java.util.List
-                 (size [_] 10)
-                 java.util.Collection
-                 (size [_] 20))))))
-  (testing "you can't define a method not on an interface/protocol/j.l.Object"
-    (is (thrown? Exception
-         (eval '(reify java.util.List (foo [_]))))))
-  (testing "of a protocol"
-    (let [r (reify
-             ExampleProtocol
-             (bar [this o] o)
-             (baz [this] 1)
-             (baz [this o] 2))]
-      (is (= :foo (.bar r :foo)))
-      (is (= 1 (.baz r)))
-      (is (= 2 (.baz r nil)))))
-  (testing "destructuring in method def"
-    (let [r (reify
-             ExampleProtocol
-             (bar [this [_ _ item]] item))]
-      (is (= :c (.bar r [:a :b :c])))))
-  (testing "methods can recur"
-    (let [r (reify
-             java.util.List
-             (get [_ index]
-                  (if (zero? index)
-                    :done
-                    (recur (dec index)))))]
-      (is (= :done (.get r 0)))
-      (is (= :done (.get r 1)))))
-  (testing "disambiguating with type hints"
-    (testing "you must hint an overloaded method"
-      (is (thrown? Exception
-            (eval '(reify ham_fisted.defprotocol_test.examples.ExampleInterface (hinted [_ o]))))))
-    (testing "hinting"
-      (let [r (reify
-               ExampleInterface
-               (hinted [_ ^int i] (inc i))
-               (hinted [_ ^String s] (str s s)))]
-        (is (= 2 (.hinted r 1)))
-        (is (= "xoxo" (.hinted r "xo")))))))
 
 
 ; see CLJ-845
@@ -625,12 +232,16 @@
 (import 'clojure.lang.ISeq)
 (defprotocol P
   (^ISeq f [_]))
-(ns clojure.test-clojure.protocols.other
-  (:use clojure.test))
+
+(ns ham-fisted.defprotocol-test.other
+  (:use clojure.test)
+  (:require [ham-fisted.defprotocol :refer [defprotocol extend-type extend extend-protocol satisfies? extends?]])
+  (:refer-clojure :exclude [defprotocol extend-type extend extend-protocol satisfies? extends?]))
+
 (defn cf [val]
-  (let [aseq (clojure.test-clojure.protocols/f val)]
+  (let [aseq (ham-fisted.defprotocol-test/f val)]
     (count aseq)))
-(extend-protocol clojure.test-clojure.protocols/P String
+(extend-protocol ham-fisted.defprotocol-test/P String
   (f [s] (seq s)))
 (deftest test-resolve-type-hints-in-protocol-methods
-  (is (= 4 (clojure.test-clojure.protocols/f "test"))))
+  (is (= 4 (cf "test"))))

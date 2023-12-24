@@ -4,21 +4,27 @@
   and prefer normal def, defn definitions which themselves respond to static linking.  This continues
   work on cnuernber/clojure attempting to dramatically decrease startup times."
   (:refer-clojure :exclude [defprotocol extend extend-type extend-protocol extends? satisfies?
-                            find-protocol-method extenders])
+                            find-protocol-method find-protocol-impl extenders])
   (:import [ham_fisted MethodImplCache]))
 
+(set! *warn-on-reflection* true)
+
+
+(defn find-protocol-cache-method
+  [protocol ^MethodImplCache cache x]
+  (when cache
+    (let [cc (class x)]
+      (if (.isAssignableFrom (.-iface cache) cc)
+        (.-ifaceFn cache)
+        (if-let [mfn (when (get protocol :extend-via-metadata)
+                       (get (meta x) (.-ns_methodk cache)))]
+          mfn             
+          (.findFnFor cache cc))))))
 
 (defn find-protocol-method
   "It may be more efficient in a tight loop to bypass the protocol dispatch on a per-call basis."
   ([protocol methodk x]
-   (when-let [^MethodImplCache c (get (get protocol :method-caches) methodk)]
-     (let [cc (class x)]
-       (if (.isAssignableFrom (.-iface c) cc)
-         (.-ifaceFn c)
-         (if-let [mfn (when (:extend-via-metadata protocol)
-                        (get (meta x) (.-ns_methodk c)))]
-           mfn             
-           (.findFnFor c cc)))))))
+   (find-protocol-cache-method protocol @(get (get protocol :method-caches) methodk) x)))
 
 (defn- protocol?
   [maybe-p]
@@ -41,7 +47,9 @@
 (defn satisfies? 
   "Returns true if x satisfies the protocol"
   [protocol x]
-  (boolean (find-protocol-impl protocol x)))
+  (or (instance? (get protocol :on-interface) x)
+      (every? #(boolean (find-protocol-cache-method protocol % x))
+              (vals (get protocol :method-caches)))))
 
 (defn- assert-same-protocol [protocol-var method-syms]
   (doseq [m method-syms]
@@ -51,22 +59,28 @@
         (binding [*out* *err*]
           (println "Warning: protocol" protocol-var "is overwriting"
                    (if p
-                     (str "method " (.sym v) " of protocol " (.sym p))
-                     (str "function " (.sym v)))))))))
+                     (str "method " (.sym ^clojure.lang.Var v) " of protocol " (.sym ^clojure.lang.Var p))
+                     (str "function " (.sym ^clojure.lang.Var v)))))))))
 
 (defn ^:no-doc find-fn
-  [target ^MethodImplCache cache]
+  [target ^MethodImplCache cache ns protocol]
   (if-let [rv (.findFnFor cache (class target))]
     rv
-    (throw (RuntimeException. (str "Failed to find specific overload: " (.-ns_methodk cache)
-                                   " for type " (class target))))))
+    (throw (IllegalArgumentException. (format
+                                       "No implementation of method: %s of protocol: #'%s/%s found for class: %s"
+                                       (.-methodk cache)
+                                       ns
+                                       protocol
+                                       (if-let [c (class target)]
+                                         (.getName ^Class c)
+                                         "nil"))))))
 
 ;;Instance check is already taken care of
 (defn ^:no-doc find-fn-via-metadata
-  [target ns-method cache]
+  [target ns-method cache ns protocol]
   (if-let [f (get (meta target) ns-method)]
     f
-    (find-fn target cache)))
+    (find-fn target cache ns protocol)))
 
 
 (defn- emit-protocol [name opts+sigs]
@@ -85,7 +99,7 @@
                                                               (not (contains? '#{int long float double char short byte boolean void
                                                                                  ints longs floats doubles chars shorts bytes booleans objects} tag))
                                                               (resolve tag))]
-                                                (symbol (.getName c))
+                                                (symbol (.getName ^Class c))
                                                 tag))
                                name-meta (update-in (meta (first s)) [:tag] tag-to-class)
                                mname (with-meta (first s) nil)
@@ -102,10 +116,11 @@
                            (assoc m (keyword mname)
                                   (merge name-meta 
                                          {:name (vary-meta mname assoc :doc doc :arglists arglists
-                                                           :tag (when-let [t (:tag name-meta)]
-                                                                  (if (instance? Class t)
-                                                                    t
-                                                                    (list 'quote t))))
+                                                           :tag (or (when-let [t (:tag name-meta)]
+                                                                      (if (instance? Class t)
+                                                                        t
+                                                                        (list 'quote t)))
+                                                                    (:tag (meta mname))))
                                           :methodk name-kwd
                                           :ns-methodk (keyword (clojure.core/name (.-name *ns*))
                                                                (clojure.core/name mname))
@@ -144,7 +159,7 @@
                              {:private true
                               :tag 'ham_fisted.MethodImplCache})
                        (ham_fisted.MethodImplCache. ~methodk ~ns-methodk ~iname ~iface-sym))
-                    `(defn ~mname
+                    `(defn ~mname {:hamf-protocol ~(list 'quote name)}
                        ~@(map (fn [args]
                                 (let [args (vec args) #_(mapv #(gensym (str %)) args)
                                       target (first args)]
@@ -154,9 +169,12 @@
                                       ~(if (:extend-via-metadata opts)
                                          `((find-fn-via-metadata ~target
                                                                  ~ns-methodk
-                                                                 ~cache-sym)
+                                                                 ~cache-sym
+                                                                 ~(list 'quote (.-name *ns*))
+                                                                 ~(list 'quote name))
                                            ~@args)
-                                         `((find-fn ~target ~cache-sym)
+                                         `((find-fn ~target ~cache-sym ~(list 'quote (.-name *ns*))
+                                                    ~(list 'quote name))
                                            ~@args))))))
                               arglists))])
                  (vals sigs))
@@ -298,7 +316,7 @@
           (let [e (.first es)
                 methodk (key e)]
             ;;Note the method cache has to handle potentially nil values.
-            (.extend ^MethodImplCache @(val e) (mmap methodk))
+            (.extend ^MethodImplCache @(val e) atype (mmap methodk))
             (recur (.next es))))))))
 
 (defn- emit-impl [[p fs]]
