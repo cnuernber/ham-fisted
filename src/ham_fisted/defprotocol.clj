@@ -24,7 +24,7 @@
 (defn find-protocol-method
   "It may be more efficient in a tight loop to bypass the protocol dispatch on a per-call basis."
   ([protocol methodk x]
-   (find-protocol-cache-method protocol @(get (get protocol :method-caches) methodk) x)))
+   (find-protocol-cache-method protocol (get (get protocol :method-caches) methodk) x)))
 
 (defn- protocol?
   [maybe-p]
@@ -194,7 +194,7 @@
                                                                    (update :name #(list 'quote %)))]))
                                                (into {}))))
                           :method-caches (->> (map (fn [{:keys [methodk cache-sym]}]
-                                                     [methodk (list 'var  cache-sym)])
+                                                     [methodk cache-sym])
                                                    (vals sigs))
                                               (into {}))
                           ;;No more alter-var-root -- unnecessary
@@ -316,7 +316,7 @@
           (let [e (.first es)
                 methodk (key e)]
             ;;Note the method cache has to handle potentially nil values.
-            (.extend ^MethodImplCache @(val e) atype (mmap methodk))
+            (.extend ^MethodImplCache (val e) atype (mmap methodk))
             (recur (.next es))))))))
 
 (defn- emit-impl [[p fs]]
