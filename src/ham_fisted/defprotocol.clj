@@ -24,7 +24,7 @@
 (defn find-protocol-method
   "It may be more efficient in a tight loop to bypass the protocol dispatch on a per-call basis."
   ([protocol methodk x]
-   (find-protocol-cache-method protocol (get (get protocol :method-caches) methodk) x)))
+   (find-protocol-cache-method protocol @(get (get protocol :method-caches) methodk) x)))
 
 (defn- protocol?
   [maybe-p]
@@ -48,7 +48,7 @@
   "Returns true if x satisfies the protocol"
   [protocol x]
   (or (instance? (get protocol :on-interface) x)
-      (every? #(boolean (find-protocol-cache-method protocol % x))
+      (every? #(boolean (find-protocol-cache-method protocol % @x))
               (vals (get protocol :method-caches)))))
 
 (defn- assert-same-protocol [protocol-var method-syms]
@@ -194,11 +194,14 @@
                                                                    (update :name #(list 'quote %)))]))
                                                (into {}))))
                           :method-caches (->> (map (fn [{:keys [methodk cache-sym]}]
-                                                     [methodk cache-sym])
+                                                     ;;Subtle issue here if you dereference the var --
+                                                     ;;if the file is reloaded you can get protocol referenes that
+                                                     ;;point to the wrong cache var.
+                                                     [methodk (list 'var cache-sym)])
                                                    (vals sigs))
                                               (into {}))
                           ;;No more alter-var-root -- unnecessary
-                          :impls (atom {}))))))
+                          :impls `(atom {}))))))
 
 (defmacro defprotocol 
   "A protocol is a named set of named methods and their signatures:
@@ -316,7 +319,7 @@
           (let [e (.first es)
                 methodk (key e)]
             ;;Note the method cache has to handle potentially nil values.
-            (.extend ^MethodImplCache (val e) atype (mmap methodk))
+            (.extend ^MethodImplCache @(val e) atype (mmap methodk))
             (recur (.next es))))))))
 
 (defn- emit-impl [[p fs]]

@@ -14,6 +14,7 @@
 package ham_fisted;
 
 import java.util.HashMap;
+import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.ConcurrentHashMap;
 import clojure.lang.IFn;
@@ -62,6 +63,8 @@ public final class MethodImplCache {
     }
     lookupCache.clear();
   }
+
+  public Set registeredClasses() { return extensions.keySet(); }
 
   public IFn findFnFor(Class c) {
     if(c == null) return nullExtension;
