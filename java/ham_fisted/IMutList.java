@@ -576,7 +576,7 @@ public interface IMutList<E>
 	}
 	public Object nth(int idx) {
 	  if(idx < len)
-	    return data.get(idx);
+	    return data.get(idx+sidx);
 	  throw new IndexOutOfBoundsException();
 	}
 	public IChunk dropFirst() {

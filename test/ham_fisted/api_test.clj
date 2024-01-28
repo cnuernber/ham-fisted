@@ -219,3 +219,8 @@
 (deftest parallel-frequenies
   (is (= {0 715, 1 715, 2 715, 3 715, 4 714, 5 714, 6 714, 7 714, 8 714, 9 714, 10 714, 11 714, 12 714, 13 714}
          (hamf/frequencies (lznc/map #(rem (long %) 14) (hamf/range 10000))))))
+
+
+(deftest range-seq
+  (is (= (vec (range 40))
+         (vec (apply list (hamf/range 40))))))

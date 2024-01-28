@@ -1,6 +1,6 @@
 {:paths ["src" "target/classes"]
- :deps {it.unimi.dsi/fastutil-core {:mvn/version "8.5.8"}
-        com.github.ben-manes.caffeine/caffeine {:mvn/version "2.9.3"}}
+ :deps it.unimi.dsi/fastutil-core {:mvn/version "8.5.8"}
+
  :aliases
  {;; Run with clj -T:build function-in-build
   :dev
