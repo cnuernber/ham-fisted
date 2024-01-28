@@ -1,3 +1,6 @@
+# 2.015
+ * [issue 13](https://github.com/cnuernber/ham-fisted/issues/13) - any IMutList chunkedSeq was partially incorrect.
+ 
 # 2.014
  * frequencies respects map-fn option to allow concurrent hashmaps to be used.
  
