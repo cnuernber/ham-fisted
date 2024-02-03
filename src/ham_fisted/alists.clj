@@ -3,11 +3,9 @@
   slower than the java ones but *far* less code so these are used for the
   less-frequently-used primive datatypes - byte, short, char, and float."
   (:require [ham-fisted.iterator :as iterator]
-            [ham-fisted.protocols :as protocols]
-            [ham-fisted.print :as pp])
+            [ham-fisted.protocols :as protocols])
   (:import [ham_fisted ArrayLists ArrayLists$ILongArrayList ArrayLists$IDoubleArrayList
             Transformables ArrayHelpers Casts IMutList IFnDef$OLO IFnDef$ODO
-            ArraySection
             ArrayLists$ObjectArrayList ArrayLists$ObjectArraySubList
             ArrayLists$ByteArraySubList ArrayLists$ShortArraySubList ArrayLists$CharArraySubList
             ArrayLists$IntArraySubList ArrayLists$IntArrayList
@@ -21,7 +19,10 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* true)
 
-(pp/implement-tostring-print ArraySection)
+(defmacro implement-tostring-print
+  [tname]
+  (require '[ham-fisted.print])
+  `(ham-fisted.print/implement-tostring-print ~tname))
 
 
 (defn- add-long-reduce
@@ -128,24 +129,25 @@
      (copyOf [this# len#]
        (Arrays/copyOf ~'data len#))
      (getArraySection [this#]
-       (ArraySection. ~'data 0 ~'n-elems))))
+       (ham_fisted.ArraySection. ~'data 0 ~'n-elems))))
 
 
-(make-prim-array-list ByteArrayList bytes ArrayLists$ILongArrayList getLong setLong addLong
-                      RT/byteCast unchecked-long Casts/longCast add-long-reduce)
-(make-prim-array-list ShortArrayList shorts ArrayLists$ILongArrayList getLong setLong addLong
-                      RT/shortCast unchecked-long Casts/longCast add-long-reduce)
-(make-prim-array-list CharArrayList chars ArrayLists$ILongArrayList getLong setLong addLong
-                      Casts/charCast Casts/charLongCast Casts/charLongCast add-long-reduce)
-(make-prim-array-list FloatArrayList floats ArrayLists$IDoubleArrayList getDouble setDouble
-                      addDouble float unchecked-double Casts/doubleCast add-double-reduce)
+(def array-lists
+  [(make-prim-array-list ByteArrayList bytes ArrayLists$ILongArrayList getLong setLong addLong
+                         RT/byteCast unchecked-long Casts/longCast add-long-reduce)
+   (make-prim-array-list ShortArrayList shorts ArrayLists$ILongArrayList getLong setLong addLong
+                         RT/shortCast unchecked-long Casts/longCast add-long-reduce)
+   (make-prim-array-list CharArrayList chars ArrayLists$ILongArrayList getLong setLong addLong
+                         Casts/charCast Casts/charLongCast Casts/charLongCast add-long-reduce)
+   (make-prim-array-list FloatArrayList floats ArrayLists$IDoubleArrayList getDouble setDouble
+                         addDouble float unchecked-double Casts/doubleCast add-double-reduce)
 
 
-(deftype BooleanArrayList [^{:unsynchronized-mutable true
-                             :tag booleans} data
-                           ^{:unsynchronized-mutable true
-                             :tag long} n-elems
-                           ^IPersistentMap m]
+   (deftype BooleanArrayList [^{:unsynchronized-mutable true
+                                :tag booleans} data
+                              ^{:unsynchronized-mutable true
+                                :tag long} n-elems
+                              ^IPersistentMap m]
      Object
      (hashCode [this] (.hasheq this))
      (equals [this other] (.equiv this other))
@@ -220,14 +222,14 @@
      (copyOf [this len]
        (Arrays/copyOf data len))
      (getArraySection [this]
-       (ArraySection. data 0 n-elems)))
+       (ham_fisted.ArraySection. data 0 n-elems)))])
 
 
-(pp/implement-tostring-print ByteArrayList)
-(pp/implement-tostring-print ShortArrayList)
-(pp/implement-tostring-print CharArrayList)
-(pp/implement-tostring-print FloatArrayList)
-(pp/implement-tostring-print BooleanArrayList)
+(implement-tostring-print ByteArrayList)
+(implement-tostring-print ShortArrayList)
+(implement-tostring-print CharArrayList)
+(implement-tostring-print FloatArrayList)
+(implement-tostring-print BooleanArrayList)
 
 
 (defn- ladd
@@ -241,7 +243,7 @@
   l)
 
 
-(extend-protocol protocols/Reducer
+#_(extend-protocol protocols/Reducer
   ArrayLists$ObjectArrayList
   (->init-val-fn [item] #(ArrayLists$ObjectArrayList.))
   (->rfn [item] ladd)
@@ -256,7 +258,7 @@
   (->rfn [item] ladd))
 
 
-(extend-protocol protocols/ParallelReducer
+#_(extend-protocol protocols/ParallelReducer
   ArrayLists$ObjectArrayList
   (->merge-fn [l] lmerge)
   ArrayLists$IntArrayList
@@ -268,23 +270,19 @@
 
 
 
-(def ary-classes
-  {(Class/forName "[Z") ['bytes 'BooleanArrayList.]
-   (Class/forName "[B") ['bytes 'ByteArrayList.]
-   (Class/forName "[S") ['shorts 'ShortArrayList.]
-   (Class/forName "[C") ['chars 'CharArrayList.]
-   (Class/forName "[I") ['ints 'ArrayLists$IntArrayList.]
-   (Class/forName "[J") ['longs 'ArrayLists$LongArrayList.]
-   (Class/forName "[F") ['floats 'FloatArrayList.]
-   (Class/forName "[D") ['doubles 'ArrayLists$DoubleArrayList.]
-   (Class/forName "[Ljava.lang.Object;") ['objects 'ArrayLists$ObjectArrayList.]})
-
-
 (defmacro extend-array-types
   []
   `(do
      ~@(->>
-        ary-classes
+        {'(Class/forName "[Z") ['bytes 'BooleanArrayList.]
+         '(Class/forName "[B") ['bytes 'ByteArrayList.]
+         '(Class/forName "[S") ['shorts 'ShortArrayList.]
+         '(Class/forName "[C") ['chars 'CharArrayList.]
+         '(Class/forName "[I") ['ints 'ArrayLists$IntArrayList.]
+         '(Class/forName "[J") ['longs 'ArrayLists$LongArrayList.]
+         '(Class/forName "[F") ['floats 'FloatArrayList.]
+         '(Class/forName "[D") ['doubles 'ArrayLists$DoubleArrayList.]
+         '(Class/forName "[Ljava.lang.Object;") ['objects 'ArrayLists$ObjectArrayList.]}
         (map (fn [[cls-type [hint growable-cons]]]
                `(extend ~cls-type
                   protocols/WrapArray
