@@ -8,6 +8,8 @@ import clojure.lang.IDeref;
 import clojure.lang.Seqable;
 import clojure.java.api.Clojure;
 import clojure.lang.Delay;
+import clojure.lang.AFn;
+import clojure.lang.Util;
 import java.util.RandomAccess;
 import java.util.List;
 import java.util.Iterator;
@@ -25,6 +27,17 @@ import java.util.concurrent.ArrayBlockingQueue;
 
 
 public class Reductions {
+
+  public static IFn ToStringPrint = new AFn() {
+      public Object invoke(Object target, Object ww) {
+	try {
+	  ((java.io.Writer)ww).write(target.toString());
+	}catch (java.io.IOException e) {
+	  throw Util.sneakyThrow(e);
+	}
+	return null;
+      }
+    };
 
   public static Object unreduce(Object obj) {
     return RT.isReduced(obj) ? ((IDeref)obj).deref() : obj;
