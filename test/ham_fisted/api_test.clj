@@ -224,3 +224,6 @@
 (deftest range-seq
   (is (= (vec (range 40))
          (vec (apply list (hamf/range 40))))))
+
+(deftest drop-elems
+  (is (empty? (hamf/drop 10 [1 2 3 4 5]))))

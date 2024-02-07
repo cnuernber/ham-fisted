@@ -2459,7 +2459,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
   (when coll
     (let [coll (->reducible coll)]
       (if (instance? RandomAccess coll)
-        (subvec coll (min (long n) (dec (.size ^List coll))))
+        (subvec coll (min (long n) (.size ^List coll)))
         (clojure.core/drop n coll)))))
 
 
