@@ -383,11 +383,7 @@ ham-fisted.api> (reduce double-consumer-accumulator
 #<SimpleSum@2fbcf20: 499500.0>
 ham-fisted.api> @*1
 499500.0
-```"
-  (reify IFnDef$ODO
-    (invokePrim [this dc v]
-      (.accept ^DoubleConsumer dc v)
-      dc)))
+```" ham_fisted.ConsumerAccumulators$DoubleConsumerAccumulator/INST)
 
 
 (def long-consumer-accumulator
@@ -402,17 +398,12 @@ ham-fisted.api> (reduce double-consumer-accumulator
 ham-fisted.api> @*1
 499500.0
 ```"
-  (reify IFnDef$OLO
-    (invokePrim [this dc v]
-      (.accept ^LongConsumer dc v)
-      dc)))
+  ham_fisted.ConsumerAccumulators$LongConsumerAccumulator/INST)
 
 
-(defn consumer-accumulator
+(def consumer-accumulator
   "Generic reduction function using a consumer"
-  [^Consumer c v]
-  (.accept c v)
-  c)
+  ham_fisted.ConsumerAccumulators$ConsumerAccumulator/INST)
 
 
 (def ^{:doc "Parallel reduction merge function that expects both sides to be an instances of
