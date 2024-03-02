@@ -132,97 +132,96 @@
        (ham_fisted.ArraySection. ~'data 0 ~'n-elems))))
 
 
-(def array-lists
-  [(make-prim-array-list ByteArrayList bytes ArrayLists$ILongArrayList getLong setLong addLong
-                         RT/byteCast unchecked-long Casts/longCast add-long-reduce)
-   (make-prim-array-list ShortArrayList shorts ArrayLists$ILongArrayList getLong setLong addLong
-                         RT/shortCast unchecked-long Casts/longCast add-long-reduce)
-   (make-prim-array-list CharArrayList chars ArrayLists$ILongArrayList getLong setLong addLong
-                         Casts/charCast Casts/charLongCast Casts/charLongCast add-long-reduce)
-   (make-prim-array-list FloatArrayList floats ArrayLists$IDoubleArrayList getDouble setDouble
-                         addDouble float unchecked-double Casts/doubleCast add-double-reduce)
+(make-prim-array-list ByteArrayList bytes ArrayLists$ILongArrayList getLong setLong addLong
+                      RT/byteCast unchecked-long Casts/longCast add-long-reduce)
+(make-prim-array-list ShortArrayList shorts ArrayLists$ILongArrayList getLong setLong addLong
+                      RT/shortCast unchecked-long Casts/longCast add-long-reduce)
+(make-prim-array-list CharArrayList chars ArrayLists$ILongArrayList getLong setLong addLong
+                      Casts/charCast Casts/charLongCast Casts/charLongCast add-long-reduce)
+(make-prim-array-list FloatArrayList floats ArrayLists$IDoubleArrayList getDouble setDouble
+                      addDouble float unchecked-double Casts/doubleCast add-double-reduce)
 
 
-   (deftype BooleanArrayList [^{:unsynchronized-mutable true
-                                :tag booleans} data
-                              ^{:unsynchronized-mutable true
-                                :tag long} n-elems
-                              ^IPersistentMap m]
-     Object
-     (hashCode [this] (.hasheq this))
-     (equals [this other] (.equiv this other))
-     (toString [this] (Transformables/sequenceToString this))
-     ArrayLists$IArrayList
-     (cloneList [this] (BooleanArrayList. (.copyOf this n-elems) n-elems m))
-     (meta [this] m)
-     (withMeta [this newm] (with-meta (.subList this 0 n-elems) newm))
-     (size [this] (unchecked-int n-elems))
-     (get [this idx] (aget data (ArrayLists/checkIndex idx n-elems)))
-     (set [this idx v]
-       (let [retval (.get this idx)]
-         (ArrayHelpers/aset data (ArrayLists/checkIndex idx n-elems)
-                            (Casts/booleanCast v))
-         retval))
-     (subList [this sidx eidx]
-       (ChunkedList/sublistCheck sidx eidx n-elems)
-       (ArrayLists/toList data sidx eidx m))
-     (ensureCapacity [this newlen]
-       (when (> newlen (alength data))
-         (set! data ^booleans (.copyOf this (ArrayLists/newArrayLen newlen))))
-       data)
-     (add [this v]
-       (let [curlen n-elems
-             newlen (unchecked-inc n-elems)
-             ^booleans b (.ensureCapacity this newlen)]
-         (ArrayHelpers/aset b curlen (Casts/booleanCast v))
-         (set! n-elems newlen)
-         true))
-     (add [this idx obj]
-       (if (== idx n-elems)
-         (.add this obj)
-         (do
-           (ArrayLists/checkIndex idx n-elems)
-           (let [bval (Casts/booleanCast obj)
-                 curlen n-elems
-                 newlen (unchecked-inc curlen)
-                 ^booleans d (.ensureCapacity this newlen)]
-             (System/arraycopy d idx d (unchecked-inc idx) (- curlen idx))
-             (ArrayHelpers/aset d idx bval)
-             (set! n-elems newlen)))))
-     (addAllReducible [this c]
-       (let [sz (.size this)]
-         (if (instance? RandomAccess c)
-           (let [^List c c
-                 curlen n-elems
-                 newlen (+ curlen (.size c))]
-             (.ensureCapacity this newlen)
-             (set! n-elems newlen)
-             (.fillRangeReducible this curlen c))
-           (Reductions/serialReduction (fn [acc v]
-                                         (.add ^List acc v)
-                                         v)
-                                       this
-                                       c))
-         (not (== sz n-elems))))
-     (fillRangeReducible [this sidx c]
-       (.fillRangeReducible (.subList this 0 (.size this)) sidx c))
-     (removeRange [this sidx eidx]
-       (ArrayLists/checkIndexRange n-elems sidx eidx)
-       (System/arraycopy data sidx data eidx (- n-elems eidx))
-       (set! n-elems (- n-elems (- eidx sidx))))
-     (sort [this c] (.sort (.subList this 0 n-elems) c))
-     (sortIndirect [this c] (.sortIndirect ^IMutList (.subList this 0 n-elems) c))
-     (shuffle [this r] (.shuffle ^IMutList (.subList this 0 n-elems) r))
-     (binarySearch [this v c] (.binarySearch ^IMutList (.subList this 0 n-elems) v c))
-     (fill [this sidx eidx v]
-       (ArrayLists/checkIndexRange n-elems (long sidx) (long eidx))
-       (Arrays/fill data sidx eidx (Casts/booleanCast v)))
-     (copyOfRange [this sidx eidx]
-       (Arrays/copyOfRange data sidx eidx))
-     (copyOf [this len]
-       (Arrays/copyOf data len))
-     (getArraySection [this]
-       (ham_fisted.ArraySection. data 0 n-elems)))])
+(deftype BooleanArrayList [^{:unsynchronized-mutable true
+                             :tag booleans} data
+                           ^{:unsynchronized-mutable true
+                             :tag long} n-elems
+                           ^IPersistentMap m]
+  Object
+  (hashCode [this] (.hasheq this))
+  (equals [this other] (.equiv this other))
+  (toString [this] (Transformables/sequenceToString this))
+  ArrayLists$IArrayList
+  (cloneList [this] (BooleanArrayList. (.copyOf this n-elems) n-elems m))
+  (meta [this] m)
+  (withMeta [this newm] (with-meta (.subList this 0 n-elems) newm))
+  (size [this] (unchecked-int n-elems))
+  (get [this idx] (aget data (ArrayLists/checkIndex idx n-elems)))
+  (set [this idx v]
+    (let [retval (.get this idx)]
+      (ArrayHelpers/aset data (ArrayLists/checkIndex idx n-elems)
+                         (Casts/booleanCast v))
+      retval))
+  (subList [this sidx eidx]
+    (ChunkedList/sublistCheck sidx eidx n-elems)
+    (ArrayLists/toList data sidx eidx m))
+  (ensureCapacity [this newlen]
+    (when (> newlen (alength data))
+      (set! data ^booleans (.copyOf this (ArrayLists/newArrayLen newlen))))
+    data)
+  (add [this v]
+    (let [curlen n-elems
+          newlen (unchecked-inc n-elems)
+          ^booleans b (.ensureCapacity this newlen)]
+      (ArrayHelpers/aset b curlen (Casts/booleanCast v))
+      (set! n-elems newlen)
+      true))
+  (add [this idx obj]
+    (if (== idx n-elems)
+      (.add this obj)
+      (do
+        (ArrayLists/checkIndex idx n-elems)
+        (let [bval (Casts/booleanCast obj)
+              curlen n-elems
+              newlen (unchecked-inc curlen)
+              ^booleans d (.ensureCapacity this newlen)]
+          (System/arraycopy d idx d (unchecked-inc idx) (- curlen idx))
+          (ArrayHelpers/aset d idx bval)
+          (set! n-elems newlen)))))
+  (addAllReducible [this c]
+    (let [sz (.size this)]
+      (if (instance? RandomAccess c)
+        (let [^List c c
+              curlen n-elems
+              newlen (+ curlen (.size c))]
+          (.ensureCapacity this newlen)
+          (set! n-elems newlen)
+          (.fillRangeReducible this curlen c))
+        (Reductions/serialReduction (fn [acc v]
+                                      (.add ^List acc v)
+                                      v)
+                                    this
+                                    c))
+      (not (== sz n-elems))))
+  (fillRangeReducible [this sidx c]
+    (.fillRangeReducible (.subList this 0 (.size this)) sidx c))
+  (removeRange [this sidx eidx]
+    (ArrayLists/checkIndexRange n-elems sidx eidx)
+    (System/arraycopy data sidx data eidx (- n-elems eidx))
+    (set! n-elems (- n-elems (- eidx sidx))))
+  (sort [this c] (.sort (.subList this 0 n-elems) c))
+  (sortIndirect [this c] (.sortIndirect ^IMutList (.subList this 0 n-elems) c))
+  (shuffle [this r] (.shuffle ^IMutList (.subList this 0 n-elems) r))
+  (binarySearch [this v c] (.binarySearch ^IMutList (.subList this 0 n-elems) v c))
+  (fill [this sidx eidx v]
+    (ArrayLists/checkIndexRange n-elems (long sidx) (long eidx))
+    (Arrays/fill data sidx eidx (Casts/booleanCast v)))
+  (copyOfRange [this sidx eidx]
+    (Arrays/copyOfRange data sidx eidx))
+  (copyOf [this len]
+    (Arrays/copyOf data len))
+  (getArraySection [this]
+    (ham_fisted.ArraySection. data 0 n-elems)))
 
 
 (implement-tostring-print ByteArrayList)

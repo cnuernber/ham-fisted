@@ -5,9 +5,9 @@
             [ham-fisted.function :refer [bi-function]])
   (:import [ham_fisted ParallelOptions ParallelOptions$CatParallelism Reductions
             Transformables Reducible IFnDef$OOO IFnDef$OLOO
-            IFnDef$ODO IFnDef$OLO Sum Sum$SimpleSum Reductions$IndexedAccum
+            IFnDef$ODO IFnDef$OLO IFnDef$DDD IFnDef$LLL Sum Sum$SimpleSum Reductions$IndexedAccum
             Reductions$IndexedLongAccum Reductions$IndexedDoubleAccum IFnDef$OLLO IFnDef$OLDO]
-           [clojure.lang IFn$DO IFn$LO IFn$OLO]
+           [clojure.lang IFn$DO IFn$LO IFn$OLO IFn$DDD IFn$LLL]
            [java.util Map]
            [java.util.function DoubleConsumer LongConsumer Consumer]
            [java.util.concurrent ForkJoinPool])
@@ -216,7 +216,7 @@ ham-fisted.api> @*1
          (finalize [_ v] (immut-map-kv (keys reducers) (protocols/finalize reducer v)))
          protocols/ParallelReducer
          (->merge-fn [_] (protocols/->merge-fn reducer))))
-     (let [init-fns (mapv protocols/->init-val-fn reducers)
+     (let [init-fns (.toArray ^java.util.Collection (lznc/map protocols/->init-val-fn reducers))
            rfn-dt (get options :rfn-datatype)
            ^objects rfns (object-array
                           (case rfn-dt
@@ -230,10 +230,14 @@ ham-fisted.api> @*1
                             (map protocols/->rfn reducers)))
            ^objects mergefns (object-array (map protocols/->merge-fn reducers))
            n-vals (count rfns)
-           init-fn-map (map #(%) init-fns)]
+           n-init (count init-fns)]
        (reify
          protocols/Reducer
-         (->init-val-fn [_] (fn compose-init [] (object-array init-fn-map)))
+         (->init-val-fn [_] (fn compose-init []
+                              (let [rv (ham_fisted.ArrayLists/objectArray n-init)]
+                                (dotimes [idx n-init]
+                                  (aset rv idx ((aget init-fns idx))))
+                                rv)))
          (->rfn [_]
            (case rfn-dt
              :int64 (Reductions/longCompose n-vals rfns)
@@ -544,6 +548,44 @@ nil
     (->merge-fn [r] reducible-merge)))
 
 
+(deftype DDDReducer [^{:unsynchronized-mutable true
+                       :tag double} acc
+                     ^{:tag IFn$DDD} rfn
+                     merge-fn
+                     ^{:unsynchronized-mutable true
+                      :tag clojure.lang.Box} merged]
+
+  DoubleConsumer
+  (accept [this v] (set! acc (.invokePrim rfn acc v)))
+  Reducible
+  (reduce [this other]
+    (if merged
+      (set! (.-val merged) (merge-fn (.-val merged) @other))
+      (set! merged (clojure.lang.Box. (merge-fn acc @other))))
+    this)
+  clojure.lang.IDeref
+  (deref [this] (if merged (.-val merged) acc)))
+
+
+(deftype LLLReducer [^{:unsynchronized-mutable true
+                       :tag long} acc
+                     ^{:tag IFn$LLL} rfn
+                     merge-fn
+                     ^{:unsynchronized-mutable true
+                      :tag clojure.lang.Box} merged]
+
+  LongConsumer
+  (accept [this v] (set! acc (.invokePrim rfn acc v)))
+  Reducible
+  (reduce [this other]
+    (if merged
+      (set! (.-val merged) (merge-fn (.-val merged) @other))
+      (set! merged (clojure.lang.Box. (merge-fn acc @other))))
+    this)
+  clojure.lang.IDeref
+  (deref [this] (if merged (.-val merged) acc)))
+
+
 (defn parallel-reducer
   "Implement a parallel reducer by explicitly passing in the various required functions.
 
@@ -565,21 +607,34 @@ user> (hamf-rf/preduce-reducer
 ```
 "
   ([init-fn rfn merge-fn fin-fn]
-   (reify
-     protocols/Reducer
-     (->init-val-fn [this] init-fn)
-     (->rfn [r] rfn)
-     protocols/ParallelReducer
-     (->merge-fn [r] merge-fn)
-     protocols/Finalize
-     (finalize [r v] (fin-fn v))))
+   (cond
+     (instance? IFn$DDD rfn)
+     (reify protocols/Reducer
+       (->init-val-fn [this] #(DDDReducer. (double (init-fn)) rfn merge-fn nil))
+       (->rfn [r] double-consumer-accumulator)
+       protocols/ParallelReducer
+       (->merge-fn [r] reducible-merge)
+       protocols/Finalize
+       (finalize [r v] (fin-fn @v)))
+     (instance? IFn$LLL rfn)
+     (reify protocols/Reducer
+       (->init-val-fn [this] #(LLLReducer. (long (init-fn)) rfn merge-fn nil))
+       (->rfn [r] long-consumer-accumulator)
+       protocols/ParallelReducer
+       (->merge-fn [r] reducible-merge)
+       protocols/Finalize
+       (finalize [r v] (fin-fn @v)))
+     :else 
+     (reify
+       protocols/Reducer
+       (->init-val-fn [this] init-fn)
+       (->rfn [r] rfn)
+       protocols/ParallelReducer
+       (->merge-fn [r] merge-fn)
+       protocols/Finalize
+       (finalize [r v] (fin-fn v)))))
   ([init-fn rfn merge-fn]
-   (reify
-     protocols/Reducer
-     (->init-val-fn [this] init-fn)
-     (->rfn [r] rfn)
-     protocols/ParallelReducer
-     (->merge-fn [r] merge-fn))))
+   (parallel-reducer init-fn rfn merge-fn identity)))
 
 
 (defn consumer-preducer
