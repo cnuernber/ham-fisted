@@ -1,3 +1,6 @@
+# 2.017
+ * Faster compose-reducers especially where there really are a lot of reducers.
+ 
 # 2.015
  * [issue 13](https://github.com/cnuernber/ham-fisted/issues/13) - any IMutList chunkedSeq was partially incorrect.
  
