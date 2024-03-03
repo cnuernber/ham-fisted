@@ -155,7 +155,7 @@ ham-fisted.api> @*1
 ```"
   [accvar varvar & code]
   `(reify IFnDef$ODO
-     (invokePrim [this ~accvar ~varvar]
+     (invokePrim [this# ~accvar ~varvar]
        ~@code)))
 
 
@@ -173,7 +173,7 @@ ham-fisted.api> @*1
 ```"
   [accvar varvar & code]
   `(reify IFnDef$OLO
-     (invokePrim [this ~accvar ~varvar]
+     (invokePrim [this# ~accvar ~varvar]
        ~@code)))
 
 (defn immut-map-kv

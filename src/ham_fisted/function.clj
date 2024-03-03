@@ -22,7 +22,7 @@
 (defmacro bi-consumer
   [arg1 arg2 & code]
   `(reify BiConsumer
-     (accept [this ~arg1 ~arg2]
+     (accept [this# ~arg1 ~arg2]
        ~@code)))
 
 
@@ -46,7 +46,7 @@
   "Create a function that converts objects to longs"
   ([]
    `(reify IFnDef$OL
-        (invokePrim [this v#]
+        (invokePrim [this# v#]
           (Casts/longCast v#))))
   ([varname & code]
    `(reify IFnDef$OL
@@ -58,11 +58,11 @@
   "Create a function that converts objects to doubles"
   ([]
    `(reify IFnDef$OD
-      (invokePrim [this v#]
+      (invokePrim [this# v#]
         (Casts/doubleCast v#))))
   ([varname & code]
    `(reify IFnDef$OD
-      (invokePrim [this ~varname]
+      (invokePrim [this# ~varname]
         (Casts/doubleCast ~@code)))))
 
 
@@ -70,27 +70,27 @@
   "Create a function that receives a long and returns a double"
   [varname & code]
   `(reify IFnDef$LD
-     (invokePrim [this ~varname] ~@code)))
+     (invokePrim [this# ~varname] ~@code)))
 
 
 (defmacro double->long
   "Create a function that receives a double and returns a long"
   [varname & code]
   `(reify IFnDef$DL
-     (invokePrim [this ~varname] ~@code)))
+     (invokePrim [this# ~varname] ~@code)))
 
 
 (defmacro long->obj
   "Create a function that receives a primitive long and returns an object."
   [varname & code]
   `(reify IFnDef$LO
-     (invokePrim [this ~varname] ~@code)))
+     (invokePrim [this# ~varname] ~@code)))
 
 
 (defmacro double->obj
   [varname & code]
   `(reify IFnDef$DO
-     (invokePrim [this ~varname] ~@code)))
+     (invokePrim [this# ~varname] ~@code)))
 
 
 (defn ->function
@@ -107,7 +107,7 @@
   [varname & code]
   `(reify
      IFnDef$DoublePredicate
-     (test [this ~varname]
+     (test [this# ~varname]
        ~@code)))
 
 
@@ -125,7 +125,7 @@
   [varname & code]
   `(reify
      IFnDef$LongPredicate
-     (test [this ~varname]
+     (test [this# ~varname]
        ~@code)))
 
 
@@ -150,7 +150,7 @@
   [varname & code]
   `(reify
      IFnDef$Predicate
-     (test [this ~varname]
+     (test [this# ~varname]
        ~@code)))
 
 
@@ -326,7 +326,7 @@
   [lvar rvar & code]
   `(reify
      LongBinaryOperator
-     (applyAsLong [this ~lvar ~rvar]
+     (applyAsLong [this# ~lvar ~rvar]
        ~@code)
      IFnDef$LLL
      (invokePrim [this# l# r#]
