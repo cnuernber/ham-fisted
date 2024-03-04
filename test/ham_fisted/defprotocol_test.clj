@@ -109,11 +109,13 @@
       (is (= "two-arg baz!" (baz obj nil)))
       (is (thrown? AbstractMethodError (baz obj)))))
   (testing "error conditions checked when defining protocols"
-    (is (thrown-with-cause-msg?
+    (is #_{:clj-kondo/ignore [:unresolved-symbol]}
+        (thrown-with-cause-msg?
          Exception
          #"Definition of function m in protocol badprotdef must take at least one arg."
          (eval '(defprotocol badprotdef (m [])))))
-    (is (thrown-with-cause-msg?
+    (is #_{:clj-kondo/ignore [:unresolved-symbol]}
+        (thrown-with-cause-msg?
          Exception
          #"Function m in protocol badprotdef was redefined. Specify all arities in single definition."
          (eval '(defprotocol badprotdef (m [this arg]) (m [this arg1 arg2]))))))
@@ -121,7 +123,8 @@
     (eval '(defprotocol Elusive (old-method [x])))
     (eval '(defprotocol Elusive (new-method [x])))
     (is (= :new-method (eval '(new-method (reify Elusive (new-method [x] :new-method))))))
-    (is (fails-with-cause? IllegalArgumentException #"No method of interface: .*\.Elusive found for function: old-method of protocol: Elusive \(The protocol method may have been defined before and removed\.\)"
+    (is #_{:clj-kondo/ignore [:unresolved-symbol]}
+        (fails-with-cause? IllegalArgumentException #"No method of interface: .*\.Elusive found for function: old-method of protocol: Elusive \(The protocol method may have been defined before and removed\.\)"
           (eval '(old-method (reify Elusive (new-method [x] :new-method))))))))
 
 (deftype HasMarkers []
@@ -168,12 +171,14 @@
 
 (deftest illegal-extending
   (testing "you cannot extend a protocol to a type that implements the protocol inline"
-    (is (fails-with-cause? IllegalArgumentException #".*HasProtocolInline already directly implements interface"
+    (is #_{:clj-kondo/ignore [:unresolved-symbol]}
+        (fails-with-cause? IllegalArgumentException #".*HasProtocolInline already directly implements interface"
           (eval '(extend ham_fisted.defprotocol_test.HasProtocolInline
                          ham-fisted.defprotocol-test.examples/ExampleProtocol
                          {:foo (fn [_] :extended)})))))
   (testing "you cannot extend to an interface"
-    (is (fails-with-cause? IllegalArgumentException #"interface ham_fisted.defprotocol_test.examples.ExampleProtocol is not a protocol"
+    (is #_{:clj-kondo/ignore [:unresolved-symbol]}
+        (fails-with-cause? IllegalArgumentException #"interface ham_fisted.defprotocol_test.examples.ExampleProtocol is not a protocol"
           (eval '(extend ham_fisted.defprotocol_test.HasProtocolInline
                          ham_fisted.defprotocol_test.examples.ExampleProtocol
                          {:foo (fn [_] :extended)}))))))
@@ -233,15 +238,4 @@
 (defprotocol P
   (^ISeq f [_]))
 
-(ns ham-fisted.defprotocol-test.other
-  (:use clojure.test)
-  (:require [ham-fisted.defprotocol :refer [defprotocol extend-type extend extend-protocol satisfies? extends?]])
-  (:refer-clojure :exclude [defprotocol extend-type extend extend-protocol satisfies? extends?]))
-
-(defn cf [val]
-  (let [aseq (ham-fisted.defprotocol-test/f val)]
-    (count aseq)))
-(extend-protocol ham-fisted.defprotocol-test/P String
-  (f [s] (seq s)))
-(deftest test-resolve-type-hints-in-protocol-methods
-  (is (= 4 (cf "test"))))
+;;; continues in defprotocol_test/other.clj

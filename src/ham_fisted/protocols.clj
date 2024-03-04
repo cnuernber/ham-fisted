@@ -4,7 +4,7 @@
            [java.util.function DoubleConsumer]
            [java.util Map]
            [ham_fisted Sum Sum$SimpleSum Reducible IFnDef$ODO ParallelOptions
-            Reductions])
+            Reductions IMutList])
   (:refer-clojure :exclude [reduce set?]))
 
 

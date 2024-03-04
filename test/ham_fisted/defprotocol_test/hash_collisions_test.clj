@@ -1,5 +1,7 @@
-(ns ham_fisted.protocols-test.hash-collisions
-  (:use clojure.test))
+(ns ham-fisted.defprotocol-test.hash-collisions-test
+  (:refer-clojure :exclude [defprotocol extend-type extend extend-protocol satisfies? extends?])
+  (:require [clojure.test :refer [deftest is]]
+            [ham-fisted.defprotocol :refer [defprotocol extend-type extend extend-protocol satisfies? extends?]]))
 
 (defprotocol TestProtocolA
   (method-a [this] "Test method A"))

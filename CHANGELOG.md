@@ -1,3 +1,8 @@
+# 2.XXX
+ * Add clj-kondo exports and config, fix linting errors
+ * Remove support for and call to `take-last` 1-arity, which was not valid.
+ * Fix variable arity `merge-with`, which was not correctly implemented.
+
 # 2.017
  * Faster compose-reducers especially where there really are a lot of reducers.
  

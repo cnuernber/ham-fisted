@@ -1,4 +1,4 @@
-{:paths ["src" "target/classes"]
+{:paths ["src" "resources" "target/classes"]
  :deps {it.unimi.dsi/fastutil-core {:mvn/version "8.5.8"}
         com.github.ben-manes.caffeine/caffeine {:mvn/version "2.9.3"}}
 
@@ -22,6 +22,8 @@
   :build
   {:deps {io.github.clojure/tools.build {:git/tag "v0.9.6" :git/sha "8e78bcc"}} 
    :ns-default build}
+  :clj-kondo {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2024.02.12"}}
+              :main-opts ["-m" "clj-kondo.main"]}
   :test
   {:extra-deps {com.cognitect/test-runner
                 {:git/url "https://github.com/cognitect-labs/test-runner"

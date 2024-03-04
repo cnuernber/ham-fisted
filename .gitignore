@@ -5,3 +5,5 @@ pom.xml
 *.asc
 issue-data
 jdk-*
+.clj-kondo
+.lsp

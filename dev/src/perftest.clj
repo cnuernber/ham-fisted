@@ -46,7 +46,7 @@
 
 (def map-non-numeric-constructors
   {:clj #(into {} %)
-   :hamf-trie hamf/mut-trie-map
+   #_#_:hamf-trie hamf/mut-trie-map
    :hamf-hashmap hamf/mut-map
    :java hamf/java-hashmap})
 
@@ -80,7 +80,7 @@
     [(merge (hamf/mapmap (fn [entry]
                            [(key entry) (benchmark-us ((val entry) data))])
                          map-constructors)
-            {:n-elems n-elems :test :hashmap-construction :numeric? numeric?} )
+            {:n-elems n-elems :test :hashmap-construction :numeric? numeric?})
      (merge (hamf/mapmap #(vector (key %)
                                   (benchmark-us
                                    (reduce (fn [acc data]
@@ -92,7 +92,7 @@
      (merge (hamf/mapmap #(vector (key %)
                                   (benchmark-us
                                    (fn [acc map]
-                                     (reduce (fn [kv] kv)
+                                     (reduce (fn [& kv] kv)
                                              nil
                                              (val %)))))
                          map-data)

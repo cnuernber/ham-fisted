@@ -272,7 +272,7 @@
   "Lazy nonaching map but f simply gets a single random-access list of arguments.
   The argument list may be mutably updated between calls."
   ([f c1]
-   (let [rdc (fn [rfn acc] (reduce c1 (fn [acc v] (rfn acc (f [v])))))]
+   (let [rdc (fn [rfn acc] (reduce (fn [acc v] (rfn acc (f [v]))) acc c1))]
      (if-let [c1 (as-random-access c1)]
        (reify IMutList
          (size [this] (.size c1))

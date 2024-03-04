@@ -24,6 +24,8 @@ jobs:
       uses: DeLaGuardo/setup-clojure@12.1
       with:
         cli: 1.11.1.1413
+    - name: Run clojure linter
+      run: scripts/lint
     - name: Run automated tests
       run: scripts/run-tests
     - name: Cache dependencies

@@ -1,0 +1,149 @@
+(ns hooks.ham-fisted
+  (:require [clj-kondo.hooks-api :as api]))
+
+(defn node-value
+  [node]
+  (when node
+    (api/sexpr node)))
+
+(defn analyze-hlet-macro
+  [{:keys [:node]}]
+  (let [[bindings & body] (rest (:children node))
+        new-node (api/list-node
+                  (list*
+                   (api/token-node 'clojure.core/let)
+                   (api/vector-node
+                    (concat
+                      [(api/token-node 'dbls)
+                       (api/token-node 'clojure.core/vec)
+                       (api/token-node 'lngs)
+                       (api/token-node 'clojure.core/vec)
+                       (api/token-node 'lng-fns)
+                       (api/token-node 'clojure.core/vec)
+                       (api/token-node 'dbl-fns)
+                       (api/token-node 'clojure.core/vec)
+                       (api/token-node 'obj-fns)
+                       (api/token-node 'clojure.core/vec)]
+                      (:children bindings)))
+                   body))]
+    {:node new-node}))
+
+(defn analyze-1-arg-fn-macro
+  [{:keys [:node]}]
+  (let [[arg1 & body] (rest (:children node))
+        new-node (api/list-node
+                  (list*
+                   (api/token-node 'clojure.core/fn)
+                   (api/vector-node [arg1])
+                   body))]
+    {:node new-node}))
+
+(defn analyze-2-arg-fn-macro
+  [{:keys [:node]}]
+  (let [[arg1 arg2 & body] (rest (:children node))
+        new-node (api/list-node
+                  (list*
+                   (api/token-node 'clojure.core/fn)
+                   (api/vector-node [arg1 arg2])
+                   body))]
+    {:node new-node}))
+
+(defn analyze-indexed-reduce-fn-macro
+  [{:keys [:node]}]
+  (let [[acc-arg idx-arg obj-arg & body] (rest (:children node))
+        new-node (api/list-node
+                  (list*
+                   (api/token-node 'clojure.core/fn)
+                   (api/vector-node [acc-arg
+                                     (api/vector-node [idx-arg obj-arg])])
+                   body))]
+    {:node new-node}))
+
+(defn analyze-indexed-make-list-macro
+  [{:keys [:node]}]
+  (let [children (rest (:children node))
+        _input-args (drop-last 3 children)
+        [nel-arg idx-arg & body] (take-last 3 children)
+        new-node (api/list-node
+                  (list
+                   (api/token-node 'clojure.core/map)
+                   (api/list-node
+                    (list*
+                     (api/token-node 'clojure.core/fn)
+                     (api/vector-node [idx-arg])
+                     body))
+                   (api/list-node
+                    (list
+                     (api/token-node 'clojure.core/range)
+                     (api/token-node nel-arg)))))]
+    {:node new-node}))
+
+(defn analyze-make-prim-array-list-macro
+  [{:keys [:node]}]
+  (let [[lname ary-tag iface getname setname addname set-cast-fn get-cast-fn obj-cast-fn add-all-reduce] (rest (:children node))
+        new-node (api/list-node
+                  (list
+                   (api/token-node 'clojure.core/deftype)
+                   (vary-meta lname assoc :tag (node-value ary-tag))
+                   (api/vector-node
+                    [(api/token-node 'data)
+                     (api/token-node 'n-elems)
+                     (api/token-node 'm)])
+                   iface
+                   (api/list-node
+                    (list
+                     getname
+                     (api/vector-node
+                      [(api/token-node '_)
+                       (api/token-node 'idx)])
+                     (api/list-node
+                      (list
+                       get-cast-fn
+                       (api/list-node
+                        (list
+                         (api/token-node 'clojure.core/aget)
+                         (api/token-node 'data)
+                         (api/token-node 'idx)))))))
+                   (api/list-node
+                    (list
+                     setname
+                     (api/vector-node
+                      [(api/token-node '_)
+                       (api/token-node 'idx)
+                       (api/token-node 'v)])
+                     (api/list-node
+                      (list
+                       (api/token-node 'clojure.core/aset)
+                       (api/token-node 'data)
+                       (api/token-node 'idx)
+                       (api/list-node
+                        (list
+                         set-cast-fn
+                         (api/token-node 'v)))))))
+                   (api/list-node
+                    (list
+                     addname
+                     (api/vector-node
+                      [(api/token-node '_)
+                       (api/token-node 'v)])
+                     (api/list-node
+                      (list
+                       (api/token-node 'clojure.core/aset)
+                       (api/token-node 'data)
+                       (api/token-node 'n-elems)
+                       (api/list-node
+                        (list
+                         obj-cast-fn
+                         (api/token-node 'v)))))))
+                   (api/list-node
+                    (list
+                     (api/token-node 'addAllReducible)
+                     (api/vector-node
+                      [(api/token-node 'this)
+                       (api/token-node 'coll)])
+                     (api/list-node
+                      (list
+                       add-all-reduce
+                       (api/token-node 'this)
+                       (api/token-node 'coll)))))))]
+    {:node new-node}))
