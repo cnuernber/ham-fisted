@@ -1,0 +1,5 @@
+#!/bin/bash
+
+scripts/compile
+clojure -M:dev:test:clj-kondo --copy-configs --dependencies --parallel --lint "$(clojure -A:dev:test -Spath)"
+clojure -M:dev:test:clj-kondo --lint "src:test" --fail-level "error"
