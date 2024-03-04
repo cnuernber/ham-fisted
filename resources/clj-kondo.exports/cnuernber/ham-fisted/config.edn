@@ -1,0 +1,21 @@
+{:skip-comments true
+ :lint-as {ham-fisted.defprotocol/defprotocol clojure.core/defprotocol
+           ham-fisted.defprotocol/extend-protocol clojure.core/extend-protocol
+           ham-fisted.defprotocol/extend-type clojure.core/extend-type}
+ :hooks {:analyze-call {ham-fisted.hlet/let hooks.ham-fisted/analyze-hlet-macro
+                        ham-fisted.function/function hooks.ham-fisted/analyze-1-arg-fn-macro
+                        ham-fisted.function/long-predicate hooks.ham-fisted/analyze-1-arg-fn-macro
+                        ham-fisted.function/long-unary-operator hooks.ham-fisted/analyze-1-arg-fn-macro
+                        ham-fisted.function/double-predicate hooks.ham-fisted/analyze-1-arg-fn-macro
+                        ham-fisted.function/double-unary-operator hooks.ham-fisted/analyze-1-arg-fn-macro
+                        ham-fisted.function/obj->long hooks.ham-fisted/analyze-1-arg-fn-macro
+                        ham-fisted.function/long->double hooks.ham-fisted/analyze-1-arg-fn-macro
+                        ham-fisted.function/bi-function hooks.ham-fisted/analyze-2-arg-fn-macro
+                        ham-fisted.function/binary-predicate hooks.ham-fisted/analyze-2-arg-fn-macro
+                        ham-fisted.function/long-binary-operator hooks.ham-fisted/analyze-2-arg-fn-macro
+                        ham-fisted.function/double-binary-operator hooks.ham-fisted/analyze-2-arg-fn-macro
+                        ham-fisted.reduce/long-accumulator hooks.ham-fisted/analyze-2-arg-fn-macro
+                        ham-fisted.reduce/double-accumulator hooks.ham-fisted/analyze-2-arg-fn-macro
+                        ham-fisted.reduce/indexed-accum hooks.ham-fisted/analyze-indexed-reduce-fn-macro
+                        ham-fisted.alists/make-prim-array-list hooks.ham-fisted/analyze-make-prim-array-list-macro
+                        ham-fisted.lazy-noncaching/make-readonly-list hooks.ham-fisted/analyze-indexed-make-list-macro}}}

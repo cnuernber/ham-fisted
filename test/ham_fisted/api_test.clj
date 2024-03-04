@@ -13,19 +13,26 @@
 
 
 (deftest parallism-primitives-pass-errors
-  (is (thrown? Exception (count (hamf/upmap
-                                 (fn [^long idx]
-                                   (when (== idx 77) (throw (Exception. "Error!!"))) idx)
-                                 (range 100)))))
-  (is (thrown? Exception (count (hamf/pmap (fn [^long idx]
-                                             (when (== idx 77) (throw (Exception. "Error!!"))) idx)
-                                           (range 100)))))
-  (is (thrown? Exception (hamf/upgroups (fn [^long sidx ^long eidx]
-                                          (when (>= sidx 70)
-                                            (throw (Exception. "Error!!"))) sidx))))
-  (is (thrown? Exception (hamf/pgroups (fn [^long sidx ^long eidx]
-                                         (when (>= sidx 70)
-                                           (throw (Exception. "Error!!"))) sidx)))))
+  (is (thrown-with-msg? Exception #"Error!!"
+                        (doall (hamf/upmap
+                                (fn [^long idx]
+                                  (when (== idx 77) (throw (Exception. "Error!!"))) idx)
+                                (range 100)))))
+  (is (thrown-with-msg? Exception #"Error!!"
+                        (doall (hamf/pmap (fn [^long idx]
+                                            (when (== idx 77) (throw (Exception. "Error!!"))) idx)
+                                          (range 100)))))
+  (is (thrown-with-msg? Exception #"Error!!"
+                        (doall (hamf/upgroups 1000 (fn [^long sidx ^long eidx]
+                                                     (when (>= sidx 10)
+                                                       (throw (Exception. "Error!!")))
+                                                     sidx)
+                                              {:batch-size 100}))))
+  (is (thrown-with-msg? Exception #"Error!!"
+                        (doall (hamf/pgroups 1000 (fn [^long sidx ^long eidx]
+                                                    (when (>= sidx 10)
+                                                      (throw (Exception. "Error!!"))) sidx)
+                                             {:batch-size 100})))))
 
 
 (deftest group-by-nil

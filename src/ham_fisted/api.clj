@@ -1141,7 +1141,7 @@ ham_fisted.PersistentHashMap
   ([f m1] m1)
   ([f m1 m2] (map-union f m1 m2))
   ([f m1 m2 & args]
-   (union-reduce-maps f (apply-concat [(map-union f m1 m2)] args))))
+   (union-reduce-maps f (apply-concat [[(map-union f m1 m2)] args]))))
 
 
 (defn memoize
@@ -2418,7 +2418,6 @@ ham-fisted.api> (binary-search data 1.1 nil)
 (defn take-last
   "Take the last N values of the collection.  If the input is random-access,
   the result will be random-access."
-  ([n] (clojure.core/take-last n))
   ([n coll]
     (when coll
       (let [coll (->reducible coll)]
