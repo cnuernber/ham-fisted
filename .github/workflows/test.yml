@@ -28,6 +28,16 @@ jobs:
       run: scripts/lint
     - name: Run automated tests
       run: scripts/run-tests
+    - name: Setup LCOV
+      uses: hrishikesh-kadam/setup-lcov@v1
+    - name: Report code coverage
+      uses: zgosalvez/github-actions-report-lcov@v3
+      with:
+        coverage-files: target/coverage/lcov.info
+        minimum-coverage: 0
+        artifact-name: code-coverage-report
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        update-comment: false
     - name: Cache dependencies
       uses: actions/cache@v3
       with:

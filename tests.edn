@@ -9,8 +9,8 @@
             :kaocha.plugin.junit-xml/target-file "target/junit.xml"
             :kaocha.plugin.junit-xml/add-location-metadata? true
             :cloverage/opts {:ns-exclude-regex []
-                             :text? false
-                             :lcov? false
+                             :text? true
+                             :lcov? true
                              :high-watermark 80
                              :fail-threshold 0
                              :output "target/coverage"
