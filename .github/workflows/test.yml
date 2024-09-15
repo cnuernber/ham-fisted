@@ -15,19 +15,49 @@ jobs:
            ~/.m2/repository
            ~/.deps.clj
         key: cljdeps-${{ hashFiles('deps.edn') }}
-    - name: Java setup
-      uses: actions/setup-java@v3
+    - name: Mise-en-place setup
+      uses: jdx/mise-action@v2
       with:
-        distribution: 'temurin'
-        java-version: '8'
+        install: true
+        cache: true
     - name: Setup Clojure
       uses: DeLaGuardo/setup-clojure@12.1
       with:
         cli: 1.11.1.1413
     - name: Run clojure linter
-      run: scripts/lint
-    - name: Run automated tests
-      run: scripts/run-tests
+      run: |
+        mise use java@corretto-8
+        scripts/lint
+    - name: Run automated tests - Java 8
+      run: |
+        mise use java@corretto-8
+        java -version
+        scripts/run-tests
+    - name: Run automated tests - Java 11
+      run: |
+        mise use java@corretto-11
+        java -version
+        scripts/run-tests
+    - name: Run automated tests - Java 17
+      run: |
+        mise use java@corretto-17
+        java -version
+        scripts/run-tests
+    - name: Run automated tests - Java 19
+      run: |
+        mise use java@corretto-19
+        java -version
+        scripts/run-tests
+    - name: Run automated tests - Java 21
+      run: |
+        mise use java@corretto-21
+        java -version
+        scripts/run-tests
+    - name: Run automated tests - Java 22
+      run: |
+        mise use java@corretto-22
+        java -version
+        scripts/run-tests
     - name: Setup LCOV
       uses: hrishikesh-kadam/setup-lcov@v1
     - name: Report code coverage
