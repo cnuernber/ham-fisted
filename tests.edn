@@ -1,0 +1,44 @@
+#kaocha/v1 {:capture-output?                 false
+            :kaocha/fail-fast?               false
+            :plugins                         [:kaocha.plugin/profiling
+                                              :kaocha.plugin/print-invocations
+                                              :kaocha.plugin/junit-xml
+                                              :kaocha.plugin/cloverage
+                                              :kaocha.plugin/hooks
+                                              :preloads]
+            :kaocha.plugin.junit-xml/target-file "target/junit.xml"
+            :kaocha.plugin.junit-xml/add-location-metadata? true
+            :cloverage/opts {:ns-exclude-regex []
+                             :text? false
+                             :lcov? false
+                             :high-watermark 80
+                             :fail-threshold 0
+                             :output "target/coverage"
+                             :low-watermark 50
+                             :summary? true
+                             :coveralls? false
+                             :emma-xml? false
+                             :html? true
+                             :nop? false
+                             :codecov? true}
+            :kaocha.hooks/pre-report         [ham-fisted.test-setup/defuse-zero-assertions]
+            :kaocha.plugin.preloads/ns-names [ham-fisted.test-setup]
+            :tests                           [{:id                              :unit
+                                               :plugins                         [:kaocha.plugin/profiling
+                                                                                 :kaocha.plugin/print-invocations
+                                                                                 :kaocha.plugin/junit-xml
+                                                                                 :kaocha.plugin/hooks
+                                                                                 :preloads]
+                                               :kaocha/source-paths             ["src"]
+                                               :kaocha/test-paths               ["test"]
+                                               :ns-patterns                     [".*-test"]}
+                                              {:id                              :coverage
+                                               :plugins                         [:kaocha.plugin/profiling
+                                                                                 :kaocha.plugin/print-invocations
+                                                                                 :kaocha.plugin/junit-xml
+                                                                                 :kaocha.plugin/cloverage
+                                                                                 :kaocha.plugin/hooks
+                                                                                 :preloads]
+                                               :kaocha/source-paths             ["src"]
+                                               :kaocha/test-paths               ["test"]
+                                               :ns-patterns                     [".*-test"]}]}
