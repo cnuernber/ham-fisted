@@ -1,40 +1,38 @@
 {:paths ["src" "resources" "target/classes"]
- :deps {it.unimi.dsi/fastutil-core {:mvn/version "8.5.8"}
+ :deps {it.unimi.dsi/fastutil-core {:mvn/version "8.5.14"}
         com.github.ben-manes.caffeine/caffeine {:mvn/version "2.9.3"}}
 
  :aliases
  {;; Run with clj -T:build function-in-build
   :dev
   {:extra-deps {;;org.clojure/clojure {:mvn/version "1.12.0-CN-SNAPSHOT"}
-                org.clojure/clojure {:mvn/version "1.11.1"}
-                criterium/criterium {:mvn/version "0.4.5"}
-                techascent/tech.ml.dataset {:mvn/version "7.000-beta-34"}
+                org.clojure/clojure {:mvn/version "1.11.4"}
+                criterium/criterium {:mvn/version "0.4.6"}
+                techascent/tech.ml.dataset {:mvn/version "7.032"}
                 ch.qos.logback/logback-classic {:mvn/version "1.1.3"}
                 kixi/stats {:mvn/version "0.5.5"}
-                org.clojure/data.int-map {:mvn/version "1.2.0"}
-                techascent/tech.viz {:mvn/version "6.00-beta-16-2"}
-                com.clojure-goes-fast/clj-java-decompiler {:mvn/version "0.3.4"}
-                com.clojure-goes-fast/clj-memory-meter {:mvn/version "0.2.2"}}
-   :extra-paths ["dev/src" "test"]
-   }
+                org.clojure/data.int-map {:mvn/version "1.3.0"}
+                techascent/tech.viz {:mvn/version "6.00-beta-16-4"}
+                com.clojure-goes-fast/clj-java-decompiler {:mvn/version "0.3.6"}
+                com.clojure-goes-fast/clj-memory-meter {:mvn/version "0.3.0"}}
+   :extra-paths ["dev/src" "test"]}
   :nospec {:jvm-opts ["-Dclojure.spec.skip-macros=true" "-Xverify:none"]}
   :jdk-19 {:jvm-opts ["-Djdk.attach.allowAttachSelf=true" "--illegal-access=permit"]}
   :build
-  {:deps {io.github.clojure/tools.build {:git/tag "v0.9.6" :git/sha "8e78bcc"}} 
+  {:deps {io.github.clojure/tools.build {:mvn/version "0.10.5"}}
    :ns-default build}
-  :clj-kondo {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2024.02.12"}}
+  :clj-kondo {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2024.08.29"}}
               :main-opts ["-m" "clj-kondo.main"]}
   :test
-  {:extra-deps {com.cognitect/test-runner
-                {:git/url "https://github.com/cognitect-labs/test-runner"
-                 :sha "209b64504cb3bd3b99ecfec7937b358a879f55c1"}
-                ch.qos.logback/logback-classic {:mvn/version "1.1.3"}}
+  {:extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
+                lambdaisland/kaocha-junit-xml {:mvn/version "1.17.101"}
+                lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}}
    :extra-paths ["test"]
-   :main-opts ["-m" "cognitect.test-runner"]}
+   :main-opts ["-m" "kaocha.runner"]}
   :codox
   {:extra-deps {codox-theme-rdash/codox-theme-rdash {:mvn/version "0.1.2"}
-                nrepl/nrepl {:mvn/version "0.8.3"}
-                cider/cider-nrepl {:mvn/version "0.25.5"}
+                nrepl/nrepl {:mvn/version "1.3.0"}
+                cider/cider-nrepl {:mvn/version "0.50.2"}
                 com.cnuernber/codox {:mvn/version "1.001"}}
    :exec-fn codox.main/-main
    :exec-args {:group-id "com.cnuernber"
@@ -65,13 +63,13 @@
                             ham-fisted.hlet
                             ham-fisted.primitive-invoke]}}
   :deploy
-  {:replace-deps {slipset/deps-deploy {:mvn/version "0.1.5"}}
+  {:replace-deps {slipset/deps-deploy {:mvn/version "0.2.2"}}
    :exec-fn deps-deploy.deps-deploy/deploy
    :exec-args {:installer :remote
                :sign-releases? true
                :artifact "target/ham-fisted.jar"}}
   :install
-  {:replace-deps {slipset/deps-deploy {:mvn/version "0.1.5"}}
+  {:replace-deps {slipset/deps-deploy {:mvn/version "0.2.2"}}
    :exec-fn deps-deploy.deps-deploy/deploy
    :exec-args {:installer :local
                :artifact "target/ham-fisted.jar"}}}}

@@ -8,7 +8,7 @@
   (:import [java.util ArrayList Collections Map Collection]
            [java.util.function BiFunction BiConsumer]
            [java.util.concurrent ForkJoinPool Future Callable]
-           [ham_fisted MutHashTable LongMutHashTable PersistentHashMap PersistentLongHashMap]))
+           [ham_fisted PersistentHashMap PersistentLongHashMap]))
 
 (defonce orig api/empty-map)
 
@@ -76,8 +76,8 @@
         (is (= n-left (count disdata)))
         (is (= n-elems (count alldata)))
         (is (= dissoc-data (set (keys disdata))))
-        (is (= data (set (keys alldata))))
-        ))))
+        (is (= data (set (keys alldata))))))))
+        
 
 
 (def map-constructors
@@ -172,8 +172,8 @@
   [[:java-hashmap java-hashmap]
    [:hamf-hashmap hamf-hashmap]
    [:clj-transient clj-transient]
-   [:hamf-transient hamf-transient]
-   ])
+   [:hamf-transient hamf-transient]])
+   
 
 
 (defn profile-datastructures
@@ -330,7 +330,7 @@
                                           (.apply ^BiFunction bifn lhs rhs)))]
                     {:construct-fn clj-transient
                      :merge-fn #(merge-with (make-merge-fn %1) %2 %3)
-                     :reduce-fn #(apply merge-with (make-merge-fn %1) %2)})
+                     :reduce-fn #(apply merge-with (make-merge-fn %1) %2)})})
    ;;jdk-8 - 1000
    ;; {:union-disj-μs 11.491328581829329,
    ;;  :union-μs 30.876507346896837,
@@ -339,7 +339,7 @@
    ;; {:union-disj-μs 2461.248479674797,
    ;;  :union-μs 5106.405916666667,
    ;;  :name :hamf-hashmap}
-   })
+   
 
 
 (defn benchmark-union
@@ -418,7 +418,7 @@
 
     (find (map-fn {}) nil) nil
     (find (map-fn {:a 1}) nil) nil
-    (find (map-fn {:a 1 :b 2}) nil) nil ))
+    (find (map-fn {:a 1 :b 2}) nil) nil))
 
 
 
@@ -464,7 +464,7 @@
     (diff (keys (map-fn {:a 1 :b 2})) '(:a :b)) nil
     (keys (api/hash-map)) nil
     (keys (api/hash-map :a 1)) '(:a)
-    (diff (keys (api/hash-map :a 1 :b 2)) '(:a :b)) nil )
+    (diff (keys (api/hash-map :a 1 :b 2)) '(:a :b)) nil)
 
   (let [m (map-fn {:a 1 :b 2})
         k (keys m)]
@@ -485,7 +485,7 @@
 
     (vals (api/hash-map)) nil
     (vals (api/hash-map :a 1)) '(1)
-    (diff (vals (api/hash-map :a 1 :b 2)) '(1 2)) nil )   ; (vals (hash-map :a 1 :b 2)) '(1 2)
+    (diff (vals (api/hash-map :a 1 :b 2)) '(1 2)) nil)   ; (vals (hash-map :a 1 :b 2)) '(1 2)
 
   (let [m (map-fn {:a 1 :b 2})
         v (vals m)]
@@ -517,8 +517,8 @@
 
   (do
     (def hm (HashMap.))
-    (def orig PersistentHashMap/EMPTY)
-    )
+    (def orig PersistentHashMap/EMPTY))
+    
 
   (dotimes [idx 100]
     (.put hm idx idx))
@@ -836,14 +836,14 @@
            :location {"bilbo" "Shire"}})
 
   (defn mutable2d [m]
-    (let [hm (api/mut-hashtable-map nil m) ]
+    (let [hm (api/mut-hashtable-map nil m)]
       (reduce-kv (fn [acc k v]
-                   (assoc! acc k (api/mut-hashtable-map))) hm hm )))
+                   (assoc! acc k (api/mut-hashtable-map))) hm hm)))
 
   (defn eq-mutable2d [m]
-    (let [hm (api/mut-hashtable-map nil m) ]
+    (let [hm (api/mut-hashtable-map nil m)]
       (reduce-kv (fn [acc k v]
-                   (assoc! acc k (api/mut-hashtable-map nil {:hash-provider api/equal-hash-provider} v))) hm hm )))
+                   (assoc! acc k (api/mut-hashtable-map nil {:hash-provider api/equal-hash-provider} v))) hm hm)))
 
   (def mdb (mutable2d db))
 
@@ -873,5 +873,5 @@
     (def ht (ham_fisted.HashTable. api/equal-hash-provider))
     (.put ht "bilbo" "baggins"))
 
-  (crit/quick-bench (.get ^ham_fisted.HashTable ht "bilbo"))
-  )
+  (crit/quick-bench (.get ^ham_fisted.HashTable ht "bilbo")))
+  
