@@ -29,6 +29,13 @@
                 lambdaisland/kaocha-cloverage {:mvn/version "1.1.89"}}
    :extra-paths ["test"]
    :main-opts ["-m" "kaocha.runner"]}
+  :dev-test
+  {:extra-deps {com.cognitect/test-runner
+                {:git/url "https://github.com/cognitect-labs/test-runner"
+                 :sha "209b64504cb3bd3b99ecfec7937b358a879f55c1"}
+                ch.qos.logback/logback-classic {:mvn/version "1.1.3"}}
+   :extra-paths ["test"]
+   :main-opts ["-m" "cognitect.test-runner"]}
   :codox
   {:extra-deps {codox-theme-rdash/codox-theme-rdash {:mvn/version "0.1.2"}
                 nrepl/nrepl {:mvn/version "1.3.0"}
