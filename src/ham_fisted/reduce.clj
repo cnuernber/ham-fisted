@@ -33,10 +33,11 @@
   * `:parallelism` - The amount of parallelism to expect.  Defaults to the number of threads
      in the fork-join pool provided.
   * `:cat-parallelism` - Either `:seq-wise` or `:elem-wise` - when parallelizing over a
-     concatenation of containers either parallelize each container - `:elem-wise` or use
-     one thread per container - `seq-wise`.  Defaults to `seq-wise` as this doesn't require
-     each container itself to support parallelization but relies on the sequence of containers
-     to be long enough to saturate the processor.
+     concatenation of containers either parallelize each container meaning call preduce on each
+     container using many threads per container or use one thread per container - `seq-wise`.  Defaults 
+     to `seq-wise` as this doesn't require each container itself to support parallelization but relies on 
+     the sequence of containers to be long enough to saturate the processor.  Can also be set at time of
+     container construction - see [[lazy-noncaching/concat-opts]].
   * `:put-timeout-ms` - The time to wait to put data into the queue.  This is a safety mechanism
     so that if the processing system fails we don't just keep putting things into a queue.
   * `:unmerged-result?` - Use with care.  For parallel reductions do not perform the merge step

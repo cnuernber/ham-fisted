@@ -20,7 +20,7 @@
             DoubleMutList ReindexList Transformables$IndexedMapper
             IFnDef$OLO IFnDef$ODO Reductions Reductions$IndexedAccum
             IFnDef$OLOO ArrayHelpers ITypedReduce PartitionByInner Casts
-            IMutList LazyChunkedSeq]
+            IMutList LazyChunkedSeq ParallelOptions$CatParallelism]
            [java.lang.reflect Array]
            [it.unimi.dsi.fastutil.ints IntArrays]
            [java.util RandomAccess Collection Map List Random Set Iterator]
@@ -355,6 +355,22 @@
        (reduce [this rfn acc]
          (rdc rfn acc))))))
 
+(pp/implement-tostring-print Transformables$CatIterable)
+
+(defn apply-concat
+  "A more efficient form of (apply concat ...) that doesn't force data to be a clojure seq.  
+  See [[concat-opts]] for opts definition."
+  ([] PersistentList/EMPTY)
+  ([data]
+   (Transformables$CatIterable. data))
+  ([opts data]
+   (Transformables$CatIterable. nil
+                                (condp identical? (get opts :cat-parallelism)
+                                  :seq-wise ParallelOptions$CatParallelism/SEQWISE
+                                  :elem-wise ParallelOptions$CatParallelism/ELEMWISE
+                                  nil nil)
+                                data)))
+
 
 (defn concat
   ([] PersistentList/EMPTY)
@@ -362,16 +378,23 @@
   ([a & args]
    (if (instance? Transformables$IMapable a)
      (.cat ^Transformables$IMapable a args)
-     (Transformables$CatIterable. (cons a args)))))
+     (apply-concat (cons a args)))))
 
 
-(pp/implement-tostring-print Transformables$CatIterable)
+(defn concat-opts
+  "Concat where the first argument is an options map.  This variation allows you to set the `:cat-parallelism`
+  as you may have an idea the best way to parallelism this concatenation at time of the concatenation creation.
 
-
-(defn apply-concat
-  ([] PersistentList/EMPTY)
-  ([data]
-   (Transformables$CatIterable. data)))
+  Options: 
+  
+  `:cat-parallelism` - Set the type of parallelism - either `:elem-wise` or `:seq-wise`  - this overrides 
+   settings later passed into calls such as [[reduce.preduce]] - see [[reduce/options->parallel-options]] 
+   for definition."
+  ([opts a] (if a a PersistentList/EMPTY))
+  ([opts a & args]
+   (if (instance? Transformables$IMapable a)
+     (.cat ^Transformables$IMapable a args)
+     (apply-concat opts (cons a args)))))
 
 
 (defn filter

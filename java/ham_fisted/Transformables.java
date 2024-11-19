@@ -728,23 +728,32 @@ public class Transformables {
   }
 
 
-  public static class CatIterable
+  public static class CatIterable   
     extends AbstractCollection
     implements IterableSeq {
     //this is an array of iterables of iterables.
     final Iterable[] data;
-    final IPersistentMap meta;
+    public final IPersistentMap meta;
+    public final ParallelOptions.CatParallelism parallelism;
+    public CatIterable(IPersistentMap _meta, ParallelOptions.CatParallelism parallelism, Iterable arglist) {
+      this.data = new Iterable[] {arglist};
+      this.meta = _meta;
+      this.parallelism = parallelism;
+    }
     public CatIterable(IPersistentMap _meta, Iterable[] f) {
-      data = f;
-      meta = _meta;
+      this.data = f;
+      this.meta = _meta;
+      this.parallelism = null;
     }
     public CatIterable(Iterable arglist) {
       data = new Iterable[]{arglist};
       meta = null;
+      parallelism = null;
     }
     public CatIterable(CatIterable other, IPersistentMap m) {
       data = other.data;
       meta = m;
+      parallelism = other.parallelism;
     }
     public String toString() { return sequenceToString(this); }
     public boolean equals(Object o) { return equiv(o); }
@@ -908,7 +917,8 @@ public class Transformables {
       final Iterable[] d = data;
       Object init = initValFn.invoke();
       final IFn rf = catReducer(rfn);
-      switch (options.catParallelism) {
+      ParallelOptions.CatParallelism catP = this.parallelism != null ? this.parallelism : options.catParallelism;
+      switch (catP) {
       case ELEMWISE: {
 	final Iterable initSequence = new Iterable() {
 	    public Iterator iterator() {

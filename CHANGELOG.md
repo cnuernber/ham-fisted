@@ -1,7 +1,10 @@
-# 2.XXX
+
+# 2.018
  * Add clj-kondo exports and config, fix linting errors
  * Remove support for and call to `take-last` 1-arity, which was not valid.
  * Fix variable arity `merge-with`, which was not correctly implemented.
+ * `apply-concat`, `concat-opts` accept cat-parallelism option allow you to specify how the concatenation
+   should be parallelized at the creation source as opposed to at the preduce/parallel reduction callsite.
 
 # 2.017
  * Faster compose-reducers especially where there really are a lot of reducers.
