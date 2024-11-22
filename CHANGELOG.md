@@ -1,4 +1,6 @@
-
+# 2.019
+ * impl/pmap really does support user-defined thread pool.
+ 
 # 2.018
  * Add clj-kondo exports and config, fix linting errors
  * Remove support for and call to `take-last` 1-arity, which was not valid.

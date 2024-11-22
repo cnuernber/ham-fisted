@@ -44,3 +44,7 @@
   (is (every? nil? (api/upgroups 10000
                                  (fn [^long sidx ^long eidx]
                                    nil)))))
+
+(deftest custom-pmap-pool
+  (let [p (java.util.concurrent.Executors/newCachedThreadPool)]
+    (is (= 5050.0 (api/sum (api/pmap-opts {:n-lookahead 2 :pool p :min-n 0} #(do #_(println (.getName (Thread/currentThread))) (+ % 1)) (range 100)))))))

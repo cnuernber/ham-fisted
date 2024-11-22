@@ -10,8 +10,10 @@
            [clojure.lang IFn$DO IFn$LO IFn$OLO IFn$DDD IFn$LLL]
            [java.util Map]
            [java.util.function DoubleConsumer LongConsumer Consumer]
-           [java.util.concurrent ForkJoinPool])
+           [java.util.concurrent Executor ForkJoinPool])
   (:refer-clojure :exclude [map]))
+
+(set! *warn-on-reflection* true)
 
 
 (defn- unpack-reduced
@@ -52,12 +54,15 @@
     (ParallelOptions.)
     :else
     (let [^Map options (or options {})
-          ^ForkJoinPool pool (.getOrDefault options :pool (ForkJoinPool/commonPool))]
+          ^Executor pool (.getOrDefault options :pool (ForkJoinPool/commonPool))]
       (ParallelOptions. (.getOrDefault options :min-n 1000)
                         (.getOrDefault options :max-batch-size 64000)
                         (boolean (.getOrDefault options :ordered? true))
                         pool
-                        (.getOrDefault options :parallelism (.getParallelism pool))
+                        (.getOrDefault options :parallelism
+                                       (if (instance? ForkJoinPool pool)
+                                         (.getParallelism ^ForkJoinPool pool)
+                                         0))
                         (case (.getOrDefault options :cat-parallelism :seq-wise)
                           :seq-wise ParallelOptions$CatParallelism/SEQWISE
                           :elem-wise ParallelOptions$CatParallelism/ELEMWISE)

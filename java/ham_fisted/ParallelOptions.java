@@ -1,6 +1,7 @@
 package ham_fisted;
 
 
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 
 
@@ -8,7 +9,7 @@ public class ParallelOptions {
   public final long minN;
   public final int maxBatchSize;
   public final boolean ordered;
-  public final ForkJoinPool pool;
+  public final ExecutorService pool;
   public final int parallelism;
   public final CatParallelism catParallelism;
   public final int putTimeoutMs;
@@ -26,7 +27,7 @@ public class ParallelOptions {
   }
 
   public ParallelOptions(long _minN, int batchSize, boolean _ordered,
-			 ForkJoinPool _pool, int _parallelism,
+			 ExecutorService _pool, int _parallelism,
 			 CatParallelism _catParallelism, int _putTimeoutMs,
 			 boolean unmergedResult, int nLookahead) {
     minN = _minN;

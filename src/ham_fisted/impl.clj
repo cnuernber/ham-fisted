@@ -195,7 +195,6 @@
   (if (in-fork-join-task?)
     (apply map map-fn sequences)
     (let [pool (.-pool options)
-          parallelism (.-parallelism options)
           ;;In this case we want a caching sequence - so we call 'seq' on a lazy noncaching
           ;;map
           queue (options->queue options)
@@ -413,6 +412,11 @@
 (defn- fjjoin [task] (.join ^ForkJoinTask task))
 (defn- fjtask [^Callable f] (ForkJoinTask/adapt f))
 
+(defn- ensure-fj-pool
+  ^ForkJoinPool [p]
+  (when-not (instance? ForkJoinPool p)
+    (throw (RuntimeException. "Pool passed in must be a forkjoin pool")))
+  p)
 
 (extend-protocol protocols/ParallelReduction
   Object
@@ -434,7 +438,7 @@
   PersistentHashMap
   (preduce [coll init-val-fn rfn merge-fn options]
     (let [options ^ParallelOptions options
-          pool (.-pool options)
+          pool (ensure-fj-pool (.-pool options))
           n (.-minN options)
           _ (when (.-unmergedResult options)
               (throw (RuntimeException. "Persistent hash maps do not support unmerged results")))
