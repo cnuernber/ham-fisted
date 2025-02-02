@@ -22,7 +22,7 @@
   * `:max-size` - When set, the cache will behave like an LRU cache.
   * `:record-stats?` - When true, the LoadingCache will record access statistics.  You can
      get those via the undocumented function memo-stats.
-  * `:eviction-fn - Function that receives 3 arguments, [args v cause], when a value is
+  * `:eviction-fn` - Function that receives 3 arguments, [args v cause], when a value is
      evicted.  Causes the keywords `:collected :expired :explicit :replaced and :size`.  See
      [caffeine documentation](https://www.javadoc.io/static/com.github.ben-manes.caffeine/caffeine/2.9.3/com/github/benmanes/caffeine/cache/RemovalCause.html) for cause definitions.
   * `:weight-limited` - tuple of `[weight-fn max-weight]`.  weight-fn takes 2 args - k, v.
