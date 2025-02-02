@@ -1,4 +1,0 @@
-#!/bin/bash
-
-scripts/compile
-clojure -M:dev:dev-test
