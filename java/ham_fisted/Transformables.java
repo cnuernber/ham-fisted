@@ -867,7 +867,7 @@ public class Transformables {
     static class CatIterIter implements Iterator {
       Iterator gpIter;
       Iterator parentIter;
-      CatIterIter(Iterator _gpIter) {
+      public CatIterIter(Iterator _gpIter) {
 	gpIter = _gpIter;
 	parentIter = null;
 	advance();
