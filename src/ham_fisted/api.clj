@@ -36,6 +36,7 @@
             [ham-fisted.lazy-noncaching
              :refer [map concat filter repeatedly]
              :as lznc]
+            [ham-fisted.caffeine :as hamf-caffeine]
             [ham-fisted.lazy-caching :as lzc]
             [ham-fisted.alists :as alists]
             [ham-fisted.impl :as impl]
@@ -1193,43 +1194,17 @@ nil
                     weak-values?
                     max-size
                     record-stats?
-                    eviction-fn]}]
-   (let [^Caffeine new-builder
-         (cond-> (Caffeine/newBuilder)
-           access-ttl-ms
-           (.expireAfterAccess (Duration/ofMillis access-ttl-ms))
-           write-ttl-ms
-           (.expireAfterWrite (Duration/ofMillis write-ttl-ms))
-           soft-values?
-           (.softValues)
-           weak-values?
-           (.weakValues)
-           max-size
-           (.maximumSize (long max-size))
-           record-stats?
-           (.recordStats)
-           eviction-fn
-           (.evictionListener (reify com.github.benmanes.caffeine.cache.RemovalListener
-                                (onRemoval [this args v cause]
-                                  (eviction-fn args (.-val ^Box v)
-                                               (condp identical? cause
-                                                 RemovalCause/COLLECTED :collected
-                                                 RemovalCause/EXPIRED :expired
-                                                 RemovalCause/EXPLICIT :explicit
-                                                 RemovalCause/REPLACED :replaced
-                                                 RemovalCause/SIZE :size
-                                                 (keyword (.toLowerCase (str cause)))))))))
-         ^LoadingCache cache
-         (.build new-builder
-                 (proxy [CacheLoader] []
-                   (load [args]
-                     (Box.
-                      (case (count args)
-                        0 (memo-fn)
-                        1 (memo-fn (args 0))
-                        2 (memo-fn (args 0) (args 1))
-                        3 (memo-fn (args 0) (args 1) (args 2))
-                        (.applyTo ^IFn memo-fn (seq args)))))))]
+                    eviction-fn] :as options}]
+   (let [^LoadingCache cache (hamf-caffeine/cache
+                              (assoc options :load-fn
+                                     (fn [args]
+                                       (Box.
+                                        (case (count args)
+                                          0 (memo-fn)
+                                          1 (memo-fn (args 0))
+                                          2 (memo-fn (args 0) (args 1))
+                                          3 (memo-fn (args 0) (args 1) (args 2))
+                                          (.applyTo ^IFn memo-fn (seq args)))))))]
      (-> (fn
            ([] (.val ^Box (.get cache [])))
            ([a] (.val ^Box (.get cache [a])))
@@ -1248,7 +1223,7 @@ nil
   "Clear a memoized function backing store."
   [memoized-fn]
   (if-let [map (get (meta memoized-fn) :cache)]
-    (clear! map)
+    (hamf-caffeine/invalidate-all! map)
     (throw (Exception. (str "Arg is not a memoized fn - " memoized-fn))))
   memoized-fn)
 
@@ -1263,25 +1238,16 @@ nil
 (defn evict-memoized-call
   [memo-fn fn-args]
   (when-let [cache (memoize-cache-as-map memo-fn)]
-    (.remove cache (vec fn-args))))
+    (hamf-caffeine/invalidate! cache (vec fn-args))))
 
 
 (defn ^:no-doc memo-stats
   "Return the statistics from a google guava cache.  In order for a memoized function
   to produce these the :record-stats? option must be true."
   [memoize-fn]
-  (when-let [cache (:cache (meta memoize-fn))]
+  (when-let [cache (:cache (meta memoize-fn))]    
     (when (instance? Cache cache)
-      (let [^Cache cache cache
-            ^CacheStats cache-map (.stats cache)]
-        {:hit-count (.hitCount cache-map)
-         :hit-rate (.hitRate cache-map)
-         :miss-count (.missCount cache-map)
-         :miss-rate (.missRate cache-map)
-         :load-success-count (.loadSuccessCount cache-map)
-         :average-load-penalty-nanos (.averageLoadPenalty cache-map)
-         :total-load-time-nanos (.totalLoadTime cache-map)
-         :eviction-count (.evictionCount cache-map)}))))
+      (hamf-caffeine/keyword-stats cache))))
 
 
 

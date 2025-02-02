@@ -1,3 +1,6 @@
+# 2.020
+ * split caffeine support off into its own namespace.
+
 # 2.019
  * impl/pmap really does support user-defined thread pool.
  
