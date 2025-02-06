@@ -99,7 +99,8 @@
                             range map concat filter filterv first last pmap take take-last drop
                             drop-last sort-by repeat repeatedly shuffle into-array
                             empty? reverse byte-array short-array char-array boolean-array
-                            keys vals persistent! rest transient update-vals]))
+                            keys vals persistent! rest transient update-vals
+                            re-matches]))
 
 (comment
   (require '[clj-java-decompiler.core :refer [disassemble]])
@@ -2547,3 +2548,52 @@ ham-fisted.api> (binary-search data 1.1 nil)
   "Return a consumer that simply increments a long.  See java/ham_fisted/Consumers.java for definition."
   (^Consumers$IncConsumer [] (Consumers$IncConsumer.))
   (^Consumers$IncConsumer [^long init-value] (Consumers$IncConsumer. init-value)))
+
+
+(defn re-matches
+  "Much faster version of clojure.core/re-matches."
+  [^java.util.regex.Pattern re s]
+  (let [m (re-matcher re s)]
+    (when (. m (matches))
+      (let [gc  (. m (groupCount))]
+        (if (zero? gc)
+          (.group m)
+          (do
+            (let [gc (inc gc)
+                  rv (object-array gc)]
+              (dotimes [idx gc]
+                (aset rv idx (.group m idx)))
+              (ArrayLists/toList rv))))))))
+
+
+(defn lines
+  "Return a closeable iterable that produces an iterator that simply produces lines of the reader.
+  Iterator does not cache more than 1 line so there is no possibility of holding onto head normal nor
+  chunked seq-ing.
+
+
+  Example:
+```clojure
+(with-open [ld (hamf/lines fname)]
+  (->> ld
+       (hamf/pmap (fn [line] ...))
+       (reduce ...)))
+```"
+  ^java.lang.AutoCloseable [fname]
+  (let [^java.io.BufferedReader rdr (cond
+                                      (instance? java.io.BufferedReader fname) fname
+                                      (instance? String fname) (-> (java.io.FileReader. (str fname))
+                                                                   (java.io.BufferedReader.))
+                                      :else
+                                      (clojure.java.io/reader fname))]
+    (reify Iterable
+      java.lang.AutoCloseable
+      (close [this] (.close rdr))
+      (iterator [this]
+        (let [line* (volatile! (.readLine rdr))]
+          (reify java.util.Iterator
+            (hasNext [this] (boolean @line*))
+            (next [this]
+              (let [rv @line*]
+                (vreset! line* (.readLine rdr))
+                rv))))))))

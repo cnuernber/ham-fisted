@@ -1,3 +1,8 @@
+# 2.021
+ * `lines` - replacement for line-seq that returns an auto-closeable iterable and cannot cache nor hold-onto-head
+    the data.
+ * `re-matches` - faster version of re-matches.
+ 
 # 2.020
  * split caffeine support off into its own namespace.
 
