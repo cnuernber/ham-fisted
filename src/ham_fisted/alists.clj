@@ -63,6 +63,7 @@
      (cloneList [this#] (~(symbol (str (name lname) ".")) (.copyOf this# ~'n-elems)
                          ~'n-elems ~'m))
      (clone [this#] (.cloneList this#))
+     (clear [this#] (set! ~'n-elems 0))
      (size [this#] (unchecked-int ~'n-elems))
      (~getname [this# idx#] (~get-cast-fn (aget ~'data (ArrayLists/checkIndex idx# ~'n-elems))))
      (get [this# idx#] (aget ~'data (ArrayLists/checkIndex idx# ~'n-elems)))
@@ -156,6 +157,7 @@
   (meta [this] m)
   (withMeta [this newm] (with-meta (.subList this 0 n-elems) newm))
   (size [this] (unchecked-int n-elems))
+  (clear [this] (set! n-elems 0))
   (get [this idx] (aget data (ArrayLists/checkIndex idx n-elems)))
   (set [this idx v]
     (let [retval (.get this idx)]

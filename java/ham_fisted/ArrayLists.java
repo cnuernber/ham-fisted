@@ -358,6 +358,7 @@ public class ArrayLists {
 							     nElems, meta); }
     public ArraySection getArraySection() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
+    public void clear() { nElems = 0; }
     public int size() { return nElems; }
     public Object get(int idx) { return data[checkIndex(idx, nElems)]; }
     public Object set(int idx, Object obj) {
@@ -988,6 +989,7 @@ public class ArrayLists {
       IntArraySubList.setLong(data, 0, nElems, idx, obj);
     }
     public int capacity() { return data.length; }
+    public void clear() { nElems = 0; }
     public int[] ensureCapacity(int len) {
       int[] d = data;
       if (len >= d.length) {
@@ -1372,6 +1374,7 @@ public class ArrayLists {
 							   nElems, meta); }
     public ArraySection getArraySection() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
+    public void clear() { nElems = 0; }
     public int size() { return nElems; }
     public long getLong(int idx) { return data[checkIndex(idx, nElems)]; }
     public void setLong(int idx, long obj) {
@@ -1905,6 +1908,7 @@ public class ArrayLists {
 							     nElems, meta); }
     public ArraySection getArraySection() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
+    public void clear() { nElems = 0; }
     public int size() { return nElems; }
     public double getDouble(int idx) { return data[checkIndex(idx, nElems)]; }
     public void setDouble(int idx, double obj) {

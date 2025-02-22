@@ -1,0 +1,4 @@
+#!/bin/bash
+
+scripts/compile
+clojure -M:dev:kaocha-test

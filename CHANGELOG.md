@@ -1,3 +1,6 @@
+# 2.022
+ * growable lists support clear.
+ 
 # 2.021
  * `lines` - replacement for line-seq that returns an auto-closeable iterable and cannot cache nor hold-onto-head
     the data.
