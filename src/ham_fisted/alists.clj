@@ -64,6 +64,7 @@
                          ~'n-elems ~'m))
      (clone [this#] (.cloneList this#))
      (clear [this#] (set! ~'n-elems 0))
+     (setSize [this# sz#] (set! ~'n-elems (unchecked-long sz#)))
      (size [this#] (unchecked-int ~'n-elems))
      (~getname [this# idx#] (~get-cast-fn (aget ~'data (ArrayLists/checkIndex idx# ~'n-elems))))
      (get [this# idx#] (aget ~'data (ArrayLists/checkIndex idx# ~'n-elems)))
@@ -122,6 +123,9 @@
      (reduce [this# rfn# init#]
        (reduce rfn# init# (.subList this# 0 ~'n-elems)))
      (binarySearch [~'this v# c#] (.binarySearch ~(with-meta '(.subList this 0 n-elems) {:tag 'IMutList}) v# c#))
+     (move [this# sidx# eidx# count#]
+       (ArrayLists/checkIndexRange ~'n-elems (long eidx#) (+ (long eidx#) count#))
+       (System/arraycopy ~'data sidx# ~'data eidx# count#))
      (fill [this# sidx# eidx# v#]
        (ArrayLists/checkIndexRange ~'n-elems (long sidx#) (long eidx#))
        (Arrays/fill ~'data sidx# eidx# (~set-cast-fn (~obj-cast-fn v#))))
@@ -156,6 +160,7 @@
   (cloneList [this] (BooleanArrayList. (.copyOf this n-elems) n-elems m))
   (meta [this] m)
   (withMeta [this newm] (with-meta (.subList this 0 n-elems) newm))
+  (setSize [this sz] (set! n-elems (unchecked-long sz)))
   (size [this] (unchecked-int n-elems))
   (clear [this] (set! n-elems 0))
   (get [this idx] (aget data (ArrayLists/checkIndex idx n-elems)))
@@ -201,7 +206,7 @@
           (.fillRangeReducible this curlen c))
         (Reductions/serialReduction (fn [acc v]
                                       (.add ^List acc v)
-                                      v)
+                                      acc)
                                     this
                                     c))
       (not (== sz n-elems))))
@@ -215,6 +220,9 @@
   (sortIndirect [this c] (.sortIndirect ^IMutList (.subList this 0 n-elems) c))
   (shuffle [this r] (.shuffle ^IMutList (.subList this 0 n-elems) r))
   (binarySearch [this v c] (.binarySearch ^IMutList (.subList this 0 n-elems) v c))
+  (move [this sidx eidx ct]
+    (ArrayLists/checkIndexRange n-elems (long eidx) (+ (long eidx) ct))
+    (System/arraycopy data sidx data eidx ct))
   (fill [this sidx eidx v]
     (ArrayLists/checkIndexRange n-elems (long sidx) (long eidx))
     (Arrays/fill data sidx eidx (Casts/booleanCast v)))
@@ -315,3 +323,22 @@
      (ArrayLists$ObjectArrayList. ary ptr nil)
      (protocols/wrap-array-growable ary ptr)))
   (^IMutList [ary] (wrap-array-growable ary (java.lang.reflect.Array/getLength ary))))
+
+(def array-list-types [:int8 :int16 :int32 :int64 :float32 :float64 :char :boolean :object])
+
+(defn growable-array-list
+  (^IMutList [dtype]
+   (case dtype
+     :int8 (ByteArrayList. (byte-array 8) 0 {})
+     :int16 (ShortArrayList. (short-array 8) 0 {})
+     :int32 (ArrayLists$IntArrayList. (int-array 8) 0 {})
+     :int64 (ArrayLists$LongArrayList. (long-array 4) 0 {})
+     :float32 (FloatArrayList. (float-array 8) 0 {})
+     :float64 (ArrayLists$DoubleArrayList. (double-array 4) 0 {})
+     :char (CharArrayList. (char-array 8) 0 {})
+     :boolean (BooleanArrayList. (boolean-array 8) 0 {})
+     :object (ArrayLists$ObjectArrayList. (object-array 8) 0 {})))
+  (^IMutList [dtype data]
+   (let [rv (growable-array-list dtype)]
+     (.addAllReducible rv data)
+     rv)))

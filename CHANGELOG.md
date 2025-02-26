@@ -1,3 +1,6 @@
+# 2.023
+ * Bulk add-constant interface for all growable lists.
+ 
 # 2.022
  * growable lists support clear.
  

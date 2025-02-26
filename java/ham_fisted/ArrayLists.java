@@ -81,6 +81,8 @@ public class ArrayLists {
     void fill(int sidx, int eidx, Object v);
     Object copyOfRange(int sidx, int eidx);
     Object copyOf(int len);
+    //overwrite 
+    void move(int sourceIdx, int dstIdx, int count);
   }
   public interface ArrayPersistentVector extends IMutList<Object>, IPersistentVector {
     IPersistentVector unsafeImmut();
@@ -148,6 +150,17 @@ public class ArrayLists {
   }
   public interface IArrayList extends IMutList<Object>, ArrayOwner, TypedList,
 				      ArrayPersistentVector {
+    default void add(int idx, int count, Object obj) {
+      int nElems = size();
+      idx = checkIndex(idx, nElems);
+      int ne = nElems + count;
+      final Object d = ensureCapacity(ne);
+      setSize(ne);
+      if(idx != nElems) {
+	move(idx, idx+count, nElems - idx);
+      }
+      fillRange(idx, idx+count, obj);
+    }
     default Class containedType() { return getArraySection().array.getClass().getComponentType(); }
     default IPersistentVector unsafeImmut() { return ImmutList.create(true, meta(), (Object[])getArraySection().array); }
     default List immutShuffle(Random r) { return immutShuffleDefault(this, r); }
@@ -162,6 +175,7 @@ public class ArrayLists {
 	ArrayPersistentVector.super.fillRangeReducible(startidx, v);
       }
     }
+    default void setSize(int size ) { throw new RuntimeException("unimplemented"); }
     default Object ensureCapacity(int newlen) {
       throw new RuntimeException("unimplemented");
     }
@@ -169,6 +183,17 @@ public class ArrayLists {
   public interface ILongArrayList extends LongMutList, ArrayOwner, TypedList,
 					  ArrayPersistentVector
   {
+    default void add(int idx, int count, Object obj) {
+      int nElems = size();
+      idx = checkIndex(idx, nElems);
+      int ne = nElems + count;
+      final Object d = ensureCapacity(ne);
+      setSize(ne);
+      if(idx != nElems) {
+	move(idx, idx+count, nElems - idx);
+      }	
+      fillRange(idx, idx+count, obj);
+    }
     default Class containedType() { return getArraySection().array.getClass().getComponentType(); }
     default IPersistentVector unsafeImmut() { return ImmutList.create(true, meta(), (Object[])getArraySection().array); }
     default List immutShuffle(Random r) { return immutShuffleDefault(this, r); }
@@ -186,6 +211,7 @@ public class ArrayLists {
       return LongMutList.super.reduce(rfn, init);
     }
     default Object toNativeArray() { return copyOf(size()); }
+    default void setSize(int size ) { throw new RuntimeException("unimplemented"); }
     default Object ensureCapacity(int newlen) {
       throw new RuntimeException("unimplemented");
     }
@@ -193,6 +219,17 @@ public class ArrayLists {
   public interface IDoubleArrayList extends DoubleMutList, ArrayOwner, TypedList,
 					    ArrayPersistentVector
   {
+    default void add(int idx, int count, Object obj) {
+      int nElems = size();
+      idx = checkIndex(idx, nElems);
+      int ne = nElems + count;
+      setSize(ne);
+      final Object d = ensureCapacity(ne);
+      if(idx != nElems) {
+	move(idx, idx+count, nElems - idx);
+      }	
+      fillRange(idx, idx+count, obj);
+    }
     default Class containedType() { return getArraySection().array.getClass().getComponentType(); }
     default IPersistentVector unsafeImmut() { return ImmutList.create(true, meta(), (Object[])getArraySection().array); }
     default List immutShuffle(Random r) { return immutShuffleDefault(this, r); }
@@ -207,6 +244,7 @@ public class ArrayLists {
 	DoubleMutList.super.fillRangeReducible(startidx, v);
     }
     default Object toNativeArray() { return copyOf(size()); }
+    default void setSize(int size ) { throw new RuntimeException("unimplemented"); }
     default Object ensureCapacity(int newlen) {
       throw new RuntimeException("unimplemented");
     }
@@ -315,6 +353,10 @@ public class ArrayLists {
     public IPersistentVector immut() {
       return ArrayImmutList.create(true, data, sidx, eidx, meta());
     }
+    public void move(int sidx, int eidx, int count) {
+      checkIndexRange(size(), eidx, eidx + count);
+      System.arraycopy(data, sidx, data, eidx, count);
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, sidx + ssidx, sidx + seidx, v);
@@ -360,6 +402,7 @@ public class ArrayLists {
     public Class containedType() { return data.getClass().getComponentType(); }
     public void clear() { nElems = 0; }
     public int size() { return nElems; }
+    public void setSize(int sz) { nElems = sz; }
     public Object get(int idx) { return data[checkIndex(idx, nElems)]; }
     public Object set(int idx, Object obj) {
       idx = checkIndex(idx, nElems);
@@ -454,6 +497,10 @@ public class ArrayLists {
     public final ObjectArrayList conj(Object obj) {
       add(obj);
       return this;
+    }
+    public void move(int sidx, int eidx, int count) {
+      checkIndexRange(size(), eidx, eidx + count);
+      System.arraycopy(data, sidx, data, eidx, count);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(nElems, ssidx, seidx);
@@ -619,7 +666,10 @@ public class ArrayLists {
 	    }}), data, v);
       }
     }
-
+    public void move(int sidx, int eidx, int count) {
+      checkIndexRange(size(), eidx, eidx + count);
+      System.arraycopy(data, sidx, data, eidx, count);
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, sidx + ssidx, sidx + seidx, RT.byteCast(Casts.longCast(v)));
@@ -748,6 +798,10 @@ public class ArrayLists {
 	      return data;
 	    }}), data, v);
       }
+    }
+    public void move(int sidx, int eidx, int count) {
+      checkIndexRange(size(), eidx, eidx + count);
+      System.arraycopy(data, sidx, data, eidx, count);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -947,6 +1001,10 @@ public class ArrayLists {
 	    }}), data, v);
       }
     }
+    public void move(int sidx, int eidx, int count) {
+      checkIndexRange(size(), eidx, eidx + count);
+      System.arraycopy(data, sidx, data, eidx, count);
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, sidx + ssidx, sidx + seidx, RT.intCast(Casts.longCast(v)));
@@ -984,6 +1042,7 @@ public class ArrayLists {
     public ArraySection getArraySection() { return new ArraySection(data, 0, nElems); }
     public Class containedType() { return data.getClass().getComponentType(); }
     public int size() { return nElems; }
+    public void setSize(int sz) { nElems = sz; }
     public long getLong(int idx) { return data[checkIndex(idx, nElems)]; }
     public void setLong(int idx, long obj) {
       IntArraySubList.setLong(data, 0, nElems, idx, obj);
@@ -1107,6 +1166,10 @@ public class ArrayLists {
       for(int ss = 0; ss < es && !RT.isReduced(init); ++ss)
 	init = rfn.invokePrim(init, d[ss]);
       return Reductions.unreduce(init);
+    }
+    public void move(int sidx, int eidx, int count) {
+      checkIndexRange(size(), eidx, eidx + count);
+      System.arraycopy(data, sidx, data, eidx, count);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1339,6 +1402,10 @@ public class ArrayLists {
 	    }}), data, v);
       }
     }
+    public void move(int sidx, int eidx, int count) {
+      checkIndexRange(size(), eidx, eidx + count);
+      System.arraycopy(data, sidx, data, eidx, count);
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, sidx + ssidx, sidx + seidx, Casts.longCast(v));
@@ -1376,6 +1443,7 @@ public class ArrayLists {
     public Class containedType() { return data.getClass().getComponentType(); }
     public void clear() { nElems = 0; }
     public int size() { return nElems; }
+    public void setSize(int sz) { nElems = sz; }
     public long getLong(int idx) { return data[checkIndex(idx, nElems)]; }
     public void setLong(int idx, long obj) {
       LongArraySubList.setLong(data, 0, nElems, idx, obj);
@@ -1506,6 +1574,10 @@ public class ArrayLists {
     }
     public void fillRangeReducible(long startidx, Object v) {
       subList(0,size()).fillRangeReducible(startidx, v);
+    }
+    public void move(int sidx, int eidx, int count) {
+      checkIndexRange(size(), eidx, eidx + count);
+      System.arraycopy(data, sidx, data, eidx, count);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1674,6 +1746,10 @@ public class ArrayLists {
 	      return d;
 	    }}), data, v);
       }
+    }
+    public void move(int sidx, int eidx, int count) {
+      checkIndexRange(size(), eidx, eidx + count);
+      System.arraycopy(data, sidx, data, eidx, count);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
@@ -1872,6 +1948,10 @@ public class ArrayLists {
 	    }}), data, v);
       }
     }
+    public void move(int sidx, int eidx, int count) {
+      checkIndexRange(size(), eidx, eidx + count);
+      System.arraycopy(data, sidx, data, eidx, count);
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, sidx + ssidx, sidx + seidx, Casts.doubleCast(v));
@@ -1910,6 +1990,7 @@ public class ArrayLists {
     public Class containedType() { return data.getClass().getComponentType(); }
     public void clear() { nElems = 0; }
     public int size() { return nElems; }
+    public void setSize(int sz) { nElems = sz; }
     public double getDouble(int idx) { return data[checkIndex(idx, nElems)]; }
     public void setDouble(int idx, double obj) {
       DoubleArraySubList.setDouble(data, 0, nElems, idx, obj);
@@ -2044,6 +2125,10 @@ public class ArrayLists {
       for(int ss = 0; ss < es; ++ss)
 	c.accept(d[ss]);
     }
+    public void move(int sidx, int eidx, int count) {
+      checkIndexRange(size(), eidx, eidx + count);
+      System.arraycopy(data, sidx, data, eidx, count);
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, ssidx, seidx, Casts.doubleCast(v));
@@ -2174,6 +2259,10 @@ public class ArrayLists {
 	    }}), data, v);
       }
     }
+    public void move(int sidx, int eidx, int count) {
+      checkIndexRange(size(), eidx, eidx + count);
+      System.arraycopy(data, sidx, data, eidx, count);
+    }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);
       Arrays.fill(data, ssidx+sidx, seidx+sidx, RT.charCast(Casts.longCast((v==null)?0:v)));
@@ -2259,6 +2348,10 @@ public class ArrayLists {
 	      return data;
 	    }}), data, v);
       }
+    }
+    public void move(int sidx, int eidx, int count) {
+      checkIndexRange(size(), eidx, eidx + count);
+      System.arraycopy(data, sidx, data, eidx, count);
     }
     public void fill(int ssidx, int seidx, Object v) {
       checkIndexRange(size(), ssidx, seidx);

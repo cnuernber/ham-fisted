@@ -1,6 +1,7 @@
 (ns ham-fisted.api-test
   (:require [clojure.test :refer [deftest is]]
             [ham-fisted.api :as hamf]
+            [ham-fisted.alists :as alists]
             [ham-fisted.reduce :as hamf-rf]
             [ham-fisted.function :as hamf-fn]
             [ham-fisted.lazy-noncaching :as lznc]
@@ -234,3 +235,18 @@
 
 (deftest drop-elems
   (is (empty? (hamf/drop 10 [1 2 3 4 5]))))
+
+(deftest bulk-insert-constant
+  (let [src [0 1 2 3 4 100 100 100 5 6 7 8 9]]
+    (reduce (fn [acc v]
+              (if (not= v :boolean)
+                (is (= (alists/growable-array-list v src)
+                       (-> (alists/growable-array-list v (range 10))
+                           (hamf/add-constant! 5 3 100)))
+                    (str "Test failed for datatype: " v))
+                (let [src [true true false false true true]]
+                  (is (= (alists/growable-array-list v src)
+                         (-> (alists/growable-array-list v [true true true true])
+                             (hamf/add-constant! 2 2 false)))
+                      (str "Test failed for datatype: " v)))))
+            [] alists/array-list-types)))

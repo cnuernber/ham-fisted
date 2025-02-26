@@ -67,7 +67,17 @@ public interface IMutList<E>
   default IMutList cloneList() { return (IMutList)ArrayLists.toList(toArray()); }
   default void clear() { throw new UnsupportedOperationException("Unimplemented"); }
   default boolean add(E v) { throw new UnsupportedOperationException("Unimplemented"); }
-  default void add(int idx, E v) { throw new UnsupportedOperationException("Unimplemented"); }
+  default void add(int idx, E v) {
+    add(idx, 1, v);
+  }
+  default void add(int idx, int count, E v) {
+    int end = idx + count;
+    if(idx == size()) {
+      for(; idx < end; ++idx) add( v );
+    } else {
+      for(; idx < end; ++idx) add( idx, v );
+    }
+  }
   @SuppressWarnings("unchecked")
   default void addLong(long v) { add((E)Long.valueOf(v)); }
   @SuppressWarnings("unchecked")

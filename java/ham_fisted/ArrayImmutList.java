@@ -358,6 +358,7 @@ public class ArrayImmutList
   public ArraySection getArraySection() {
     return new ArraySection(data, startidx, startidx+nElems);
   }
+  public void move(int sidx, int eidx, int count) { throw new RuntimeException("Unimplemented"); }
   public void fill(int sidx, int eidx, Object v) {
     throw new RuntimeException("Unimplemented");
   }

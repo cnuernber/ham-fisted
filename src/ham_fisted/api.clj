@@ -2057,6 +2057,15 @@ ham-fisted.api> (binary-search data 1.1 nil)
      `(ovec-v ~data))))
 
 
+(defn add-constant!
+  (^List [^List l ^long idx v]
+   (.add l (unchecked-int idx) v)
+   l)
+  (^IMutList [^IMutList l ^long idx ^long count v]
+   (.add l (unchecked-int idx) (unchecked-int count) v)
+   l))
+
+
 (defmacro dnth
   "nth operation returning a primitive double.  Efficient when obj is a double array."
   [obj idx]
