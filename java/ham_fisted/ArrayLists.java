@@ -152,7 +152,7 @@ public class ArrayLists {
 				      ArrayPersistentVector {
     default void add(int idx, int count, Object obj) {
       int nElems = size();
-      idx = checkIndex(idx, nElems);
+      idx = checkIndex(idx, nElems+1);
       int ne = nElems + count;
       final Object d = ensureCapacity(ne);
       setSize(ne);
@@ -185,7 +185,7 @@ public class ArrayLists {
   {
     default void add(int idx, int count, Object obj) {
       int nElems = size();
-      idx = checkIndex(idx, nElems);
+      idx = checkIndex(idx, nElems+1);
       int ne = nElems + count;
       final Object d = ensureCapacity(ne);
       setSize(ne);
@@ -221,7 +221,7 @@ public class ArrayLists {
   {
     default void add(int idx, int count, Object obj) {
       int nElems = size();
-      idx = checkIndex(idx, nElems);
+      idx = checkIndex(idx, nElems+1);
       int ne = nElems + count;
       setSize(ne);
       final Object d = ensureCapacity(ne);

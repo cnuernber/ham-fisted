@@ -249,4 +249,17 @@
                          (-> (alists/growable-array-list v [true true true true])
                              (hamf/add-constant! 2 2 false)))
                       (str "Test failed for datatype: " v)))))
+            [] alists/array-list-types))
+  (let [src [0 1 2 3 4 5 6 7 8 9 100 100 100]]
+    (reduce (fn [acc v]
+              (if (not= v :boolean)
+                (is (= (alists/growable-array-list v src)
+                       (-> (alists/growable-array-list v (range 10))
+                           (hamf/add-constant! 10 3 100)))
+                    (str "Test failed for datatype: " v))
+                (let [src [true true true true false false]]
+                  (is (= (alists/growable-array-list v src)
+                         (-> (alists/growable-array-list v [true true true true])
+                             (hamf/add-constant! 4 2 false)))
+                      (str "Test failed for datatype: " v)))))
             [] alists/array-list-types)))

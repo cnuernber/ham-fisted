@@ -1,3 +1,6 @@
+# 2.024
+ * Bugfix for add-constant! default impls.
+ 
 # 2.023
  * Bulk add-constant interface for all growable lists.
  
