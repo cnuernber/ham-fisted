@@ -895,8 +895,9 @@ ham_fisted.PersistentHashMap
       (.updateValues ^UpdateValues map bfn)
       (or (instance? ITransientMap map) (instance? IPersistentMap map))
       (-> (reduce (fn [^Map acc kv]
-                    (when-let [v (.apply bfn (key kv) (val kv))]
-                      (.put acc (key kv) v))
+                    (let [v (.apply bfn (key kv) (val kv))]
+                      (when-not (nil? v)
+                        (.put acc (key kv) v)))
                     acc)
                   (mut-map)
                   map)
@@ -906,9 +907,10 @@ ham_fisted.PersistentHashMap
         (loop [continue? (.hasNext iter)]
           (if continue?
             (let [kv (.next iter)]
-              (if-let [v (.apply bfn (key kv) (val kv))]
-                (.setValue ^Map$Entry kv v)
-                (.remove iter))
+              (let [v (.apply bfn (key kv) (val kv))]
+                (if-not (nil? v)
+                  (.setValue ^Map$Entry kv v)
+                  (.remove iter)))
               (recur (.hasNext iter)))
             map)))
       (instance? RandomAccess map)

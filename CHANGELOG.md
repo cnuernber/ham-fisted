@@ -1,3 +1,6 @@
+# 2.025
+ * Bugfix so update-values is consistent with persistent maps.
+ 
 # 2.024
  * Bugfix for add-constant! default impls.
  

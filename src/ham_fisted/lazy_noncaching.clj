@@ -485,7 +485,12 @@
 (defn repeatedly
   "When called with one argument, produce infinite list of calls to v.
   When called with two arguments, produce a non-caching random access list of length n of calls to v."
-  ([f] (clojure.core/repeatedly f))
+  ([f]   
+   (reify Iterable
+     (iterator [this]
+       (reify java.util.Iterator
+         (hasNext [this] true)
+         (next [this] (f))))))
   (^IMutList [n f]
    (let [n (int n)]
      (case (type-zero-arg-ifn f)

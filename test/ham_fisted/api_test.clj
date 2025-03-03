@@ -263,3 +263,14 @@
                              (hamf/add-constant! 4 2 false)))
                       (str "Test failed for datatype: " v)))))
             [] alists/array-list-types)))
+
+(deftest update-values
+  (is (= {:a false}
+         (hamf/update-values (array-map :a 1) 
+                             (hamf-fn/bi-function k v false))))
+  (is (= {:a false}
+         (into {} (hamf/update-values (hamf/java-hashmap {:a 1})
+                                      (hamf-fn/bi-function k v false)))))
+  (is (= {:a false}
+         (hamf/update-values (hamf/mut-map {:a 1})
+                             (hamf-fn/bi-function k v false)))))
