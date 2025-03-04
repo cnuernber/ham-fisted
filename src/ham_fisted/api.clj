@@ -1760,8 +1760,10 @@ ham-fisted.api> (binary-search data 1.1 nil)
 
 (defn ^:no-doc do-make-array
   [clj-ary-fn ary-ra-fn ary-list-fn data]
-  (if (number? data)
-     (clj-ary-fn data)
+  (cond
+    (number? data)
+    (clj-ary-fn data)
+    :else 
      (let [data (->reducible data)]
        (if-let [c (constant-count data)]
          (let [retval (clj-ary-fn c)]
@@ -1784,9 +1786,17 @@ ham-fisted.api> (binary-search data 1.1 nil)
 
 (defn byte-array
   (^bytes [] (byte-array 0))
-  (^bytes [data] (do-make-array clojure.core/byte-array
-                                #(ArrayLists/toList ^bytes %)
-                                byte-array-list data)))
+  (^bytes [data]
+   (if (instance? IMutList data)
+     (let [^IMutList data data
+           sz (.size data)
+           rv (clojure.core/byte-array sz)]
+       (dotimes [idx sz]
+         (ArrayHelpers/aset rv idx (unchecked-byte (.getLong data idx))))
+       rv)
+     (do-make-array clojure.core/byte-array
+                    #(ArrayLists/toList ^bytes %)
+                    byte-array-list data))))
 
 
 (defn short-array-list
@@ -1803,9 +1813,17 @@ ham-fisted.api> (binary-search data 1.1 nil)
 
 (defn short-array
   (^shorts [] (short-array 0))
-  (^shorts [data] (do-make-array clojure.core/short-array
-                                 #(ArrayLists/toList ^shorts %)
-                                 short-array-list data)))
+  (^shorts [data]
+   (if (instance? IMutList data)
+     (let [^IMutList data data
+           sz (.size data)
+           rv (clojure.core/short-array sz)]
+       (dotimes [idx sz]
+         (ArrayHelpers/aset rv idx (unchecked-short (.getLong data idx))))
+       rv)
+     (do-make-array clojure.core/short-array
+                    #(ArrayLists/toList ^shorts %)
+                    short-array-list data))))
 
 
 (defn char-array-list
