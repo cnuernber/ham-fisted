@@ -1,3 +1,6 @@
+# 2.026
+ * Somewhat faster byte and short array creation when input is an IMutList impl.
+ 
 # 2.025
  * Bugfix so update-values is consistent with persistent maps.
  
