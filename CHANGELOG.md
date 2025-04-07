@@ -1,3 +1,6 @@
+# 2.027
+ * Fix for api/difference when left hand side is a java map.
+ 
 # 2.026
  * Somewhat faster byte and short array creation when input is an IMutList impl.
  
