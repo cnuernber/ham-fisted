@@ -274,3 +274,9 @@
   (is (= {:a false}
          (hamf/update-values (hamf/mut-map {:a 1})
                              (hamf-fn/bi-function k v false)))))
+
+
+(deftest incorrect-map-difference
+  (is (= (hamf/java-hashmap {:a 2})
+         (hamf/difference (hamf/java-hashmap {:a 2 :b 2})
+                          [:b :c]))))

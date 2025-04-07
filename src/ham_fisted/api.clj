@@ -823,7 +823,7 @@ ham_fisted.PersistentHashMap
     (let [map2 (->set map2)]
       (-> (reduce (fn [^Map acc kv]
                     (when-not (.contains map2 (key kv))
-                      (.remove acc (key kv)))
+                      (.put acc (key kv) (val kv)))
                     acc)
                   (mut-map)
                   map1)
