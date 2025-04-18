@@ -44,6 +44,7 @@ public class HashBase implements IMeta {
     this.threshold = other.threshold;
     this.meta = m;
   }
+  public int capacity() { return capacity; }
   public int size() { return length; }
   public int count() { return length; }
   //protected so clients can override as desired.
