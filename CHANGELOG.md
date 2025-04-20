@@ -1,3 +1,6 @@
+# 2.028
+ * First class bloom filter support - uses apache parquet block-split-bloom-filter.
+ 
 # 2.027
  * Fix for api/difference when left hand side is a java map.
  

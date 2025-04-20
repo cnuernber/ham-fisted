@@ -145,3 +145,7 @@ two accumulators  and returns a or modified accumulator."))
 (defprotocol WrapArray
   (^IMutList wrap-array [ary])
   (^IMutList wrap-array-growable [ary ptr]))
+
+
+(defprotocol SerializeObjBytes
+  (serialize->bytes [o]))

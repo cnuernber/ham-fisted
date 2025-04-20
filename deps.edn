@@ -1,6 +1,7 @@
 {:paths ["src" "resources" "target/classes"]
  :deps {it.unimi.dsi/fastutil-core {:mvn/version "8.5.14"}
-        com.github.ben-manes.caffeine/caffeine {:mvn/version "2.9.3"}}
+        com.github.ben-manes.caffeine/caffeine {:mvn/version "2.9.3"}
+        net.openhft/zero-allocation-hashing {:mvn/version "0.27ea0"}}
 
  :aliases
  {;; Run with clj -T:build function-in-build
@@ -44,7 +45,7 @@
    :exec-fn codox.main/-main
    :exec-args {:group-id "com.cnuernber"
                :artifact-id "ham-fisted"
-               :version "2.027"
+               :version "2.028"
                :name "Ham-Fisted"
                :description "High Performance Clojure Primitives"
                :metadata {:doc/format :markdown}
@@ -68,7 +69,8 @@
                             ham-fisted.mut-map
                             ham-fisted.reduce
                             ham-fisted.hlet
-                            ham-fisted.primitive-invoke]}}
+                            ham-fisted.primitive-invoke
+                            ham-fisted.bloom-filter]}}
   :deploy
   {:replace-deps {slipset/deps-deploy {:mvn/version "0.2.2"}}
    :exec-fn deps-deploy.deps-deploy/deploy
