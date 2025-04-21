@@ -1,3 +1,6 @@
+# 2.029
+ * Error in hash-map compute - did not remove key if compute fn was nil.
+ 
 # 2.028
  * First class bloom filter support - uses apache parquet block-split-bloom-filter.
  

@@ -275,8 +275,17 @@
          (hamf/update-values (hamf/mut-map {:a 1})
                              (hamf-fn/bi-function k v false)))))
 
-
 (deftest incorrect-map-difference
   (is (= (hamf/java-hashmap {:a 2})
          (hamf/difference (hamf/java-hashmap {:a 2 :b 2})
                           [:b :c]))))
+
+(deftest hash-map-compute
+  (is (= {}
+         (-> (let [ht (hamf/mut-map {1 2})]
+               (.compute ht 1 (hamf-fn/bi-function k v nil))
+               (persistent! ht)))))
+  (is (= {}
+         (-> (let [ht (hamf/mut-map {1 2})]
+               (is (= 2 (.remove ht 1)))
+               (persistent! ht))))))

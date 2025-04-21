@@ -176,7 +176,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
 	modify(e);
       }
       else
-	remove(k, null);
+	removeHashNode(e, ee, idx);
     } else if(newV != null) {
       HashNode nn = newNode(k, hash, newV);
       if(ee != null)
@@ -211,18 +211,22 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
       return newv;
     }
   }
+  Object removeHashNode (HashNode e, HashNode lastNode, int loc) {
+    dec(e);
+    if(lastNode != null)
+      lastNode.nextNode = e.nextNode;
+    else
+      this.data[loc] = e.nextNode;
+    return e.getValue();
+  }
+  
   public Object remove(Object key) {
     HashNode lastNode = null;
     int loc = hash(key) & this.mask;
     for(HashNode e = this.data[loc]; e != null; e = e.nextNode) {
       Object k;
       if((k = e.k) == key || equals(k, key)) {
-	dec(e);
-	if(lastNode != null)
-	  lastNode.nextNode = e.nextNode;
-	else
-	  this.data[loc] = e.nextNode;
-	return e.getValue();
+	return removeHashNode(e, lastNode, loc);
       }
       lastNode = e;
     }
