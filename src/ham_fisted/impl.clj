@@ -52,10 +52,11 @@
 
 (defn n-lookahead
   ^long [^ParallelOptions options]
-  (let [n-ahead (.nLookahead options)]
-    (if (== n-ahead -1)
-      (* (.-parallelism options) 2)
-      n-ahead)))
+  (max 1
+       (long (let [n-ahead (.nLookahead options)]
+               (if (== n-ahead -1)
+                 (* (.-parallelism options) 2)
+                 n-ahead)))))
 
 
 (defn- pgroup-submission

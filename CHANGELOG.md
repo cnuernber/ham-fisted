@@ -1,38 +1,41 @@
+# 2.030
+ * pmap-opts could produce an empty incorrect result if a custom pool was provided and parallelism was not specified.
+
 # 2.029
  * Error in hash-map compute - did not remove key if compute fn was nil.
- 
+
 # 2.028
  * First class bloom filter support - uses apache parquet block-split-bloom-filter.
- 
+
 # 2.027
  * Fix for api/difference when left hand side is a java map.
- 
+
 # 2.026
  * Somewhat faster byte and short array creation when input is an IMutList impl.
- 
+
 # 2.025
  * Bugfix so update-values is consistent with persistent maps.
- 
+
 # 2.024
  * Bugfix for add-constant! default impls.
- 
+
 # 2.023
  * Bulk add-constant interface for all growable lists.
- 
+
 # 2.022
  * growable lists support clear.
- 
+
 # 2.021
  * `lines` - replacement for line-seq that returns an auto-closeable iterable and cannot cache nor hold-onto-head
     the data.
  * `re-matches` - faster version of re-matches.
- 
+
 # 2.020
  * split caffeine support off into its own namespace.
 
 # 2.019
  * impl/pmap really does support user-defined thread pool.
- 
+
 # 2.018
  * Add clj-kondo exports and config, fix linting errors
  * Remove support for and call to `take-last` 1-arity, which was not valid.
@@ -42,13 +45,13 @@
 
 # 2.017
  * Faster compose-reducers especially where there really are a lot of reducers.
- 
+
 # 2.015
  * [issue 13](https://github.com/cnuernber/ham-fisted/issues/13) - any IMutList chunkedSeq was partially incorrect.
- 
+
 # 2.014
  * frequencies respects map-fn option to allow concurrent hashmaps to be used.
- 
+
 # 2.013
  * `cartesian-map` no longer has a random access variant.  The cooler version of this uses the tensor
    address mechanism to allow parallel redution.
