@@ -7,3 +7,4 @@ issue-data
 jdk-*
 .clj-kondo
 .lsp
+.dir-locals.el

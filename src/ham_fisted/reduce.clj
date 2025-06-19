@@ -36,8 +36,8 @@
      in the fork-join pool provided.
   * `:cat-parallelism` - Either `:seq-wise` or `:elem-wise` - when parallelizing over a
      concatenation of containers either parallelize each container meaning call preduce on each
-     container using many threads per container or use one thread per container - `seq-wise`.  Defaults 
-     to `seq-wise` as this doesn't require each container itself to support parallelization but relies on 
+     container using many threads per container or use one thread per container - `seq-wise`.  Defaults
+     to `seq-wise` as this doesn't require each container itself to support parallelization but relies on
      the sequence of containers to be long enough to saturate the processor.  Can also be set at time of
      container construction - see [[lazy-noncaching/concat-opts]].
   * `:put-timeout-ms` - The time to wait to put data into the queue.  This is a safety mechanism
@@ -62,7 +62,7 @@
                         (.getOrDefault options :parallelism
                                        (if (instance? ForkJoinPool pool)
                                          (.getParallelism ^ForkJoinPool pool)
-                                         0))
+                                         1))
                         (case (.getOrDefault options :cat-parallelism :seq-wise)
                           :seq-wise ParallelOptions$CatParallelism/SEQWISE
                           :elem-wise ParallelOptions$CatParallelism/ELEMWISE)
@@ -621,7 +621,7 @@ user> (hamf-rf/preduce-reducer
        (->merge-fn [r] reducible-merge)
        protocols/Finalize
        (finalize [r v] (fin-fn @v)))
-     :else 
+     :else
      (reify
        protocols/Reducer
        (->init-val-fn [this] init-fn)

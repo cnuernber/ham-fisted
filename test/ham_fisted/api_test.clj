@@ -266,7 +266,7 @@
 
 (deftest update-values
   (is (= {:a false}
-         (hamf/update-values (array-map :a 1) 
+         (hamf/update-values (array-map :a 1)
                              (hamf-fn/bi-function k v false))))
   (is (= {:a false}
          (into {} (hamf/update-values (hamf/java-hashmap {:a 1})
@@ -289,3 +289,10 @@
          (-> (let [ht (hamf/mut-map {1 2})]
                (is (= 2 (.remove ht 1)))
                (persistent! ht))))))
+
+(deftest pmap-opts-empty-result
+  (is (= [1 2 3 4]
+         (vec (hamf/pmap-opts {:pool clojure.lang.Agent/soloExecutor
+                               :lookahead 2}
+                              identity
+                              [1 2 3 4])))))
