@@ -728,7 +728,7 @@ public class Transformables {
   }
 
 
-  public static class CatIterable   
+  public static class CatIterable
     extends AbstractCollection
     implements IterableSeq {
     //this is an array of iterables of iterables.
@@ -859,8 +859,11 @@ public class Transformables {
       final IFn rf = catReducer(rfn);
       for(int idx = 0; idx < nData && !RT.isReduced(init); ++idx) {
 	final Iterable item = d[idx];
-	for(Iterator iter = item.iterator(); iter.hasNext() && !RT.isReduced(init);)
-	  init = Reductions.serialReduction(rf, init, iter.next());
+	final Iterator iter = item != null ? item.iterator() : null;
+	if (iter != null) {
+	  for(; iter.hasNext() && !RT.isReduced(init);)
+	    init = Reductions.serialReduction(rf, init, iter.next());
+	}
       }
       return Reductions.unreduce(init);
     }

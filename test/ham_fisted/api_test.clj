@@ -296,3 +296,6 @@
                                :lookahead 2}
                               identity
                               [1 2 3 4])))))
+
+(deftest reduce-empty-apply-concat
+  (is (= 0 (reduce + 0 (lznc/apply-concat nil)))))

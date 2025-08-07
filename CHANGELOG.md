@@ -1,3 +1,6 @@
+# 2.031
+ * `(reduce + 0 (lznc/apply-concat nil))` works.
+
 # 2.030
  * pmap-opts could produce an empty incorrect result if a custom pool was provided and parallelism was not specified.
 
