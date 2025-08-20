@@ -1,3 +1,8 @@
+# 2.032
+ * Two merge-iterator implementations used to N-way merging of sorted sequences.  Linear is for small n <= 32 and
+   the priority queue method is for larger N's.  The exact cutoff where performance will matter will depend on
+   the dataset and the relative cost of the comparator.
+
 # 2.031
  * `(reduce + 0 (lznc/apply-concat nil))` works.
 

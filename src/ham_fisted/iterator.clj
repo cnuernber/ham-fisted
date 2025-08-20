@@ -4,7 +4,8 @@
            [java.util.stream Stream]
            [java.util.function Supplier Function BiFunction Consumer Predicate BiConsumer]
            [clojure.lang ArraySeq]
-           [ham_fisted StringCollection ArrayLists]))
+           [ham_fisted StringCollection ArrayLists MergeIterator MergeIterator$CurrentIterator
+            Transformables$MapIterable]))
 
 
 (set! *warn-on-reflection* true)
@@ -79,3 +80,43 @@
          (let [~varname (.next iter#)]
            ~@body
            (recur (.hasNext iter#)))))))
+
+
+(defn linear-merge-iterator
+  (^Iterator [cmp p iterators] (MergeIterator/createMergeIterator iterators cmp p))
+  (^Iterator [cmp iterators] (MergeIterator/createMergeIterator iterators cmp))
+  (^Iterator [iterators] (MergeIterator/createMergeIterator iterators compare)))
+
+
+(defn priority-queue-merge-iterator
+  (^Iterator [^java.util.Comparator cmp p iterators]
+   (let [pq (java.util.PriorityQueue. (reify java.util.Comparator
+                                        (compare [this a b]
+                                          (.compare cmp (aget ^objects a 1)
+                                                    (aget ^objects b 1)))))
+         p (if (instance? java.util.function.Predicate p)
+             p
+             (reify java.util.function.Predicate
+               (test [this l] (boolean (p l)))))]
+     (reduce (fn [_ iter]
+               (when (and iter (.hasNext ^Iterator iter))
+                 (let [entry (object-array [iter (.next ^Iterator iter)])]
+                   (.offer pq entry))))
+             nil iterators)
+     (reify Iterator
+       (hasNext [this] (not (.isEmpty pq)))
+       (next [this]
+         (loop []
+           (if(.isEmpty pq)
+             nil
+             (let [^objects entry (.poll pq)
+                   ^Iterator iter (aget entry 0)
+                   rv (aget entry 1)]
+               (when (.hasNext iter)
+                 (aset entry 1 (.next iter))
+                 (.offer pq entry))
+               (if (.test ^java.util.function.Predicate p rv)
+                 rv
+                 (recur)))))))))
+  (^Iterator [cmp iterators] (priority-queue-merge-iterator cmp MergeIterator/alwaysTrue iterators))
+  (^Iterator [iterators] (priority-queue-merge-iterator compare MergeIterator/alwaysTrue iterators)))

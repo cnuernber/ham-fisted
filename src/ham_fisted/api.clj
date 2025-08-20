@@ -47,7 +47,7 @@
             [ham-fisted.protocols :as protocols])
   (:import [ham_fisted UnsharedHashMap UnsharedLongHashMap UnsharedHashSet
             PersistentHashSet PersistentHashMap PersistentLongHashMap
-            ArrayLists$ArrayOwner
+            ArrayLists$ArrayOwner MergeIterator
             HashProvider MapSetOps SetOps ObjArray UpdateValues
             MutList ImmutList StringCollection ArrayImmutList ArrayLists
             ImmutSort IMutList Ranges$LongRange ArrayHelpers
@@ -1248,7 +1248,7 @@ nil
   "Return the statistics from a google guava cache.  In order for a memoized function
   to produce these the :record-stats? option must be true."
   [memoize-fn]
-  (when-let [cache (:cache (meta memoize-fn))]    
+  (when-let [cache (:cache (meta memoize-fn))]
     (when (instance? Cache cache)
       (hamf-caffeine/keyword-stats cache))))
 
@@ -1568,8 +1568,8 @@ nil
              (Arrays/sort a (->comparator comp))
              (Arrays/sort a))
            (if comp
-             (ObjectArrays/parallelQuickSort a (->comparator comp))
-             (ObjectArrays/parallelQuickSort a)))
+             (Arrays/parallelSort a 0 (alength a) (->comparator comp))
+             (Arrays/parallelSort a)))
          a)))))
 
 
@@ -1763,7 +1763,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
   (cond
     (number? data)
     (clj-ary-fn data)
-    :else 
+    :else
      (let [data (->reducible data)]
        (if-let [c (constant-count data)]
          (let [retval (clj-ary-fn c)]
@@ -2626,3 +2626,31 @@ ham-fisted.api> (binary-search data 1.1 nil)
               (let [rv @line*]
                 (vreset! line* (.readLine rdr))
                 rv))))))))
+
+
+(defn linear-merge-iterable
+  "Create an N-way merge iterable using cmp to order the merge of provided iterables.
+  If a predicate pred is provided the iterable itself will filter out values for which
+  the pred returns false.  In this mode it is possible for the iterator to return null
+  if the last value is filtered out -- the hasNext method doesn't check if the next value
+  passes the predicate."
+  ([cmp pred iterables]
+   (reify Iterable
+     (iterator [this]
+       (iterator/linear-merge-iterator cmp pred (lznc/map iterator/->iterator iterables)))))
+  ([cmp iterables] (linear-merge-iterable cmp MergeIterator/alwaysTrue iterables))
+  ([iterables]  (linear-merge-iterable compare MergeIterator/alwaysTrue iterables)))
+
+
+(defn priority-queue-merge-iterable
+    "Create an N-way priority queue iterable using cmp to order the merge of provided iterables.
+  If a predicate pred is provided the iterable itself will filter out values for which
+  the pred returns false.  In this mode it is possible for the iterator to return null
+  if the last value is filtered out -- the hasNext method doesn't check if the next value
+  passes the predicate."
+  ([cmp pred iterables]
+   (reify Iterable
+     (iterator [this]
+       (iterator/priority-queue-merge-iterator cmp pred (lznc/map iterator/->iterator iterables)))))
+  ([cmp iterables] (priority-queue-merge-iterable cmp MergeIterator/alwaysTrue iterables))
+  ([iterables] (priority-queue-merge-iterable compare MergeIterator/alwaysTrue iterables)))

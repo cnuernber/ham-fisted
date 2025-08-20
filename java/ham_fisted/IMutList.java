@@ -652,13 +652,17 @@ public interface IMutList<E>
 
   @SuppressWarnings("unchecked")
   default void sort(Comparator<? super E> c) {
-    final Object[] data = toArray();
+    Comparator cc = (Comparator)c;
+    Object[] finalData;
     if(c == null) {
-      ObjectArrays.parallelQuickSort(data);
+      final Comparable[] data = toArray(new Comparable[0]);
+      Arrays.parallelSort(data);
+      finalData = data;
     } else {
-      ObjectArrays.parallelQuickSort(data, (Comparator<? super Object>)c);
+      finalData = toArray();
+      Arrays.parallelSort(finalData, cc);
     }
-    fillRange(0, ArrayLists.toList(data));
+    fillRange(0, ArrayLists.toList(finalData));
   }
 
   @SuppressWarnings("unchecked")
