@@ -1567,9 +1567,7 @@ nil
            (if comp
              (Arrays/sort a (->comparator comp))
              (Arrays/sort a))
-           (if comp
-             (Arrays/parallelSort a 0 (alength a) (->comparator comp))
-             (Arrays/parallelSort a)))
+           (Arrays/parallelSort a 0 (alength a) (if comp (->comparator comp) compare)))
          a)))))
 
 

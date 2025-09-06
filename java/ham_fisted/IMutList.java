@@ -665,13 +665,6 @@ public interface IMutList<E>
     fillRange(0, ArrayLists.toList(finalData));
   }
 
-  @SuppressWarnings("unchecked")
-  default List immutSort(Comparator c) {
-    final IMutList retval = cloneList();
-    retval.sort(c);
-    return retval;
-  }
-
   default void shuffle(Random r) {
     Collections.shuffle(this, r);
   }
