@@ -73,7 +73,8 @@
             IFn$OD IFn$OL IFn$OLO IFn$ODO IObj Util IReduceInit Seqable IteratorSeq
             ITransientMap Counted Box]
            [java.util Map Map$Entry List RandomAccess Set Collection ArrayList Arrays
-            Comparator Random Collections Iterator PriorityQueue LinkedHashMap]
+            Comparator Random Collections Iterator PriorityQueue LinkedHashMap LongSummaryStatistics
+            DoubleSummaryStatistics]
            [java.lang.reflect Array]
            [java.util.function Function BiFunction BiConsumer Consumer
             DoubleBinaryOperator LongBinaryOperator LongFunction IntFunction
@@ -2177,16 +2178,25 @@ ham-fisted.api> (binary-search data 1.1 nil)
   (^double [options coll]
    (get (sum-stable-nelems options coll) :sum)))
 
-(defn- long-summery-sum
-  ^long [^java.util.LongSummaryStatistics lstats]
+(defn- long-summary-sum
+  ^long [^LongSummaryStatistics lstats]
   (.getSum lstats))
 
 (defn lsum
   "Sum that returns a long integer."
   ^long [data]
-  (-> (reduce long-consumer-accumulator (java.util.LongSummaryStatistics.) data)
+  (-> (reduce long-consumer-accumulator (LongSummaryStatistics.) data)
       (long-summary-sum)))
 
+(defn lsummary
+  "Summary statistics {:mean :max :min :n-elems :sum} in long space"
+  [data]
+  (let [^LongSummaryStatistics lstats (reduce long-consumer-accumulator (LongSummaryStatistics.) data)]
+    {:max (.getMax lstats)
+     :min (.getMin lstats)
+     :n-elems (.getCount lstats)
+     :mean (.getAverage lstats)
+     :sum (.getSum lstats)}))
 
 (defn mean
   "Return the mean of the collection.  Returns double/NaN for empty collections.
@@ -2196,6 +2206,17 @@ ham-fisted.api> (binary-search data 1.1 nil)
    (let [vals (sum-stable-nelems options coll)]
      (/ (double (vals :sum))
         (long (vals :n-elems))))))
+
+
+(defn dsummary
+  "Summary statistics {:mean :max :min :n-elems :sum} in double space"
+  [data]
+  (let [^DoubleSummaryStatistics lstats (reduce double-consumer-accumulator (DoubleSummaryStatistics.) data)]
+    {:max (.getMax lstats)
+     :min (.getMin lstats)
+     :n-elems (.getCount lstats)
+     :mean (.getAverage lstats)
+     :sum (.getSum lstats)}))
 
 
 (defn first

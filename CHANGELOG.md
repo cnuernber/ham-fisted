@@ -2,6 +2,8 @@
  * Two merge-iterator implementations used to N-way merging of sorted sequences.  Linear is for small n <= 32 and
    the priority queue method is for larger N's.  The exact cutoff where performance will matter will depend on
    the dataset and the relative cost of the comparator.
+ * Attempted to move all sorts to Arrays/parallelSort as it outperforms fastutils parallel sort by a bit.
+ * added lsum, lsummary, dsummary for long-space sum, and simple summary statistics [min max mean sum n-elems] in long and double space respectively.
 
 # 2.031
  * `(reduce + 0 (lznc/apply-concat nil))` works.
