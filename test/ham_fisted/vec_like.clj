@@ -1,7 +1,7 @@
 (ns ham-fisted.vec-like
   (:require [ham-fisted.api :as hamf]
             [clojure.test :refer [deftest is] :as test])
-  (:import [ham_fisted TreeList]
+  (:import [ham_fisted TreeList IMutList Iter]
            [java.util List]))
 
 
@@ -27,16 +27,45 @@
     (dotimes [idx 50] (sublist-tumbler tr))
     (is (= (count tr) 32768))))
 
+(defn add-all-reducible
+  ^IMutList [^IMutList l data]
+  (.addAllReducible l data)
+  l)
+
+(defn ->iter
+  [data]
+  (when data 
+    (if (instance? Iter data)
+      data
+      (Iter/fromIterator (.iterator ^Iterable data)))))
+
+(defn cons-all
+  ^TreeList [^TreeList l data]
+  (.consAll l (->iter data)))
+
+(deftype RangeIter [^long n
+                    ^{:unsynchronized-mutable true
+                      :tag long} idx]
+  Iter
+  (get [this] (Long/valueOf idx))
+  (next [this]
+    (set! idx (inc idx))
+    (when (< idx n)
+      this)))
 
 (comment
   (def tr (reduce conj (TreeList.) (range 35)))
   
   (require '[criterium.core :as crit])
-  (def rr (range 1000000))
+  (def rr (into [] (range 10000000)))
   (crit/quick-bench (reduce conj (ham_fisted.TreeList.) rr))
   (crit/quick-bench (reduce conj [] rr))
   (crit/quick-bench (into [] rr))
-  (crit/quick-bench (hamf/object-array-list rr))
+  (crit/quick-bench (add-all-reducible (hamf/object-array-list) rr))
+  (crit/quick-bench (add-all-reducible (ham_fisted.MutTreeList.) rr))
+  (crit/quick-bench (cons-all (ham_fisted.TreeList.) rr))
+  (crit/quick-bench (cons-all (ham_fisted.TreeList.) (RangeIter. (count rr) 0)))
+  (crit/quick-bench (add-all-reducible (ham_fisted.BatchedList.) rr))
   
   (def tr (reduce conj (ham_fisted.TreeList.) rr))
   (def pv (reduce conj [] rr))
@@ -58,6 +87,6 @@
 
   (do 
     (require '[clj-async-profiler.core :as prof])
-    (prof/profile {:interval 10000} (dotimes [idx 10] (reduce conj (ham_fisted.TreeList.) (range 1000000))))
+    (prof/profile {:interval 10000} (dotimes [idx 50] (add-all-reducible (ham_fisted.BatchedList.) rr)))
     (prof/serve-ui 8080))
   )

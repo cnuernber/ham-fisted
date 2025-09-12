@@ -2144,17 +2144,15 @@ ham-fisted.api> (binary-search data 1.1 nil)
   ;;Using raw reduce call as opposed to reduce-reducer to avoid protocol dispatch for small N
   @(reduce double-consumer-accumulator (Sum$SimpleSum.) coll))
 
-
-
 (defn ^:no-doc apply-nan-strategy
   [options coll]
   (case (get options :nan-strategy :remove)
     :remove (filter (hamf-fn/double-predicate v (not (Double/isNaN v))) coll)
     :keep coll
     :exception (map (hamf-fn/double-unary-operator v
-                                                   (when (Double/isNaN v)
-                                                     (throw (Exception. "Nan detected")))
-                                                   v)
+                      (when (Double/isNaN v)
+                        (throw (Exception. "Nan detected")))
+                      v)
                     coll)))
 
 
@@ -2178,6 +2176,16 @@ ham-fisted.api> (binary-search data 1.1 nil)
   (^double [coll] (sum nil coll))
   (^double [options coll]
    (get (sum-stable-nelems options coll) :sum)))
+
+(defn- long-summery-sum
+  ^long [^java.util.LongSummaryStatistics lstats]
+  (.getSum lstats))
+
+(defn lsum
+  "Sum that returns a long integer."
+  ^long [data]
+  (-> (reduce long-consumer-accumulator (java.util.LongSummaryStatistics.) data)
+      (long-summary-sum)))
 
 
 (defn mean
