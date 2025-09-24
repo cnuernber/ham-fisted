@@ -296,7 +296,7 @@ public class ArrayImmutList
     final int nne = nElems + 1;
     Object[] newD = Arrays.copyOfRange(data, startidx, startidx + nne);
     newD[ne] = obj;
-    if(nne > 32) {
+    if(nne > 32) {      
       return new ImmutList(0, nne, ChunkedList.create(true, m, newD));
     } else {
       return new ArrayImmutList(newD, 0, nne, m);

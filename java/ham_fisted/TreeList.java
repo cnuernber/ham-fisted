@@ -104,6 +104,9 @@ public class TreeList extends TreeListBase implements IPersistentVector, IEditab
       return new TreeList(root, newTail, meta, shift, count);
     }
   }
+  public TreeList assoc(Object idx, Object o) {
+    return assocN(RT.intCast(idx), o);
+  }
   public TreeList pop() {
     if (count == 0)
       throw new IllegalStateException("Can't pop empty vector");
@@ -138,5 +141,13 @@ public class TreeList extends TreeListBase implements IPersistentVector, IEditab
   }
   public MutTreeList asTransient() {
     return new MutTreeList(this, meta());
+  }
+  public IPersistentVector immut() { return this; }
+  public static TreeList create(boolean owning, IPersistentMap meta, Object[] data) {
+    int nTails = (data.length + tailWidth - 1) / tailWidth;
+    if(nTails == 1) {
+      return new TreeList(Leaf.EMPTY, owning ? data : data.clone(), meta, 0, data.length);
+    }
+    return MutTreeList.create(owning, meta, data).persistent();
   }
 }

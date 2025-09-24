@@ -64,7 +64,8 @@
             IFnDef$OLO IFnDef$OD IFnDef$OL IFnDef$LD IFnDef$DL IFnDef$OLOO IFnDef$OLDO
             IFnDef$OLLO IFnDef$LongPredicate IFnDef$DoublePredicate IFnDef$Predicate
             Consumers$IncConsumer Reductions$IndexedDoubleAccum Reductions$IndexedLongAccum
-            Reductions$IndexedAccum MutableMap IAMapEntry MapForward TypedNth]
+            Reductions$IndexedAccum MutableMap IAMapEntry MapForward TypedNth
+            TreeList MutTreeList]
            [ham_fisted.alists ByteArrayList ShortArrayList CharArrayList FloatArrayList
             BooleanArrayList]
            [clojure.lang ITransientAssociative2 ITransientCollection Indexed
@@ -538,20 +539,20 @@ ham_fisted.PersistentHashMap
 
 (defn mut-list
   "Create a mutable java list that is in-place convertible to a persistent list"
-  (^MutList [] (MutList.))
+  (^MutList [] (MutTreeList.))
   (^MutList [data]
    (cond
-     (nil? data) (MutList.)
+     (nil? data) (MutTreeList.)
      (instance? obj-ary-cls data)
-     (MutList/create false nil ^objects data)
+     (MutTreeList/create false nil ^objects data)
      (or (instance? IReduceInit data) (instance? Collection data))
-     (doto (MutList.) (.addAllReducible data))
+     (doto (MutTreeList.) (.addAllReducible data))
      (string? data)
-     (doto (MutList.) (.addAll (StringCollection. data)))
+     (doto (MutTreeList.) (.addAll (StringCollection. data)))
      (.isArray (.getClass ^Object data))
-     (MutList/create true nil (.toArray (ArrayLists/toList data)))
+     (MutTreeList/create false nil  ^objects data)
      :else
-     (into (MutList.) data))))
+     (into (MutTreeList.) data))))
 
 
 (defn immut-list
@@ -1441,18 +1442,18 @@ nil
 
 (defn vector
   ([] empty-vec)
-  ([a] (ArrayImmutList/create true nil (ObjArray/create a)))
-  ([a b] (ArrayImmutList/create true nil (ObjArray/create a b)))
-  ([a b c] (ArrayImmutList/create true nil (ObjArray/create a b c)))
-  ([a b c d] (ArrayImmutList/create true nil (ObjArray/create a b c d)))
-  ([a b c d e] (ArrayImmutList/create true nil (ObjArray/create a b c d e)))
-  ([a b c d e f] (ArrayImmutList/create true nil (ObjArray/create a b c d e f)))
-  ([a b c d e f g] (ArrayImmutList/create true nil (ObjArray/create a b c d e f g)))
-  ([a b c d e f g h] (ArrayImmutList/create true nil (ObjArray/create a b c d e f g h)))
-  ([a b c d e f g h i] (ArrayImmutList/create true nil (ObjArray/create a b c d e f g h i)))
-  ([a b c d e f g h i j] (ArrayImmutList/create true nil (ObjArray/create a b c d e f g h i j)))
-  ([a b c d e f g h i j k] (ArrayImmutList/create true nil (ObjArray/create a b c d e f g h i j k)))
-  ([a b c d e f g h i j k & args] (ImmutList/create true nil (apply obj-ary a b c d e f g h i j k args))))
+  ([a] (TreeList/create true nil (ObjArray/create a)))
+  ([a b] (TreeList/create true nil (ObjArray/create a b)))
+  ([a b c] (TreeList/create true nil (ObjArray/create a b c)))
+  ([a b c d] (TreeList/create true nil (ObjArray/create a b c d)))
+  ([a b c d e] (TreeList/create true nil (ObjArray/create a b c d e)))
+  ([a b c d e f] (TreeList/create true nil (ObjArray/create a b c d e f)))
+  ([a b c d e f g] (TreeList/create true nil (ObjArray/create a b c d e f g)))
+  ([a b c d e f g h] (TreeList/create true nil (ObjArray/create a b c d e f g h)))
+  ([a b c d e f g h i] (TreeList/create true nil (ObjArray/create a b c d e f g h i)))
+  ([a b c d e f g h i j] (TreeList/create true nil (ObjArray/create a b c d e f g h i j)))
+  ([a b c d e f g h i j k] (TreeList/create true nil (ObjArray/create a b c d e f g h i j k)))
+  ([a b c d e f g h i j k & args] (TreeList/create true nil (apply obj-ary a b c d e f g h i j k args))))
 
 
 (defn splice

@@ -2,7 +2,7 @@
   (:require [ham-fisted.api :as api]
             [ham-fisted.lazy-noncaching :as lznc]
             [clojure.test :refer [deftest is testing are] :as test])
-  (:import [ham_fisted MutList ImmutList]
+  (:import [ham_fisted MutList ImmutList MutTreeList TreeList]
            [java.util List ArrayList Collections]))
 
 
@@ -322,6 +322,10 @@
 
 
 (comment
+  (def vec-fn (get-in vec-fns [:api-mut-sublist :vec-fn]))
+  (def data (api/shuffle (api/range 100)))
+  (def vv (vec-fn data))
+  
   (def m (doto (MutList.) (.addAll (range 36))))
   (def m ImmutList/EMPTY)
 

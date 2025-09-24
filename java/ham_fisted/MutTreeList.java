@@ -5,6 +5,7 @@ import clojure.lang.Box;
 import clojure.lang.IPersistentMap;
 import clojure.lang.ITransientVector;
 import clojure.lang.RT;
+import clojure.lang.IPersistentVector;
 
 public class MutTreeList extends TreeListBase implements ITransientVector {
   int nTail;
@@ -28,22 +29,24 @@ public class MutTreeList extends TreeListBase implements ITransientVector {
     nTail = tail.length;
     this.tail = Arrays.copyOf(this.tail, tailWidth);
   }
+  void consTail(Object[] tail) {
+    Object rv = shift == 0 ? ((Leaf)root).add(this, tail) : ((Branch)root).add(this, shift, tail);
+    if(rv instanceof Object[]) {
+      shift = shift+1;
+      root = new Branch(this, (Object[])rv);
+    } else {
+      root = rv;
+    }
+  }
   public boolean add(Object obj) {
     final int tlen = nTail();
     final int newCount = count+1;
     if(tlen == 32) {
-      Object rv = shift == 0 ? ((Leaf)root).add(this, tail) : ((Branch)root).add(this, shift, tail);
-      if(rv instanceof Object[]) {
-	shift = shift+1;
-	root = new Branch(this, (Object[])rv);
-      } else {
-	root = rv;
-      }
+      consTail(tail);
       tail = new Object[tailWidth];
       nTail = 0;
-    } else {
-      tail[nTail++] = obj;
     }
+    tail[nTail++] = obj;
     this.count = newCount;
     return true;
   }
@@ -103,4 +106,20 @@ public class MutTreeList extends TreeListBase implements ITransientVector {
   }
   public MutTreeList conj(Object val) { add(val); return this; }
   public TreeList persistent() { return new TreeList( this, meta ); }
+  public IPersistentVector immut() { return persistent(); }
+  public static MutTreeList create(boolean owning, IPersistentMap meta, Object[] data) {
+    int nLeaves = (data.length  + tailWidth - 1) / tailWidth;
+    MutTreeList newList = new MutTreeList(new Leaf(null, new Object[0][]), new Object[tailWidth], meta, 0, 0);
+    for(int idx = 0; idx < nLeaves; ++idx) {
+      int dataOff = idx*32;
+      int dataEnd = Math.min(dataOff + 32, data.length);
+      if(idx == (nLeaves - 1)) {
+	System.arraycopy(data, dataOff, newList.tail, 0, dataEnd - dataOff);
+	newList.nTail = dataEnd - dataOff;
+      } else {
+	newList.consTail(Arrays.copyOfRange(data, dataOff, dataEnd));
+      }
+    }
+    return newList;
+  }
 }

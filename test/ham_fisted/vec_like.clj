@@ -1,7 +1,7 @@
 (ns ham-fisted.vec-like
   (:require [ham-fisted.api :as hamf]
             [clojure.test :refer [deftest is] :as test])
-  (:import [ham_fisted TreeList IMutList Iter]
+  (:import [ham_fisted TreeList IMutList Iter MutTreeList]
            [java.util List]))
 
 
@@ -57,12 +57,12 @@
   (def tr (reduce conj (TreeList.) (range 35)))
   
   (require '[criterium.core :as crit])
-  (def rr (into [] (range 10000000)))
+  (def rr (into [] (range 1000000)))
   (crit/quick-bench (reduce conj (ham_fisted.TreeList.) rr))
   (crit/quick-bench (reduce conj [] rr))
-  (crit/quick-bench (into [] rr))
+  (crit/quick-bench (hamf/object-array (into [] rr)))
   (crit/quick-bench (add-all-reducible (hamf/object-array-list) rr))
-  (crit/quick-bench (add-all-reducible (ham_fisted.MutTreeList.) rr))
+  (crit/quick-bench (hamf/object-array (add-all-reducible (ham_fisted.MutTreeList.) rr)))
   (crit/quick-bench (cons-all (ham_fisted.TreeList.) rr))
   (crit/quick-bench (cons-all (ham_fisted.TreeList.) (RangeIter. (count rr) 0)))
   (crit/quick-bench (add-all-reducible (ham_fisted.BatchedList.) rr))

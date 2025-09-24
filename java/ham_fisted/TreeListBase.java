@@ -188,6 +188,7 @@ public class TreeListBase implements IMutList {
 				 , Arrays.copyOf(tail, leftover));
       }
     }
+    public static final Leaf EMPTY = new Leaf();
   }
   public static class Branch {
     final Object owner;
@@ -530,6 +531,7 @@ public class TreeListBase implements IMutList {
     public int size() { return data.count() - offset; }
     public int length() { return data.count() - offset; }
     public Object get(int idx) {
+      checkIndex(idx, count());
       return data.get(idx + offset);
     }
     public SubList cons(Object a) {
@@ -563,8 +565,8 @@ public class TreeListBase implements IMutList {
   }
   public IMutList subList(int sidx, int eidx) {
     sublistCheck(sidx, eidx, size());
-    int tlen = tail.length;
-    int cutoff = count - tail.length;
+    int tlen = nTail();
+    int cutoff = count - nTail();
     if(sidx == 0 && eidx == count)
       return this;
     if(sidx == eidx)
