@@ -47,7 +47,7 @@
    :exec-fn codox.main/-main
    :exec-args {:group-id "com.cnuernber"
                :artifact-id "ham-fisted"
-               :version "2.033-SNAPSHOT"
+               :version "2.033"
                :name "Ham-Fisted"
                :description "High Performance Clojure Primitives"
                :metadata {:doc/format :markdown}

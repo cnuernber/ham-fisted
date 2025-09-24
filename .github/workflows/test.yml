@@ -24,11 +24,6 @@ jobs:
       uses: DeLaGuardo/setup-clojure@12.1
       with:
         cli: 1.11.1.1413
-    - name: Run automated tests - Java 8
-      run: |
-        mise use java@corretto-8
-        java -version
-        scripts/run-tests
     - name: Run automated tests - Java 11
       run: |
         mise use java@corretto-11

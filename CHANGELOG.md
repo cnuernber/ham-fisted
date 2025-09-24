@@ -1,3 +1,9 @@
+# 2.033
+ * MAJOR UPGRADE - implemented vec and vector as treelists.  This matches Clojure's
+   persistent vector implementation in performance for mutable and immutable conj,
+   reduce pathways but has a much smarter subvec implementation and faster
+   conversion to and from object arrays.
+ 
 # 2.032
  * Two merge-iterator implementations used to N-way merging of sorted sequences.  Linear is for small n <= 32 and
    the priority queue method is for larger N's.  The exact cutoff where performance will matter will depend on
