@@ -17,6 +17,7 @@ import clojure.lang.IEditableCollection;
 
 public class TreeList extends TreeListBase implements IPersistentVector, IEditableCollection {
   final IPersistentMap meta;
+  int _hash = 0;
   public TreeList(Object root, Object[] tail, IPersistentMap meta, int shift, int count) {
     super(root, tail, shift, count);
     this.meta = meta;
@@ -49,6 +50,11 @@ public class TreeList extends TreeListBase implements IPersistentVector, IEditab
       return new TreeList(root, newTail, meta, shift, newCount);
     }
   }
+  public int hasheq() {
+    if(_hash == 0) _hash = CljHash.listHasheq(this);
+    return _hash;
+  }
+  public int hashCode() { return hasheq(); }
   public TreeList consAll(Iter data) {
     int tlen = tail.length;
     Object[] newTail = Arrays.copyOf(tail, tailWidth);
@@ -149,5 +155,10 @@ public class TreeList extends TreeListBase implements IPersistentVector, IEditab
       return new TreeList(Leaf.EMPTY, owning ? data : data.clone(), meta, 0, data.length);
     }
     return MutTreeList.create(owning, meta, data).persistent();
+  }
+  public static TreeList create(IPersistentMap meta, Object[] tail, Object obj) {
+    if(tail.length != tailWidth)
+      throw new RuntimeException("Tail must be exactly 32 len");
+    return new TreeList(new Leaf(null, new Object[][] { tail }), new Object[] { obj }, meta, 0, 33);
   }
 }

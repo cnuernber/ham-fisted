@@ -83,15 +83,28 @@ public class CljHash {
     return false;
   }
 
-  public static int listHasheq(List l) {
-    int hash = 1;
-    final int n = l.size();
-    for(int idx = 0; idx < n; ++idx) {
-      hash = 31 * hash + Util.hasheq(l.get(idx));
+  public static class ListHasheqConsumer implements java.util.function.Consumer {
+    public int hash;
+    public int n;
+    public ListHasheqConsumer() {
+      hash = 1;
+      n = 0;
     }
-    hash = Murmur3.mixCollHash(hash, n);
-    return hash;
+    public void accept(Object obj) {
+      hash = 31 * hash + Util.hasheq(obj);
+      ++n;
+    }
+    public int hash() {
+      return Murmur3.mixCollHash(hash, n);
+    }
   }
+
+  public static int listHasheq(List l) {
+    ListHasheqConsumer c = new ListHasheqConsumer();
+    Reductions.serialReduction(c, l);
+    return c.hash();
+  }
+  
   public static boolean listEquiv(List l, Object rhs) {
     if (l == rhs) return true;
     if (rhs == null) return false;

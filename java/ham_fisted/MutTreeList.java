@@ -116,8 +116,10 @@ public class MutTreeList extends TreeListBase implements ITransientVector {
       if(idx == (nLeaves - 1)) {
 	System.arraycopy(data, dataOff, newList.tail, 0, dataEnd - dataOff);
 	newList.nTail = dataEnd - dataOff;
+	newList.count += newList.nTail;
       } else {
 	newList.consTail(Arrays.copyOfRange(data, dataOff, dataEnd));
+	newList.count += 32;
       }
     }
     return newList;

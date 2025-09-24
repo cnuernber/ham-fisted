@@ -539,8 +539,8 @@ ham_fisted.PersistentHashMap
 
 (defn mut-list
   "Create a mutable java list that is in-place convertible to a persistent list"
-  (^MutList [] (MutTreeList.))
-  (^MutList [data]
+  (^MutTreeList [] (MutTreeList.))
+  (^MutTreeList [data]
    (cond
      (nil? data) (MutTreeList.)
      (instance? obj-ary-cls data)
@@ -557,8 +557,8 @@ ham_fisted.PersistentHashMap
 
 (defn immut-list
   "Create a persistent list.  Object arrays will be treated as if this new object owns them."
-  (^ImmutList [] empty-vec)
-  (^ImmutList [data]
+  (^TreeList [] empty-vec)
+  (^TreeList [data]
    (if (instance? obj-ary-cls data)
      (ArrayImmutList/create true nil data)
      (persistent! (mut-list data)))))
@@ -1442,18 +1442,18 @@ nil
 
 (defn vector
   ([] empty-vec)
-  ([a] (TreeList/create true nil (ObjArray/create a)))
-  ([a b] (TreeList/create true nil (ObjArray/create a b)))
-  ([a b c] (TreeList/create true nil (ObjArray/create a b c)))
-  ([a b c d] (TreeList/create true nil (ObjArray/create a b c d)))
-  ([a b c d e] (TreeList/create true nil (ObjArray/create a b c d e)))
-  ([a b c d e f] (TreeList/create true nil (ObjArray/create a b c d e f)))
-  ([a b c d e f g] (TreeList/create true nil (ObjArray/create a b c d e f g)))
-  ([a b c d e f g h] (TreeList/create true nil (ObjArray/create a b c d e f g h)))
-  ([a b c d e f g h i] (TreeList/create true nil (ObjArray/create a b c d e f g h i)))
-  ([a b c d e f g h i j] (TreeList/create true nil (ObjArray/create a b c d e f g h i j)))
-  ([a b c d e f g h i j k] (TreeList/create true nil (ObjArray/create a b c d e f g h i j k)))
-  ([a b c d e f g h i j k & args] (TreeList/create true nil (apply obj-ary a b c d e f g h i j k args))))
+  ([a] (ArrayImmutList/create true nil (ObjArray/create a)))
+  ([a b] (ArrayImmutList/create true nil (ObjArray/create a b)))
+  ([a b c] (ArrayImmutList/create true nil (ObjArray/create a b c)))
+  ([a b c d] (ArrayImmutList/create true nil (ObjArray/create a b c d)))
+  ([a b c d e] (ArrayImmutList/create true nil (ObjArray/create a b c d e)))
+  ([a b c d e f] (ArrayImmutList/create true nil (ObjArray/create a b c d e f)))
+  ([a b c d e f g] (ArrayImmutList/create true nil (ObjArray/create a b c d e f g)))
+  ([a b c d e f g h] (ArrayImmutList/create true nil (ObjArray/create a b c d e f g h)))
+  ([a b c d e f g h i] (ArrayImmutList/create true nil (ObjArray/create a b c d e f g h i)))
+  ([a b c d e f g h i j] (ArrayImmutList/create true nil (ObjArray/create a b c d e f g h i j)))
+  ([a b c d e f g h i j k] (ArrayImmutList/create true nil (ObjArray/create a b c d e f g h i j k)))
+  ([a b c d e f g h i j k & args] (ArrayImmutList/create true nil (apply obj-ary a b c d e f g h i j k args))))
 
 
 (defn splice

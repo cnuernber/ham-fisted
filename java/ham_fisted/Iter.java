@@ -38,13 +38,16 @@ public interface Iter {
   }
 
   public static Iter fromIterator(Iterator iter) {
-    return iter.hasNext() ? new IteratorIter(iter) : null;
+    return iter != null && iter.hasNext() ? new IteratorIter(iter) : null;
   }
 
   public static Iterator fromIter(Iter iter) {
     return new IterIterator(iter);
   }
 
+  public static Iter fromIterable(Iterable iable) {
+    return iable != null ? fromIterator(iable.iterator()) : null;
+  }
   public static Iter prepend(Object obj, Iter item) {
     return new Iter() {
       public Object get() { return obj; }

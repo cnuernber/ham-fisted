@@ -246,10 +246,6 @@
   (is (= 22 (reduce + 10 (api/subvec (api/int-array [0 2 4 6]) 1)))))
 
 
-(defn tryc
-  []
-  (conj (lznc/concat [1 2 3] [4 5 6]) nil))
-
 (deftest concatv-special-cases
   (is (= (reduce + 0 (api/concatv [] (list 1 2 3) nil nil
                                   (clojure.core/vector 1 2 3 4 5) (api/array-list [1 2 3 4])
@@ -282,6 +278,12 @@
          (concat [] (list 1 2 3) nil nil
                  (clojure.core/vector 1 2 3 4 5) (api/object-array-list [1 2 3 4])
                  (api/vec (api/range 50))))))
+
+(deftest tree-list-creation
+  (let [data (api/object-array (api/range 100))
+        vdata (clojure.core/vec data)]
+    (is (= vdata (ham_fisted.TreeList/create true nil data)))
+    (is (= vdata (ham_fisted.MutTreeList/create true nil data)))))
 
 
 (deftest binary-search

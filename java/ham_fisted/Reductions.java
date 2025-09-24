@@ -88,13 +88,24 @@ public class Reductions {
 	return ((IDeref)Clojure.var("clojure.core.protocols", "coll-reduce")).deref();
       }
     });
-
+  
   public static Object serialReduction(IFn rfn, Object init, Object coll) {
     if( coll == null) return init;
     if( coll instanceof IReduceInit) {
       return ((IReduceInit)coll).reduce(rfn, init);
     }
     return ((IFn)(collReducePtr.deref())).invoke(coll, rfn, init);
+  }
+  
+  @SuppressWarnings("unchecked")
+  public static Consumer serialReduction(Consumer c, Object coll) {
+    serialReduction(new IFnDef() {
+	public Object invoke(Object acc, Object v) {
+	  c.accept(v);
+	  return c;
+	}
+      }, c, coll);
+    return c;
   }
 
   public static Object iterableMerge(ParallelOptions options, IFn mergeFn,

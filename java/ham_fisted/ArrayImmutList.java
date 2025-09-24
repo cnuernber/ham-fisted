@@ -64,8 +64,6 @@ public class ArrayImmutList
     return new ArrayImmutList(d, sidx, eidx, meta);
   }
   public static IPersistentVector create(boolean owning, IPersistentMap meta, Object... data) {
-    if (data.length > 32)
-      return ImmutList.create(owning, meta, data);
     return create(owning, data, 0, data.length, meta);
   }
   final int indexCheck(int idx) {
@@ -283,24 +281,19 @@ public class ArrayImmutList
   }
   public final ISeq seq() { return LazyChunkedSeq.chunkIteratorSeq(iterator()); }
   public final ISeq rseq() { return LazyChunkedSeq.chunkIteratorSeq(riterator()); }
+  Object[] asArray() {
+    if(startidx == 0 && nElems == data.length)
+      return data;
+    return Arrays.copyOfRange(data, startidx, (int)(startidx + nElems));
+  }
   public final IPersistentVector cons(Object obj) {
     final int ne = nElems;
-    switch(ne){
-    case 0: return new ArrayImmutList(new Object[]{ obj}, 0, 1, m);
-    case 1: return new ArrayImmutList(new Object[]{ data[startidx], obj}, 0, 2, m);
-    case 2: return new ArrayImmutList(new Object[]{ data[startidx], data[startidx+1], obj},
-				      0, 3, m);
-    case 3: return new ArrayImmutList(new Object[]{ data[startidx], data[startidx+1], data[startidx+2], obj},
-				      0, 4, m);
-    }
     final int nne = nElems + 1;
     Object[] newD = Arrays.copyOfRange(data, startidx, startidx + nne);
     newD[ne] = obj;
-    if(nne > 32) {      
-      return new ImmutList(0, nne, ChunkedList.create(true, m, newD));
-    } else {
-      return new ArrayImmutList(newD, 0, nne, m);
-    }
+    if(nne >= 32)
+      return TreeList.create(true, m, newD);
+    return new ArrayImmutList(newD, 0, nne, m);	
   }
   public final IPersistentVector assocN(int idx, Object obj) {
     final int ne = nElems;
@@ -329,10 +322,8 @@ public class ArrayImmutList
       return null;
     return get(nElems-1);
   }
-  public final MutList<Object> asTransient() {
-    if (nElems == 0)
-      return new MutList<Object>();
-    return MutList.create(true, meta(), Arrays.copyOfRange(data, startidx, startidx+nElems));
+  public final MutTreeList asTransient() {
+    return MutTreeList.create(false, m, asArray());
   }
   @SuppressWarnings("unchecked")
   public final ArrayImmutList updateValue(Object key, Function fn) {
