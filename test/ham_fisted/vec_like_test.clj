@@ -1,4 +1,4 @@
-(ns ham-fisted.vec-like
+(ns ham-fisted.vec-like-test
   (:require [ham-fisted.api :as hamf]
             [clojure.test :refer [deftest is] :as test])
   (:import [ham_fisted TreeList IMutList Iter MutTreeList]
@@ -23,9 +23,9 @@
                                          :eidx eidx})))))
 
 (deftest sublist-test
-  (let [tr (reduce conj (TreeList.) (range 32768))]
+  (let [tr (reduce conj (TreeList.) (range 1000000))]
     (dotimes [idx 50] (sublist-tumbler tr))
-    (is (= (count tr) 32768))))
+    (is (= (count tr) 1000000))))
 
 (defn add-all-reducible
   ^IMutList [^IMutList l data]
@@ -53,6 +53,7 @@
     (when (< idx n)
       this)))
 
+
 (comment
   (def tr (reduce conj (TreeList.) (range 35)))
   
@@ -71,16 +72,18 @@
   (def pv (reduce conj [] rr))
   (def tr (reduce conj (ham_fisted.TreeList.) (range 32768)))
 
-
+  (defn verify-structure
+    [^TreeList tt]
+    
+    )
   (do
-    (def tr (reduce conj (TreeList.) (range 32768)))
+    (def tr (reduce conj (TreeList.) (range 1000000)))
     (when-let [ee (try (dotimes [idx 50] (sublist-tumbler tr))
                        (catch Throwable e e))]
-      (let [exd (ex-data ee)]
-        (def sidx (:sidx exd))
-        (def eidx (:eidx exd))
-        (def answer (:answer exd))
-        (def result (:result exd))
+      (let []
+        (def exd (ex-data ee))
+        (def sidx 763476)
+        (def eidx 877568)
         (def tt (.subList tr sidx eidx))
         (def arrays (vec (iterator-seq (.arrayIterator (.data tt) (.offset tt) (+ (.offset tt) (.size tt))))))))
     )

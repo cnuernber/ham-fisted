@@ -1,3 +1,6 @@
+# 2.034
+ * Fix to smarter sublist impl - incorrect in some cases -- tests updated to catch in future.
+ 
 # 2.033
  * MAJOR UPGRADE - implemented vec and vector as treelists.  This matches Clojure's
    persistent vector implementation in performance for mutable and immutable conj,

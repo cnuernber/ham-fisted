@@ -342,22 +342,37 @@ public class TreeListBase implements IMutList {
 	  return rr == null ? ll : new Object[] {ll, rr};
 	}
       };
+    @SuppressWarnings("unchecked")
     public static final BiFunction branchMergeRight = new BiFunction() {
 	public Object apply(Object lhs, Object rhs) {
 	  Branch ll = (Branch)lhs;
 	  Branch rr = (Branch)rhs;
-	  // System.out.println("ll " + String.valueOf(ll.data.length) + " rr " + String.valueOf(rr.data.length));
-	  if(ll.data.length < branchWidth) {
-	    int totalWidth = ll.data.length + rr.data.length;
-	    int newLen = Math.min(branchWidth, ll.data.length + rr.data.length);
-	    Object[] newBranchData = Arrays.copyOf(ll.data, newLen);
-	    System.arraycopy(rr.data, 0, newBranchData, ll.data.length, newLen - ll.data.length);
-	    ll = new Branch(ll.owner, newBranchData);
-	    int newRightLen = totalWidth - newLen;
-	    if(newRightLen > 0)
-	      rr = new Branch(rr.owner, Arrays.copyOfRange(rr.data, rr.data.length-newRightLen, rr.data.length));
-	    else
-	      rr = null;
+	  int totalWidth = ll.data.length + rr.data.length;
+	  int newLen = Math.min(branchWidth, ll.data.length + rr.data.length);
+	  ArrayList newBranchData = new ArrayList(newLen);
+	  newBranchData.addAll(Arrays.asList(ll.data));
+	  Object lastObj = newBranchData.get(newBranchData.size()-1);
+	  BiFunction mergeFn = lastObj instanceof Leaf ? leafMergeRight : branchMergeRight;
+	  for(int idx = 0; idx < rr.data.length; ++idx) {
+	    Object merged = mergeFn.apply(lastObj, rr.data[idx]);
+	    int lastidx = newBranchData.size()-1;
+	    if(merged instanceof Object[]) {
+	      final Object[] mm = (Object[])merged;
+	      newBranchData.set(lastidx, mm[0]);
+	      newBranchData.add(mm[1]);
+	      lastObj = mm[1];
+	    } else {
+	      newBranchData.set(lastidx, merged);
+	      lastObj = merged;
+	    }
+	  }
+	  int newDataSize = newBranchData.size();
+	  int llen = Math.min(branchWidth, newDataSize);
+	  ll = new Branch(null, newBranchData.subList(0, llen).toArray());	  
+	  if(llen < newDataSize) {
+	    rr = new Branch(null, newBranchData.subList(llen, newDataSize).toArray());
+	  } else {
+	    rr = null;
 	  }
 	  return rr == null ? ll : new Object[] {ll, rr};
 	}
@@ -563,6 +578,9 @@ public class TreeListBase implements IMutList {
       return new SubList(offset, data);
     }
   }
+  public static Object[] nonNull(Object[] data) {
+    return data == null ? emptyObjAry : data;
+  }
   public IMutList subList(int sidx, int eidx) {
     sublistCheck(sidx, eidx, size());
     int tlen = nTail();
@@ -600,7 +618,7 @@ public class TreeListBase implements IMutList {
     }
     if(newNode == null)
       return new TreeList(new Leaf(), tailPart, meta(), 0, tailPart.length);
-    TreeList newList = new TreeList(newNode, tailPart == null ? treeTail : tailPart,
+    TreeList newList = new TreeList(newNode, nonNull(tailPart == null ? treeTail : tailPart),
 				    meta(), newShift, eidx-roundedSidx);
     return SubList.create(offset, newList);
   }
