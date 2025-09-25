@@ -323,6 +323,13 @@
                                                   (not (Double/isNaN v)))
                                                 [1 ##NaN 2]))))))
 
+(deftest sublists-are-smaller-test
+  (let [t (into (TreeList.) (range (* 1000 1000)))]
+    (println (* 2 (mm/measure (hamf/subvec t 100000 200000) :bytes true))
+             (* 1 (mm/measure t :bytes true)))
+    (is (< (* 2 (mm/measure (hamf/subvec t 100000 200000) :bytes true))
+           (* 1 (mm/measure t :bytes true))))))
+
 
 (comment
   (def vec-fn (get-in vec-fns [:api-mut-sublist :vec-fn]))

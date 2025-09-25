@@ -18,7 +18,9 @@
                 com.clojure-goes-fast/clj-memory-meter {:mvn/version "0.3.0"}
                 com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.6.2"}}
    :extra-paths ["dev/src" "test"]
-   :jvm-opts ["-Djdk.attach.allowAttachSelf=true" "--illegal-access=permit"]}
+   :jvm-opts ["-Djdk.attach.allowAttachSelf=true"
+              "-XX:+EnableDynamicAgentLoading"
+              "--illegal-access=permit"]}
   :nospec {:jvm-opts ["-Dclojure.spec.skip-macros=true" "-Xverify:none"]}
   :jdk-19 {:jvm-opts ["-Djdk.attach.allowAttachSelf=true" "--illegal-access=permit"]}
   :build
