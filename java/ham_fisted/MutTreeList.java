@@ -9,7 +9,9 @@ import clojure.lang.IPersistentVector;
 
 public class MutTreeList extends TreeListBase implements ITransientVector {
   int nTail;
+  boolean persistent = false;
   final IPersistentMap meta;
+  public final Object sentinel = new Object();
   public int nTail() { return nTail; }
   public Object[] validTail() {
     return nTail == tail.length ? tail : Arrays.copyOf(tail, nTail);
@@ -30,10 +32,10 @@ public class MutTreeList extends TreeListBase implements ITransientVector {
     this.tail = Arrays.copyOf(this.tail, tailWidth);
   }
   void consTail(Object[] tail) {
-    Object rv = shift == 0 ? ((Leaf)root).add(this, tail) : ((Branch)root).add(this, shift, tail);
+    Object rv = shift == 0 ? ((Leaf)root).add(sentinel, tail) : ((Branch)root).add(sentinel, shift, tail);
     if(rv instanceof Object[]) {
       shift = shift+1;
-      root = new Branch(this, (Object[])rv);
+      root = new Branch(sentinel, (Object[])rv);
     } else {
       root = rv;
     }
@@ -55,8 +57,8 @@ public class MutTreeList extends TreeListBase implements ITransientVector {
     int cutoff = count - nTail();
     if(idx < cutoff) {
       Box b = new Box(null);
-      Object newRoot = shift == 1 ? ((Leaf)root).assocN(this, idx, obj, b) :
-	((Branch)root).assocN(this, shift, idx, obj, b);
+      Object newRoot = shift == 1 ? ((Leaf)root).assocN(sentinel, idx, obj, b) :
+	((Branch)root).assocN(sentinel, shift, idx, obj, b);
       root = newRoot;
       return b.val;
     } else {
@@ -70,8 +72,8 @@ public class MutTreeList extends TreeListBase implements ITransientVector {
     checkIndex(idx, count);
     int cutoff = count - nTail();
     if(idx < cutoff) {
-      Object newRoot = shift == 1 ? ((Leaf)root).assocN(this, idx, obj, null) :
-	((Branch)root).assocN(this, shift, idx, obj, null);
+      Object newRoot = shift == 1 ? ((Leaf)root).assocN(sentinel, idx, obj, null) :
+	((Branch)root).assocN(sentinel, shift, idx, obj, null);
       root = newRoot;
     } else {
       idx = idx - cutoff;
@@ -88,7 +90,7 @@ public class MutTreeList extends TreeListBase implements ITransientVector {
     if(nTail > 0) {
       nTail--;
     } else {
-      Object popResult = shift == 1 ? ((Leaf)root).pop(this) : ((Branch)root).pop(this, shift);
+      Object popResult = shift == 1 ? ((Leaf)root).pop(sentinel) : ((Branch)root).pop(sentinel, shift);
       if(popResult instanceof SublistResult) {
 	SublistResult r = (SublistResult)popResult;
 	this.root = r.node;
@@ -105,7 +107,12 @@ public class MutTreeList extends TreeListBase implements ITransientVector {
     return assocN(RT.intCast(key), val);
   }
   public MutTreeList conj(Object val) { add(val); return this; }
-  public TreeList persistent() { return new TreeList( this, meta ); }
+  public TreeList persistent() {
+    if(persistent == true)
+      throw new RuntimeException("Persistent called twice on transient vector");
+    persistent = true;
+    return new TreeList( this, meta );
+  }
   public IPersistentVector immut() { return persistent(); }
   public static MutTreeList create(boolean owning, IPersistentMap meta, Object[] data) {
     int nLeaves = (data.length  + tailWidth - 1) / tailWidth;

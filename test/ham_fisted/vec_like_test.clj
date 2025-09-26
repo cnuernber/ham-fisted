@@ -4,7 +4,6 @@
   (:import [ham_fisted TreeList IMutList Iter MutTreeList]
            [java.util List]))
 
-
 (defn sublist-tumbler
   [^List data]
   (let [ne (count data)

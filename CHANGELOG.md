@@ -1,3 +1,6 @@
+# 2.035
+ * Mutable treelists now result in less data on sublist and error on double persistent call.
+
 # 2.034
  * Fix to smarter sublist impl - incorrect in some cases -- tests updated to catch in future.
  
