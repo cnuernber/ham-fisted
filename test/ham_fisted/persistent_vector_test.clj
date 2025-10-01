@@ -24,13 +24,13 @@
                        :vec-fn (fn
                                  ([]
                                   (hamf/subvec (persistent!
-                                               (hamf/mut-list (range 100)))
-                                              100))
+                                                (hamf/mut-list (range 100)))
+                                               100))
                                  ([data]
                                   (hamf/subvec (persistent!
-                                               (hamf/mut-list
-                                                (lznc/concat (range 100) data)))
-                                              100)))}
+                                                (hamf/mut-list
+                                                 (lznc/concat (range 100) data)))
+                                               100)))}
    :api-mut-list  {:convert-fn identity :vec-fn hamf/mut-list}
    :api-mut-sublist  {:convert-fn identity
                       :vec-fn (fn
@@ -189,8 +189,8 @@
   (is (= [0 1 2 3] (hamf/vec (object-array (range 4)))))
   (is (= [1 2 3 4] (hamf/vec (eduction (map inc) (range 4)))))
   (is (= [0 1 2 3] (hamf/vec (reify clojure.lang.IReduceInit
-                              (reduce [_ f start]
-                                (reduce f start (range 4))))))))
+                               (reduce [_ f start]
+                                 (reduce f start (range 4))))))))
 
 (deftest test-vector-eqv-to-non-counted-types
   (is (not= (range) (hamf/vector 0 1 2)))
@@ -249,8 +249,8 @@
 
 (deftest concatv-special-cases
   (is (= (reduce + 0 (hamf/concatv [] (list 1 2 3) nil nil
-                                  (clojure.core/vector 1 2 3 4 5) (hamf/array-list [1 2 3 4])
-                                  (hamf/vec (hamf/range 50))))
+                                   (clojure.core/vector 1 2 3 4 5) (hamf/array-list [1 2 3 4])
+                                   (hamf/vec (hamf/range 50))))
          (reduce + 0 (concat [] (list 1 2 3) nil nil
                              (clojure.core/vector 1 2 3 4 5) (hamf/array-list [1 2 3 4])
                              (hamf/vec (hamf/range 50))))))
@@ -261,8 +261,8 @@
                              (clojure.core/vector 1 2 3 4 5) (hamf/array-list [1 2 3 4])
                              (hamf/vec (hamf/range 50))))))
   (is (= (hamf/concatv [] (list 1 2 3) nil nil
-                      (clojure.core/vector 1 2 3 4 5) (hamf/array-list [1 2 3 4])
-                      (hamf/vec (hamf/range 50)))
+                       (clojure.core/vector 1 2 3 4 5) (hamf/array-list [1 2 3 4])
+                       (hamf/vec (hamf/range 50)))
          (concat [] (list 1 2 3) nil nil
                  (clojure.core/vector 1 2 3 4 5) (hamf/array-list [1 2 3 4])
                  (hamf/vec (hamf/range 50)))))
@@ -273,9 +273,9 @@
                  (clojure.core/vector 1 2 3 4 5) (hamf/array-list [1 2 3 4])
                  (hamf/vec (hamf/range 50)))))
   (is (= (hamf/vec (hamf/concata [] (list 1 2 3) nil nil
-                               (clojure.core/vector 1 2 3 4 5)
-                               (hamf/object-array-list [1 2 3 4])
-                               (hamf/vec (hamf/range 50))))
+                                 (clojure.core/vector 1 2 3 4 5)
+                                 (hamf/object-array-list [1 2 3 4])
+                                 (hamf/vec (hamf/range 50))))
          (concat [] (list 1 2 3) nil nil
                  (clojure.core/vector 1 2 3 4 5) (hamf/object-array-list [1 2 3 4])
                  (hamf/vec (hamf/range 50))))))
@@ -320,13 +320,13 @@
 
 (deftest float-regression
   (is (= 2 (count (hamf/float-array (lznc/filter (fn [^double v]
-                                                  (not (Double/isNaN v)))
-                                                [1 ##NaN 2]))))))
+                                                   (not (Double/isNaN v)))
+                                                 [1 ##NaN 2]))))))
 
 (deftest sublists-are-smaller-test
   (let [t (into (TreeList.) (range (* 1000 1000)))]
     #_(println (* 2 (mm/measure (hamf/subvec t 100000 200000) :bytes true))
-             (* 1 (mm/measure t :bytes true)))
+               (* 1 (mm/measure t :bytes true)))
     (is (< (* 2 (mm/measure (hamf/subvec t 100000 200000) :bytes true))
            (* 1 (mm/measure t :bytes true))))))
 

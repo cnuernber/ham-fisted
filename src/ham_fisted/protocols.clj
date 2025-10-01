@@ -63,11 +63,11 @@ the options."))
 
 (defprotocol Reducer
   "Reducer is the basic reduction abstraction as a single object."
-    (->init-val-fn [item]
+  (->init-val-fn [item]
     "Returns the initial values for a parallel reduction.  This function
 takes no arguments and returns the initial accumulator.")
-    (->rfn [item]
-      "Returns the reduction function for a parallel reduction. This function takes
+  (->rfn [item]
+    "Returns the reduction function for a parallel reduction. This function takes
 two arguments, the accumulator and a value from the collection and returns a new
 or modified accumulator."))
 

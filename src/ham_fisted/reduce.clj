@@ -134,10 +134,10 @@
   * `:skip-finalize?` - when true, the reducer's finalize method is not called on the result."
   ([reducer options coll]
    (let [retval (preduce (protocols/->init-val-fn reducer)
-                      (protocols/->rfn reducer)
-                      (protocols/->merge-fn reducer)
-                      options
-                      coll)]
+                         (protocols/->rfn reducer)
+                         (protocols/->merge-fn reducer)
+                         options
+                         coll)]
      (if (get options :skip-finalize?)
        retval
        (if (get options :unmerged-result?)
@@ -550,7 +550,7 @@ nil
                      ^{:tag IFn$DDD} rfn
                      merge-fn
                      ^{:unsynchronized-mutable true
-                      :tag clojure.lang.Box} merged]
+                       :tag clojure.lang.Box} merged]
 
   DoubleConsumer
   (accept [this v] (set! acc (.invokePrim rfn acc v)))
@@ -569,7 +569,7 @@ nil
                      ^{:tag IFn$LLL} rfn
                      merge-fn
                      ^{:unsynchronized-mutable true
-                      :tag clojure.lang.Box} merged]
+                       :tag clojure.lang.Box} merged]
 
   LongConsumer
   (accept [this v] (set! acc (.invokePrim rfn acc v)))

@@ -1,23 +1,25 @@
-;   Copyright (c) Rich Hickey. All rights reserved.
-;   The use and distribution terms for this software are covered by the
-;   Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
-;   which can be found in the file epl-v10.html at the root of this distribution.
-;   By using this software in any fashion, you are agreeing to be bound by
-;   the terms of this license.
-;   You must not remove this notice, or any other, from this software.
+;;   Copyright (c) Rich Hickey. All rights reserved.  The use and distribution terms for
+;;   this software are covered by the Eclipse Public License 1.0
+;;   (http://opensource.org/licenses/eclipse-1.0.php) which can be found in the file
+;;   epl-v10.html at the root of this distribution.  By using this software in any
+;;   fashion, you are agreeing to be bound by the terms of this license.  You must not
+;;   remove this notice, or any other, from this software.
 
-; Author: Stuart Halloway
-
+;; Author: Stuart Halloway
+;; Heavy modification - Chris Nuernberger
 (ns ham-fisted.defprotocol-test
   (:require [ham-fisted.defprotocol-test.examples :refer :all]
             [ham-fisted.defprotocol-test.more-examples :as other]
             [ham-fisted.defprotocol :refer [defprotocol extend-type extend extend-protocol satisfies? extends?]
              :as defprotocol]
             [ham-fisted.api :as hamf]
+            [ham-fisted.reduce :as hamf-rf]
             [ham-fisted.lazy-noncaching :as lznc]
             [clojure.set :as set]
             [clojure.test :refer [deftest testing are is do-report assert-expr report]])
-  (:import [ham_fisted.defprotocol_test.examples ExampleInterface])
+  (:import [ham_fisted.defprotocol_test.examples ExampleInterface]
+           [java.util LongSummaryStatistics]
+           [java.util.function LongConsumer])
   (:refer-clojure :exclude [defprotocol extend-type extend extend-protocol satisfies? extends?])
   )
 
@@ -34,18 +36,18 @@
 (defmethod assert-expr 'fails-with-cause?
   [msg [_ exception-class msg-re & body :as form]]
   `(try
-   ~@body
-   (report {:type :fail, :message ~msg, :expected '~form, :actual nil})
-   (catch Throwable t#
-     (if (some (fn [cause#]
-                 (and
-                  (= ~exception-class (class cause#))
-                  (re-find ~msg-re (.getMessage ^Throwable cause#))))
-               (causes t#))
-       (report {:type :pass, :message ~msg,
-                :expected '~form, :actual t#})
-       (report {:type :fail, :message ~msg,
-                :expected '~form, :actual t#})))))
+     ~@body
+     (report {:type :fail, :message ~msg, :expected '~form, :actual nil})
+     (catch Throwable t#
+       (if (some (fn [cause#]
+                   (and
+                    (= ~exception-class (class cause#))
+                    (re-find ~msg-re (.getMessage ^Throwable cause#))))
+                 (causes t#))
+         (report {:type :pass, :message ~msg,
+                  :expected '~form, :actual t#})
+         (report {:type :fail, :message ~msg,
+                  :expected '~form, :actual t#})))))
 
 
 (defmethod clojure.test/assert-expr 'thrown-with-cause-msg? [msg form]
@@ -92,15 +94,15 @@
       (are [m f] (= (merge common-meta m)
                     (dissoc (meta (var f))
                             :line :column :file :hamf-protocol))
-           {:name 'foo :arglists '([a]) :doc "method with one arg"} foo
-           {:name 'bar :arglists '([a b]) :doc "method with two args"} bar
-           {:name 'baz :arglists '([a] [a b]) :doc "method with multiple arities" :tag 'java.lang.String} baz
-           {:name 'with-quux :arglists '([a]) :doc "method name with a hyphen"} with-quux)))
+        {:name 'foo :arglists '([a]) :doc "method with one arg"} foo
+        {:name 'bar :arglists '([a b]) :doc "method with two args"} bar
+        {:name 'baz :arglists '([a] [a b]) :doc "method with multiple arities" :tag 'java.lang.String} baz
+        {:name 'with-quux :arglists '([a]) :doc "method name with a hyphen"} with-quux)))
   (testing "protocol fns throw IllegalArgumentException if no impl matches"
     (is (thrown-with-msg?
-          IllegalArgumentException
-          #"No implementation of method: :foo of protocol: #'ham-fisted.defprotocol-test.examples/ExampleProtocol found for class: java.lang.Long"
-          (foo 10))))
+         IllegalArgumentException
+         #"No implementation of method: :foo of protocol: #'ham-fisted.defprotocol-test.examples/ExampleProtocol found for class: java.lang.Long"
+         (foo 10))))
   (testing "protocols generate a corresponding interface using _ instead of - for method names"
     (is (= ["bar" "baz" "baz" "foo" "with_quux"] (method-names ham_fisted.defprotocol_test.examples.ExampleProtocol))))
   (testing "protocol will work with instances of its interface (use for interop, not in Clojure!)"
@@ -110,7 +112,7 @@
       (is (= "foo!" (foo obj)) "call through protocol")))
   (testing "you can implement just part of a protocol if you want"
     (let [obj (reify ExampleProtocol
-                     (baz [a b] "two-arg baz!"))]
+                (baz [a b] "two-arg baz!"))]
       (is (= "two-arg baz!" (baz obj nil)))
       (is (thrown? AbstractMethodError (baz obj)))))
   (testing "error conditions checked when defining protocols"
@@ -130,7 +132,7 @@
     (is (= :new-method (eval '(new-method (reify Elusive (new-method [x] :new-method))))))
     (is #_{:clj-kondo/ignore [:unresolved-symbol]}
         (fails-with-cause? IllegalArgumentException #"No method of interface: .*\.Elusive found for function: old-method of protocol: Elusive \(The protocol method may have been defined before and removed\.\)"
-          (eval '(old-method (reify Elusive (new-method [x] :new-method))))))))
+                           (eval '(old-method (reify Elusive (new-method [x] :new-method))))))))
 
 (deftype HasMarkers []
   ExampleProtocol
@@ -165,31 +167,31 @@
     (is (= "pow" (foo "pow"))))
   (testing "you can have two methods with the same name. Just use namespaces!"
     (extend String other/SimpleProtocol
-     {:foo (fn [s] (.toUpperCase ^String s))})
+            {:foo (fn [s] (.toUpperCase ^String s))})
     (is (= "POW" (other/foo "pow"))))
   (testing "you can extend deftype types"
     (extend
-     ExtendTestWidget
-     ExampleProtocol
-     {:foo (fn [this] (str "widget " (.name ^ExtendTestWidget this)))})
+        ExtendTestWidget
+      ExampleProtocol
+      {:foo (fn [this] (str "widget " (.name ^ExtendTestWidget this)))})
     (is (= "widget z" (foo (ExtendTestWidget. "z"))))))
 
 (deftest illegal-extending
   (testing "you cannot extend a protocol to a type that implements the protocol inline"
     (is #_{:clj-kondo/ignore [:unresolved-symbol]}
         (fails-with-cause? IllegalArgumentException #".*HasProtocolInline already directly implements interface"
-          (eval '(extend ham_fisted.defprotocol_test.HasProtocolInline
-                         ham-fisted.defprotocol-test.examples/ExampleProtocol
-                         {:foo (fn [_] :extended)})))))
+                           (eval '(extend ham_fisted.defprotocol_test.HasProtocolInline
+                                    ham-fisted.defprotocol-test.examples/ExampleProtocol
+                                    {:foo (fn [_] :extended)})))))
   (testing "you cannot extend to an interface"
     (is #_{:clj-kondo/ignore [:unresolved-symbol]}
         (fails-with-cause? IllegalArgumentException #"interface ham_fisted.defprotocol_test.examples.ExampleProtocol is not a protocol"
-          (eval '(extend ham_fisted.defprotocol_test.HasProtocolInline
-                         ham_fisted.defprotocol_test.examples.ExampleProtocol
-                         {:foo (fn [_] :extended)}))))))
+                           (eval '(extend ham_fisted.defprotocol_test.HasProtocolInline
+                                    ham_fisted.defprotocol_test.examples.ExampleProtocol
+                                    {:foo (fn [_] :extended)}))))))
 
 
-; see CLJ-845
+                                        ; see CLJ-845
 (defprotocol SyntaxQuoteTestProtocol
   (sqtp [p]))
 
@@ -209,7 +211,7 @@
 (deftest test-no-ns-capture
   (is (= "foo" (sqtp "foo")))
   (is (= :foo (sqtp :foo))))
- 
+
 (defprotocol Dasherizer
   (-do-dashed [this]))
 (deftype Dashed []
@@ -232,7 +234,7 @@
 
 (deftest test-longs-hinted-proto
   (is (= 1
-        (aget-long-hinted
+         (aget-long-hinted
           (reify LongsHintedProto
             (longs-hinted [_] (long-array [1])))))))
 
@@ -310,9 +312,9 @@
   (core-memsize [c]
     (hamf/lsum (lznc/map (fn ^long [d] (+ 24 (long (core-memsize d)))) c))
     #_(reduce
-     (fn [s v] (+ s 24 (core-memsize v)))
-     0
-     c))
+       (fn [s v] (+ s 24 (core-memsize v)))
+       0
+       c))
   java.util.Map
   (core-memsize [m]
     (hamf/lsum (lznc/map (fn ^long [kv]
@@ -320,9 +322,9 @@
                                     (long (core-memsize (val kv))))))
                          m))
     #_(reduce
-     (fn [s [k v]] (+ s 36 (core-memsize k) (core-memsize v)))
-     0
-     m)))
+       (fn [s [k v]] (+ s 36 (core-memsize k) (core-memsize v)))
+       0
+       m)))
 
 (def test-datastructure
   {:a "hello"
@@ -336,6 +338,19 @@
 (defn multithread-test
   [measure-fn]
   (hamf/lsum (hamf/pmap measure-fn measure-data)))
+
+
+(defn preduce-multithread-test
+  [measure-fn]
+  (.getSum ^LongSummaryStatistics
+           (hamf-rf/preduce #(LongSummaryStatistics.)
+                            (fn [^LongConsumer l m]
+                              (.accept l (long (measure-fn m)))
+                              l)
+                            (fn [^LongSummaryStatistics l ^LongSummaryStatistics r]
+                              (.combine l r)
+                              l)
+                            measure-data)))
 
 (comment
   ;;Single threaded calls show very little difference if any:
@@ -374,5 +389,5 @@
   ;;    Execution time upper quantile : 47.396205 ms (97.5%)
   ;;                    Overhead used : 1.539613 ns
 
- 
+
   )

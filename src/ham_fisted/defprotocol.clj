@@ -33,18 +33,18 @@
 (defn- implements? [protocol atype]
   (and atype (.isAssignableFrom ^Class (:on-interface protocol) atype)))
 
-(defn extends? 
+(defn extends?
   "Returns true if atype extends protocol"
   [protocol atype]
   (boolean (or (implements? protocol atype)
                (get (:impls protocol) atype))))
 
-(defn extenders 
+(defn extenders
   "Returns a collection of the types explicitly extending protocol"
   [protocol]
   (keys (:impls protocol)))
 
-(defn satisfies? 
+(defn satisfies?
   "Returns true if x satisfies the protocol"
   [protocol x]
   (or (instance? (get protocol :on-interface) x)
@@ -106,7 +106,7 @@
   (let [iname (symbol (str (munge (namespace-munge *ns*)) "." (munge name)))
         [opts sigs]
         (loop [opts {:on (list 'quote iname) :on-interface iname} sigs opts+sigs]
-          (condp #(%1 %2) (first sigs) 
+          (condp #(%1 %2) (first sigs)
             string? (recur (assoc opts :doc (first sigs)) (next sigs))
             keyword? (recur (assoc opts (first sigs) (second sigs)) (nnext sigs))
             [opts sigs]))
@@ -137,7 +137,7 @@
                            (when (m (keyword mname))
                              (throw (IllegalArgumentException. (str "Function " mname " in protocol " name " was redefined. Specify all arities in single definition."))))
                            (assoc m (keyword mname)
-                                  (merge name-meta 
+                                  (merge name-meta
                                          {:name mname
                                           :methodk name-kwd
                                           :ns-methodk (keyword (clojure.core/name (.-name *ns*))
@@ -245,7 +245,7 @@
                           ;;No more alter-var-root -- unnecessary
                           :impls `(atom {}))))))
 
-(defmacro defprotocol 
+(defmacro defprotocol
   "A protocol is a named set of named methods and their signatures:
   (defprotocol AProtocolName
 
@@ -264,9 +264,9 @@
   polymorphic functions and a protocol object. All are
   namespace-qualified by the ns enclosing the definition The resulting
   functions dispatch on the type of their first argument, which is
-  required and corresponds to the implicit target object ('this' in 
-  Java parlance). defprotocol is dynamic, has no special compile-time 
-  effect, and defines no new types or classes. Implementations of 
+  required and corresponds to the implicit target object ('this' in
+  Java parlance). defprotocol is dynamic, has no special compile-time
+  effect, and defines no new types or classes. Implementations of
   the protocol methods can be provided using extend.
 
   When :extend-via-metadata is true, values can extend protocols by
@@ -285,27 +285,27 @@
   Note that you should not use this interface with deftype or
   reify, as they support the protocol directly:
 
-  (defprotocol P 
-    (foo [this]) 
+  (defprotocol P
+    (foo [this])
     (bar-me [this] [this y]))
 
-  (deftype Foo [a b c] 
+  (deftype Foo [a b c]
    P
     (foo [this] a)
     (bar-me [this] b)
     (bar-me [this y] (+ c y)))
-  
+
   (bar-me (Foo. 1 2 3) 42)
   => 45
 
-  (foo 
+  (foo
     (let [x 42]
-      (reify P 
+      (reify P
         (foo [this] 17)
         (bar-me [this] x)
         (bar-me [this y] x))))
   => 17"
-  {:added "1.2"} 
+  {:added "1.2"}
   [name & opts+sigs]
   (emit-protocol name opts+sigs))
 
@@ -324,7 +324,7 @@
           (throw (RuntimeException. "Primitive hinted protocol methods must have primitive hinted implementations!"))))))
   method)
 
-(defn extend 
+(defn extend
   "Implementations of protocol methods can be provided using the extend construct:
 
   (extend AType
@@ -332,14 +332,14 @@
      {:foo an-existing-fn
       :bar (fn [a b] ...)
       :baz (fn ([a]...) ([a b] ...)...)}
-    BProtocol 
-      {...} 
+    BProtocol
+      {...}
     ...)
- 
+
   extend takes a type/class (or interface, see below), and one or more
   protocol + method map pairs. It will extend the polymorphism of the
   protocol's methods to call the supplied methods when an AType is
-  provided as the first argument. 
+  provided as the first argument.
 
   Method maps are maps of the keyword-ized method names to ordinary
   fns. This facilitates easy reuse of existing fns and fn maps, for
@@ -359,14 +359,14 @@
 
   See also:
   extends?, satisfies?, extenders"
-  {:added "1.2"} 
+  {:added "1.2"}
   [atype & proto+mmaps]
   (doseq [[proto mmap] (partition 2 proto+mmaps)]
     (when-not (protocol? proto)
       (throw (IllegalArgumentException.
               (str proto " is not a protocol"))))
     (when (implements? proto atype)
-      (throw (IllegalArgumentException. 
+      (throw (IllegalArgumentException.
               (str atype " already directly implements " (:on-interface proto)))))
     (let [impls (:impls proto)
           method-caches (:method-caches proto)]
@@ -376,10 +376,10 @@
           (let [e (.first es)
                 methodk (key e)
                 {:keys [tag arglists]} (get-in proto [:sigs methodk])
-                arg-tags (mapv #(conj (mapv (comp :tag meta) %) tag) arglists)                
+                arg-tags (mapv #(conj (mapv (comp :tag meta) %) tag) arglists)
                 method (mmap methodk)
                 method (cond
-                         (and (= tag 'long) (number? method) (Casts/longCast method)) 
+                         (and (= tag 'long) (number? method) (Casts/longCast method))
                          (and (= tag 'double) (number? method) (Casts/doubleCast method))
                          :else (if (fn? method)
                                  (correct-primitive-fn-type arg-tags method)
@@ -391,7 +391,7 @@
 (defn- normalize-specs
   [specs]
   (if (vector? (first specs))
-    (list specs) 
+    (list specs)
     specs))
 
 (defn- emit-fn-map
@@ -399,7 +399,7 @@
   (let [pcol (deref (resolve p))
         sigs (get pcol :sigs)
         define-fn (fn [fn-entry]
-                    (let [fn-name (-> fn-entry first name keyword)                          
+                    (let [fn-name (-> fn-entry first name keyword)
                           specs (hint (normalize-specs (drop 1 fn-entry)))
                           {:keys [tag arglists] :as sig} (get sigs fn-name)
                           arglist-map (into {} (map (fn [arglist]
@@ -408,7 +408,7 @@
                                             arglists)
                           apply-primitive-typehints
                           (fn [[[target & args :as arglist] & body]]
-                            (-> 
+                            (->
                              (->> (map (fn [tag arg-sym]
                                          (vary-meta arg-sym update :tag #(or % tag)))
                                        (arglist-map (inc (count args))) args)
@@ -440,13 +440,13 @@
     `(extend ~c
        ~@(mapcat (partial emit-hinted-impl c) impls))))
 
-(defmacro extend-type 
+(defmacro extend-type
   "A macro that expands into an extend call. Useful when you are
   supplying the definitions explicitly inline, extend-type
   automatically creates the maps required by extend.  Propagates the
   class as a type hint on the first argument of all fns.
 
-  (extend-type MyType 
+  (extend-type MyType
     Countable
       (cnt [c] ...)
     Foo
@@ -461,7 +461,7 @@
    Foo
      {:baz (fn ([x] ...) ([x y & zs] ...))
       :bar (fn [x y] ...)})"
-  {:added "1.2"} 
+  {:added "1.2"}
   [t & specs]
   (emit-extend-type t specs))
 
@@ -472,7 +472,7 @@
                 `(extend-type ~t ~p ~@fs))
               impls))))
 
-(defmacro extend-protocol 
+(defmacro extend-protocol
   "Useful when you want to provide several implementations of the same
   protocol all at once. Takes a single protocol and the implementation
   of that protocol for one or more types. Expands into calls to
@@ -495,17 +495,17 @@
   expands into:
 
   (do
-   (clojure.core/extend-type AType Protocol 
-     (foo [x] ...) 
+   (clojure.core/extend-type AType Protocol
+     (foo [x] ...)
      (bar [x y] ...))
-   (clojure.core/extend-type BType Protocol 
-     (foo [x] ...) 
+   (clojure.core/extend-type BType Protocol
+     (foo [x] ...)
      (bar [x y] ...))
-   (clojure.core/extend-type AClass Protocol 
-     (foo [x] ...) 
+   (clojure.core/extend-type AClass Protocol
+     (foo [x] ...)
      (bar [x y] ...))
-   (clojure.core/extend-type nil Protocol 
-     (foo [x] ...) 
+   (clojure.core/extend-type nil Protocol
+     (foo [x] ...)
      (bar [x y] ...)))"
   {:added "1.2"}
 

@@ -49,22 +49,22 @@
   else."
   [x]
   (cond
-   (= x TestType1) 1
-   (= x TestType2) 2
-   (= x TestType3) 4
-   (= x TestType4) 8
-   (= x TestType5) 16
-   (= x TestType6) 32
-   (= x TestType7) 64
-   (= x TestType8) 128
-   (= x TestType9) 256
-   (= x TestType10) 512
-   (= x TestType11) 1024
-   (= x TestType12) 2048
-   (= x TestType13) 4096
-   (= x TestType14) 8192
-   (= x TestType15) 16384
-   :else (original-hash x)))
+    (= x TestType1) 1
+    (= x TestType2) 2
+    (= x TestType3) 4
+    (= x TestType4) 8
+    (= x TestType5) 16
+    (= x TestType6) 32
+    (= x TestType7) 64
+    (= x TestType8) 128
+    (= x TestType9) 256
+    (= x TestType10) 512
+    (= x TestType11) 1024
+    (= x TestType12) 2048
+    (= x TestType13) 4096
+    (= x TestType14) 8192
+    (= x TestType15) 16384
+    :else (original-hash x)))
 
 (deftest protocols-with-no-min-hash-in-13-bits
   (with-redefs [hash no-min-hash-in-13-bits]

@@ -765,9 +765,9 @@ ham_fisted.PersistentHashMap
       :else
       (persistent!
        (reduce-kv (fn [acc k v]
-                 (assoc! acc k v))
-               (transient s1)
-               s2)))
+                    (assoc! acc k v))
+                  (transient s1)
+                  s2)))
     (instance? SetOps s1)
     (.union ^SetOps s1 s2)
     :else
@@ -792,9 +792,9 @@ ham_fisted.PersistentHashMap
        nil
        (let [bfn (->bi-function bfn)]
          (reduce (fn [acc v]
-                        (map-union bfn acc v))
-                      (java-hashmap (first maps))
-                      (rest maps))))))
+                   (map-union bfn acc v))
+                 (java-hashmap (first maps))
+                 (rest maps))))))
   (^java.util.HashMap [bfn maps]
    (union-reduce-java-hashmap bfn maps nil)))
 
@@ -1306,17 +1306,17 @@ nil
                (and (instance? IFn$LO key-fn) (instance? IFn$OLO rfn))
                (long-accumulator
                 l v
-                 (.compute ^Map l (.invokePrim ^IFn$LO key-fn v)
-                           (bi-function
-                            k acc (.invokePrim ^IFn$OLO rfn (or acc (init-val-fn)) v)))
-                 l)
+                (.compute ^Map l (.invokePrim ^IFn$LO key-fn v)
+                          (bi-function
+                           k acc (.invokePrim ^IFn$OLO rfn (or acc (init-val-fn)) v)))
+                l)
                (and (instance? IFn$DO key-fn) (instance? IFn$ODO rfn))
                (double-accumulator
-                 l v
-                 (.compute ^Map l (.invokePrim ^IFn$DO key-fn v)
-                           (bi-function
-                            k acc (.invokePrim ^IFn$ODO rfn (or acc (init-val-fn)) v)))
-                 l)
+                l v
+                (.compute ^Map l (.invokePrim ^IFn$DO key-fn v)
+                          (bi-function
+                           k acc (.invokePrim ^IFn$ODO rfn (or acc (init-val-fn)) v)))
+                l)
                :else
                (fn [^Map l v]
                  ;;It annoys the hell out of me that I have to create a new
@@ -1378,30 +1378,30 @@ nil
          afn (function k (init-fn))
          rfn (protocols/->rfn reducer)
          rfn (cond
-                 (or (= identity key-fn) (nil? key-fn))
-                 (fn [^Map l v]
-                   (-> (.computeIfAbsent l v afn)
-                       (rfn v))
-                   l)
-                 ;;These formulations can trigger more efficient primitive reductions when,
-                 ;;for instance, you are reducing over a stream of integer indexes.
-                 (and (instance? IFn$LO key-fn) (instance? IFn$OLO rfn))
-                 (long-accumulator
-                  l v
-                  (let [acc (.computeIfAbsent ^Map l (.invokePrim ^IFn$LO key-fn v) afn)]
-                    (.invokePrim ^IFn$OLO rfn acc v))
-                  l)
-                 (and (instance? IFn$DO key-fn) (instance? IFn$ODO rfn))
-                 (double-accumulator
-                  l v
-                  (let [acc (.computeIfAbsent ^Map l (.invokePrim ^IFn$DO key-fn v) afn)]
-                    (.invokePrim ^IFn$ODO rfn acc v))
-                  l)
-                 :else
-                 (fn [^Map l v]
-                   (-> (.computeIfAbsent l (key-fn v) afn)
-                       (rfn v))
-                   l))]
+               (or (= identity key-fn) (nil? key-fn))
+               (fn [^Map l v]
+                 (-> (.computeIfAbsent l v afn)
+                     (rfn v))
+                 l)
+               ;;These formulations can trigger more efficient primitive reductions when,
+               ;;for instance, you are reducing over a stream of integer indexes.
+               (and (instance? IFn$LO key-fn) (instance? IFn$OLO rfn))
+               (long-accumulator
+                l v
+                (let [acc (.computeIfAbsent ^Map l (.invokePrim ^IFn$LO key-fn v) afn)]
+                  (.invokePrim ^IFn$OLO rfn acc v))
+                l)
+               (and (instance? IFn$DO key-fn) (instance? IFn$ODO rfn))
+               (double-accumulator
+                l v
+                (let [acc (.computeIfAbsent ^Map l (.invokePrim ^IFn$DO key-fn v) afn)]
+                  (.invokePrim ^IFn$ODO rfn acc v))
+                l)
+               :else
+               (fn [^Map l v]
+                 (-> (.computeIfAbsent l (key-fn v) afn)
+                     (rfn v))
+                 l))]
      (let [fin-map (preduce map-fn rfn #(mut-map-union! merge-bifn %1 %2)
                             (merge {:min-n 1000} options)
                             coll)]
@@ -1484,10 +1484,10 @@ nil
    (when-not (nil? v1) (.addAllReducible retval (->reducible v1)))
    (when-not (nil? v2) (.addAllReducible retval (->reducible v2)))
    (reduce (fn [data c]
-                  (when-not (nil? c) (.addAllReducible retval (->reducible c)))
-                  retval)
-                retval
-                args)))
+             (when-not (nil? c) (.addAllReducible retval (->reducible c)))
+             retval)
+           retval
+           args)))
 
 (defn apply-concatv
   [data]
@@ -1764,12 +1764,12 @@ ham-fisted.api> (binary-search data 1.1 nil)
     (number? data)
     (clj-ary-fn data)
     :else
-     (let [data (->reducible data)]
-       (if-let [c (constant-count data)]
-         (let [retval (clj-ary-fn c)]
-           (.fillRangeReducible ^IMutList (ary-ra-fn retval) 0 data)
-           retval)
-         (.toNativeArray ^IMutList (ary-list-fn data))))))
+    (let [data (->reducible data)]
+      (if-let [c (constant-count data)]
+        (let [retval (clj-ary-fn c)]
+          (.fillRangeReducible ^IMutList (ary-ra-fn retval) 0 data)
+          retval)
+        (.toNativeArray ^IMutList (ary-list-fn data))))))
 
 
 (defn byte-array-list
@@ -2152,9 +2152,9 @@ ham-fisted.api> (binary-search data 1.1 nil)
     :remove (filter (hamf-fn/double-predicate v (not (Double/isNaN v))) coll)
     :keep coll
     :exception (map (hamf-fn/double-unary-operator v
-                      (when (Double/isNaN v)
-                        (throw (Exception. "Nan detected")))
-                      v)
+                                                   (when (Double/isNaN v)
+                                                     (throw (Exception. "Nan detected")))
+                                                   v)
                     coll)))
 
 
@@ -2443,13 +2443,13 @@ ham-fisted.api> (binary-search data 1.1 nil)
   "Take the last N values of the collection.  If the input is random-access,
   the result will be random-access."
   ([n coll]
-    (when coll
-      (let [coll (->reducible coll)]
-        (if (instance? RandomAccess coll)
-          (let [ne (.size ^List coll)
-                n (long n)]
-            (.subList ^List coll (- ne n 1) ne))
-          (clojure.core/take-last n coll))))))
+   (when coll
+     (let [coll (->reducible coll)]
+       (if (instance? RandomAccess coll)
+         (let [ne (.size ^List coll)
+               n (long n)]
+           (.subList ^List coll (- ne n 1) ne))
+         (clojure.core/take-last n coll))))))
 
 
 (defn- priority-queue-rf
@@ -2671,7 +2671,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
 
 
 (defn priority-queue-merge-iterable
-    "Create an N-way priority queue iterable using cmp to order the merge of provided iterables.
+  "Create an N-way priority queue iterable using cmp to order the merge of provided iterables.
   If a predicate pred is provided the iterable itself will filter out values for which
   the pred returns false.  In this mode it is possible for the iterator to return null
   if the last value is filtered out -- the hasNext method doesn't check if the next value

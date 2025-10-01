@@ -46,8 +46,8 @@
   "Create a function that converts objects to longs"
   ([]
    `(reify IFnDef$OL
-        (invokePrim [this# v#]
-          (Casts/longCast v#))))
+      (invokePrim [this# v#]
+        (Casts/longCast v#))))
   ([varname & code]
    `(reify IFnDef$OL
       (invokePrim [this ~varname]
@@ -234,7 +234,7 @@
   `(reify
      Comparator
      (compare [this# ~lhsvar ~rhsvar]
-      ~@code)
+       ~@code)
      IFnDef
      (invoke [this# l# r#]
        (.compare this# l# r#))))
@@ -247,7 +247,7 @@
   (reify
     Comparator
     (^int compare [this ^Object l ^Object r]
-      (Util/compare r l))
+     (Util/compare r l))
     DoubleComparator
     (^int compare [this ^double l ^double r]
      (Double/compare r l))

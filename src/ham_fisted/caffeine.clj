@@ -11,9 +11,9 @@
 
 
 (defn cache
-  "Create a caffeine cache.  
+  "Create a caffeine cache.
 
-  Options: 
+  Options:
 
   * `:write-ttl-ms` - Time that values should remain in the cache after write in milliseconds.
   * `:access-ttl-ms` - Time that values should remain in the cache after access in milliseconds.
@@ -104,7 +104,7 @@
   (.stats cache))
 
 (defn keyword-stats
-  "Return a persistent map with keyword keys and caffeine stat values. 
+  "Return a persistent map with keyword keys and caffeine stat values.
 
   Returns:
   `{:hit-count (.hitCount stats)
@@ -115,7 +115,7 @@
      :average-load-penalty-nanos (.averageLoadPenalty stats)
      :total-load-time-nanos (.totalLoadTime stats)
      :eviction-count (.evictionCount stats)}`"
-  
+
   [^Cache cache]
   (let [stats (stats cache)]
     {:hit-count (.hitCount stats)

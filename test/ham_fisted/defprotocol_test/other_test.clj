@@ -9,6 +9,6 @@
   (let [aseq (ham-fisted.defprotocol-test/f val)]
     (count aseq)))
 (extend-protocol ham-fisted.defprotocol-test/P String
-  (f [s] (seq s)))
+                 (f [s] (seq s)))
 (deftest test-resolve-type-hints-in-protocol-methods
   (is (= 4 (cf "test"))))

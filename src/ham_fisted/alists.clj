@@ -82,11 +82,11 @@
          (set! ~'data (.copyOf this# (ArrayLists/newArrayLen newlen#))))
        ~'data)
      (~addname [this# v#]
-       (let [curlen# ~'n-elems
-             newlen# (unchecked-inc ~'n-elems)
-             ~(with-meta 'b {:tag ary-tag}) (.ensureCapacity this# newlen#)]
-         (ArrayHelpers/aset ~'b curlen# (~set-cast-fn v#))
-         (set! ~'n-elems newlen#)))
+      (let [curlen# ~'n-elems
+            newlen# (unchecked-inc ~'n-elems)
+            ~(with-meta 'b {:tag ary-tag}) (.ensureCapacity this# newlen#)]
+        (ArrayHelpers/aset ~'b curlen# (~set-cast-fn v#))
+        (set! ~'n-elems newlen#)))
      (add [this# idx# obj#]
        (ArrayLists/checkIndex idx# ~'n-elems)
        (if (== idx# ~'n-elems)
@@ -253,29 +253,29 @@
 
 
 #_(extend-protocol protocols/Reducer
-  ArrayLists$ObjectArrayList
-  (->init-val-fn [item] #(ArrayLists$ObjectArrayList.))
-  (->rfn [item] ladd)
-  ArrayLists$IntArrayList
-  (->init-val-fn [item] #(ArrayLists$IntArrayList.))
-  (->rfn [item] ladd)
-  ArrayLists$LongArrayList
-  (->init-val-fn [item] #(ArrayLists$LongArrayList.))
-  (->rfn [item] ladd)
-  ArrayLists$DoubleArrayList
-  (->init-val-fn [item] #(ArrayLists$DoubleArrayList.))
-  (->rfn [item] ladd))
+    ArrayLists$ObjectArrayList
+    (->init-val-fn [item] #(ArrayLists$ObjectArrayList.))
+    (->rfn [item] ladd)
+    ArrayLists$IntArrayList
+    (->init-val-fn [item] #(ArrayLists$IntArrayList.))
+    (->rfn [item] ladd)
+    ArrayLists$LongArrayList
+    (->init-val-fn [item] #(ArrayLists$LongArrayList.))
+    (->rfn [item] ladd)
+    ArrayLists$DoubleArrayList
+    (->init-val-fn [item] #(ArrayLists$DoubleArrayList.))
+    (->rfn [item] ladd))
 
 
 #_(extend-protocol protocols/ParallelReducer
-  ArrayLists$ObjectArrayList
-  (->merge-fn [l] lmerge)
-  ArrayLists$IntArrayList
-  (->merge-fn [l] lmerge)
-  ArrayLists$LongArrayList
-  (->merge-fn [l] lmerge)
-  ArrayLists$DoubleArrayList
-  (->merge-fn [l] lmerge))
+    ArrayLists$ObjectArrayList
+    (->merge-fn [l] lmerge)
+    ArrayLists$IntArrayList
+    (->merge-fn [l] lmerge)
+    ArrayLists$LongArrayList
+    (->merge-fn [l] lmerge)
+    ArrayLists$DoubleArrayList
+    (->merge-fn [l] lmerge))
 
 
 

@@ -77,7 +77,7 @@
         (is (= n-elems (count alldata)))
         (is (= dissoc-data (set (keys disdata))))
         (is (= data (set (keys alldata))))))))
-        
+
 
 
 (def map-constructors
@@ -173,7 +173,7 @@
    [:hamf-hashmap hamf-hashmap]
    [:clj-transient clj-transient]
    [:hamf-transient hamf-transient]])
-   
+
 
 
 (defn profile-datastructures
@@ -331,15 +331,15 @@
                     {:construct-fn clj-transient
                      :merge-fn #(merge-with (make-merge-fn %1) %2 %3)
                      :reduce-fn #(apply merge-with (make-merge-fn %1) %2)})})
-   ;;jdk-8 - 1000
-   ;; {:union-disj-μs 11.491328581829329,
-   ;;  :union-μs 30.876507346896837,
-   ;;  :name :hamf-hashmap}
-   ;; 100000
-   ;; {:union-disj-μs 2461.248479674797,
-   ;;  :union-μs 5106.405916666667,
-   ;;  :name :hamf-hashmap}
-   
+;;jdk-8 - 1000
+;; {:union-disj-μs 11.491328581829329,
+;;  :union-μs 30.876507346896837,
+;;  :name :hamf-hashmap}
+;; 100000
+;; {:union-disj-μs 2461.248479674797,
+;;  :union-μs 5106.405916666667,
+;;  :name :hamf-hashmap}
+
 
 
 (defn benchmark-union
@@ -518,7 +518,7 @@
   (do
     (def hm (HashMap.))
     (def orig PersistentHashMap/EMPTY))
-    
+
 
   (dotimes [idx 100]
     (.put hm idx idx))
@@ -874,4 +874,3 @@
     (.put ht "bilbo" "baggins"))
 
   (crit/quick-bench (.get ^ham_fisted.HashTable ht "bilbo")))
-  

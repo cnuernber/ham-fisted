@@ -33,7 +33,7 @@
 
 (defn ->iter
   [data]
-  (when data 
+  (when data
     (if (instance? Iter data)
       data
       (Iter/fromIterator (.iterator ^Iterable data)))))
@@ -55,7 +55,7 @@
 
 (comment
   (def tr (reduce conj (TreeList.) (range 35)))
-  
+
   (require '[criterium.core :as crit])
   (def rr (into [] (range 1000000)))
   (crit/quick-bench (reduce conj (ham_fisted.TreeList.) rr))
@@ -66,14 +66,14 @@
   (crit/quick-bench (cons-all (ham_fisted.TreeList.) rr))
   (crit/quick-bench (cons-all (ham_fisted.TreeList.) (RangeIter. (count rr) 0)))
   (crit/quick-bench (add-all-reducible (ham_fisted.BatchedList.) rr))
-  
+
   (def tr (reduce conj (ham_fisted.TreeList.) rr))
   (def pv (reduce conj [] rr))
   (def tr (reduce conj (ham_fisted.TreeList.) (range 32768)))
 
   (defn verify-structure
     [^TreeList tt]
-    
+
     )
   (do
     (def tr (reduce conj (TreeList.) (range 1000000)))
@@ -87,7 +87,7 @@
         (def arrays (vec (iterator-seq (.arrayIterator (.data tt) (.offset tt) (+ (.offset tt) (.size tt))))))))
     )
 
-  (do 
+  (do
     (require '[clj-async-profiler.core :as prof])
     (prof/profile {:interval 10000} (dotimes [idx 50] (add-all-reducible (ham_fisted.BatchedList.) rr)))
     (prof/serve-ui 8080))

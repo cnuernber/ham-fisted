@@ -358,7 +358,7 @@
 (pp/implement-tostring-print Transformables$CatIterable)
 
 (defn apply-concat
-  "A more efficient form of (apply concat ...) that doesn't force data to be a clojure seq.  
+  "A more efficient form of (apply concat ...) that doesn't force data to be a clojure seq.
   See [[concat-opts]] for opts definition."
   ([] PersistentList/EMPTY)
   ([data]
@@ -385,10 +385,10 @@
   "Concat where the first argument is an options map.  This variation allows you to set the `:cat-parallelism`
   as you may have an idea the best way to parallelism this concatenation at time of the concatenation creation.
 
-  Options: 
-  
-  `:cat-parallelism` - Set the type of parallelism - either `:elem-wise` or `:seq-wise`  - this overrides 
-   settings later passed into calls such as [[reduce.preduce]] - see [[reduce/options->parallel-options]] 
+  Options:
+
+  `:cat-parallelism` - Set the type of parallelism - either `:elem-wise` or `:seq-wise`  - this overrides
+   settings later passed into calls such as [[reduce.preduce]] - see [[reduce/options->parallel-options]]
    for definition."
   ([opts a] (if a a PersistentList/EMPTY))
   ([opts a & args]
@@ -485,7 +485,7 @@
 (defn repeatedly
   "When called with one argument, produce infinite list of calls to v.
   When called with two arguments, produce a non-caching random access list of length n of calls to v."
-  ([f]   
+  ([f]
    (reify Iterable
      (iterator [this]
        (reify java.util.Iterator
@@ -1158,18 +1158,18 @@ user> (hamf/sum-fast (lznc/cartesian-map
                ;;We could cache the reducer but it wouldn't help in most cases as people aren't going to cache the
                ;;cartesian map object.
                reducer (reduce (fn [rrfn ^long idx]
-                                (let [ridx (- dnargs idx)
-                                      reduce-target (args ridx)
-                                      inner-reducer (if (== idx 0)
-                                                      (fn final-reducer [acc v]
-                                                        (ArrayHelpers/aset values (unchecked-int ridx) v)
-                                                        (rfn acc (f val-seq)))
-                                                      (fn intermediate-reducer [acc v]
-                                                        (ArrayHelpers/aset values (unchecked-int ridx) v)
-                                                        (rrfn acc)))]
-                                  (if (instance? IReduceInit reduce-target)
-                                    #(.reduce ^IReduceInit reduce-target inner-reducer %)
-                                    #(reduce inner-reducer % reduce-target))))
+                                 (let [ridx (- dnargs idx)
+                                       reduce-target (args ridx)
+                                       inner-reducer (if (== idx 0)
+                                                       (fn final-reducer [acc v]
+                                                         (ArrayHelpers/aset values (unchecked-int ridx) v)
+                                                         (rfn acc (f val-seq)))
+                                                       (fn intermediate-reducer [acc v]
+                                                         (ArrayHelpers/aset values (unchecked-int ridx) v)
+                                                         (rrfn acc)))]
+                                   (if (instance? IReduceInit reduce-target)
+                                     #(.reduce ^IReduceInit reduce-target inner-reducer %)
+                                     #(reduce inner-reducer % reduce-target))))
                                nil
                                (range nargs))]
            (reducer acc)))))))

@@ -38,7 +38,7 @@
   "Hash an object. If integer - return integer else serialize->bytes and hash those"
   ^long [obj]
   (if (or (instance? Long obj) (instance? Integer obj) (instance? Short obj) (instance? Byte obj))
-    (long obj)    
+    (long obj)
     (BlockSplitBloomFilter/hash (serialize->bytes obj))))
 
 (defn bloom-filter
@@ -91,7 +91,7 @@
         bdata (.array bbuf)]
     (hamf-fn/obj->long
      v
-     (do 
+     (do
        (.putLong bbuf (.getMostSignificantBits ^UUID v))
        (.putLong bbuf (.getLeastSignificantBits ^UUID v))
        (.position bbuf 0)
