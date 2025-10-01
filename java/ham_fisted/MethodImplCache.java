@@ -26,13 +26,13 @@ public final class MethodImplCache {
   //Sparse table of class to ifn.
   //a lock-protected hashmap as we need to perform potentially many lookups
   //in rapid succession.
-  final HashMap<Class,IFn> extensions = new HashMap<Class,IFn>();
-  volatile IFn nullExtension = null;
+  final HashMap<Class,Object> extensions = new HashMap<Class,Object>();
+  volatile Object nullExtension = null;
   
   //Potentially dense table of resolved lookups.
-  final ConcurrentHashMap<Class,IFn> lookupCache = new ConcurrentHashMap<Class,IFn>();
+  final ConcurrentHashMap<Class,Object> lookupCache = new ConcurrentHashMap<Class,Object>();
 
-  public static final IFn DEFAULT = new clojure.lang.AFn() { public Object invoke() { return null; }};
+  public static final Object DEFAULT = new Object();
   
   public final Keyword methodk;
   public final Keyword ns_methodk;
@@ -47,7 +47,7 @@ public final class MethodImplCache {
     this.ifaceFn = ifaceFn;
   }
 
-  public void extend(Class c, IFn fn) {
+  public void extend(Class c, Object fn) {
     extLock.lock();
     try {
       if(c == null)
@@ -65,24 +65,37 @@ public final class MethodImplCache {
   }
 
   public Set registeredClasses() { return extensions.keySet(); }
+  
+  @SuppressWarnings("unchecked")
+  public Object recurCheckInterface(Set consideredSet, Class[] ifaces) {
+    final Object defVal = DEFAULT;
+    Object rv = defVal;
+    int ni = ifaces.length;
+    for(int idx = 0; idx < ni && rv == defVal; ++idx) {
+      Class iface = ifaces[idx];
+      if(consideredSet.add(iface)) {
+	rv = extensions.getOrDefault(iface, defVal);
+	if(rv == defVal)
+	  rv = recurCheckInterface(consideredSet, iface.getInterfaces());
+      }
+    }
+    return rv;
+  }
 
-  public IFn findFnFor(Class c) {
+  public Object findFnFor(Class c) {
     if(c == null) return nullExtension;
-    final IFn defVal = DEFAULT;
-    IFn rv = lookupCache.getOrDefault(c, defVal);
+    final Object defVal = DEFAULT;
+    Object rv = lookupCache.getOrDefault(c, defVal);
     //Include caching when lookup fails.
     if(rv != defVal) return rv;
     //rv is the default value at this point
     extLock.lock();
     try {
+      HashSet considered = new HashSet();
       for(Class cc = c; cc != null && rv == defVal; cc = cc.getSuperclass()) {
 	rv = extensions.getOrDefault(cc, defVal);
-	if(rv == defVal) {
-	  Class[] ifaces = cc.getInterfaces();
-	  int ni = ifaces.length;
-	  for(int idx = 0; idx < ni && rv == defVal; ++idx)
-	    rv = extensions.getOrDefault(ifaces[idx], defVal);
-	}
+	if(rv == defVal)
+	  rv = recurCheckInterface(considered, cc.getInterfaces());
       }
     } finally {
       extLock.unlock();

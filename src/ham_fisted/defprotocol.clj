@@ -5,10 +5,10 @@
   work on cnuernber/clojure attempting to dramatically decrease startup times."
   (:refer-clojure :exclude [defprotocol extend extend-type extend-protocol extends? satisfies?
                             find-protocol-method find-protocol-impl extenders])
-  (:import [ham_fisted MethodImplCache]))
+  (:require [ham-fisted.primitive-invoke :as primitive-invoke])
+  (:import [ham_fisted MethodImplCache Casts]))
 
 (set! *warn-on-reflection* true)
-
 
 (defn find-protocol-cache-method
   [protocol ^MethodImplCache cache x]
@@ -18,7 +18,7 @@
         (.-ifaceFn cache)
         (if-let [mfn (when (get protocol :extend-via-metadata)
                        (get (meta x) (.-ns_methodk cache)))]
-          mfn             
+          mfn
           (.findFnFor cache cc))))))
 
 (defn find-protocol-method
@@ -82,6 +82,25 @@
     f
     (find-fn target cache ns protocol)))
 
+(defn ^:no-doc invoker-for-tags
+  [arg-tags]
+  (-> (apply str "ham-fisted.primitive-invoke/" (map (fn [arg-tag]
+                                                       (cond
+                                                         (= 'long arg-tag) "l"
+                                                         (= 'double arg-tag) "d"
+                                                         :else "o"))
+                                                     arg-tags))
+      symbol))
+
+(defn ^:no-doc fn-tag-for-tags
+  [arg-tags]
+  (-> (apply str "clojure.lang.IFn$" (map (fn [arg-tag]
+                                            (cond
+                                              (= 'long arg-tag) "L"
+                                              (= 'double arg-tag) "D"
+                                              :else "O"))
+                                          arg-tags))
+      symbol))
 
 (defn- emit-protocol [name opts+sigs]
   (let [iname (symbol (str (munge (namespace-munge *ns*)) "." (munge name)))
@@ -108,19 +127,18 @@
                                  (if (vector? (first rs))
                                    (recur (conj as (first rs)) (next rs))
                                    [(seq as) (first rs)]))
-                               name-kwd (keyword mname)]
+                               name-kwd (keyword mname)
+                               mname (vary-meta mname assoc
+                                                :doc doc
+                                                :arglists arglists
+                                                :tag (:tag name-meta))]
                            (when (some #{0} (map count arglists))
                              (throw (IllegalArgumentException. (str "Definition of function " mname " in protocol " name " must take at least one arg."))))
                            (when (m (keyword mname))
                              (throw (IllegalArgumentException. (str "Function " mname " in protocol " name " was redefined. Specify all arities in single definition."))))
                            (assoc m (keyword mname)
                                   (merge name-meta 
-                                         {:name (vary-meta mname assoc :doc doc :arglists arglists
-                                                           :tag (or (when-let [t (:tag name-meta)]
-                                                                      (if (instance? Class t)
-                                                                        t
-                                                                        (list 'quote t)))
-                                                                    (:tag (meta mname))))
+                                         {:name mname
                                           :methodk name-kwd
                                           :ns-methodk (keyword (clojure.core/name (.-name *ns*))
                                                                (clojure.core/name mname))
@@ -130,8 +148,9 @@
                                           :iface-sym (symbol (str "-" mname "-iface"))}))))
                        {} sigs))
         meths (mapcat (fn [sig]
-                        (let [m (munge (:name sig))]
-                          (map #(vector m (vec (repeat (dec (count %))'Object)) 'Object) 
+                        (let [m (munge (:name sig))
+                              m-tag (or (:tag (meta (:name sig))) 'Object)]
+                          (map #(vector m (vec (repeat (dec (count %)) 'Object)) m-tag)
                                (:arglists sig))))
                       (vals sigs))
         opts (assoc opts :sigs sigs)
@@ -154,29 +173,52 @@
                                        (~mname
                                         ~@(rest args))))))
                               arglists))
-                    
-                    `(def ~(with-meta cache-sym
-                             {:private true
-                              :tag 'ham_fisted.MethodImplCache})
-                       (ham_fisted.MethodImplCache. ~methodk ~ns-methodk ~iname ~iface-sym))
-                    `(defn ~mname {:hamf-protocol ~(list 'quote name)}
-                       ~@(map (fn [args]
-                                (let [args (vec args) #_(mapv #(gensym (str %)) args)
-                                      target (first args)]
-                                  `(~args
-                                    (if (instance? ~iname ~target)
-                                      (~iface-sym ~target ~@(rest args))
-                                      ~(if (:extend-via-metadata opts)
-                                         `((find-fn-via-metadata ~target
-                                                                 ~ns-methodk
-                                                                 ~cache-sym
-                                                                 ~(list 'quote (.-name *ns*))
-                                                                 ~(list 'quote name))
-                                           ~@args)
-                                         `((find-fn ~target ~cache-sym ~(list 'quote (.-name *ns*))
-                                                    ~(list 'quote name))
-                                           ~@args))))))
-                              arglists))])
+                    `(let [~'cache (ham_fisted.MethodImplCache. ~methodk ~ns-methodk ~iname ~iface-sym)]
+                       (def ~(with-meta cache-sym
+                               {:private true
+                                :tag 'ham_fisted.MethodImplCache})
+                         ~'cache)
+                       (defn ~(vary-meta mname assoc :tag (list 'quote tag))
+                         {:hamf-protocol ~(list 'quote name)}
+                         ~@(map (fn [args]
+                                  (let [args (vary-meta (vec args) assoc :tag
+                                                        (if (class? tag)
+                                                          (list 'quote )
+                                                          tag))
+                                        arg-tags (when (< (count args) 5)
+                                                   (conj (mapv (comp :tag meta) args) tag))
+                                        rval-tag (last arg-tags)
+                                        invoker (when (first (filter #{'long 'double} arg-tags))
+                                                  (invoker-for-tags arg-tags))
+                                        target (first args)
+                                        find-data (if (:extend-via-metadata opts)
+                                                    `(find-fn-via-metadata ~target
+                                                                           ~ns-methodk
+                                                                           ~'cache
+                                                                           ~(list 'quote (.-name *ns*))
+                                                                           ~(list 'quote name))
+                                                    `(find-fn ~target ~'cache ~(list 'quote (.-name *ns*))
+                                                              ~(list 'quote name)))]
+                                    `(~args
+                                      (if (instance? ~iname ~target)
+                                        (~iface-sym ~target ~@(rest args))
+                                        ~(if invoker
+                                           (cond
+                                             (= rval-tag 'long)
+                                             `(let [~'ff ~find-data]
+                                                (if (instance? Long ~'ff)
+                                                  (unchecked-long ~'ff)
+                                                  (~invoker ~(with-meta 'ff {:tag (fn-tag-for-tags arg-tags)})
+                                                   ~@args)))
+                                             (= rval-tag 'double)
+                                             `(let [~'ff ~find-data]
+                                                (if (instance? Double~'ff)
+                                                  (unchecked-double ~'ff)
+                                                  (~invoker ~(with-meta 'ff {:tag (fn-tag-for-tags arg-tags)})
+                                                   ~@args)))
+                                             :else `(~invoker find-data @args))
+                                           `(~find-data ~@args))))))
+                                arglists)))])
                  (vals sigs))
        (def ~name ~(assoc (update opts
                                   :sigs (fn [sigmap]
@@ -267,6 +309,21 @@
   [name & opts+sigs]
   (emit-protocol name opts+sigs))
 
+(defn correct-primitive-fn-type
+  [arg-tags-v method]
+  (doseq [arg-tags arg-tags-v]
+    (when (first (filter #{'long 'double} arg-tags))
+      (let [prim-cls (Class/forName (apply str "clojure.lang.IFn$"
+                                           (map (fn [tag]
+                                                  (cond
+                                                    (= tag 'long) "L"
+                                                    (= tag 'double) "D"
+                                                    :else 'O))
+                                                arg-tags)))]
+        (when-not (.isAssignableFrom prim-cls (.getClass ^Object method))
+          (throw (RuntimeException. "Primitive hinted protocol methods must have primitive hinted implementations!"))))))
+  method)
+
 (defn extend 
   "Implementations of protocol methods can be provided using the extend construct:
 
@@ -317,26 +374,59 @@
       (loop [^clojure.lang.ISeq es (clojure.lang.RT/seq method-caches)]
         (when es
           (let [e (.first es)
-                methodk (key e)]
+                methodk (key e)
+                {:keys [tag arglists]} (get-in proto [:sigs methodk])
+                arg-tags (mapv #(conj (mapv (comp :tag meta) %) tag) arglists)                
+                method (mmap methodk)
+                method (cond
+                         (and (= tag 'long) (number? method) (Casts/longCast method)) 
+                         (and (= tag 'double) (number? method) (Casts/doubleCast method))
+                         :else (if (fn? method)
+                                 (correct-primitive-fn-type arg-tags method)
+                                 method))]
             ;;Note the method cache has to handle potentially nil values.
             (.extend ^MethodImplCache @(val e) atype (mmap methodk))
             (recur (.next es))))))))
 
+(defn- normalize-specs
+  [specs]
+  (if (vector? (first specs))
+    (list specs) 
+    specs))
+
+(defn- emit-fn-map
+  [p hint fs]
+  (let [pcol (deref (resolve p))
+        sigs (get pcol :sigs)
+        define-fn (fn [fn-entry]
+                    (let [fn-name (-> fn-entry first name keyword)                          
+                          specs (hint (normalize-specs (drop 1 fn-entry)))
+                          {:keys [tag arglists] :as sig} (get sigs fn-name)
+                          arglist-map (into {} (map (fn [arglist]
+                                                      [(count arglist)
+                                                       (mapv (comp :tag meta) arglist)]))
+                                            arglists)
+                          apply-primitive-typehints
+                          (fn [[[target & args :as arglist] & body]]
+                            (-> 
+                             (->> (map (fn [tag arg-sym]
+                                         (vary-meta arg-sym update :tag #(or % tag)))
+                                       (arglist-map (inc (count args))) args)
+                                  (into [target]))
+                             (vary-meta assoc :tag tag)
+                             (cons body)))]
+                      [fn-name (cons 'fn (map apply-primitive-typehints specs))]))]
+    (into {} (map define-fn) fs)))
+
 (defn- emit-impl [[p fs]]
-  [p (zipmap (map #(-> % first keyword) fs)
-             (map #(cons `fn (drop 1 %)) fs))])
+  [p (emit-fn-map p identity fs)])
 
 (defn- emit-hinted-impl [c [p fs]]
-  (let [hint (fn [specs]
-               (let [specs (if (vector? (first specs)) 
-                                        (list specs) 
-                                        specs)]
-                 (map (fn [[[target & args] & body]]
-                        (cons (apply vector (vary-meta target assoc :tag c) args)
-                              body))
-                      specs)))]
-    [p (zipmap (map #(-> % first name keyword) fs)
-               (map #(cons `fn (hint (drop 1 %))) fs))]))
+  (let [typehint-first-arg
+        #(->> % (map (fn [[[target & args :as arglist] & body]]
+                       (cons (into [(vary-meta target assoc :tag c)] args)
+                             body))))]
+    [p (emit-fn-map p typehint-first-arg fs)]))
 
 (defn- parse-impls [specs]
   (loop [ret {} s specs]

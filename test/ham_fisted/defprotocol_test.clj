@@ -11,12 +11,17 @@
 (ns ham-fisted.defprotocol-test
   (:require [ham-fisted.defprotocol-test.examples :refer :all]
             [ham-fisted.defprotocol-test.more-examples :as other]
-            [ham-fisted.defprotocol :refer [defprotocol extend-type extend extend-protocol satisfies? extends?]]
+            [ham-fisted.defprotocol :refer [defprotocol extend-type extend extend-protocol satisfies? extends?]
+             :as defprotocol]
+            [ham-fisted.api :as hamf]
+            [ham-fisted.lazy-noncaching :as lznc]
             [clojure.set :as set]
             [clojure.test :refer [deftest testing are is do-report assert-expr report]])
   (:import [ham_fisted.defprotocol_test.examples ExampleInterface])
   (:refer-clojure :exclude [defprotocol extend-type extend extend-protocol satisfies? extends?])
   )
+
+(set! *warn-on-reflection* true)
 
 (defn causes
   [^Throwable throwable]
@@ -35,7 +40,7 @@
      (if (some (fn [cause#]
                  (and
                   (= ~exception-class (class cause#))
-                  (re-find ~msg-re (.getMessage cause#))))
+                  (re-find ~msg-re (.getMessage ^Throwable cause#))))
                (causes t#))
        (report {:type :pass, :message ~msg,
                 :expected '~form, :actual t#})
@@ -66,8 +71,8 @@
 (defn method-names
   "return sorted list of method names on a class"
   [c]
-  (->> (.getMethods c)
-       (map #(.getName %))
+  (->> (.getMethods ^Class c)
+       (map #(.getName ^java.lang.reflect.Method %))
        (sort)))
 
 (defrecord EmptyRecord [])
@@ -160,13 +165,13 @@
     (is (= "pow" (foo "pow"))))
   (testing "you can have two methods with the same name. Just use namespaces!"
     (extend String other/SimpleProtocol
-     {:foo (fn [s] (.toUpperCase s))})
+     {:foo (fn [s] (.toUpperCase ^String s))})
     (is (= "POW" (other/foo "pow"))))
   (testing "you can extend deftype types"
     (extend
      ExtendTestWidget
      ExampleProtocol
-     {:foo (fn [this] (str "widget " (.name this)))})
+     {:foo (fn [this] (str "widget " (.name ^ExtendTestWidget this)))})
     (is (= "widget z" (foo (ExtendTestWidget. "z"))))))
 
 (deftest illegal-extending
@@ -204,8 +209,7 @@
 (deftest test-no-ns-capture
   (is (= "foo" (sqtp "foo")))
   (is (= :foo (sqtp :foo))))
-
-
+ 
 (defprotocol Dasherizer
   (-do-dashed [this]))
 (deftype Dashed []
@@ -239,3 +243,136 @@
   (^ISeq f [_]))
 
 ;;; continues in defprotocol_test/other.clj
+
+(defprotocol Ecount (^long ecount [m]))
+(extend Object Ecount {:ecount 5})
+(extend Number Ecount {:ecount (fn ^long [m] 0)})
+(extend-type Long Ecount (ecount [m] 10))
+
+;;Hamf protocols have to work with extend-type and reify
+(deftype TestType []
+  Ecount
+  (ecount [this] 200))
+
+(deftest primitive-hinted-test
+  (is (== 5 (ecount :a)))
+  (is (== 0 (ecount 1.0)))
+  (is (== 10 (ecount 1)))
+  (is (== 200 (ecount (TestType.))))
+  (is (thrown? Exception (eval '(clojure.core/extend-type String
+                                  Ecount
+                                  (ecount [m] (.length m)))))))
+
+(defprotocol SaneInheritance
+  (a [r])
+  (b [r]))
+
+(extend-type Object
+  SaneInheritance
+  (a [r] :object)
+  (b [r] :object))
+
+(extend-type String
+  SaneInheritance
+  (b [r] :string))
+
+(deftest sane-inheritance-test
+  (is (= :object (a "hey")))
+  (is (= :string (b "hey"))))
+
+
+(defprotocol HamfMemsize
+  (^long hamf-memsize [m]))
+
+(extend Double HamfMemsize {:hamf-memsize 24})
+(extend Long HamfMemsize {:hamf-memsize 24})
+(extend clojure.lang.Keyword HamfMemsize {:hamf-memsize 48})
+
+(extend-protocol HamfMemsize
+  String
+  (hamf-memsize [s] (+ 24 (.length ^String s)))
+  java.util.Collection
+  (hamf-memsize [c] (hamf/lsum (lznc/map (fn ^long [d] (+ 24 (hamf-memsize d))) c)))
+  java.util.Map
+  (hamf-memsize [c] (hamf/lsum (lznc/map (fn ^long [kv]
+                                           (+ 36 (+ (hamf-memsize (key kv)) (hamf-memsize (val kv)))))
+                                         c))))
+
+(clojure.core/defprotocol CoreMemsize
+  (core-memsize [m]))
+
+(clojure.core/extend-protocol CoreMemsize
+  Double (core-memsize [d] 24)
+  Long (core-memsize [l] 24)
+  clojure.lang.Keyword (core-memsize [k] 48)
+  String (core-memsize [s] (+ 24 (.length ^String s)))
+  java.util.Collection
+  (core-memsize [c]
+    (hamf/lsum (lznc/map (fn ^long [d] (+ 24 (long (core-memsize d)))) c))
+    #_(reduce
+     (fn [s v] (+ s 24 (core-memsize v)))
+     0
+     c))
+  java.util.Map
+  (core-memsize [m]
+    (hamf/lsum (lznc/map (fn ^long [kv]
+                           (+ 36 (+ (long (core-memsize (key kv)))
+                                    (long (core-memsize (val kv))))))
+                         m))
+    #_(reduce
+     (fn [s [k v]] (+ s 36 (core-memsize k) (core-memsize v)))
+     0
+     m)))
+
+(def test-datastructure
+  {:a "hello"
+   :b 24
+   :c (into [] (repeat 1000 (rand)))
+   :d (into [] (repeat 1000 1))})
+
+
+(def measure-data (into [] (repeat 10000 test-datastructure)))
+
+(defn multithread-test
+  [measure-fn]
+  (hamf/lsum (hamf/pmap measure-fn measure-data)))
+
+(comment
+  ;;Single threaded calls show very little difference if any:
+
+  (crit/quick-bench (core-memsize test-datastructure))
+  ;; Evaluation count : 23868 in 6 samples of 3978 calls.
+  ;;              Execution time mean : 25.018494 µs
+  ;;     Execution time std-deviation : 26.939284 ns
+  ;;    Execution time lower quantile : 24.969740 µs ( 2.5%)
+  ;;    Execution time upper quantile : 25.046386 µs (97.5%)
+  ;;                    Overhead used : 1.539613 ns
+
+  ;; Multithreaded calls however:
+
+  (crit/quick-bench (hamf-memsize test-datastructure))
+  ;; Evaluation count : 22734 in 6 samples of 3789 calls.
+  ;;              Execution time mean : 26.336031 µs
+  ;;     Execution time std-deviation : 202.486707 ns
+  ;;    Execution time lower quantile : 25.953198 µs ( 2.5%)
+  ;;    Execution time upper quantile : 26.466131 µs (97.5%)
+  ;;                    Overhead used : 1.539613 ns
+
+  (crit/quick-bench (multithread-test core-memsize))
+  ;; Evaluation count : 6 in 6 samples of 1 calls.
+  ;;              Execution time mean : 634.046041 ms
+  ;;     Execution time std-deviation : 9.874821 ms
+  ;;    Execution time lower quantile : 622.889124 ms ( 2.5%)
+  ;;    Execution time upper quantile : 646.951202 ms (97.5%)
+  ;;                    Overhead used : 1.539613 ns
+
+  (crit/quick-bench (multithread-test hamf-memsize))
+  ;; Evaluation count : 18 in 6 samples of 3 calls.
+  ;;              Execution time mean : 45.689563 ms
+  ;;     Execution time std-deviation : 1.272542 ms
+  ;;    Execution time lower quantile : 44.302374 ms ( 2.5%)
+  ;;    Execution time upper quantile : 47.396205 ms (97.5%)
+  ;;                    Overhead used : 1.539613 ns
+
+ 
+  )
