@@ -1,3 +1,9 @@
+# 2.037
+ * Object constants work when explicitly specified via 'extend'.
+ 
+# 2.036
+ * Work on defprotocol to support primitive and constant return types.
+ 
 # 2.035
  * Mutable treelists now result in less data on sublist and error on double persistent call.
 

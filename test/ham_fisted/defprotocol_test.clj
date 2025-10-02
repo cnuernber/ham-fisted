@@ -339,6 +339,30 @@
   [measure-fn]
   (hamf/lsum (hamf/pmap measure-fn measure-data)))
 
+(defprotocol PDatatype (datatype [v]))
+(extend String PDatatype {:datatype :string})
+(extend clojure.lang.Keyword PDatatype {:datatype :keyword})
+(deftest object-constants
+  (is (= :string (datatype "key")))
+  (is (= :keyword (datatype :key))))
+
+(defn obj-cls->datatype
+  [obj-cls]
+  (if (identical? String obj-cls)
+    :string
+    :object))
+
+(extend (type (object-array 0))
+  PDatatype {:datatype (fn [obj]
+                         (-> (.getClass ^Object obj)
+                             (.getComponentType)
+                             (obj-cls->datatype)))})
+
+(deftest test-object-array-protocols
+  (is (= :object (datatype (object-array 0))))
+  (is (= :string (datatype (make-array String 0)))))
+
+
 (comment
   ;;Single threaded calls show very little difference if any:
 

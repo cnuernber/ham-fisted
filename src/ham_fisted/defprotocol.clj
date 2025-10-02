@@ -13,7 +13,7 @@
 (defn find-protocol-cache-method
   [protocol ^MethodImplCache cache x]
   (when cache
-    (let [cc (class x)]
+    (let [cc (if (class? x) x (class x))]
       (if (.isAssignableFrom (.-iface cache) cc)
         (.-ifaceFn cache)
         (if-let [mfn (when (get protocol :extend-via-metadata)
@@ -217,7 +217,10 @@
                                                   (~invoker ~(with-meta 'ff {:tag (fn-tag-for-tags arg-tags)})
                                                    ~@args)))
                                              :else `(~invoker find-data @args))
-                                           `(~find-data ~@args))))))
+                                           `(let [~'ff ~find-data]
+                                              (if (fn? ~'ff)
+                                                (~'ff ~@args)
+                                                ~'ff)))))))
                                 arglists)))])
                  (vals sigs))
        (def ~name ~(assoc (update opts
@@ -379,13 +382,13 @@
                 arg-tags (mapv #(conj (mapv (comp :tag meta) %) tag) arglists)
                 method (mmap methodk)
                 method (cond
-                         (and (= tag 'long) (number? method) (Casts/longCast method))
-                         (and (= tag 'double) (number? method) (Casts/doubleCast method))
+                         (and (= tag 'long) (number? method)) (Casts/longCast method)
+                         (and (= tag 'double) (number? method)) (Casts/doubleCast method)
                          :else (if (fn? method)
                                  (correct-primitive-fn-type arg-tags method)
                                  method))]
             ;;Note the method cache has to handle potentially nil values.
-            (.extend ^MethodImplCache @(val e) atype (mmap methodk))
+            (.extend ^MethodImplCache @(val e) atype method)
             (recur (.next es))))))))
 
 (defn- normalize-specs

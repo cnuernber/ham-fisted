@@ -7,4 +7,5 @@ rm -f pom.xml
 clj -T:build jar
 cp target/classes/META-INF/maven/com.cnuernber/ham-fisted/pom.xml .
 clj -X:codox
+scripts/reformat
 clj -X:deploy

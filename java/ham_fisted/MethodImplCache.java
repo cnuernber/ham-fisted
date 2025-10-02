@@ -81,7 +81,9 @@ public final class MethodImplCache {
     }
     return rv;
   }
+  static final Class objAryCls = Object[].class;
 
+  @SuppressWarnings("unchecked")
   public Object findFnFor(Class c) {
     if(c == null) return nullExtension;
     final Object defVal = DEFAULT;
@@ -94,6 +96,8 @@ public final class MethodImplCache {
       HashSet considered = new HashSet();
       for(Class cc = c; cc != null && rv == defVal; cc = cc.getSuperclass()) {
 	rv = extensions.getOrDefault(cc, defVal);
+	if(rv == defVal && cc == c && objAryCls.isAssignableFrom(cc))
+	  rv = extensions.getOrDefault(objAryCls, defVal);
 	if(rv == defVal)
 	  rv = recurCheckInterface(considered, cc.getInterfaces());
       }

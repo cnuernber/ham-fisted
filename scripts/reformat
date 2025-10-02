@@ -1,0 +1,9 @@
+#!/bin/bash
+
+pushd src
+reformat
+popd
+
+pushd test
+reformat
+popd
