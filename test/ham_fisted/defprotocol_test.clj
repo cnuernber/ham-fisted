@@ -339,19 +339,6 @@
   [measure-fn]
   (hamf/lsum (hamf/pmap measure-fn measure-data)))
 
-
-(defn preduce-multithread-test
-  [measure-fn]
-  (.getSum ^LongSummaryStatistics
-           (hamf-rf/preduce #(LongSummaryStatistics.)
-                            (fn [^LongConsumer l m]
-                              (.accept l (long (measure-fn m)))
-                              l)
-                            (fn [^LongSummaryStatistics l ^LongSummaryStatistics r]
-                              (.combine l r)
-                              l)
-                            measure-data)))
-
 (comment
   ;;Single threaded calls show very little difference if any:
 
