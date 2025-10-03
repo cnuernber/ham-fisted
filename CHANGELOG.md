@@ -1,5 +1,9 @@
 # 2.037
  * Object constants work when explicitly specified via 'extend'.
+ * Object arrays explicitly checked for protocol dispatch when 
+   dealing with array types.
+ * 'true' and 'false' supported as object constant types - nil unsupported.
+ * Namespace comments.
  
 # 2.036
  * Work on defprotocol to support primitive and constant return types.

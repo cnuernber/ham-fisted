@@ -2,7 +2,21 @@
   "Alternative protocol implementation that has better semantics w/r/t runtime startup times
   and overall work done during extension and lookup.  We want to avoid dynamic variable definitions
   and prefer normal def, defn definitions which themselves respond to static linking.  This continues
-  work on cnuernber/clojure attempting to dramatically decrease startup times."
+  work on cnuernber/clojure attempting to dramatically decrease startup times.
+
+  There are 4 major features of this implementation:
+
+  1. Allows subclasses to override only a subset of the methods and if the superclass
+  has overridden the method then the superclasses implementation will be used.
+
+  2. Allows constants to be used (only with extend) - using a constant will avoid a function call
+  and the constant itself is simply returned.
+
+  3. Supports primitive typehints on function arguments and return values.
+
+  4. Much higher and more predictable multithreaded performance for protocol method invocation due to
+  the fewer number of global variables that are read and written to for a single protocol method
+  invocation."
   (:refer-clojure :exclude [defprotocol extend extend-type extend-protocol extends? satisfies?
                             find-protocol-method find-protocol-impl extenders])
   (:require [ham-fisted.primitive-invoke :as primitive-invoke])
@@ -64,16 +78,17 @@
 
 (defn ^:no-doc find-fn
   [target ^MethodImplCache cache ns protocol]
-  (if-let [rv (.findFnFor cache (class target))]
-    rv
-    (throw (IllegalArgumentException. (format
-                                       "No implementation of method: %s of protocol: #'%s/%s found for class: %s"
-                                       (.-methodk cache)
-                                       ns
-                                       protocol
-                                       (if-let [c (class target)]
-                                         (.getName ^Class c)
-                                         "nil"))))))
+  (let [rv (.findFnFor cache (class target))]
+    (if-not (nil? rv)
+      rv
+      (throw (IllegalArgumentException. (format
+                                         "No implementation of method: %s of protocol: #'%s/%s found for class: %s"
+                                         (.-methodk cache)
+                                         ns
+                                         protocol
+                                         (if-let [c (class target)]
+                                           (.getName ^Class c)
+                                           "nil")))))))
 
 ;;Instance check is already taken care of
 (defn ^:no-doc find-fn-via-metadata
