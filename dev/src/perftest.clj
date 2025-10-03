@@ -16,8 +16,7 @@
             [clj-memory-meter.core :as mm])
   (:import [java.util HashMap ArrayList Map List Map$Entry ArrayList]
            [java.util.function BiFunction]
-           [ham_fisted IMutList Sum$SimpleSum Sum BitmapTrieCommon Consumers$IncConsumer
-            BitmapTrieCommon$MapSet ImmutValues]
+           [ham_fisted IMutList Sum$SimpleSum Sum Consumers$IncConsumer]
            [clojure.lang PersistentHashMap])
   (:gen-class))
 
@@ -165,7 +164,7 @@
        (spit-data "random-update")))
 
 
-(defn union-overlapping
+#_(defn union-overlapping
   []
   (->> (for [n-elems [4 10
                       100
@@ -201,7 +200,7 @@
        ))
 
 
-(defn union-disj
+#_(defn union-disj
   []
   (->> (for [n-elems [4 10
                       100
@@ -243,7 +242,7 @@
        ))
 
 
-(defn union-reduce
+#_(defn union-reduce
   []
   (->> (for [n-elems [ 4 10
                       100
@@ -324,7 +323,7 @@
        (spit-data "union-reduce-transient")))
 
 
-(defn update-values
+#_(defn update-values
   []
   (->> (for [n-elems [ 4 10
                       100

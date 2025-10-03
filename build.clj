@@ -51,8 +51,9 @@
                  :target-dir class-dir})
     (b/compile-clj {:basis basis
                     :src-dirs ["dev/src"]
-                    :class-dir class-dir})
+                    :class-dir class-dir
+                    :compile-opts {:direct-linking true}})
     (b/uber {:class-dir class-dir
              :uber-file uber-file
              :basis basis
-             :main 'perftest})))
+             :main 'ham-fisted.protocol-perf})))

@@ -362,10 +362,25 @@
   (is (= :object (datatype (object-array 0))))
   (is (= :string (datatype (make-array String 0)))))
 
+(defprotocol PPrimitiveArgs
+  (^double pargs [m ^long b]))
+
+(extend-type String
+  PPrimitiveArgs
+  (pargs [m b]
+    (+ 1.0 (+ (.length m) b))))
+
+(deftest test-hinted
+  (is (instance? clojure.lang.IFn$OL hamf-memsize))
+  (is (instance? clojure.lang.IFn$OL -hamf-memsize-iface))
+  (is (instance? clojure.lang.IFn$OLD pargs))
+  (is (instance? clojure.lang.IFn$OLD -pargs-iface))
+  (is (= 14.0 (pargs "hey" 10))))
+
 
 (comment
+  (require '[criterium.core :as crit])
   ;;Single threaded calls show very little difference if any:
-
   (crit/quick-bench (core-memsize test-datastructure))
   ;; Evaluation count : 23868 in 6 samples of 3978 calls.
   ;;              Execution time mean : 25.018494 µs

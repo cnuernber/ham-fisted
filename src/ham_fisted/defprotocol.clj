@@ -181,6 +181,10 @@
                                :tag (list 'quote tag)})
                        ~@(map (fn [args]
                                 (let [args (vec args) #_(mapv #(gensym (str %)) args)
+                                      args (vary-meta (vec args) assoc :tag
+                                                      (if (class? tag)
+                                                        (list 'quote )
+                                                        tag))
                                       target (first args)]
                                   `(~args
                                     (. ~(with-meta target
@@ -426,13 +430,11 @@
                                             arglists)
                           apply-primitive-typehints
                           (fn [[[target & args :as arglist] & body]]
-                            (->
-                             (->> (map (fn [tag arg-sym]
-                                         (vary-meta arg-sym update :tag #(or % tag)))
-                                       (arglist-map (inc (count args))) args)
-                                  (into [target]))
-                             (vary-meta assoc :tag tag)
-                             (cons body)))]
+                            (let [args (->> (map (fn [tag arg-sym]
+                                                   (vary-meta arg-sym update :tag #(or % tag)))
+                                                 (drop 1 (arglist-map (inc (count args)))) args)
+                                            (into [target]))]
+                              (cons (vary-meta args update :tag #(or % tag)) body)))]
                       [fn-name (cons 'fn (map apply-primitive-typehints specs))]))]
     (into {} (map define-fn) fs)))
 
