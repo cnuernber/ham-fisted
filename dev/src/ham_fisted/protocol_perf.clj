@@ -72,6 +72,24 @@
   [measure-fn]
   (hamf/lsum (hamf/pmap measure-fn measure-data)))
 
+(hamf-defproto/defprotocol PPrimitiveArgs
+  (^double pargs [m ^long b]))
+
+(hamf-defproto/extend-type String
+  PPrimitiveArgs
+  (pargs [m b]
+    (+ 1.0 (+ (.length m) b))))
+
+(defprotocol CorePPrimitiveArgs
+  (core-pargs [m b]))
+
+(extend-type String
+  CorePPrimitiveArgs
+  (core-pargs [m b]
+    (+ 1.0 (+ (.length m) (long b)))))
+
+(def strs (mapv str (range 100000)))
+
 (defn -main
   [& args]
   (println "Core protocols")
@@ -81,4 +99,26 @@
   (println "hamf protocols")
   (dotimes [idx 10]
     (time (multithread-test hamf-memsize)))
+
+  (println "serial core pargs")
+  (time 
+   (dotimes [idx 10]
+     (hamf/sum-fast (lznc/map (fn ^double [s] (core-pargs s 100)) strs))))
+
+  (println "serial hamf pargs")
+  (time 
+   (dotimes [idx 10]
+     (hamf/sum-fast (lznc/map (fn ^double [s] (pargs s 100)) strs))))
+
+  (println "parallel core pargs")
+  (time 
+   (dotimes [idx 10]
+     (hamf/sum (lznc/map (fn ^double [s] (core-pargs s 100)) strs))))
+
+  (println "parallel hamf pargs")
+  (time 
+   (dotimes [idx 10]
+     (hamf/sum (lznc/map (fn ^double [s] (pargs s 100)) strs))))
+
+  
   :ok)
