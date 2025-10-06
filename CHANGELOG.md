@@ -1,3 +1,6 @@
+# 2.038
+ * Fixing some small perf issues with primitive protocol implementations.
+ 
 # 2.037
  * Object constants work when explicitly specified via 'extend'.
  * Object arrays explicitly checked for protocol dispatch when 
