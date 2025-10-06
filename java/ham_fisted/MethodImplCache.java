@@ -45,6 +45,7 @@ public final class MethodImplCache {
     this.ns_methodk = ns_methodk;
     this.iface = iface;
     this.ifaceFn = ifaceFn;
+    extensions.put(iface, ifaceFn);
   }
 
   public void extend(Class c, Object fn) {

@@ -94,7 +94,7 @@
            [java.time Duration]
            [java.util.logging Logger]
            [java.util.stream IntStream DoubleStream])
-  (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize
+  (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize cond
                             into hash-map
                             group-by subvec group-by mapv vec vector object-array
                             sort int-array long-array double-array float-array
@@ -189,6 +189,78 @@
   (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11 v12 v13 v14))
   (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14 v15] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11 v12 v13 v14 v15)))
 
+(defmacro cond
+  "Similar to `core/cond` except it supports true else clauses as opposed to always
+  returning nil on else.  The last clause of an odd number of clauses will be used as
+  the else branch similar to case.  Additional if the last predicate is the constant
+  'true' or ':else' it will be used as the else clause.  If no else is provided then
+  returns nil same as `core/cond`.
+
+  Important! - in order to get correct type hinting on both branches of the if they
+  both must return an explicit long or double:
+
+  * Sill Boxed
+
+```clojure
+  (defn memory-size
+    ^long [a]
+    (cond
+      (instance? Long a) 24
+      :else (.length ^String a) ;;string.length returns integer not long
+      ))
+
+(defn memory-size
+    ^long [a]
+    (cond
+      (instance? Long a) 24
+      :else (alength ^longs a)
+      ))
+```
+  * Correctly Unboxed
+
+```clojure
+(defn memory-size
+    ^long [a]
+    (cond
+      (instance? Long a) 24
+      :else (long (.length ^String a))
+      ))
+
+(defn memory-size
+    ^long [a]
+    (cond
+      (instance? Long a) 24
+      :else (long (alength ^longs a))
+      ))
+```"
+  [& clauses]
+  (let [clauses (clojure.core/vec clauses)
+        nc (count clauses)
+        constant-clause? #{true :else}
+        odd-clauses? (odd? nc)
+        else? (or odd-clauses? (and (> nc 2)
+                                    (constant-clause? (nth clauses (- nc 2)))))]
+    (if-not else?
+      `(clojure.core/cond ~@clauses)
+      (let [[clauses else-branch] (if odd-clauses?
+                                    [(clojure.core/subvec clauses 0 (dec nc)) (clojure.core/last clauses)]
+                                    [(clojure.core/subvec clauses 0 (- nc 2)) (clojure.core/last clauses)])
+            pred-true-branch (clojure.core/reverse (clojure.core/partition 2 clauses))]
+        (reduce (fn [stmts [pred true-branch]]
+                  `(if ~pred ~true-branch ~stmts))
+                else-branch
+                pred-true-branch)))))
+
+(comment
+  (defn memory-size
+    ^long [a]
+    (cond
+      (instance? Long a) 24
+      :else (alength ^longs a)
+      ))
+
+
+  )
 
 (defn into
   "Like clojure.core/into, but also designed to handle editable collections,

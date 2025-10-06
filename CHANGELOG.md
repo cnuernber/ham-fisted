@@ -1,3 +1,8 @@
+# 2.039
+ * Slightly faster protocol dispatch as avoids instance check for interface impl in favor of
+   only using map lookup.
+ * Implementation of cond that can be used in functions that need to avoid boxing.
+ 
 # 2.038
  * Fixing some small perf issues with primitive protocol implementations.
  

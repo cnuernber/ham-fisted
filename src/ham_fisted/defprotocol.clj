@@ -219,27 +219,25 @@
                                                     `(find-fn ~target ~'cache ~(list 'quote (.-name *ns*))
                                                               ~(list 'quote name)))]
                                     `(~args
-                                      (if (instance? ~iname ~target)
-                                        (~iface-sym ~target ~@(rest args))
-                                        ~(if invoker
-                                           (cond
-                                             (= rval-tag 'long)
-                                             `(let [~'ff ~find-data]
-                                                (if (instance? Long ~'ff)
-                                                  (unchecked-long ~'ff)
-                                                  (~invoker ~(with-meta 'ff {:tag (fn-tag-for-tags arg-tags)})
-                                                   ~@args)))
-                                             (= rval-tag 'double)
-                                             `(let [~'ff ~find-data]
-                                                (if (instance? Double~'ff)
-                                                  (unchecked-double ~'ff)
-                                                  (~invoker ~(with-meta 'ff {:tag (fn-tag-for-tags arg-tags)})
-                                                   ~@args)))
-                                             :else `(~invoker find-data @args))
+                                      ~(if invoker
+                                         (cond
+                                           (= rval-tag 'long)
                                            `(let [~'ff ~find-data]
-                                              (if (fn? ~'ff)
-                                                (~'ff ~@args)
-                                                ~'ff)))))))
+                                              (if (instance? Long ~'ff)
+                                                (unchecked-long ~'ff)
+                                                (~invoker ~(with-meta 'ff {:tag (fn-tag-for-tags arg-tags)})
+                                                 ~@args)))
+                                           (= rval-tag 'double)
+                                           `(let [~'ff ~find-data]
+                                              (if (instance? Double~'ff)
+                                                (unchecked-double ~'ff)
+                                                (~invoker ~(with-meta 'ff {:tag (fn-tag-for-tags arg-tags)})
+                                                 ~@args)))
+                                           :else `(~invoker find-data @args))
+                                         `(let [~'ff ~find-data]
+                                            (if (fn? ~'ff)
+                                              (~'ff ~@args)
+                                              ~'ff))))))
                                 arglists)))])
                  (vals sigs))
        (def ~name ~(assoc (update opts
