@@ -339,6 +339,14 @@ public interface IFnDef extends IFn
       return test(arg);
     }
     default Object apply(double v) { return test(v); }
+    default DoublePredicate negate() {
+      DoublePredicate prev = this;
+      return new DoublePredicate() {
+	public boolean test(double v) {
+	  return !prev.test(v);
+	}
+      };
+    }
   }
   public interface DD extends IFnDef, IFn.DD, DoubleUnaryOperator {
     default Object invoke(Object arg) {

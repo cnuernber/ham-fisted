@@ -95,7 +95,7 @@
            [java.util.logging Logger]
            [java.util.stream IntStream DoubleStream])
   (:refer-clojure :exclude [assoc! conj! frequencies merge merge-with memoize cond
-                            into hash-map
+                            into hash-map not
                             group-by subvec group-by mapv vec vector object-array
                             sort int-array long-array double-array float-array
                             range map concat filter filterv first last pmap take take-last drop
@@ -120,6 +120,12 @@
          merge constant-count mutable-map?
          transient update-vals apply-concat)
 
+(defn not
+  "Returns boolean opposite of passed in value"
+  {:inline (fn [x] `(Transformables/not ~x))
+   :inline-arities #{1}}
+  [a]
+  (Transformables/not a))
 
 (defn ->collection
   "Ensure item is an implementation of java.util.Collection."

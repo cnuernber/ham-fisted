@@ -75,6 +75,9 @@ public class Transformables {
   public static boolean truthy(final Object obj) {
     return Casts.booleanCast(obj);
   }
+  public static boolean not(final Object obj) {
+    return !Casts.booleanCast(obj);
+  }
   public static IFn toReductionFn(Object rfn) {
     if(rfn instanceof IFn) return (IFn)rfn;
     if(rfn instanceof IFn.OLO) {

@@ -119,6 +119,5 @@
   (time 
    (dotimes [idx 10]
      (hamf/sum (lznc/map (fn ^double [s] (pargs s 100)) strs))))
-
-  
+ 
   :ok)
