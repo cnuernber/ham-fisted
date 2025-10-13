@@ -76,7 +76,7 @@ public class Transformables {
     return Casts.booleanCast(obj);
   }
   public static boolean not(final Object obj) {
-    return !Casts.booleanCast(obj);
+    return obj == null || obj == Boolean.FALSE;
   }
   public static IFn toReductionFn(Object rfn) {
     if(rfn instanceof IFn) return (IFn)rfn;
@@ -1307,7 +1307,7 @@ public class Transformables {
     }
   }
 
-  public static String sequenceToString(Collection data) {
+  public static String sequenceToString(Iterable data) {
     StringBuilder sb = new StringBuilder();
     if(data instanceof RandomAccess) {
       final List ra = (List) data;

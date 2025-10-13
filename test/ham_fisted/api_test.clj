@@ -299,3 +299,43 @@
 
 (deftest reduce-empty-apply-concat
   (is (= 0 (reduce + 0 (lznc/apply-concat nil)))))
+
+(deftest drop-test
+  (is (= (drop 3 '(1 2 3 4)) (lznc/drop 3 '(1 2 3 4)))))
+
+(deftest take-test
+  (is (= (take 2 '(1 2 3 4)) (lznc/take 2 '(1 2 3 4)))))
+
+(comment
+
+  (do
+    (def left-chunks (mapv hamf/double-array-list (partition-all 1000 (range 10000000))))
+    (def right-partitions (partition-all 100 (shuffle (range 100000))))
+    (require '[clj-async-profiler.core :as prof])
+    (prof/serve-ui 8080))
+  (def data (prof/profile (dotimes [idx 10]
+                            (time (->> (lznc/concat left-chunks right-partitions)
+                                       (lznc/apply-concat)
+                                       (hamf/sort-by (fn ^long [a] a))
+                                       (hamf/lsum))))))
+
+  (def data (vec '(1 2 3 4 5 6 7)))
+  (into [] (lznc/take 2) data)
+  (lznc/drop 2 data)
+  (drop 2 nil)
+  (lznc/drop 1 [1 2])
+  (lznc/take 2 data)
+  (time 
+   (->> (apply concat left-chunks)
+        (drop 17)
+        (hamf/lsum)))
+
+  (prof/profile
+   (dotimes [idx 10]
+     (time 
+      (->> (lznc/apply-concat left-chunks)
+           (lznc/drop 17)
+           (hamf/sum)))))
+  
+  
+  )

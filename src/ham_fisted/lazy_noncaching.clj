@@ -20,15 +20,17 @@
             DoubleMutList ReindexList Transformables$IndexedMapper
             IFnDef$OLO IFnDef$ODO Reductions Reductions$IndexedAccum
             IFnDef$OLOO ArrayHelpers ITypedReduce PartitionByInner Casts
-            IMutList LazyChunkedSeq ParallelOptions$CatParallelism]
+            IMutList LazyChunkedSeq ParallelOptions$CatParallelism MutTreeList IFnDef]
            [java.lang.reflect Array]
            [it.unimi.dsi.fastutil.ints IntArrays]
+           [java.util.concurrent.atomic AtomicLong]
            [java.util RandomAccess Collection Map List Random Set Iterator]
            [clojure.lang RT IPersistentMap IReduceInit IReduce PersistentList
             IFn$OLO IFn$ODO IFn$DD IFn$LD IFn$OD IFn ArraySeq
             IFn$DL IFn$LL IFn$OL IFn$D IFn$L IFn$LO IFn$DO Counted IDeref Seqable IObj])
   (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle object-array
-                            remove map-indexed partition-by partition-all every?]))
+                            remove map-indexed partition-by partition-all every?
+                            complement cond drop take]))
 
 
 (set! *warn-on-reflection* true)
@@ -38,6 +40,26 @@
 (def ^{:tag ArrayImmutList} empty-vec ArrayImmutList/EMPTY)
 
 (declare concat map-reducible every?)
+
+(defmacro cond
+  "See documentation for [[ham-fisted.api/cond]]"
+  [& clauses]
+  (let [clauses (clojure.core/vec clauses)
+        nc (count clauses)
+        constant-clause? #{true :else}
+        odd-clauses? (odd? nc)
+        else? (or odd-clauses? (and (> nc 2)
+                                    (constant-clause? (nth clauses (- nc 2)))))]
+    (if-not else?
+      `(clojure.core/cond ~@clauses)
+      (let [[clauses else-branch] (if odd-clauses?
+                                    [(clojure.core/subvec clauses 0 (dec nc)) (clojure.core/last clauses)]
+                                    [(clojure.core/subvec clauses 0 (- nc 2)) (clojure.core/last clauses)])
+            pred-true-branch (clojure.core/reverse (clojure.core/partition 2 clauses))]
+        (reduce (fn [stmts [pred true-branch]]
+                  `(if ~pred ~true-branch ~stmts))
+                else-branch
+                pred-true-branch)))))
 
 (defn ->collection
   "Ensure an item implements java.util.Collection.  This is inherently true for seqs and any
@@ -130,7 +152,9 @@
     (let [c (->collection item)]
       (if (instance? RandomAccess c)
         c
-        (->collection (object-array c))))))
+        (-> (doto (MutTreeList.)
+              (.addAllReducible c))
+            (persistent!))))))
 
 (defn constant-countable?
   [data]
@@ -413,6 +437,16 @@
 (pp/implement-tostring-print Transformables$FilterIterable)
 
 
+(defn complement
+  "Like clojure core complement but avoids var lookup on 'not'"
+  [f]
+  (fn
+    ([] (Transformables/not (f)))
+    ([x] (Transformables/not (f x)))
+    ([x y] (Transformables/not (f x y)))
+    ([x y & zs] (Transformables/not (apply f x y zs)))))
+
+
 (defn remove
   "Returns a lazy sequence of the items in coll for which
   (pred item) returns logical false. pred must be free of side-effects.
@@ -423,6 +457,133 @@
    (filter (complement pred) coll))
   ([pred] (filter (complement pred))))
 
+(declare drop take)
+
+(deftype ^:private DropIterable [^long n data]
+  clojure.lang.Sequential
+  Iterable
+  (iterator [this]
+    (let [src-iter (.iterator (->iterable data))]
+      (dotimes [idx n]
+        (when (.hasNext src-iter)
+          (.next src-iter)))
+      src-iter))
+  ITypedReduce
+  (reduce [this rfn acc]
+    (let [rfn ((drop n) rfn)]
+      (reduce rfn acc data)))
+  Object
+  (toString [this] (Transformables/sequenceToString this)))
+
+(pp/implement-tostring-print DropIterable)
+
+(defmacro define-drop-tducer
+  [nm iface rf-tag]
+  (let [invoke-nm (if (= iface 'IFnDef)
+                    'invoke
+                    'invokePrim)]
+    `(deftype ~(with-meta nm {:private true})
+         [~(with-meta 'n {:unsynchronized-mutable true
+                          :tag 'long})
+          ~'rf]
+       ~iface (~invoke-nm [this# ~'result ~'input]
+               (let [~'nn (max -1 (dec ~'n))]
+                 (set! ~'n ~'nn)
+                 (if (neg? ~'nn)
+                   (~(symbol (str "." (name invoke-nm))) ~(with-meta 'rf {:tag rf-tag}) ~'result ~'input)
+                   ~'result)))
+       (invoke [this#] (~'rf))
+       (invoke [this# result#] (~'rf result#))
+       clojure.lang.Fn)))
+
+(define-drop-tducer DropLongTducer IFnDef$OLO clojure.lang.IFn$OLO)
+(define-drop-tducer DropDoubleTducer IFnDef$ODO clojure.lang.IFn$ODO)
+(define-drop-tducer DropTducer IFnDef clojure.lang.IFn)
+
+(defn drop
+  ([n]
+   (fn [rf]
+     (cond
+       (instance? clojure.lang.IFn$OLO rf)
+       (DropLongTducer. n rf)
+       (instance? clojure.lang.IFn$ODO rf)
+       (DropDoubleTducer. n rf)
+       :else
+       (DropTducer. n rf))))
+  ([^long n data]
+   (if(nil? data)
+     '()
+     (if-let [l (as-random-access data)]
+       (let [sl (.size l)]
+         (if (< sl n)
+           '[]
+           (.subList l n sl)))
+       (DropIterable. n data)))))
+
+(defmacro define-take-tducer
+  [nm invoke-nm iface rf-tag]
+  `(deftype ~(with-meta nm {:private true})
+       [~(with-meta 'n {:unsynchronized-mutable true
+                        :tag 'long})
+        ~'rf]
+     ~iface
+     (~invoke-nm [this# ~'acc ~'v]
+       (set! ~'n (max -1 (dec ~'n)))
+       (if (neg? ~'n)
+         ~'acc
+         (let [~'acc (~(symbol (str "." (name invoke-nm))) ~(with-meta 'rf {:tag rf-tag})
+                      ~'acc ~'v)]
+           (if (zero? ~'n)
+             (ensure-reduced ~'acc)
+             ~'acc))))
+     (invoke [this#] (~'rf))
+     (invoke [this# acc#] (~'rf acc#))
+     clojure.lang.Fn))
+
+(define-take-tducer TakeTducer invoke IFnDef clojure.lang.IFn)
+(define-take-tducer TakeLongTducer invokePrim IFnDef$OLO clojure.lang.IFn$OLO)
+(define-take-tducer TakeDoubleTducer invokePrim IFnDef$ODO clojure.lang.IFn$ODO)
+
+(deftype TakeIterator [^{:unsynchronized-mutable true
+                         :tag long} n
+                       ^Iterator data]
+  Iterator
+  (hasNext [this] (and (pos? n) (.hasNext data)))
+  (next [this]
+    (set! n (dec n))
+    (if (.hasNext data)
+      (.next data)
+      (throw (java.util.NoSuchElementException. "Iter out of range")))))
+
+(deftype TakeIterable [n data]
+  clojure.lang.Sequential
+  Iterable
+  (iterator [this]
+    (TakeIterator. n (.iterator (->iterable data))))
+  ITypedReduce
+  (reduce [this rfn acc]
+    (reduce ((take n) rfn) acc data))
+  Object
+  (toString [this] (Transformables/sequenceToString this)))
+
+(pp/implement-tostring-print TakeIterable)
+
+(defn take
+  ([n]
+   (fn [rf]
+     (cond
+       (instance? clojure.lang.IFn$OLO rf)
+       (TakeLongTducer. n rf)
+       (instance? clojure.lang.IFn$ODO rf)
+       (TakeDoubleTducer. n rf)
+       :else
+       (TakeTducer. n rf))))
+  ([^long n data]
+   (if (nil? data)
+     '()
+     (if-let [l (as-random-access data)]
+       (.subList l 0 (min n (.size l)))
+       (TakeIterable. n data)))))
 
 (defmacro make-readonly-list
   "Implement a readonly list.  If cls-type-kwd is provided it must be, at compile time,

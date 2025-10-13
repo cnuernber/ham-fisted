@@ -367,7 +367,7 @@
       (instance? Seqable item)
       (seq item)
       :else
-      (throw (RuntimeException. (str "Item is not iterable:" (type item))))))
+      (throw (RuntimeException. (str "Item is not convertible to collection: " (type item))))))
   String
   (->collection [item] (StringCollection. item))
   BitSet

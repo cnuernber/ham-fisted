@@ -102,7 +102,7 @@
                             drop-last sort-by repeat repeatedly shuffle into-array
                             empty? reverse byte-array short-array char-array boolean-array
                             keys vals persistent! rest transient update-vals
-                            re-matches]))
+                            re-matches complement]))
 
 (comment
   (require '[clj-java-decompiler.core :refer [disassemble]])
@@ -126,6 +126,12 @@
    :inline-arities #{1}}
   [a]
   (Transformables/not a))
+
+
+(defn complement
+  "Like clojure core complement but avoids var lookup on 'not'"
+  [f]
+  (lznc/complement f))
 
 (defn ->collection
   "Ensure item is an implementation of java.util.Collection."
@@ -240,33 +246,7 @@
       ))
 ```"
   [& clauses]
-  (let [clauses (clojure.core/vec clauses)
-        nc (count clauses)
-        constant-clause? #{true :else}
-        odd-clauses? (odd? nc)
-        else? (or odd-clauses? (and (> nc 2)
-                                    (constant-clause? (nth clauses (- nc 2)))))]
-    (if-not else?
-      `(clojure.core/cond ~@clauses)
-      (let [[clauses else-branch] (if odd-clauses?
-                                    [(clojure.core/subvec clauses 0 (dec nc)) (clojure.core/last clauses)]
-                                    [(clojure.core/subvec clauses 0 (- nc 2)) (clojure.core/last clauses)])
-            pred-true-branch (clojure.core/reverse (clojure.core/partition 2 clauses))]
-        (reduce (fn [stmts [pred true-branch]]
-                  `(if ~pred ~true-branch ~stmts))
-                else-branch
-                pred-true-branch)))))
-
-(comment
-  (defn memory-size
-    ^long [a]
-    (cond
-      (instance? Long a) 24
-      :else (alength ^longs a)
-      ))
-
-
-  )
+  `(lznc/cond ~@clauses))
 
 (defn into
   "Like clojure.core/into, but also designed to handle editable collections,
@@ -644,7 +624,10 @@ ham_fisted.PersistentHashMap
 
 (defn array-list
   "Create an implementation of java.util.ArrayList."
-  (^ArrayList [data] (doto (ArrayList.) (.addAll (->collection data))))
+  (^ArrayList [data]
+   (if (instance? Collection data)
+     (doto (ArrayList.) (.addAll (->collection data)))
+     (into (ArrayList.) data)))
   (^ArrayList [] (ArrayList.)))
 
 
@@ -2133,13 +2116,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
   ^ArrayImmutList [data]
   (if (instance? obj-ary-cls data)
     (ArrayImmutList. ^objects data 0 (alength ^objects data) nil)
-    (if-let [c (constant-count data)]
-      (-> (doto (ArrayLists/toList (ArrayLists/objectArray (int c)))
-            (.fillRangeReducible 0 data))
-          (persistent!))
-      (-> (doto (object-array-list)
-            (.addAllReducible data))
-          (persistent!)))))
+    (into (vec) data)))
 
 
 (defmacro ovec
