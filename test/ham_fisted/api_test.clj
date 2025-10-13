@@ -309,7 +309,7 @@
 (comment
 
   (do
-    (def left-chunks (mapv hamf/double-array-list (partition-all 1000 (range 10000000))))
+    (def left-chunks (mapv hamf/long-array-list (partition-all 1000 (range 10000000))))
     (def right-partitions (partition-all 100 (shuffle (range 100000))))
     (require '[clj-async-profiler.core :as prof])
     (prof/serve-ui 8080))
@@ -334,7 +334,7 @@
    (dotimes [idx 10]
      (time 
       (->> (lznc/apply-concat left-chunks)
-           (lznc/drop 17)
+           (lznc/take 10000000)
            (hamf/sum)))))
   
   

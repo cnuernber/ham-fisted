@@ -80,6 +80,11 @@
   (pargs [m b]
     (+ 1.0 (+ (.length m) b))))
 
+(hamf-defproto/extend-type Double
+  PPrimitiveArgs
+  (pargs [m b]
+    (+ 1.0 (+ (double m) b))))
+
 (defprotocol CorePPrimitiveArgs
   (core-pargs [m b]))
 
@@ -88,36 +93,71 @@
   (core-pargs [m b]
     (+ 1.0 (+ (.length m) (long b)))))
 
+(extend-type Double
+  CorePPrimitiveArgs
+  (core-pargs [m b]
+    (+ 1.0 (+ (double b) (long b)))))
+
 (def strs (mapv str (range 100000)))
+(def strs-and-doubles (vec (take 100000 (interleave strs (map double (range 100000))))))
 
 (defn -main
   [& args]
   (println "Core protocols")
-  (dotimes [idx 10]
+  (dotimes [idx 5]
     (time (multithread-test core-memsize)))
 
   (println "hamf protocols")
-  (dotimes [idx 10]
+  (dotimes [idx 5]
     (time (multithread-test hamf-memsize)))
 
-  (println "serial core pargs")
-  (time 
-   (dotimes [idx 10]
-     (hamf/sum-fast (lznc/map (fn ^double [s] (core-pargs s 100)) strs))))
+  (println "serial single type core pargs")
+  (dotimes [idx 5]
+    (time 
+     (dotimes [idx 10]
+       (hamf/sum-fast (lznc/map (fn ^double [s] (core-pargs s 100)) strs)))))
 
-  (println "serial hamf pargs")
-  (time 
-   (dotimes [idx 10]
-     (hamf/sum-fast (lznc/map (fn ^double [s] (pargs s 100)) strs))))
+  (println "serial single type hamf pargs")
+  (dotimes [idx 5]
+    (time
+     (dotimes [idx 10]
+       (hamf/sum-fast (lznc/map (fn ^double [s] (pargs s 100)) strs)))))
 
-  (println "parallel core pargs")
-  (time 
-   (dotimes [idx 10]
-     (hamf/sum (lznc/map (fn ^double [s] (core-pargs s 100)) strs))))
+  (println "parallel single type core pargs")
+  (dotimes [idx 5]
+    (time 
+     (dotimes [idx 10]
+       (hamf/sum (lznc/map (fn ^double [s] (core-pargs s 100)) strs)))))
 
-  (println "parallel hamf pargs")
-  (time 
-   (dotimes [idx 10]
-     (hamf/sum (lznc/map (fn ^double [s] (pargs s 100)) strs))))
+  (println "parallel single type hamf pargs")
+  (dotimes [idx 5]
+    (time 
+     (dotimes [idx 10]
+       (hamf/sum (lznc/map (fn ^double [s] (pargs s 100)) strs)))))
+
+
+  (println "serial dual type core pargs")
+  (dotimes [idx 5]
+    (time 
+     (dotimes [idx 10]
+       (hamf/sum-fast (lznc/map (fn ^double [s] (core-pargs s 100)) strs-and-doubles)))))
+
+  (println "serial dual type hamf pargs")
+  (dotimes [idx 5]
+    (time
+     (dotimes [idx 10]
+       (hamf/sum-fast (lznc/map (fn ^double [s] (pargs s 100)) strs-and-doubles)))))
+
+  (println "parallel dual type core pargs")
+  (dotimes [idx 5]
+    (time 
+     (dotimes [idx 10]
+       (hamf/sum (lznc/map (fn ^double [s] (core-pargs s 100)) strs-and-doubles)))))
+
+  (println "parallel dual type hamf pargs")
+  (dotimes [idx 5]
+    (time 
+     (dotimes [idx 10]
+       (hamf/sum (lznc/map (fn ^double [s] (pargs s 100)) strs-and-doubles)))))
  
   :ok)
