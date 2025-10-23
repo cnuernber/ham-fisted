@@ -325,17 +325,17 @@
   (drop 2 nil)
   (lznc/drop 1 [1 2])
   (lznc/take 2 data)
-  (time 
+  (time
    (->> (apply concat left-chunks)
         (drop 17)
         (hamf/lsum)))
 
   (prof/profile
    (dotimes [idx 10]
-     (time 
+     (time
       (->> (lznc/apply-concat left-chunks)
            (lznc/take 10000000)
            (hamf/sum)))))
-  
-  
+
+
   )

@@ -11,8 +11,10 @@
   (:require [ham-fisted.iterator :as iterator]
             [ham-fisted.alists :as alists]
             [ham-fisted.protocols :as protocols]
+            [ham-fisted.defprotocol :as hamf-defproto]
             [ham-fisted.function :as hamf-fn]
-            [ham-fisted.print :as pp])
+            [ham-fisted.print :as pp]
+            [ham-fisted.language :as hamf-language])
   (:import [ham_fisted Transformables$MapIterable Transformables$FilterIterable
             Transformables$CatIterable Transformables$MapList Transformables$IMapable
             Transformables$SingleMapList Transformables StringCollection ArrayLists
@@ -20,17 +22,19 @@
             DoubleMutList ReindexList Transformables$IndexedMapper
             IFnDef$OLO IFnDef$ODO Reductions Reductions$IndexedAccum
             IFnDef$OLOO ArrayHelpers ITypedReduce PartitionByInner Casts
-            IMutList LazyChunkedSeq ParallelOptions$CatParallelism MutTreeList IFnDef]
+            IMutList LazyChunkedSeq ParallelOptions$CatParallelism MutTreeList IFnDef
+            LongAccum]
            [java.lang.reflect Array]
            [it.unimi.dsi.fastutil.ints IntArrays]
            [java.util.concurrent.atomic AtomicLong]
-           [java.util RandomAccess Collection Map List Random Set Iterator]
+           [java.util RandomAccess Collection Map List Random Set Iterator Map$Entry]
            [clojure.lang RT IPersistentMap IReduceInit IReduce PersistentList
             IFn$OLO IFn$ODO IFn$DD IFn$LD IFn$OD IFn ArraySeq
-            IFn$DL IFn$LL IFn$OL IFn$D IFn$L IFn$LO IFn$DO Counted IDeref Seqable IObj])
+            IFn$DL IFn$LL IFn$OL IFn$D IFn$L IFn$LO IFn$DO Counted IDeref Seqable IObj
+            ])
   (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle object-array
                             remove map-indexed partition-by partition-all every?
-                            complement cond drop take]))
+                            complement cond drop take count]))
 
 
 (set! *warn-on-reflection* true)
@@ -44,22 +48,51 @@
 (defmacro cond
   "See documentation for [[ham-fisted.api/cond]]"
   [& clauses]
-  (let [clauses (clojure.core/vec clauses)
-        nc (count clauses)
-        constant-clause? #{true :else}
-        odd-clauses? (odd? nc)
-        else? (or odd-clauses? (and (> nc 2)
-                                    (constant-clause? (nth clauses (- nc 2)))))]
-    (if-not else?
-      `(clojure.core/cond ~@clauses)
-      (let [[clauses else-branch] (if odd-clauses?
-                                    [(clojure.core/subvec clauses 0 (dec nc)) (clojure.core/last clauses)]
-                                    [(clojure.core/subvec clauses 0 (- nc 2)) (clojure.core/last clauses)])
-            pred-true-branch (clojure.core/reverse (clojure.core/partition 2 clauses))]
-        (reduce (fn [stmts [pred true-branch]]
-                  `(if ~pred ~true-branch ~stmts))
-                else-branch
-                pred-true-branch)))))
+  `(hamf-language/cond ~@clauses))
+
+(defn count
+  ^long [m]
+  (protocols/count m))
+
+(hamf-defproto/extend Map$Entry protocols/Counted {:count 2})
+(hamf-defproto/extend nil protocols/Counted {:count 0})
+
+(defmacro countable-arrays
+  []
+  `(do
+     ~@(->> hamf-language/array-classes
+            (mapcat (fn [kv]
+                      (let [alen-name (symbol (str (name (key kv)) "-alength"))]
+                        `[(defn ~alen-name
+                            ~(with-meta [(with-meta 'm {:tag (.getName ^Class (val kv))})]
+                               {:tag 'long})
+                            (alength ~'m))
+                          (hamf-defproto/extend ~(val kv) protocols/Counted {:count ~alen-name})]))))))
+
+(countable-arrays)
+
+(hamf-defproto/extend-protocol protocols/Counted
+  clojure.lang.Counted (count [s] (.count s))
+  java.util.RandomAccess (count [s] (.size ^java.util.Collection s))
+  CharSequence (count [s] (.length s))
+  Map (count [s] (.size s))
+  Transformables$CatIterable (count [s]
+                               (let [lc (LongAccum. 0)]
+                                 (reduce (fn [^LongAccum lc _v]
+                                           (.accept lc (count _v))
+                                           lc)
+                                         lc
+                                         (reify Iterable (iterator [this]
+                                                           (.containerIter ^Transformables$CatIterable s))))
+                                 (long (.deref lc))))
+  Object (count [s] (let [lc (LongAccum. 0)]
+                      (reduce (fn [^LongAccum lc _v]
+                                (.accept lc 1)
+                                lc)
+                              lc
+                              s)
+                      (long (.deref lc)))))
+
 
 (defn ->collection
   "Ensure an item implements java.util.Collection.  This is inherently true for seqs and any
@@ -395,7 +428,6 @@
                                   nil nil)
                                 data)))
 
-
 (defn concat
   ([] PersistentList/EMPTY)
   ([a] (if a a PersistentList/EMPTY))
@@ -528,14 +560,14 @@
         ~'rf]
      ~iface
      (~invoke-nm [this# ~'acc ~'v]
-       (set! ~'n (max -1 (dec ~'n)))
-       (if (neg? ~'n)
-         ~'acc
-         (let [~'acc (~(symbol (str "." (name invoke-nm))) ~(with-meta 'rf {:tag rf-tag})
-                      ~'acc ~'v)]
-           (if (zero? ~'n)
-             (ensure-reduced ~'acc)
-             ~'acc))))
+      (set! ~'n (max -1 (dec ~'n)))
+      (if (neg? ~'n)
+        ~'acc
+        (let [~'acc (~(symbol (str "." (name invoke-nm))) ~(with-meta 'rf {:tag rf-tag})
+                     ~'acc ~'v)]
+          (if (zero? ~'n)
+            (ensure-reduced ~'acc)
+            ~'acc))))
      (invoke [this#] (~'rf))
      (invoke [this# acc#] (~'rf acc#))
      clojure.lang.Fn))
@@ -618,30 +650,13 @@
 (defn type-single-arg-ifn
   "Categorize the return type of a single argument ifn.  May be :float64, :int64, or :object."
   [ifn]
-  (cond
-    (or (instance? IFn$DD ifn)
-        (instance? IFn$LD ifn)
-        (instance? IFn$OD ifn))
-    :float64
-    (or (instance? IFn$DL ifn)
-        (instance? IFn$LL ifn)
-        (instance? IFn$OL ifn))
-    :int64
-    :else
-    :object))
+  (protocols/simplified-returned-datatype ifn))
 
 
 (defn type-zero-arg-ifn
   "Categorize the return type of a single argument ifn.  May be :float64, :int64, or :object."
   [ifn]
-  (cond
-    (instance? IFn$D ifn)
-    :float64
-    (instance? IFn$L ifn)
-    :int64
-    :else
-    :object))
-
+  (protocols/simplified-returned-datatype ifn))
 
 (defn repeatedly
   "When called with one argument, produce infinite list of calls to v.
@@ -654,7 +669,7 @@
          (next [this] (f))))))
   (^IMutList [n f]
    (let [n (int n)]
-     (case (type-zero-arg-ifn f)
+     (case (protocols/simplified-returned-datatype f)
        :int64
        (reify TypedList
          (containedType [this] Long/TYPE)

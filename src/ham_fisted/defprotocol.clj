@@ -1,10 +1,7 @@
 (ns ham-fisted.defprotocol
-  "Alternative protocol implementation that has better semantics w/r/t runtime startup times
-  and overall work done during extension and lookup.  We want to avoid dynamic variable definitions
-  and prefer normal def, defn definitions which themselves respond to static linking.  This continues
-  work on cnuernber/clojure attempting to dramatically decrease startup times.
+  "Alternative protocol implementation.
 
-  There are 4 major features of this implementation:
+  Major features:
 
   1. Allows subclasses to override only a subset of the methods and if the superclass
   has overridden the method then the superclasses implementation will be used.
@@ -16,7 +13,19 @@
 
   4. Much higher and more predictable multithreaded performance for protocol method invocation due to
   the fewer number of global variables that are read and written to for a single protocol method
-  invocation."
+  invocation.
+
+  5. Does not write to global variables on a per-call basis meaning far less cpu/cache traffic
+  in high contention scenarios.
+
+
+  Another design decision is to avoid the interface check - this simplifes the hot path a slight bit
+  at the cost of slightly slower calltimes in the case the interface is used.  For those cases often
+  it is possible to simply typehint the interface and call it directly avoiding any protocol dispatch
+  overhead.
+
+  Additional call overhead above and beyond a normal fn invocation in an arm mac is `-6ns` - the time
+  for `.getClass` call into single concurrent hash map lookup."
   (:refer-clojure :exclude [defprotocol extend extend-type extend-protocol extends? satisfies?
                             find-protocol-method find-protocol-impl extenders])
   (:require [ham-fisted.primitive-invoke :as primitive-invoke])

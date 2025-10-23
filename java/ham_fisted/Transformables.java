@@ -78,6 +78,9 @@ public class Transformables {
   public static boolean not(final Object obj) {
     return obj == null || obj == Boolean.FALSE;
   }
+  public static boolean not(final boolean v) {
+    return !v;
+  }
   public static IFn toReductionFn(Object rfn) {
     if(rfn instanceof IFn) return (IFn)rfn;
     if(rfn instanceof IFn.OLO) {
@@ -900,11 +903,12 @@ public class Transformables {
 	parentIter = null;
       }
     }
+    public Iterator containerIter() { return new CatIterIter(ArrayLists.toList(data).iterator()); }
     Object preduceSeqwise(IFn initValFn, IFn rfn, IFn mergeFn, Object init,
 				 ParallelOptions options) {
       final Iterable initSequence = new Iterable() {
 	  public Iterator iterator() {
-	    return new CatIterIter(ArrayLists.toList(data).iterator());
+	    return containerIter();
 	  }
 	};
 

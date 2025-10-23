@@ -3,10 +3,12 @@
             [ham-fisted.protocols :as hamf-proto]
             [ham-fisted.lazy-noncaching :as lznc]
             [ham-fisted.api :as hamf]
-            [ham-fisted.reduce :as hamf-rf])
+            [ham-fisted.reduce :as hamf-rf]
+            [clojure.pprint :as pp])
   (:import [java.util LongSummaryStatistics]
            [java.util.function LongConsumer])
   (:gen-class))
+
 (set! *unchecked-math* :warn-on-boxed)
 (set! *warn-on-reflection* true)
 
@@ -59,12 +61,6 @@
    :c (into [] (repeat 1000 (rand)))
    :d (into [] (repeat 1000 1))})
 
-(defn test-callit
-  ^long [v vv]
-  (if (instance? v Number)
-    (ham_fisted.Casts/longCast v)
-    (.invokePrim ^clojure.lang.IFn$OL v vv)))
-
 
 (def measure-data (into [] (repeat 10000 test-datastructure)))
 
@@ -100,6 +96,54 @@
 
 (def strs (mapv str (range 100000)))
 (def strs-and-doubles (vec (take 100000 (interleave strs (map double (range 100000))))))
+
+(defn reduce-count
+  [data]
+  (reduce (fn [^long acc v] (inc acc)) 0 data))
+
+(defprotocol TestProto
+  (f [this a b]))
+
+(extend-protocol TestProto
+  String
+  (f [this a b] 1)
+  Long
+  (f [this a b] 1)
+  Double
+  (f [this a b] 1)
+  java.util.Collection
+  (f [this a b]
+    (reduce-count (lznc/map #(f % [] :x) this))))
+
+(hamf-defproto/defprotocol HFTestProto
+  (hf [this a b]))
+
+(hamf-defproto/extend-protocol HFTestProto
+  String
+  (hf [this a b] 1)
+  Long
+  (hf [this a b] 1)
+  Double
+  (hf [this a b] 1)
+  java.util.Collection
+  (hf [this a b]
+    (reduce-count (lznc/map #(hf % [] :x) this))))
+
+(defn explore!
+  [n]
+  (println "========= Exploring general protocol pathways ========")
+  (let [l (vec (take 10000 (cycle ["foo" 5678 3.14 (vec (take 10000 (cycle ["foo" 5678 3.14])))])))]
+    (dotimes [i n]
+      (println "attempt" i)
+      (println "map f")
+      (time (reduce-count (lznc/map #(f % [] :x) l)))
+      (println "map fast-f")
+      (time (reduce-count (lznc/map #(hf % [] :x) l)))
+      (println "pmap f")
+      (time (reduce-count (hamf/pmap #(f % [] :x) l)))
+      (println "pmap fast-f")
+      (time (reduce-count (lznc/map identity (hamf/pmap #(hf % [] :x) l))))))
+  :done)
 
 (defn -main
   [& args]
@@ -159,5 +203,7 @@
     (time 
      (dotimes [idx 10]
        (hamf/sum (lznc/map (fn ^double [s] (pargs s 100)) strs-and-doubles)))))
+
+  (explore! 4)
  
   :ok)

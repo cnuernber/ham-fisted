@@ -1,12 +1,15 @@
 (ns ham-fisted.protocols
-  (:require [clojure.core.protocols :as cl-proto])
+  (:require [clojure.core.protocols :as cl-proto]
+            [ham-fisted.defprotocol :as hamf-defproto])
   (:import [clojure.lang IFn IReduceInit IDeref]
            [java.util.function DoubleConsumer]
            [java.util Map]
            [ham_fisted Sum Sum$SimpleSum Reducible IFnDef$ODO ParallelOptions
             Reductions IMutList])
-  (:refer-clojure :exclude [reduce set?]))
+  (:refer-clojure :exclude [reduce set? count]))
 
+(hamf-defproto/defprotocol Counted
+  (^long count [m]))
 
 (defprotocol ToIterable
   (convertible-to-iterable? [item])
@@ -149,3 +152,45 @@ two accumulators  and returns a or modified accumulator."))
 
 (defprotocol SerializeObjBytes
   (serialize->bytes [o]))
+
+
+(hamf-defproto/defprotocol Datatype
+  (datatype [o]
+    "Returns the datatype [:int8, :int16, etc] -- if known --
+else the type can be assumed to be an object type.  The return value may not be a keyword
+but it must be comparable with Object.equals")
+  (simplified-datatype [o]
+    "Returns exactly :int64, :float64, or :object"))
+
+(hamf-defproto/extend nil Datatype {:datatype :object
+                                    :simplified-datatype :object})
+
+(hamf-defproto/extend Object Datatype {:datatype :object
+                                       :simplified-datatype :object})
+
+(hamf-defproto/defprotocol ContainedDatatype
+  (contained-datatype [o]
+    "Datatype of contained datatype - may be nil if not a container")
+  (simplified-contained-datatype [o]
+    "Exactly :int64 :float64 :object or nil"))
+
+(hamf-defproto/extend nil ContainedDatatype
+                      {:contained-datatype nil
+                       :simplified-contained-datatype nil})
+
+(hamf-defproto/extend Object ContainedDatatype
+                      {:contained-datatype nil
+                       :simplified-contained-datatype nil})
+
+
+(hamf-defproto/defprotocol ReturnedDatatype
+  (returned-datatype [o])
+  (simplified-returned-datatype [o]))
+
+(hamf-defproto/extend nil ReturnedDatatype
+                      {:returned-datatype nil
+                       :simplified-returned-datatype nil})
+
+(hamf-defproto/extend Object ReturnedDatatype
+                      {:returned-datatype nil
+                       :simplified-returned-datatype nil})

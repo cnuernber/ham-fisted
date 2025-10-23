@@ -102,7 +102,7 @@
                             drop-last sort-by repeat repeatedly shuffle into-array
                             empty? reverse byte-array short-array char-array boolean-array
                             keys vals persistent! rest transient update-vals
-                            re-matches complement]))
+                            re-matches complement count]))
 
 (comment
   (require '[clj-java-decompiler.core :refer [disassemble]])
@@ -127,11 +127,12 @@
   [a]
   (Transformables/not a))
 
-
 (defn complement
   "Like clojure core complement but avoids var lookup on 'not'"
   [f]
   (lznc/complement f))
+
+(defn count "hamf protocol extensible count" ^long [m] (protocols/count m))
 
 (defn ->collection
   "Ensure item is an implementation of java.util.Collection."
@@ -1081,14 +1082,6 @@ ham_fisted.PersistentHashMap
   (impl/pmap (ParallelOptions. 0 64000 true) map-fn sequences))
 
 
-(defn pmap-opts
-  "[[pmap]] but takes an extra option map as the *first* argument.  This is useful if you,
-   for instance, want to control exactly the parallel options arguments such as
-  `:n-lookahead`.  See docs for [[ham-fisted.reduce/options->parallel-options]]."
-  [opts map-fn & sequences]
-  (impl/pmap (hamf-rf/options->parallel-options opts) map-fn sequences))
-
-
 (defn upmap
   "Unordered pmap using the commonPool.  This is useful for interacting with other
   primitives, namely [[pgroups]] which are also based on this pool.
@@ -1100,6 +1093,23 @@ ham_fisted.PersistentHashMap
   results and thus may be significantly faster in some cases."
   [map-fn & sequences]
   (impl/pmap (ParallelOptions. 0 64000 false) map-fn sequences))
+
+
+(defn pmap-opts
+  "[[pmap]] but takes an extra option map as the *first* argument.  This is useful if you,
+   for instance, want to control exactly the parallel options arguments such as
+  `:n-lookahead`.  See docs for [[ham-fisted.reduce/options->parallel-options]]."
+  [opts map-fn & sequences]
+  (impl/pmap (hamf-rf/options->parallel-options opts) map-fn sequences))
+
+
+(defn pmap-io
+  "pmap for io bound tasks where you want to specify how far ahead
+  to run - uses the clojure.lang.Agent/soloExecutor for execution of presumably
+  io-bound operations."
+  [n-lookahead map-fn & sequences]
+  (impl/pmap (hamf-rf/options->parallel-options {:pool clojure.lang.Agent/soloExecutor
+                                                 :n-lookahead n-lookahead}) map-fn sequences))
 
 
 (defn persistent!
