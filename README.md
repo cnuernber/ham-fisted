@@ -4,6 +4,18 @@
 * [API docs](https://cnuernber.github.io/ham-fisted/)
 * [Clojure Conj Talk](https://www.youtube.com/watch?v=ralZ4j_ruVg)
 
+## Summary
+
+Clojure-style immutable collections (and mutable counterparts), together with
+some operations, all aimed at high performance.
+
+In particular, high-performance in large-`n` and parallel contexts. Included are
+a namespace of lazy but not caching operations, a `ForkJoinPool` oriented
+`pmap`, and a system of parallel reductions. This gives the user
+somewhat-drop-in replacements for familiar Clojure tools that can be faster.
+
+## History
+
 What started as a collection of efficient mutable and immutable data structures based
 on Phil Bagwell's bitmap trie concept became an overall reimplementation of
 Clojure's core datastructures and some of its base concepts specifically with
@@ -102,7 +114,7 @@ give it a read and then send me an email with your thoughts :-).
 These parallelization primitives allow users to pass in their own forkjoin pools
 so you can use it for blocking tasks although it is setup be default for
 cpu-bound operations.  Concat operations can parallelize reductions over
-non-finite or non-parallelizable containers using the default `:seq-wise` 
+non-finite or non-parallelizable containers using the default `:seq-wise`
 `:cat-parallelization` option.
 
 
