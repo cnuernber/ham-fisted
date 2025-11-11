@@ -3,20 +3,19 @@
 
   Major features:
 
-  1. Allows subclasses to override only a subset of the methods and if the superclass
+  * Allows subclasses to override only a subset of the methods and if the superclass
   has overridden the method then the superclasses implementation will be used.
 
-  2. Allows constants to be used (only with extend) - using a constant will avoid a function call
-  and the constant itself is simply returned.
+  * Supports primitive typehints on function arguments and return values.
 
-  3. Supports primitive typehints on function arguments and return values.
-
-  4. Much higher and more predictable multithreaded performance for protocol method invocation due to
+  * Much higher and more predictable multithreaded performance for protocol method invocation due to
   the fewer number of global variables that are read and written to for a single protocol method
   invocation.
 
-  5. Does not write to global variables on a per-call basis meaning far less cpu/cache traffic
+  * Does not write to global variables on a per-call basis meaning far less cpu/cache traffic
   in high contention scenarios.
+
+  * Attempting to extend a protocol method that doesn't exist is an error at extension time.
 
 
   Another design decision is to avoid the interface check - this simplifes the hot path a slight bit
@@ -29,7 +28,8 @@
   (:refer-clojure :exclude [defprotocol extend extend-type extend-protocol extends? satisfies?
                             find-protocol-method find-protocol-impl extenders])
   (:require [ham-fisted.primitive-invoke :as primitive-invoke])
-  (:import [ham_fisted MethodImplCache Casts]))
+  (:import [ham_fisted MethodImplCache Casts]
+           [java.util Map]))
 
 (set! *warn-on-reflection* true)
 
@@ -51,7 +51,8 @@
 
 (defn- protocol?
   [maybe-p]
-  (boolean (:on-interface maybe-p)))
+  (boolean (and (get maybe-p :on-interface)
+                (get maybe-p :method-caches))))
 
 (defn- implements? [protocol atype]
   (and atype (.isAssignableFrom ^Class (:on-interface protocol) atype)))
@@ -232,21 +233,13 @@
                                          (cond
                                            (= rval-tag 'long)
                                            `(let [~'ff ~find-data]
-                                              (if (instance? Long ~'ff)
-                                                (unchecked-long ~'ff)
-                                                (~invoker ~(with-meta 'ff {:tag (fn-tag-for-tags arg-tags)})
-                                                 ~@args)))
+                                              (~invoker ~(with-meta 'ff {:tag (fn-tag-for-tags arg-tags)}) ~@args))
                                            (= rval-tag 'double)
                                            `(let [~'ff ~find-data]
-                                              (if (instance? Double~'ff)
-                                                (unchecked-double ~'ff)
-                                                (~invoker ~(with-meta 'ff {:tag (fn-tag-for-tags arg-tags)})
-                                                 ~@args)))
+                                              (~invoker ~(with-meta 'ff {:tag (fn-tag-for-tags arg-tags)}) ~@args))
                                            :else `(~invoker find-data @args))
                                          `(let [~'ff ~find-data]
-                                            (if (fn? ~'ff)
-                                              (~'ff ~@args)
-                                              ~'ff))))))
+                                            (~'ff ~@args))))))
                                 arglists)))])
                  (vals sigs))
        (def ~name ~(assoc (update opts
@@ -353,6 +346,20 @@
           (throw (RuntimeException. "Primitive hinted protocol methods must have primitive hinted implementations!"))))))
   method)
 
+(defn- clear-object-tag
+  [tag]
+  (cond
+    (= tag 'long) 'long
+    (= tag 'double) 'double))
+
+(defn- check-constant-return
+  [tag arglists]
+  (when-not (and (== 1 (count arglists))
+                 (= [nil (clear-object-tag tag)]
+                    (mapv clear-object-tag (first arglists))))
+    (throw (IllegalArgumentException. (str "Primitive constants only work with object->constant translations: "
+                                           arglists)))))
+
 (defn extend
   "Implementations of protocol methods can be provided using the extend construct:
 
@@ -400,22 +407,35 @@
     (let [impls (:impls proto)
           method-caches (:method-caches proto)]
       (swap! impls assoc atype mmap)
-      (loop [^clojure.lang.ISeq es (clojure.lang.RT/seq method-caches)]
-        (when es
-          (let [e (.first es)
-                methodk (key e)
-                {:keys [tag arglists]} (get-in proto [:sigs methodk])
-                arg-tags (mapv #(conj (mapv (comp :tag meta) %) tag) arglists)
-                method (mmap methodk)
-                method (cond
-                         (and (= tag 'long) (number? method)) (Casts/longCast method)
-                         (and (= tag 'double) (number? method)) (Casts/doubleCast method)
-                         :else (if (fn? method)
-                                 (correct-primitive-fn-type arg-tags method)
-                                 method))]
-            ;;Note the method cache has to handle potentially nil values.
-            (.extend ^MethodImplCache @(val e) atype method)
-            (recur (.next es))))))))
+      (->> mmap 
+           (run! (fn [kv]
+                   (let [methodk (key kv)
+                         method (val kv)
+                         {:keys [tag arglists]} (get-in proto [:sigs methodk])
+                         
+                         _ (when-not arglists
+                             (throw (IllegalArgumentException.
+                                     (str "method not found: " methodk " in protocol " (:on proto)
+                                          " - protocol methods: "
+                                          (pr-str (.keySet ^Map (get proto :sigs)))))))
+                         arg-tags (mapv #(conj (mapv (comp :tag meta) %) tag) arglists)
+                         method (cond
+                                  (and (= 'long tag) (number? method))
+                                  (let [ll (Casts/longCast method)]
+                                    (check-constant-return tag arg-tags)
+                                    (fn ^long [o] ll))
+                                  (and (= 'double tag) (number? method))
+                                  (let [ll (Casts/doubleCast method)]
+                                    (check-constant-return tag arg-tags)
+                                    (fn ^double [o] ll))
+                                  (fn? method)
+                                  method
+                                  :else
+                                  (do
+                                    (check-constant-return tag arg-tags)
+                                    (fn [o] method)))
+                         method (correct-primitive-fn-type arg-tags method)]
+                     (.extend ^MethodImplCache @(get method-caches methodk) atype method))))))))
 
 (defn- normalize-specs
   [specs]
@@ -425,7 +445,11 @@
 
 (defn- emit-fn-map
   [p hint fs]
-  (let [pcol (deref (resolve p))
+  (let [proto (resolve p)
+        pcol (when proto (deref proto))
+        _ (when-not (protocol? pcol)
+            (throw (IllegalArgumentException.
+                    (str p " is not a hamf protocol"))))
         sigs (get pcol :sigs)
         define-fn (fn [fn-entry]
                     (let [fn-name (-> fn-entry first name keyword)

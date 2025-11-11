@@ -76,8 +76,13 @@ public final class MethodImplCache {
       Class iface = ifaces[idx];
       if(consideredSet.add(iface)) {
 	rv = extensions.getOrDefault(iface, defVal);
-	if(rv == defVal)
-	  rv = recurCheckInterface(consideredSet, iface.getInterfaces());
+      }
+    }
+    //check derived interface in second pass so primary interfaces get first choice
+    if(rv == defVal) {
+      for(int idx = 0; idx < ni && rv == defVal; ++idx) {
+	Class iface = ifaces[idx];
+	rv = recurCheckInterface(consideredSet, iface.getInterfaces());
       }
     }
     return rv;
@@ -92,6 +97,10 @@ public final class MethodImplCache {
     //Include caching when lookup fails.
     if(rv != defVal) return rv;
     //rv is the default value at this point
+    if(iface.isAssignableFrom(c)) {
+      lookupCache.put(c, ifaceFn);
+      return ifaceFn;
+    }
     extLock.lock();
     try {
       HashSet considered = new HashSet();
