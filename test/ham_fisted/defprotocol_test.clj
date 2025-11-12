@@ -378,6 +378,14 @@
   (is (= 14.0 (pargs "hey" 10))))
 
 
+(defprotocol SubBuffer
+  (sub-buffer [m ^long a ^long b]))
+
+(deftest test-sub-buffer
+  (is (instance? clojure.lang.IFn$OLLO sub-buffer))
+  (is (instance? clojure.lang.IFn$OLLO -sub-buffer-iface)))
+
+
 (comment
   (require '[criterium.core :as crit])
   ;;Single threaded calls show very little difference if any:

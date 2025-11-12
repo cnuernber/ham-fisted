@@ -230,14 +230,8 @@
                                                               ~(list 'quote name)))]
                                     `(~args
                                       ~(if invoker
-                                         (cond
-                                           (= rval-tag 'long)
-                                           `(let [~'ff ~find-data]
-                                              (~invoker ~(with-meta 'ff {:tag (fn-tag-for-tags arg-tags)}) ~@args))
-                                           (= rval-tag 'double)
-                                           `(let [~'ff ~find-data]
-                                              (~invoker ~(with-meta 'ff {:tag (fn-tag-for-tags arg-tags)}) ~@args))
-                                           :else `(~invoker find-data @args))
+                                         `(let [~(with-meta 'ff {:tag (fn-tag-for-tags arg-tags)}) ~find-data]
+                                            (~invoker ~'ff ~@args))
                                          `(let [~'ff ~find-data]
                                             (~'ff ~@args))))))
                                 arglists)))])
