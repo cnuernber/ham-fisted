@@ -1,11 +1,12 @@
 (ns ham-fisted.bloom-filter
   "Simple fast bloom filter based on apache parquet BlockSplitBloomFilter."
   (:require [ham-fisted.protocols :as hamf-proto]
-            [ham-fisted.function :as hamf-fn])
+            [ham-fisted.function :as hamf-fn]
+            [ham-fisted.defprotocol :refer [extend extend-type extend-protocol]])
   (:import [ham_fisted BlockSplitBloomFilter]
            [java.util UUID]
            [clojure.lang IFn$OL])
-  (:refer-clojure :exclude [contains?]))
+  (:refer-clojure :exclude [contains? extend extend-type extend-protocol]))
 
 (set! *warn-on-reflection* true)
 

@@ -44,7 +44,8 @@
                                        long-accumulator double-accumulator double-consumer-accumulator
                                        long-consumer-accumulator]
              :as hamf-rf]
-            [ham-fisted.protocols :as protocols])
+            [ham-fisted.protocols :as protocols]
+            [ham-fisted.defprotocol :refer [extend extend-type extend-protocol]])
   (:import [ham_fisted UnsharedHashMap UnsharedLongHashMap UnsharedHashSet
             PersistentHashSet PersistentHashMap PersistentLongHashMap
             ArrayLists$ArrayOwner MergeIterator
@@ -102,7 +103,7 @@
                             drop-last sort-by repeat repeatedly shuffle into-array
                             empty? reverse byte-array short-array char-array boolean-array
                             keys vals persistent! rest transient update-vals
-                            re-matches complement count]))
+                            re-matches complement count extend extend-type extend-protocol]))
 
 (comment
   (require '[clj-java-decompiler.core :refer [disassemble]])

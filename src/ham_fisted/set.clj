@@ -4,12 +4,12 @@
             [ham-fisted.function :as hamf-fn]
             [ham-fisted.reduce :as hamf-rf]
             [ham-fisted.impl]
-            [clojure.set :as cset])
+            [ham-fisted.defprotocol :refer [extend extend-type extend-protocol]])
   (:import [ham_fisted UnsharedHashSet PersistentHashSet Ranges$LongRange IMutList]
            [java.util BitSet Set Map Collection]
            [java.util.concurrent ConcurrentHashMap]
            [clojure.lang APersistentSet])
-  (:refer-clojure :exclude [set set?]))
+  (:refer-clojure :exclude [set set? extend extend-type extend-protocol]))
 
 
 (set! *warn-on-reflection* true)

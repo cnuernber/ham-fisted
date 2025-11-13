@@ -3,7 +3,8 @@
   slower than the java ones but *far* less code so these are used for the
   less-frequently-used primive datatypes - byte, short, char, and float."
   (:require [ham-fisted.iterator :as iterator]
-            [ham-fisted.protocols :as protocols])
+            [ham-fisted.protocols :as protocols]
+            [ham-fisted.defprotocol :refer [extend extend-type extend-protocol]])
   (:import [ham_fisted ArrayLists ArrayLists$ILongArrayList ArrayLists$IDoubleArrayList
             Transformables ArrayHelpers Casts IMutList IFnDef$OLO IFnDef$ODO
             ArrayLists$ObjectArrayList ArrayLists$ObjectArraySubList
@@ -14,7 +15,8 @@
             ArrayLists$DoubleArraySubList ArrayLists$DoubleArrayList
             ArrayLists$IArrayList ChunkedList Reductions]
            [clojure.lang IPersistentMap IReduceInit RT]
-           [java.util Arrays RandomAccess List]))
+           [java.util Arrays RandomAccess List])
+  (:refer-clojure :exclude [extend extend-type extend-protocol]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* true)

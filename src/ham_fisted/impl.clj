@@ -1,7 +1,8 @@
 (ns ham-fisted.impl
   (:require [ham-fisted.lazy-noncaching :refer [map concat] :as lznc]
             [ham-fisted.protocols :as protocols]
-            [clojure.core.protocols :as cl-proto])
+            [clojure.core.protocols :as cl-proto]
+            [ham-fisted.defprotocol :refer [extend extend-type extend-protocol]])
   (:import [java.util.concurrent ForkJoinPool ForkJoinTask ArrayBlockingQueue Future
             TimeUnit ConcurrentHashMap]
            [clojure.lang MapEntry Box]
@@ -14,7 +15,7 @@
            [clojure.lang IteratorSeq IReduceInit PersistentHashMap IFn$OLO IFn$ODO Seqable
             IReduce PersistentList]
            [java.util.logging Logger Level])
-  (:refer-clojure :exclude [map pmap concat]))
+  (:refer-clojure :exclude [map pmap concat extend extend-type extend-protocol]))
 
 
 (set! *warn-on-reflection* true)
@@ -404,9 +405,11 @@
 
 (extend BitSet
   protocols/Reduction
-  {:reducible? (constantly true)}
-  cl-proto/CollReduce
-  {:coll-reduce bitset-reduce})
+  {:reducible? (constantly true)})
+
+
+(clojure.core/extend BitSet
+  cl-proto/CollReduce {:coll-reduce bitset-reduce})
 
 
 (defn- fjfork [task] (.fork ^ForkJoinTask task))
@@ -456,15 +459,18 @@
 
 (defmacro array-fast-reduce
   [ary-cls]
-  `(extend ~ary-cls
-     protocols/Reduction
-     {:reducible? (constantly true)}
-     cl-proto/CollReduce
-     {:coll-reduce (fn
-                     ([coll# f#]
-                      (.reduce (ArrayLists/toList coll#) f#))
-                     ([coll# f# acc#]
-                      (.reduce (ArrayLists/toList coll#) f# acc#)))}))
+  `(do
+     (clojure.core/extend ~ary-cls
+       cl-proto/CollReduce
+       {:coll-reduce (fn
+                       ([~(with-meta 'coll {:tag ary-cls}) f#]
+                        (.reduce (ArrayLists/toList ~'coll) f#))
+                       ([~(with-meta 'coll {:tag ary-cls}
+                            ) f# acc#]
+                        (.reduce (ArrayLists/toList ~'coll) f# acc#)))})
+     (extend ~ary-cls
+       protocols/Reduction
+       {:reducible? (constantly true)})))
 
 
 (array-fast-reduce (Class/forName "[B"))
@@ -480,13 +486,14 @@
 
 (defn map-fast-reduce
   [map-cls]
-  (extend map-cls
-    cl-proto/CollReduce
+  (clojure.core/extend
+      cl-proto/CollReduce
     {:coll-reduce (fn map-reducer
                     ([coll f]
                      (Reductions/iterReduce (.entrySet ^Map coll) f))
                     ([coll f init]
-                     (Reductions/iterReduce (.entrySet ^Map coll) init f)))}
+                     (Reductions/iterReduce (.entrySet ^Map coll) init f)))})
+  (extend map-cls
     protocols/ToCollection
     {:convertible-to-collection? (constantly true)
      :->collection (fn [^Map m]
@@ -516,7 +523,7 @@
 
 (defn iterable-fast-reduce
   [coll-cls]
-  (extend coll-cls
+  (clojure.core/extend coll-cls
     cl-proto/CollReduce
     {:coll-reduce (fn map-reducer
                     ([coll f]

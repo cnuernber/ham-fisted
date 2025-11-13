@@ -1,11 +1,13 @@
 (ns ham-fisted.iterator
   "Generialized pathways involving iterators.  Sometimes useful as opposed to reductions."
+  (:require [ham-fisted.language :refer [cond]])
   (:import [java.util Iterator]
            [java.util.stream Stream]
            [java.util.function Supplier Function BiFunction Consumer Predicate BiConsumer]
            [clojure.lang ArraySeq]
            [ham_fisted StringCollection ArrayLists MergeIterator MergeIterator$CurrentIterator
-            Transformables$MapIterable]))
+            Transformables$MapIterable])
+  (:refer-clojure :exclude [cond]))
 
 
 (set! *warn-on-reflection* true)
@@ -94,8 +96,12 @@
                                         (compare [this a b]
                                           (.compare cmp (aget ^objects a 1)
                                                     (aget ^objects b 1)))))
-         p (if (instance? java.util.function.Predicate p)
+         p (cond
+             (instance? java.util.function.Predicate p)
              p
+             (nil? p)
+             MergeIterator/alwaysTrue
+             :else
              (reify java.util.function.Predicate
                (test [this l] (boolean (p l)))))]
      (reduce (fn [_ iter]
@@ -120,3 +126,28 @@
                  (recur)))))))))
   (^Iterator [cmp iterators] (priority-queue-merge-iterator cmp MergeIterator/alwaysTrue iterators))
   (^Iterator [iterators] (priority-queue-merge-iterator compare MergeIterator/alwaysTrue iterators)))
+
+
+(deftype CurrentIterator [^Iterator iter ^:unsynchronized-mutable current]
+  Iterator
+  (hasNext [this] (.hasNext iter))
+  (next [this] (let [c (.next iter)]
+                 (set! current c)
+                 c))
+  clojure.lang.IDeref
+  (deref [this] current))
+
+
+(defn current-iterator
+  "Return a current iterator - and iterator that retains the current object.
+  This iterator is positioned just before the first object so it's current item
+  is nil."
+  ^CurrentIterator [item]
+  (let [iter (->iterator item)]
+    (cond
+      (nil? iter)
+      nil
+      (.hasNext iter)
+      (CurrentIterator. iter nil)
+      :else
+      nil)))

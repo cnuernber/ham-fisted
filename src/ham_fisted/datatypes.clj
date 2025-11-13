@@ -101,7 +101,7 @@
 
 (extend-contained-datatypes
  (into {} (map (fn [kv]
-                 [(val kv) (java-keyword-type->datatypes (key kv))])
+                 [(val kv) (java-keyword-type->datatype (key kv))])
                hamf-language/array-classes)))
 
 (defn generated-classes

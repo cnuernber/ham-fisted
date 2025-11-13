@@ -1,6 +1,7 @@
 (ns ham-fisted.reduce
   "Protocol-based parallel reduction architecture and helper functions."
   (:require [ham-fisted.protocols :as protocols]
+            [ham-fisted.defprotocol :refer [extend extend-type extend-protocol]]
             [ham-fisted.lazy-noncaching :refer [map] :as lznc]
             [ham-fisted.function :refer [bi-function]])
   (:import [ham_fisted ParallelOptions ParallelOptions$CatParallelism Reductions
@@ -11,7 +12,7 @@
            [java.util Map]
            [java.util.function DoubleConsumer LongConsumer Consumer]
            [java.util.concurrent Executor ForkJoinPool])
-  (:refer-clojure :exclude [map]))
+  (:refer-clojure :exclude [map extend extend-type extend-protocol]))
 
 (set! *warn-on-reflection* true)
 
@@ -663,8 +664,7 @@ user> (hamf-rf/preduce-reducer
    (extend cls-type
      protocols/Reducer
      {:->init-val-fn (fn [r] ctor)
-      :->rfn (fn [r] double-consumer-accumulator)
-      :finalize (fn [r b] (deref b))}
+      :->rfn (fn [r] double-consumer-accumulator)}
      protocols/ParallelReducer
      {:->merge-fn (fn [r] reducible-merge)}))
   ([ctor]
