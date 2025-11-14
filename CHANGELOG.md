@@ -1,3 +1,6 @@
+# 3.000
+ * All protocols replaced with hamf's defprotocol impl.
+ 
 # 2.039
  * Slightly faster protocol dispatch as avoids instance check for interface impl in favor of
    only using map lookup.

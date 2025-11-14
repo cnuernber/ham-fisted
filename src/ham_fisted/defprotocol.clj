@@ -10,13 +10,13 @@
 
   * Much higher and more predictable multithreaded performance for protocol method invocation due to
   the fewer number of global variables that are read and written to for a single protocol method
-  invocation.
-
-  * Does not write to global variables on a per-call basis meaning far less cpu/cache traffic
+  invocation.  Does not write to global variables on a per-call basis meaning far less cpu/cache traffic
   in high contention scenarios.
 
   * Attempting to extend a protocol method that doesn't exist is an error at extension time.
 
+  * Overriding the protocol for the base object array class overrides it for all things convertible
+  to object array while still allowing the concrete array type to match a specific override.
 
   Another design decision is to avoid the interface check - this simplifes the hot path a slight bit
   at the cost of slightly slower calltimes in the case the interface is used.  For those cases often
@@ -401,12 +401,12 @@
     (let [impls (:impls proto)
           method-caches (:method-caches proto)]
       (swap! impls assoc atype mmap)
-      (->> mmap 
+      (->> mmap
            (run! (fn [kv]
                    (let [methodk (key kv)
                          method (val kv)
                          {:keys [tag arglists]} (get-in proto [:sigs methodk])
-                         
+
                          _ (when-not arglists
                              (throw (IllegalArgumentException.
                                      (str "method not found: " methodk " in protocol " (:on proto)

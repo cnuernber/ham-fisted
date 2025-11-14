@@ -358,9 +358,13 @@
                              (.getComponentType)
                              (obj-cls->datatype)))})
 
+(extend (type (make-array clojure.lang.Keyword 0))
+  PDatatype {:datatype (constantly :keyword-array-overload)})
+
 (deftest test-object-array-protocols
   (is (= :object (datatype (object-array 0))))
-  (is (= :string (datatype (make-array String 0)))))
+  (is (= :string (datatype (make-array String 0))))
+  (is (= :keyword-array-overload (datatype (make-array clojure.lang.Keyword 0)))))
 
 (defprotocol PPrimitiveArgs
   (^double pargs [m ^long b]))
