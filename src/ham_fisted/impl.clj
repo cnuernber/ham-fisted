@@ -156,31 +156,6 @@
   ([n-elems body-fn]
    (pgroups n-elems body-fn nil)))
 
-(deftype SeqOnceIterable [^Iterable iable seq-data*]
-  clojure.lang.Counted
-  (count [this] (count (seq this)))
-  Seqable
-  (seq [this]
-    (vswap! seq-data*
-            (fn [val]
-              (if val
-                val
-                (IteratorSeq/create (.iterator this))))))
-  ITypedReduce
-  (reduce [this rfn acc]
-    (if-let [seq-impl @seq-data*]
-      (reduce rfn acc seq-impl)
-      (Reductions/iterReduce this acc rfn)))
-  Iterable
-  (iterator [this]
-    (if-let [ss @seq-data*]
-      (.iterator ^Iterable @seq-data*)
-      (.iterator iable)))
-  Object
-  (toString [this] (Transformables/sequenceToString (seq this))))
-
-(implement-tostring-print SeqOnceIterable)
-
 (defn- lookahead-iterable
   ^Iterable [^Iterator submissions ^long n-ahead deref?]
   (let [queue (ArrayDeque. n-ahead)
@@ -200,9 +175,8 @@
                       nn
                       (if deref?
                         (.get ^Future nn)
-                        nn))))
-        iable (hamf-iter/once-iterable #(not (identical? % ::finish)) update!)]
-    (SeqOnceIterable. iable (volatile! nil))))
+                        nn))))]
+    (hamf-iter/seq-once-iterable #(not (identical? % ::finish)) update!)))
 
 (defn pmap
   [^ParallelOptions options map-fn sequences]

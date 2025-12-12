@@ -1,13 +1,14 @@
 (ns ham-fisted.iterator
   "Generialized pathways involving iterators.  Sometimes useful as opposed to reductions."
-  (:require [ham-fisted.language :refer [cond]])
+  (:require [ham-fisted.language :refer [cond]]
+            [ham-fisted.print :refer [implement-tostring-print]])
   (:import [java.util Iterator]
            [java.util.stream Stream]
            [java.util.function Supplier Function BiFunction Consumer Predicate BiConsumer]
            [java.util.concurrent BlockingQueue]
-           [clojure.lang ArraySeq]
+           [clojure.lang ArraySeq Seqable IteratorSeq]
            [ham_fisted StringCollection ArrayLists MergeIterator MergeIterator$CurrentIterator
-            Transformables$MapIterable])
+            Transformables$MapIterable ITypedReduce Reductions Transformables])
   (:refer-clojure :exclude [cond]))
 
 
@@ -182,13 +183,48 @@
   (^Iterable [init-fn]
    (once-iterable non-nil? init-fn)))
 
+(deftype SeqOnceIterable [^Iterable iable seq-data*]
+  clojure.lang.Counted
+  (count [this] (count (seq this)))
+  Seqable
+  (seq [this]
+    (vswap! seq-data*
+            (fn [val]
+              (if val
+                val
+                (IteratorSeq/create (.iterator this))))))
+  ITypedReduce
+  (reduce [this rfn acc]
+    (if-let [seq-impl @seq-data*]
+      (reduce rfn acc seq-impl)
+      (Reductions/iterReduce this acc rfn)))
+  Iterable
+  (iterator [this]
+    (if-let [ss @seq-data*]
+      (.iterator ^Iterable @seq-data*)
+      (.iterator iable)))
+  Object
+  (toString [this] (Transformables/sequenceToString (seq this))))
+
+(implement-tostring-print SeqOnceIterable)
+
+(defn seq-once-iterable
+  "Iterable with efficient reduce but also contains a cached seq conversion so patterns like: 
+  (when (seq v) ...) still work"
+  (^Iterable [valid? init-fn update-fn]
+   (SeqOnceIterable. (once-iterable valid? init-fn update-fn) (volatile! nil)))
+  (^Iterable [init-fn]
+   (SeqOnceIterable. (once-iterable init-fn) (volatile! nil)))
+  (^Iterable [valid? init-fn]
+   (SeqOnceIterable. (once-iterable valid? init-fn) (volatile! nil))))
+
 (defn queue->iterable
   [^BlockingQueue queue term-symbol]
-  (once-iterable #(not (identical? % term-symbol))
-                 #(let [v (.take queue)]
-                    (when (instance? Throwable v)
-                      (throw (RuntimeException. "Error retrieving queue value" v)))
-                    v)))
+  (seq-once-iterable #(not (identical? % term-symbol))
+                     #(let [v (.take queue)]
+                        (when (instance? Throwable v)
+                          (throw (RuntimeException. "Error retrieving queue value" v)))
+                        v)))
 
 (defn const-iterable
   [arg]
