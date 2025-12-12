@@ -44,6 +44,7 @@
                                        long-accumulator double-accumulator double-consumer-accumulator
                                        long-consumer-accumulator]
              :as hamf-rf]
+            [ham-fisted.language :as hamf-language]
             [ham-fisted.protocols :as protocols]
             [ham-fisted.defprotocol :refer [extend extend-type extend-protocol]])
   (:import [ham_fisted UnsharedHashMap UnsharedLongHashMap UnsharedHashSet
@@ -103,7 +104,8 @@
                             drop-last sort-by repeat repeatedly shuffle into-array
                             empty? reverse byte-array short-array char-array boolean-array
                             keys vals persistent! rest transient update-vals
-                            re-matches complement count extend extend-type extend-protocol]))
+                            re-matches complement count extend extend-type extend-protocol
+                            constantly]))
 
 (comment
   (require '[clj-java-decompiler.core :refer [disassemble]])
@@ -120,6 +122,10 @@
          reindex group-by-consumer
          merge constant-count mutable-map?
          transient update-vals apply-concat)
+
+(defn constantly
+  [x]
+  (hamf-language/constantly x))
 
 (defn not
   "Returns boolean opposite of passed in value"
@@ -2250,10 +2256,13 @@ ham-fisted.api> (binary-search data 1.1 nil)
   (.getSum lstats))
 
 (defn lsum
-  "Sum that returns a long integer."
+  "Simple summation that returns a long integer."
   ^long [data]
-  (-> (reduce long-consumer-accumulator (LongSummaryStatistics.) data)
-      (long-summary-sum)))
+  (let [lv (long-array 1)]
+    (reduce (fn [_ ^long v] (aset lv 0 (+ (aget lv 0) v)) nil)
+            nil
+            data)
+    (aget lv 0)))
 
 (defn lsummary
   "Summary statistics {:mean :max :min :n-elems :sum} in long space"

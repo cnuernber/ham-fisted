@@ -4,6 +4,7 @@
             [ham-fisted.function :as hamf-fn]
             [ham-fisted.reduce :as hamf-rf]
             [ham-fisted.impl]
+            [ham-fisted.language :as hamf-language]
             [ham-fisted.defprotocol :refer [extend extend-type extend-protocol]])
   (:import [ham_fisted UnsharedHashSet PersistentHashSet Ranges$LongRange IMutList]
            [java.util BitSet Set Map Collection]
@@ -63,7 +64,7 @@
   (^Set [data]
    (if (instance? Set data)
      data
-     (unique {:set-constructor (constantly (java-concurrent-hashset))} data))))
+     (unique {:set-constructor (hamf-language/constantly (java-concurrent-hashset))} data))))
 
 
 (def ^{:private true

@@ -4,6 +4,7 @@
   (:import [java.util Iterator]
            [java.util.stream Stream]
            [java.util.function Supplier Function BiFunction Consumer Predicate BiConsumer]
+           [java.util.concurrent BlockingQueue]
            [clojure.lang ArraySeq]
            [ham_fisted StringCollection ArrayLists MergeIterator MergeIterator$CurrentIterator
             Transformables$MapIterable])
@@ -127,7 +128,6 @@
   (^Iterator [cmp iterators] (priority-queue-merge-iterator cmp MergeIterator/alwaysTrue iterators))
   (^Iterator [iterators] (priority-queue-merge-iterator compare MergeIterator/alwaysTrue iterators)))
 
-
 (deftype CurrentIterator [^Iterator iter ^:unsynchronized-mutable current]
   Iterator
   (hasNext [this] (.hasNext iter))
@@ -136,7 +136,6 @@
                  c))
   clojure.lang.IDeref
   (deref [this] current))
-
 
 (defn current-iterator
   "Return a current iterator - and iterator that retains the current object.
@@ -151,3 +150,67 @@
       (CurrentIterator. iter nil)
       :else
       nil)))
+
+(defn- non-nil? [a] (if (nil? a) false true))
+
+(deftype NonThreadsafeIterator [valid? init-fn update-fn ^:unsynchronized-mutable v]
+  Iterator
+  (hasNext [this]
+    (let [rv (if (identical? v ::empty)
+               (do (set! v (init-fn)) v)
+               v)]
+      (boolean (valid? rv))))
+  (next [this]
+    (let [rv (if (identical? v ::empty)
+               (do (set! v (init-fn)) v)
+               v)]
+      (when-not (valid? rv) (throw (java.util.NoSuchElementException. "Invalid iteration")))
+      (set! v (update-fn rv))
+      rv)))
+
+(defn once-iterator
+  ^Iterator [valid? init-fn update-fn]
+  (NonThreadsafeIterator. valid? init-fn update-fn ::empty))
+
+(defn once-iterable
+  (^Iterable [valid? init-fn update-fn]
+   ;;iter defined outside of iterator fn so we can correctly survive patterns like (when (seq? v) ...)
+   (let [iter (once-iterator valid? init-fn update-fn)]
+     (reify Iterable (iterator [this] iter))))
+  (^Iterable [valid? init-fn]
+   (once-iterable valid? init-fn (fn [_] (init-fn))))
+  (^Iterable [init-fn]
+   (once-iterable non-nil? init-fn)))
+
+(defn queue->iterable
+  [^BlockingQueue queue term-symbol]
+  (once-iterable #(not (identical? % term-symbol))
+                 #(let [v (.take queue)]
+                    (when (instance? Throwable v)
+                      (throw (RuntimeException. "Error retrieving queue value" v)))
+                    v)))
+
+(defn const-iterable
+  [arg]
+  (reify Iterable
+    (iterator [this]
+      (reify Iterator
+        (hasNext [this] true)
+        (next [this] arg)))))
+
+(deftype ConsIter [^:unsynchronized-mutable v ^Iterator iter]
+  Iterator
+  (hasNext [this] (boolean (or (not (identical? v ::empty)) (.hasNext iter))))
+  (next [this]
+    (if (identical? v ::empty)
+      (.next iter)
+      (do (let [rv v] (set! v ::empty) rv))))
+  clojure.lang.IDeref
+  (deref [this] v))
+
+(defn iter-cons
+  ^Iterator [vv ^Iterator iter]
+  ;;attempt to keep stack of cons-iters as small as possible
+  (if (and (instance? ConsIter iter) (identical? @iter ::empty))
+    (iter-cons vv (.-iter ^ConsIter iter))
+    (ConsIter. vv iter)))

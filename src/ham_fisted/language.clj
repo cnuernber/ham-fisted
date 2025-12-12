@@ -1,5 +1,6 @@
 (ns ham-fisted.language
-  (:refer-clojure :exclude [cond]))
+  (:import [ham_fisted Transformables])
+  (:refer-clojure :exclude [cond constantly not]))
 
 (defmacro cond
   "See documentation for [[ham-fisted.api/cond]]"
@@ -30,3 +31,21 @@
                     :float (.getClass ^Object (clojure.core/float-array 0))
                     :double (.getClass ^Object (clojure.core/double-array 0))
                     :object (.getClass ^Object (clojure.core/object-array 0))})
+
+(defn constantly
+  [x]
+  (fn constantly-fn
+    ([] x)
+    ([a] x)
+    ([a b] x)
+    ([a b c] x)
+    ([a b c d] x)
+    ([a b c d e] x)
+    ([a b c d e & args] x)))
+
+(defn not
+  "Returns boolean opposite of passed in value"
+  {:inline (fn [x] `(Transformables/not ~x))
+   :inline-arities #{1}}
+  [a]
+  (Transformables/not a))

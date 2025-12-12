@@ -104,7 +104,7 @@ public class Transformables {
   }
 
   public static IFn.OLO toLongReductionFn(Object rfn) {
-    if(rfn instanceof IFnDef.OLO) {
+    if(rfn instanceof IFn.OLO) {
       return (IFn.OLO)rfn;
     }
     if(rfn instanceof IFnDef.ODO) {

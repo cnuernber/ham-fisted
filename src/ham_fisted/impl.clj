@@ -2,6 +2,7 @@
   (:require [ham-fisted.lazy-noncaching :refer [map concat] :as lznc]
             [ham-fisted.protocols :as protocols]
             [clojure.core.protocols :as cl-proto]
+            [ham-fisted.language :refer [constantly]]
             [ham-fisted.defprotocol :refer [extend extend-type extend-protocol]])
   (:import [java.util.concurrent ForkJoinPool ForkJoinTask ArrayBlockingQueue Future
             TimeUnit ConcurrentHashMap]
@@ -15,7 +16,7 @@
            [clojure.lang IteratorSeq IReduceInit PersistentHashMap IFn$OLO IFn$ODO Seqable
             IReduce PersistentList]
            [java.util.logging Logger Level])
-  (:refer-clojure :exclude [map pmap concat extend extend-type extend-protocol]))
+  (:refer-clojure :exclude [map pmap concat extend extend-type extend-protocol constantly]))
 
 
 (set! *warn-on-reflection* true)
