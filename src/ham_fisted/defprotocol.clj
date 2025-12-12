@@ -325,7 +325,7 @@
   [name & opts+sigs]
   (emit-protocol name opts+sigs))
 
-(defn correct-primitive-fn-type
+(defn- correct-primitive-fn-type
   [arg-tags-v method]
   (doseq [arg-tags arg-tags-v]
     (when (first (filter #{'long 'double} arg-tags))
