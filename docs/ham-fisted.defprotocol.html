@@ -34,15 +34,19 @@ it is possible to simply typehint the interface and call it directly avoiding an
 overhead.</p>
 <p>Additional call overhead above and beyond a normal fn invocation in an arm mac is <code>-6ns</code> - the time
 for <code>.getClass</code> call into single concurrent hash map lookup.</p>
-</div></div><div class="public anchor" id="var-defprotocol"><h3>defprotocol</h3><h4 class="type">macro</h4><h4 class="added">added in 1.2</h4><div class="usage"><code>(defprotocol name &amp; opts+sigs)</code></div><div class="doc"><div class="markdown"><p>A protocol is a named set of named methods and their signatures:
-(defprotocol AProtocolName</p>
-<p>;optional doc string
-"A doc string for AProtocol abstraction"</p>
-<p>;options
-:extend-via-metadata true</p>
-<p>;method signatures
-(bar <a href="this a b">this a b</a> "bar docs")
-(baz <a href="this a">this a</a> <a href="this a b">this a b</a> <a href="this a b c">this a b c</a> "baz docs"))</p>
+</div></div><div class="public anchor" id="var-defprotocol"><h3>defprotocol</h3><h4 class="type">macro</h4><h4 class="added">added in 1.2</h4><div class="usage"><code>(defprotocol name &amp; opts+sigs)</code></div><div class="doc"><div class="markdown"><p>A protocol is a named set of named methods and their signatures:</p>
+<pre><code class="language-clojure">  (defprotocol AProtocolName
+
+    ;optional doc string
+    "A doc string for AProtocol abstraction"
+
+   ;options
+   :extend-via-metadata true
+
+  ;method signatures
+    (bar [this a b] "bar docs")
+    (baz [this a] [this a b] [this a b c] "baz docs"))
+</code></pre>
 <p>No implementations are provided. Docs can be specified for the
 protocol overall and for each method. The above yields a set of
 polymorphic functions and a protocol object. All are
@@ -65,32 +69,38 @@ have methods corresponding to the protocol functions, and the
 protocol will automatically work with instances of the interface.</p>
 <p>Note that you should not use this interface with deftype or
 reify, as they support the protocol directly:</p>
-<p>(defprotocol P
-(foo <a href="this">this</a>)
-(bar-me <a href="this">this</a> <a href="this y">this y</a>))</p>
-<p>(deftype Foo <a href="a b c">a b c</a>
-P
-(foo <a href="this">this</a> a)
-(bar-me <a href="this">this</a> b)
-(bar-me <a href="this y">this y</a> (+ c y)))</p>
-<p>(bar-me (Foo. 1 2 3) 42)
-=&gt; 45</p>
-<p>(foo
-(let <a href="x 42">x 42</a>
-(reify P
-(foo <a href="this">this</a> 17)
-(bar-me <a href="this">this</a> x)
-(bar-me <a href="this y">this y</a> x))))
-=&gt; 17</p>
+<pre><code class="language-clojure">
+  (defprotocol P
+    (foo [this])
+    (bar-me [this] [this y]))
+
+  (deftype Foo [a b c]
+   P
+    (foo [this] a)
+    (bar-me [this] b)
+    (bar-me [this y] (+ c y)))
+
+  (bar-me (Foo. 1 2 3) 42)
+  =&gt; 45
+
+  (foo
+    (let [x 42]
+      (reify P
+        (foo [this] 17)
+        (bar-me [this] x)
+        (bar-me [this y] x))))
+  =&gt; 17
+</code></pre>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/defprotocol.clj#L264">view source</a></div></div><div class="public anchor" id="var-extend"><h3>extend</h3><h4 class="added">added in 1.2</h4><div class="usage"><code>(extend atype &amp; proto+mmaps)</code></div><div class="doc"><div class="markdown"><p>Implementations of protocol methods can be provided using the extend construct:</p>
-<p>(extend AType
-AProtocol
-{:foo an-existing-fn
-:bar (fn <a href="a b">a b</a> ...)
-:baz (fn (<a href="a">a</a>...) (<a href="a b">a b</a> ...)...)}
-BProtocol
-{...}
-...)</p>
+<pre><code class="language-clojure">  (extend AType
+    AProtocol
+     {:foo an-existing-fn
+      :bar (fn [a b] ...)
+      :baz (fn ([a]...) ([a b] ...)...)}
+    BProtocol
+      {...}
+    ...)
+</code></pre>
 <p>extend takes a type/class (or interface, see below), and one or more
 protocol + method map pairs. It will extend the polymorphism of the
 protocol's methods to call the supplied methods when an AType is
@@ -110,55 +120,60 @@ use the extend-type or extend-protocol macros.</p>
 type, not all protocols need be defined in a single extend call.</p>
 <p>See also:
 extends?, satisfies?, extenders</p>
-</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/defprotocol.clj#L357">view source</a></div></div><div class="public anchor" id="var-extend-protocol"><h3>extend-protocol</h3><h4 class="type">macro</h4><h4 class="added">added in 1.2</h4><div class="usage"><code>(extend-protocol p &amp; specs)</code></div><div class="doc"><div class="markdown"><p>Useful when you want to provide several implementations of the same
+</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/defprotocol.clj#L361">view source</a></div></div><div class="public anchor" id="var-extend-protocol"><h3>extend-protocol</h3><h4 class="type">macro</h4><h4 class="added">added in 1.2</h4><div class="usage"><code>(extend-protocol p &amp; specs)</code></div><div class="doc"><div class="markdown"><p>Useful when you want to provide several implementations of the same
 protocol all at once. Takes a single protocol and the implementation
 of that protocol for one or more types. Expands into calls to
 extend-type:</p>
-<p>(extend-protocol Protocol
-AType
-(foo <a href="x">x</a> ...)
-(bar <a href="x y">x y</a> ...)
-BType
-(foo <a href="x">x</a> ...)
-(bar <a href="x y">x y</a> ...)
-AClass
-(foo <a href="x">x</a> ...)
-(bar <a href="x y">x y</a> ...)
-nil
-(foo <a href="x">x</a> ...)
-(bar <a href="x y">x y</a> ...))</p>
+<pre><code class="language-clojure">  (extend-protocol Protocol
+    AType
+      (foo [x] ...)
+      (bar [x y] ...)
+    BType
+      (foo [x] ...)
+      (bar [x y] ...)
+    AClass
+      (foo [x] ...)
+      (bar [x y] ...)
+    nil
+      (foo [x] ...)
+      (bar [x y] ...))
+</code></pre>
 <p>expands into:</p>
-<p>(do
-(clojure.core/extend-type AType Protocol
-(foo <a href="x">x</a> ...)
-(bar <a href="x y">x y</a> ...))
-(clojure.core/extend-type BType Protocol
-(foo <a href="x">x</a> ...)
-(bar <a href="x y">x y</a> ...))
-(clojure.core/extend-type AClass Protocol
-(foo <a href="x">x</a> ...)
-(bar <a href="x y">x y</a> ...))
-(clojure.core/extend-type nil Protocol
-(foo <a href="x">x</a> ...)
-(bar <a href="x y">x y</a> ...)))</p>
-</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/defprotocol.clj#L520">view source</a></div></div><div class="public anchor" id="var-extend-type"><h3>extend-type</h3><h4 class="type">macro</h4><h4 class="added">added in 1.2</h4><div class="usage"><code>(extend-type t &amp; specs)</code></div><div class="doc"><div class="markdown"><p>A macro that expands into an extend call. Useful when you are
+<pre><code class="language-clojure">  (do
+   (clojure.core/extend-type AType Protocol
+     (foo [x] ...)
+     (bar [x y] ...))
+   (clojure.core/extend-type BType Protocol
+     (foo [x] ...)
+     (bar [x y] ...))
+   (clojure.core/extend-type AClass Protocol
+     (foo [x] ...)
+     (bar [x y] ...))
+   (clojure.core/extend-type nil Protocol
+     (foo [x] ...)
+     (bar [x y] ...)))
+</code></pre>
+</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/defprotocol.clj#L530">view source</a></div></div><div class="public anchor" id="var-extend-type"><h3>extend-type</h3><h4 class="type">macro</h4><h4 class="added">added in 1.2</h4><div class="usage"><code>(extend-type t &amp; specs)</code></div><div class="doc"><div class="markdown"><p>A macro that expands into an extend call. Useful when you are
 supplying the definitions explicitly inline, extend-type
 automatically creates the maps required by extend.  Propagates the
 class as a type hint on the first argument of all fns.</p>
-<p>(extend-type MyType
-Countable
-(cnt <a href="c">c</a> ...)
-Foo
-(bar <a href="x y">x y</a> ...)
-(baz (<a href="x">x</a> ...) (<a href="x y &amp; zs">x y &amp; zs</a> ...)))</p>
+<pre><code class="language-clojure">  (extend-type MyType
+    Countable
+      (cnt [c] ...)
+    Foo
+      (bar [x y] ...)
+      (baz ([x] ...) ([x y &amp; zs] ...)))
+</code></pre>
 <p>expands into:</p>
-<p>(extend MyType
-Countable
-{:cnt (fn <a href="c">c</a> ...)}
-Foo
-{:baz (fn (<a href="x">x</a> ...) (<a href="x y &amp; zs">x y &amp; zs</a> ...))
-:bar (fn <a href="x y">x y</a> ...)})</p>
-</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/defprotocol.clj#L488">view source</a></div></div><div class="public anchor" id="var-extenders"><h3>extenders</h3><div class="usage"><code>(extenders protocol)</code></div><div class="doc"><div class="markdown"><p>Returns a collection of the types explicitly extending protocol</p>
+<pre><code class="language-clojure">
+  (extend MyType
+   Countable
+     {:cnt (fn [c] ...)}
+   Foo
+     {:baz (fn ([x] ...) ([x y &amp; zs] ...))
+      :bar (fn [x y] ...)})
+</code></pre>
+</div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/defprotocol.clj#L493">view source</a></div></div><div class="public anchor" id="var-extenders"><h3>extenders</h3><div class="usage"><code>(extenders protocol)</code></div><div class="doc"><div class="markdown"><p>Returns a collection of the types explicitly extending protocol</p>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/defprotocol.clj#L66">view source</a></div></div><div class="public anchor" id="var-extends.3F"><h3>extends?</h3><div class="usage"><code>(extends? protocol atype)</code></div><div class="doc"><div class="markdown"><p>Returns true if atype extends protocol</p>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/defprotocol.clj#L60">view source</a></div></div><div class="public anchor" id="var-find-protocol-cache-method"><h3>find-protocol-cache-method</h3><div class="usage"><code>(find-protocol-cache-method protocol cache x)</code></div><div class="doc"><div class="markdown"></div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/defprotocol.clj#L36">view source</a></div></div><div class="public anchor" id="var-find-protocol-method"><h3>find-protocol-method</h3><div class="usage"><code>(find-protocol-method protocol methodk x)</code></div><div class="doc"><div class="markdown"><p>It may be more efficient in a tight loop to bypass the protocol dispatch on a per-call basis.</p>
 </div></div><div class="src-link"><a href="https://github.com/cnuernber/ham-fisted/blob/master/src/ham_fisted/defprotocol.clj#L47">view source</a></div></div><div class="public anchor" id="var-satisfies.3F"><h3>satisfies?</h3><div class="usage"><code>(satisfies? protocol x)</code></div><div class="doc"><div class="markdown"><p>Returns true if x satisfies the protocol</p>

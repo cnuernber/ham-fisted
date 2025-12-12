@@ -263,6 +263,7 @@
 
 (defmacro defprotocol
   "A protocol is a named set of named methods and their signatures:
+```clojure
   (defprotocol AProtocolName
 
     ;optional doc string
@@ -274,6 +275,7 @@
   ;method signatures
     (bar [this a b] \"bar docs\")
     (baz [this a] [this a b] [this a b c] \"baz docs\"))
+```
 
   No implementations are provided. Docs can be specified for the
   protocol overall and for each method. The above yields a set of
@@ -300,6 +302,7 @@
 
   Note that you should not use this interface with deftype or
   reify, as they support the protocol directly:
+```clojure
 
   (defprotocol P
     (foo [this])
@@ -320,7 +323,8 @@
         (foo [this] 17)
         (bar-me [this] x)
         (bar-me [this y] x))))
-  => 17"
+  => 17
+```"
   {:added "1.2"}
   [name & opts+sigs]
   (emit-protocol name opts+sigs))
@@ -357,6 +361,7 @@
 (defn extend
   "Implementations of protocol methods can be provided using the extend construct:
 
+```clojure
   (extend AType
     AProtocol
      {:foo an-existing-fn
@@ -365,7 +370,7 @@
     BProtocol
       {...}
     ...)
-
+```
   extend takes a type/class (or interface, see below), and one or more
   protocol + method map pairs. It will extend the polymorphism of the
   protocol's methods to call the supplied methods when an AType is
@@ -491,21 +496,26 @@
   automatically creates the maps required by extend.  Propagates the
   class as a type hint on the first argument of all fns.
 
+```clojure
   (extend-type MyType
     Countable
       (cnt [c] ...)
     Foo
       (bar [x y] ...)
       (baz ([x] ...) ([x y & zs] ...)))
+```
 
   expands into:
+
+```clojure
 
   (extend MyType
    Countable
      {:cnt (fn [c] ...)}
    Foo
      {:baz (fn ([x] ...) ([x y & zs] ...))
-      :bar (fn [x y] ...)})"
+      :bar (fn [x y] ...)})
+```"
   {:added "1.2"}
   [t & specs]
   (emit-extend-type t specs))
@@ -523,6 +533,7 @@
   of that protocol for one or more types. Expands into calls to
   extend-type:
 
+```clojure
   (extend-protocol Protocol
     AType
       (foo [x] ...)
@@ -536,9 +547,11 @@
     nil
       (foo [x] ...)
       (bar [x y] ...))
+```
 
   expands into:
 
+```clojure
   (do
    (clojure.core/extend-type AType Protocol
      (foo [x] ...)
@@ -551,7 +564,8 @@
      (bar [x y] ...))
    (clojure.core/extend-type nil Protocol
      (foo [x] ...)
-     (bar [x y] ...)))"
+     (bar [x y] ...)))
+```"
   {:added "1.2"}
 
   [p & specs]

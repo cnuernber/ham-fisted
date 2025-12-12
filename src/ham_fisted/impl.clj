@@ -3,7 +3,9 @@
             [ham-fisted.protocols :as protocols]
             [clojure.core.protocols :as cl-proto]
             [ham-fisted.language :refer [constantly]]
-            [ham-fisted.defprotocol :refer [extend extend-type extend-protocol]])
+            [ham-fisted.iterator :as hamf-iter]
+            [ham-fisted.defprotocol :refer [extend extend-type extend-protocol]]
+            [ham-fisted.print :refer [implement-tostring-print]])
   (:import [java.util.concurrent ForkJoinPool ForkJoinTask ArrayBlockingQueue Future
             TimeUnit ConcurrentHashMap]
            [clojure.lang MapEntry Box]
@@ -154,44 +156,53 @@
   ([n-elems body-fn]
    (pgroups n-elems body-fn nil)))
 
+(deftype SeqOnceIterable [^Iterable iable seq-data*]
+  clojure.lang.Counted
+  (count [this] (count (seq this)))
+  Seqable
+  (seq [this]
+    (vswap! seq-data*
+            (fn [val]
+              (if val
+                val
+                (IteratorSeq/create (.iterator this))))))
+  ITypedReduce
+  (reduce [this rfn acc]
+    (if-let [seq-impl @seq-data*]
+      (reduce rfn acc seq-impl)
+      (Reductions/iterReduce this acc rfn)))
+  Iterable
+  (iterator [this]
+    (if-let [ss @seq-data*]
+      (.iterator ^Iterable @seq-data*)
+      (.iterator iable)))
+  Object
+  (toString [this] (Transformables/sequenceToString (seq this))))
 
-(deftype ^:private LookaheadIter [^Iterator iter ^ArrayDeque queue deref?]
-  Iterator
-  (hasNext [this] (not (.isEmpty queue)))
-  (next [this] (let [^Future ne (.removeLast queue)]
-                 (when (.hasNext iter)
-                   (.push queue (.next iter)))
-                 (if deref? (.get ne) ne))))
-
+(implement-tostring-print SeqOnceIterable)
 
 (defn- lookahead-iterable
   ^Iterable [^Iterator submissions ^long n-ahead deref?]
-  (let [queue (ArrayDeque. n-ahead)]
-    (loop [idx 0]
-      (if (and (.hasNext submissions)
-               (< idx n-ahead))
-        (do (.push queue (.next submissions))
-            (recur (inc idx)))
-        (let [seq-data (volatile! nil)]
-          (reify
-            Seqable
-            (seq [this]
-              (vswap! seq-data
-                      (fn [val]
-                        (if val
-                          val
-                          (IteratorSeq/create (.iterator this))))))
-            ITypedReduce
-            (reduce [this rfn acc]
-              (if-let [seq-impl @seq-data]
-                (reduce rfn acc seq-impl)
-                (Reductions/iterReduce this acc rfn)))
-            Iterable
-            (iterator [this]
-              (if-let [seq-impl @seq-data]
-                (.iterator ^Iterable seq-impl)
-                (LookaheadIter. submissions queue deref?)))))))))
-
+  (let [queue (ArrayDeque. n-ahead)
+        ;;in the pmap context this immediately launches all lookahead threads
+        ;;and does no further work.
+        _ (loop [idx 0]
+            (when (and (.hasNext submissions)
+                       (< idx n-ahead))
+              (.push queue (.next submissions))
+              (recur (inc idx))))
+        update! (fn []
+                  (let [nn (.removeLast queue)]
+                    (if (.hasNext submissions)
+                      (.push queue (.next submissions))
+                      (.push queue ::finish))
+                    (if (identical? nn ::finish)
+                      nn
+                      (if deref?
+                        (.get ^Future nn)
+                        nn))))
+        iable (hamf-iter/once-iterable #(not (identical? % ::finish)) update!)]
+    (SeqOnceIterable. iable (volatile! nil))))
 
 (defn pmap
   [^ParallelOptions options map-fn sequences]
