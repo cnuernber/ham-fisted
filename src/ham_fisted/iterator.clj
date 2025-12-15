@@ -1,5 +1,5 @@
 (ns ham-fisted.iterator
-  "Generialized pathways involving iterators.  Sometimes useful as opposed to reductions."
+  "Generialized efficient pathways involving iterators."
   (:require [ham-fisted.language :refer [cond]]
             [ham-fisted.print :refer [implement-tostring-print]])
   (:import [java.util Iterator]
@@ -26,22 +26,6 @@
   "Create an iterator for any primitive or object java array."
   ^Iterator [ary-data]
   (.iterator (ArrayLists/toList ary-data)))
-
-
-(defn array-seq-iter
-  ^Iterator [as]
-  (if (instance? ArraySeq as)
-    (let [objs (.array ^ArraySeq as)]
-      (ary-iter objs))
-    (.iterator ^Iterable as)))
-
-
-(defn array-seq-ary
-  ^objects [as]
-  (if (instance? ArraySeq as)
-    (.array ^ArraySeq as)
-    (object-array as)))
-
 
 (defn ->iterator
   "Convert a stream or an iterable into an iterator."
@@ -87,12 +71,14 @@
 
 
 (defn linear-merge-iterator
+  "Create a merging iterator - fast for N < 8."
   (^Iterator [cmp p iterators] (MergeIterator/createMergeIterator iterators cmp p))
   (^Iterator [cmp iterators] (MergeIterator/createMergeIterator iterators cmp))
   (^Iterator [iterators] (MergeIterator/createMergeIterator iterators compare)))
 
 
 (defn priority-queue-merge-iterator
+  "Create a priority queue merging iterator - fast for most N"
   (^Iterator [^java.util.Comparator cmp p iterators]
    (let [pq (java.util.PriorityQueue. (reify java.util.Comparator
                                         (compare [this a b]
@@ -175,7 +161,7 @@
 
 (defn once-iterable
   (^Iterable [valid? init-fn update-fn]
-   ;;iter defined outside of iterator fn so we can correctly survive patterns like (when (seq? v) ...)
+   ;;iter defined outside of iterator fn so we can correctly survive patterns like (when (seq v) ...)
    (let [iter (once-iterator valid? init-fn update-fn)]
      (reify Iterable (iterator [this] iter))))
   (^Iterable [valid? init-fn]
@@ -183,7 +169,7 @@
   (^Iterable [init-fn]
    (once-iterable non-nil? init-fn)))
 
-(deftype SeqOnceIterable [^Iterable iable seq-data*]
+(deftype ^:private SeqOnceIterable [^Iterable iable seq-data*]
   clojure.lang.Counted
   (count [this] (count (seq this)))
   Seqable
@@ -227,14 +213,15 @@
                         v)))
 
 (defn const-iterable
-  [arg]
+  "Return an iterable that always returns a arg."
+  ^Iterable [arg]
   (reify Iterable
     (iterator [this]
       (reify Iterator
         (hasNext [this] true)
         (next [this] arg)))))
 
-(deftype ConsIter [^:unsynchronized-mutable v ^Iterator iter]
+(deftype ^:private ConsIter [^:unsynchronized-mutable v ^Iterator iter]
   Iterator
   (hasNext [this] (boolean (or (not (identical? v ::empty)) (.hasNext iter))))
   (next [this]
@@ -245,6 +232,7 @@
   (deref [this] v))
 
 (defn iter-cons
+  "Produce a new iterator that points to vv then defers to passed in iterator."
   ^Iterator [vv ^Iterator iter]
   ;;attempt to keep stack of cons-iters as small as possible
   (if (and (instance? ConsIter iter) (identical? @iter ::empty))

@@ -840,7 +840,11 @@ ham-fisted.api> (shift -2 (range 10))
                                         binary-predicate
                                         nil))
   Seqable
-  (seq [this] (clojure.core/map vec (clojure.lang.IteratorSeq/create (.iterator this))))
+  (seq [this]
+    (let [ii (clojure.lang.IteratorSeq/create (.iterator this))]
+      (when ii
+        (clojure.core/map vec (clojure.lang.IteratorSeq/create (.iterator this))))))
+  clojure.lang.Sequential
   clojure.lang.IHashEq
   (hasheq [this]
     (when (== _hasheq 0)
@@ -884,7 +888,7 @@ ham-fisted.api> (shift -2 (range 10))
   * `:ignore-leftover?` - When true leftover items in the previous iteration do not cause an exception.
   Defaults to false.
   * `:binary-predicate` - When provided, use this for equality semantics.  Defaults to equiv semantics
-     but in a numeric context it may be useful to have '(== ##NaN ##Nan).
+     but in a numeric context it may be useful to have `(== ##NaN ##Nan)`.
 
 
 ```clojure
@@ -929,11 +933,9 @@ user> (crit/quick-bench (into [] (comp (clojure.core/partition-by identity)
   ([f] (clojure.core/partition-by f))
   ([f coll] (partition-by f nil coll))
   ([f options coll]
-   (if (empty? coll)
-     PersistentList/EMPTY
-     (PartitionBy. f coll (boolean (get options :ignore-leftover?)) nil
-                   (hamf-fn/binary-predicate-or-null (get options :binary-predicate))
-                   0))))
+   (PartitionBy. f coll (boolean (get options :ignore-leftover?)) nil
+                 (hamf-fn/binary-predicate-or-null (get options :binary-predicate))
+                 0)))
 
 
 (deftype ^:private PartitionAllInner [^{:unsynchronized-mutable true
