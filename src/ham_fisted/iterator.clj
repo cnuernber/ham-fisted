@@ -195,7 +195,7 @@
 (implement-tostring-print SeqOnceIterable)
 
 (defn seq-once-iterable
-  "Iterable with efficient reduce but also contains a cached seq conversion so patterns like: 
+  "Iterable with efficient reduce but also contains a cached seq conversion so patterns like:
   (when (seq v) ...) still work"
   (^Iterable [valid? init-fn update-fn]
    (SeqOnceIterable. (once-iterable valid? init-fn update-fn) (volatile! nil)))
