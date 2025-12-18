@@ -1,15 +1,16 @@
 (ns ham-fisted.iterator
   "Generialized efficient pathways involving iterators."
-  (:require [ham-fisted.language :refer [cond]]
+  (:require [ham-fisted.language :refer [cond not]]
+            [ham-fisted.function :as hamf-fn]
             [ham-fisted.print :refer [implement-tostring-print]])
-  (:import [java.util Iterator]
+  (:import [java.util Iterator PriorityQueue Comparator]
            [java.util.stream Stream]
            [java.util.function Supplier Function BiFunction Consumer Predicate BiConsumer]
            [java.util.concurrent BlockingQueue]
            [clojure.lang ArraySeq Seqable IteratorSeq]
            [ham_fisted StringCollection ArrayLists MergeIterator MergeIterator$CurrentIterator
             Transformables$MapIterable ITypedReduce Reductions Transformables])
-  (:refer-clojure :exclude [cond]))
+  (:refer-clojure :exclude [cond not]))
 
 
 (set! *warn-on-reflection* true)
@@ -76,46 +77,7 @@
   (^Iterator [cmp iterators] (MergeIterator/createMergeIterator iterators cmp))
   (^Iterator [iterators] (MergeIterator/createMergeIterator iterators compare)))
 
-
-(defn priority-queue-merge-iterator
-  "Create a priority queue merging iterator - fast for most N"
-  (^Iterator [^java.util.Comparator cmp p iterators]
-   (let [pq (java.util.PriorityQueue. (reify java.util.Comparator
-                                        (compare [this a b]
-                                          (.compare cmp (aget ^objects a 1)
-                                                    (aget ^objects b 1)))))
-         p (cond
-             (instance? java.util.function.Predicate p)
-             p
-             (nil? p)
-             MergeIterator/alwaysTrue
-             :else
-             (reify java.util.function.Predicate
-               (test [this l] (boolean (p l)))))]
-     (reduce (fn [_ iter]
-               (when (and iter (.hasNext ^Iterator iter))
-                 (let [entry (object-array [iter (.next ^Iterator iter)])]
-                   (.offer pq entry))))
-             nil iterators)
-     (reify Iterator
-       (hasNext [this] (not (.isEmpty pq)))
-       (next [this]
-         (loop []
-           (if(.isEmpty pq)
-             nil
-             (let [^objects entry (.poll pq)
-                   ^Iterator iter (aget entry 0)
-                   rv (aget entry 1)]
-               (when (.hasNext iter)
-                 (aset entry 1 (.next iter))
-                 (.offer pq entry))
-               (if (.test ^java.util.function.Predicate p rv)
-                 rv
-                 (recur)))))))))
-  (^Iterator [cmp iterators] (priority-queue-merge-iterator cmp MergeIterator/alwaysTrue iterators))
-  (^Iterator [iterators] (priority-queue-merge-iterator compare MergeIterator/alwaysTrue iterators)))
-
-(deftype CurrentIterator [^Iterator iter ^:unsynchronized-mutable current]
+(deftype ^:private CurrentIterator [^Iterator iter ^:unsynchronized-mutable current]
   Iterator
   (hasNext [this] (.hasNext iter))
   (next [this] (let [c (.next iter)]
@@ -140,36 +102,53 @@
 
 (defn- non-nil? [a] (if (nil? a) false true))
 
-(deftype NonThreadsafeIterator [valid? init-fn update-fn ^:unsynchronized-mutable v]
+(deftype ^:private CtxIter [valid? init-fn update-fn val-fn ^:unsynchronized-mutable ctx]
   Iterator
   (hasNext [this]
-    (let [rv (if (identical? v ::empty)
-               (do (set! v (init-fn)) v)
-               v)]
-      (boolean (valid? rv))))
+    (when (identical? ctx ::empty)
+      (set! ctx (init-fn)))
+    (boolean (valid? ctx)))
   (next [this]
-    (let [rv (if (identical? v ::empty)
-               (do (set! v (init-fn)) v)
-               v)]
-      (when-not (valid? rv) (throw (java.util.NoSuchElementException. "Invalid iteration")))
-      (set! v (update-fn rv))
+    (when (identical? ctx ::empty)
+      (set! ctx (init-fn)))
+    (let [rv (val-fn ctx)]
+      (set! ctx (update-fn ctx))
       rv)))
 
-(defn once-iterator
-  ^Iterator [valid? init-fn update-fn]
-  (NonThreadsafeIterator. valid? init-fn update-fn ::empty))
+(defn iterable
+  "Create an iterable.  init-fn is not called until the first has-next call.
+
+  * valid? - ctx->boolean - defaults to non-nil?
+  * init-fn - creates new ctx
+  * update-fn - function from ctx->ctx
+  * val-fn - function from ctx->val - defaults to deref"
+  (^Iterable [valid? init-fn update-fn val-fn]
+   (reify Iterable
+     (iterator [this]
+       (CtxIter. valid? init-fn update-fn val-fn ::empty))))
+  (^Iterable [init-fn update-fn]
+   (iterable non-nil? init-fn update-fn deref)))
 
 (defn once-iterable
-  (^Iterable [valid? init-fn update-fn]
-   ;;iter defined outside of iterator fn so we can correctly survive patterns like (when (seq v) ...)
-   (let [iter (once-iterator valid? init-fn update-fn)]
+  "Create an iterable.  init-fn is not called until the first has-next call - also see [[iterable]].
+
+  The arguments have different defaults as once-iterables can close over global context on construction
+  as they can only be iterated once.
+
+  * valid? - ctx->boolean - defaults to non-nil?
+  * init-fn - creates new ctx
+  * update-fn - function from ctx->ctx - defaults to init-fn ignoring argument.
+  * val-fn - function from ctx->val - defaults to identity"
+  (^Iterable [valid? init-fn update-fn val-fn]
+   ;;iterator defined outside of iterable so we can correctly survive patterns like (when (seq v) ...)
+   (let [iter (.iterator (iterable valid? init-fn update-fn val-fn))]
      (reify Iterable (iterator [this] iter))))
   (^Iterable [valid? init-fn]
-   (once-iterable valid? init-fn (fn [_] (init-fn))))
+   (once-iterable valid? init-fn (fn [_] (init-fn)) identity))
   (^Iterable [init-fn]
    (once-iterable non-nil? init-fn)))
 
-(deftype ^:private SeqOnceIterable [^Iterable iable seq-data*]
+(deftype ^:private SeqIterable [^Iterable iable seq-data*]
   clojure.lang.Counted
   (count [this] (count (seq this)))
   Seqable
@@ -190,27 +169,63 @@
       (.iterator ^Iterable @seq-data*)
       (.iterator iable)))
   Object
-  (toString [this] (Transformables/sequenceToString (seq this))))
+  (toString [this] (when-let [s (seq this)]
+                     (Transformables/sequenceToString (seq this)))))
 
-(implement-tostring-print SeqOnceIterable)
+(implement-tostring-print SeqIterable)
 
-(defn seq-once-iterable
+(defn seq-iterable
   "Iterable with efficient reduce but also contains a cached seq conversion so patterns like:
-  (when (seq v) ...) still work"
-  (^Iterable [valid? init-fn update-fn]
-   (SeqOnceIterable. (once-iterable valid? init-fn update-fn) (volatile! nil)))
-  (^Iterable [init-fn]
-   (SeqOnceIterable. (once-iterable init-fn) (volatile! nil)))
-  (^Iterable [valid? init-fn]
-   (SeqOnceIterable. (once-iterable valid? init-fn) (volatile! nil))))
+  (when (seq v) ...) still work without needing to dereference the iterable twice."
+  ^Iterable [iterable]
+  (SeqIterable. iterable (volatile! nil)))
 
-(defn queue->iterable
-  [^BlockingQueue queue term-symbol]
-  (seq-once-iterable #(not (identical? % term-symbol))
-                     #(let [v (.take queue)]
-                        (when (instance? Throwable v)
-                          (throw (RuntimeException. "Error retrieving queue value" v)))
-                        v)))
+(defn- is-not-empty?
+  [^java.util.Collection c]
+  (not (.isEmpty c)))
+
+(defn- obj-aget [^objects a ^long idx] (aget a idx))
+
+(defn merge-iterable
+  "Create an efficient n-way merge between a sequence of iterables using comparator.  If iterables themselves
+  are sorted result will be sorted."
+  [^Comparator cmp iterables]
+  (iterable
+   is-not-empty?
+   #(let [pq (PriorityQueue. (hamf-fn/make-comparator a b (.compare cmp (obj-aget a 1) (obj-aget b 1))))]
+      (run! (fn [iable]
+              (when-let [iter (->iterator iable)]
+                (when (.hasNext iter)
+                  (.offer pq (object-array [iter (.next iter)])))))
+            iterables)
+      pq)
+   (fn [^PriorityQueue pq]
+     (let [^objects entry (.poll pq)
+           ^Iterator iter (aget entry 0)]
+       (when (.hasNext iter)
+         (aset entry 1 (.next iter))
+         (.offer pq entry)))
+     pq)
+   #(obj-aget (.peek ^PriorityQueue %) 1)))
+
+(defn blocking-queue->iterable
+  "Given a blocking queue return an iterable that iterates until queue returns term-symbol.  Uses
+  take to block indefinitely  --  will throw any throwable that comes out of the queue."
+  ([^BlockingQueue queue term-symbol]
+   (seq-iterable (once-iterable
+                  #(not (identical? % term-symbol))
+                  #(let [v (.take queue)]
+                     (when (instance? Throwable v)
+                       (throw (RuntimeException. "Error retrieving queue value" v)))
+                     v))))
+  ([^BlockingQueue queue timeout-us timeout-symbol term-symbol]
+   (seq-iterable (once-iterable
+                  #(not (identical? % term-symbol))
+                  #(let [v (.poll queue timeout-us java.util.concurrent.TimeUnit/MICROSECONDS)]
+                     (cond
+                       (instance? Throwable v) (throw (RuntimeException. "Error retrieving queue value" v))
+                       (nil? v) timeout-symbol
+                       v))))))
 
 (defn const-iterable
   "Return an iterable that always returns a arg."
@@ -238,3 +253,6 @@
   (if (and (instance? ConsIter iter) (identical? @iter ::empty))
     (iter-cons vv (.-iter ^ConsIter iter))
     (ConsIter. vv iter)))
+
+(defn maybe-next [^Iterator iter] (when (and iter (.hasNext iter)) (.next iter)))
+(defn has-next? [^Iterator iter] (boolean (and iter (.hasNext iter))))

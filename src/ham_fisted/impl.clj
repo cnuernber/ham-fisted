@@ -176,7 +176,8 @@
                       (if deref?
                         (.get ^Future nn)
                         nn))))]
-    (hamf-iter/seq-once-iterable #(not (identical? % ::finish)) update!)))
+    (-> (hamf-iter/once-iterable #(not (identical? % ::finish)) update!)
+        (hamf-iter/seq-iterable))))
 
 (defn pmap
   [^ParallelOptions options map-fn sequences]

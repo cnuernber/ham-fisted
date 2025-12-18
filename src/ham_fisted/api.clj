@@ -2745,15 +2745,10 @@ ham-fisted.api> (binary-search data 1.1 nil)
   ([iterables]  (linear-merge-iterable compare MergeIterator/alwaysTrue iterables)))
 
 
-(defn priority-queue-merge-iterable
+(defn merge-iterator
   "Create an N-way priority queue iterable using cmp to order the merge of provided iterables.
   If a predicate pred is provided the iterable itself will filter out values for which
   the pred returns false.  In this mode it is possible for the iterator to return null
   if the last value is filtered out -- the hasNext method doesn't check if the next value
   passes the predicate."
-  ([cmp pred iterables]
-   (reify Iterable
-     (iterator [this]
-       (iterator/priority-queue-merge-iterator cmp pred (lznc/map iterator/->iterator iterables)))))
-  ([cmp iterables] (priority-queue-merge-iterable cmp MergeIterator/alwaysTrue iterables))
-  ([iterables] (priority-queue-merge-iterable compare MergeIterator/alwaysTrue iterables)))
+  [cmp iterables] (iterator/merge-iterable cmp iterables))
