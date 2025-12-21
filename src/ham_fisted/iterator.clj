@@ -16,6 +16,7 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(def ^{:arglists '[[a]]} non-nil? (hamf-fn/predicate a (if (nil? a) false true)))
 
 (defn- failed-coercion-message
   ^String [item target-type]
@@ -28,8 +29,21 @@
   ^Iterator [ary-data]
   (.iterator (ArrayLists/toList ary-data)))
 
+(deftype ^:private CtxIter [valid? init-fn update-fn val-fn ^:unsynchronized-mutable ctx]
+  Iterator
+  (hasNext [this]
+    (when (identical? ctx ::empty)
+      (set! ctx (init-fn)))
+    (boolean (valid? ctx)))
+  (next [this]
+    (when (identical? ctx ::empty)
+      (set! ctx (init-fn)))
+    (let [rv (val-fn ctx)]
+      (set! ctx (update-fn ctx))
+      rv)))
+
 (defn ->iterator
-  "Convert a stream or an iterable into an iterator."
+  "Convert a stream, supplier, or an iterable into an iterator."
   ^Iterator [item]
   (cond
     (nil? item)
@@ -49,13 +63,8 @@
     (.iterator ^Stream item)
     (instance? Supplier item)
     (let [^Supplier item item
-          curobj* (volatile! (.get item))]
-      (reify Iterator
-        (hasNext [this] (not (nil? @curobj*)))
-        (next [this]
-          (let [curval @curobj*]
-            (vreset! curobj* (.get item))
-            curval))))
+          init-update (fn ([] (.get item)) ([_] (.get item)))]
+      (CtxIter. non-nil? init-update init-update identity ::empty))
     :else
     (throw (Exception. (failed-coercion-message item "iterator")))))
 
@@ -100,21 +109,6 @@
       :else
       nil)))
 
-(defn- non-nil? [a] (if (nil? a) false true))
-
-(deftype ^:private CtxIter [valid? init-fn update-fn val-fn ^:unsynchronized-mutable ctx]
-  Iterator
-  (hasNext [this]
-    (when (identical? ctx ::empty)
-      (set! ctx (init-fn)))
-    (boolean (valid? ctx)))
-  (next [this]
-    (when (identical? ctx ::empty)
-      (set! ctx (init-fn)))
-    (let [rv (val-fn ctx)]
-      (set! ctx (update-fn ctx))
-      rv)))
-
 (defn iterable
   "Create an iterable.  init-fn is not called until the first has-next call.
 
@@ -130,7 +124,8 @@
    (iterable non-nil? init-fn update-fn deref)))
 
 (defn once-iterable
-  "Create an iterable.  init-fn is not called until the first has-next call - also see [[iterable]].
+  "Create an iterable that can only be iterated once - it always returns the same (non threadsafe) iterator
+  every `iterator` call.  init-fn is not called until the first has-next call - also see [[iterable]].
 
   The arguments have different defaults as once-iterables can close over global context on construction
   as they can only be iterated once.
@@ -254,5 +249,8 @@
     (iter-cons vv (.-iter ^ConsIter iter))
     (ConsIter. vv iter)))
 
-(defn maybe-next [^Iterator iter] (when (and iter (.hasNext iter)) (.next iter)))
-(defn has-next? [^Iterator iter] (boolean (and iter (.hasNext iter))))
+(defn has-next? "Given an iterator or nil return true if the iterator has next."
+  [^Iterator iter] (boolean (and iter (.hasNext iter))))
+
+(defn maybe-next "Given an iterator or nil return the next element if the iterator hasNext."
+  [^Iterator iter] (when (has-next? iter) (.next iter)))

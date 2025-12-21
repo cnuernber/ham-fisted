@@ -1,3 +1,6 @@
+# 3.003
+ * New functions and docs added to 'iterator' namespace.
+ 
 # 3.000
  * All protocols replaced with hamf's defprotocol impl.
  
