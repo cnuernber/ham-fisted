@@ -15,23 +15,42 @@
   ^String [data]
   (.stripTrailing (str data)))
 
+(defn- naive-split-lines
+  [^String data]
+  (let [nl (int \newline)]
+    (loop [data data
+           nn (.indexOf data nl)
+           rv []]
+      (if (neg? nn)
+        [rv data]
+        (let [rv (conj rv (.substring data 0 nn))
+              data (.substring data (inc nn))]
+          (recur data (.indexOf data nl) rv))))))
+
 (def ^{:doc "Print process output using println.  Example process output handler.
   Returns total output as a string to when finalized."}
   println-rf
-  (fn
+  (fn println-rf
     ([] {:temp-buf (StringBuilder.) :total-buf (StringBuilder.)})
     ([{:keys [^StringBuilder temp-buf ^StringBuilder total-buf] :as acc} ^String data]
      (.append temp-buf data)
      (.append total-buf data)
-     (let [strs (.split (.toString temp-buf) "\n")]
-       (when (> (alength strs) 1)
-         (run! println (map strip-trailing (butlast strs)))
-         (.delete temp-buf (int 0) (int (.length temp-buf)))
-         (.append temp-buf (last strs))))
+     (let [temp-str (.toString temp-buf)
+           [strs leftover] (naive-split-lines (.toString temp-buf))]
+       (run! println (map strip-trailing strs))
+       (.delete temp-buf (int 0) (int (.length temp-buf)))
+       (.append temp-buf leftover))
      acc)
     ([{:keys [^StringBuilder temp-buf ^StringBuilder total-buf] :as acc}]
      (println (.toString temp-buf))
      (.toString total-buf))))
+
+(def ^{:doc "Record all the strings and save them to a vector"}
+  record-rf
+  (fn record-rf
+    ([] (transient []))
+    ([acc v] (conj! acc v))
+    ([acc] (persistent! acc))))
 
 (defn destroy-forcibly!
   "Destroy the process handle's process forcibly."
@@ -137,7 +156,8 @@ ham-fisted.process> (def result ((:wait-or-kill *1)))
         cmd-line
         (clojure.string/join " " (concat [cmd-name]
                                          (map->cmd-line jvm-opts)
-                                         (map->cmd-line (dissoc args :xmx :jvm-opts))))
+                                         (map->cmd-line (dissoc args :xmx :jvm-opts
+                                                                :stdout-hdlr :stderr-hdlr))))
         {:keys [^java.lang.ProcessHandle proc-hdl] :as rv} (launch cmd-line args)
         desc (loop [desc (process-descendants proc-hdl)]
                (if (== 0 (count desc) )
