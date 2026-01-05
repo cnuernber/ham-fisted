@@ -151,7 +151,7 @@ ham-fisted.process> (def result ((:wait-or-kill *1)))
   [cmd-name {:keys [xmx jvm-opts]
              :as args}]
   (let [jvm-opts (if xmx
-                   (conj jvm-opts "-Xmx" xmx)
+                   (conj (or jvm-opts []) (str "-Xmx" xmx))
                    jvm-opts)
         cmd-line
         (clojure.string/join " " (concat [cmd-name]
