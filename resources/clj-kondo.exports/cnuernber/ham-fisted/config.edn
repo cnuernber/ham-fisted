@@ -1,5 +1,4 @@
-{:skip-comments true
- :lint-as {ham-fisted.defprotocol/defprotocol clojure.core/defprotocol
+{:lint-as {ham-fisted.defprotocol/defprotocol clojure.core/defprotocol
            ham-fisted.defprotocol/extend-protocol clojure.core/extend-protocol
            ham-fisted.defprotocol/extend-type clojure.core/extend-type}
  :hooks {:analyze-call {ham-fisted.hlet/let hooks.ham-fisted/analyze-hlet-macro
