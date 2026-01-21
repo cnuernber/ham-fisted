@@ -1,3 +1,8 @@
+# 3.007
+ * [issue 22](https://github.com/cnuernber/ham-fisted/issues/21) - better clj-condo support.
+ * new [process](https://cnuernber.github.io/ham-fisted/ham-fisted.process.html) namespace for 
+   launching and controlling sub processes.
+ 
 # 3.003
  * New functions and docs added to 'iterator' namespace.
  
