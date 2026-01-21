@@ -1,1 +1,2 @@
-{:config-paths ["../resources/clj-kondo.exports/cnuernber/ham-fisted"]}
+{:skip-comments true
+ :config-paths ["../resources/clj-kondo.exports/cnuernber/ham-fisted"]}
