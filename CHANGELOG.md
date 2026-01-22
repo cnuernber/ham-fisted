@@ -1,4 +1,7 @@
-# 3.007
+# 3.009
+ * Issue fixed in process namespace.
+ 
+# 3.008
  * [issue 22](https://github.com/cnuernber/ham-fisted/issues/21) - better clj-condo support.
  * new [process](https://cnuernber.github.io/ham-fisted/ham-fisted.process.html) namespace for 
    launching and controlling sub processes.

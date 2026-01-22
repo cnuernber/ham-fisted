@@ -120,7 +120,8 @@ ham-fisted.process> (keys result)
            (destroy-forcibly! phandle)
            (cleanup)))
         ([^long time-ms timeout-symbol]
-         (if-let [rv (.get exit-future time-ms java.util.concurrent.TimeUnit/MILLISECONDS)]
+         (if-let [rv (try (.get exit-future time-ms java.util.concurrent.TimeUnit/MILLISECONDS)
+                          (catch java.util.concurrent.TimeoutException e nil))]
            (cleanup)
            timeout-symbol)))})))
 
