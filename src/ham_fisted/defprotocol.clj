@@ -27,7 +27,6 @@
   for `.getClass` call into single concurrent hash map lookup."
   (:refer-clojure :exclude [defprotocol extend extend-type extend-protocol extends? satisfies?
                             find-protocol-method find-protocol-impl extenders])
-  (:require [ham-fisted.primitive-invoke :as primitive-invoke])
   (:import [ham_fisted MethodImplCache Casts]
            [java.util Map]))
 
@@ -106,16 +105,6 @@
   (if-let [f (get (meta target) ns-method)]
     f
     (find-fn target cache ns protocol)))
-
-(defn ^:no-doc invoker-for-tags
-  [arg-tags]
-  (-> (apply str "ham-fisted.primitive-invoke/" (map (fn [arg-tag]
-                                                       (cond
-                                                         (= 'long arg-tag) "l"
-                                                         (= 'double arg-tag) "d"
-                                                         :else "o"))
-                                                     arg-tags))
-      symbol))
 
 (defn ^:no-doc fn-tag-for-tags
   [arg-tags]
@@ -218,7 +207,7 @@
                                                    (conj (mapv (comp :tag meta) args) tag))
                                         rval-tag (last arg-tags)
                                         invoker (when (first (filter #{'long 'double} arg-tags))
-                                                  (invoker-for-tags arg-tags))
+                                                  '.invokePrim)
                                         target (first args)
                                         find-data (if (:extend-via-metadata opts)
                                                     `(find-fn-via-metadata ~target
