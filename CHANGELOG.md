@@ -1,3 +1,6 @@
+# 3.010
+ * Reduce require time for defprotocol by avoiding primitive-invoke namespace.
+ 
 # 3.009
  * Issue fixed in process namespace.
  
