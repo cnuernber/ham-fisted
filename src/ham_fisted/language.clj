@@ -30,6 +30,7 @@
                     :long (.getClass ^Object (clojure.core/long-array 0))
                     :float (.getClass ^Object (clojure.core/float-array 0))
                     :double (.getClass ^Object (clojure.core/double-array 0))
+                    :boolean (.getClass ^Object (clojure.core/boolean-array 0))
                     :object (.getClass ^Object (clojure.core/object-array 0))})
 
 (defn constantly
