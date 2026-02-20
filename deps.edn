@@ -49,7 +49,7 @@
    :exec-fn codox.main/-main
    :exec-args {:group-id "com.cnuernber"
                :artifact-id "ham-fisted"
-               :version "3.011"
+               :version "3.012"
                :name "Ham-Fisted"
                :description "High Performance Clojure Primitives"
                :metadata {:doc/format :markdown}
@@ -77,7 +77,8 @@
                             ham-fisted.bloom-filter
                             ham-fisted.defprotocol
                             ham-fisted.iterator
-                            ham-fisted.process]}}
+                            ham-fisted.process
+                            ham-fisted.profile]}}
   :deploy
   {:replace-deps {slipset/deps-deploy {:mvn/version "0.2.2"}}
    :exec-fn deps-deploy.deps-deploy/deploy

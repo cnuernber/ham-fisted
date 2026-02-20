@@ -15,6 +15,7 @@
             [ham-fisted.function :as hamf-fn]
             [ham-fisted.print :as pp]
             [ham-fisted.language :as hamf-language]
+            [ham-fisted.iterator :as hamf-iterator]
             [ham-fisted.datatypes])
   (:import [ham_fisted Transformables$MapIterable Transformables$FilterIterable
             Transformables$CatIterable Transformables$MapList Transformables$IMapable
