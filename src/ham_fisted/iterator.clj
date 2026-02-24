@@ -29,18 +29,33 @@
   ^Iterator [ary-data]
   (.iterator (ArrayLists/toList ary-data)))
 
-(deftype ^:private CtxIter [valid? init-fn update-fn val-fn ^:unsynchronized-mutable ctx]
+(definterface CtxAdvance
+  (advance []))
+
+(deftype ^:private CtxIter [valid? init-fn update-fn val-fn
+                            ^:unsynchronized-mutable step
+                            ^:unsynchronized-mutable ctx]
+  CtxAdvance
+  (advance [m]
+    (let [s step]
+      (cond
+        (identical? s ::empty-init)
+        (set! ctx (init-fn))
+        (identical? s ::empty-update)
+        (set! ctx (update-fn ctx)))
+      (set! step ::value)))
   Iterator
   (hasNext [this]
-    (when (identical? ctx ::empty)
-      (set! ctx (init-fn)))
+    (.advance this)
     (boolean (valid? ctx)))
   (next [this]
-    (when (identical? ctx ::empty)
-      (set! ctx (init-fn)))
-    (let [rv (val-fn ctx)]
-      (set! ctx (update-fn ctx))
-      rv)))
+    (.advance this)
+    (set! step ::empty-update)
+    (val-fn ctx)))
+
+(defn ctx-iter
+  ^CtxIter [valid? init-fn update-fn val-fn]
+  (CtxIter. valid? init-fn update-fn val-fn ::empty-init nil))
 
 (defn ->iterator
   "Convert a stream, supplier, or an iterable into an iterator."
@@ -64,7 +79,7 @@
     (instance? Supplier item)
     (let [^Supplier item item
           init-update (fn ([] (.get item)) ([_] (.get item)))]
-      (CtxIter. non-nil? init-update init-update identity ::empty))
+      (ctx-iter non-nil? init-update init-update identity))
     :else
     (throw (Exception. (failed-coercion-message item "iterator")))))
 
@@ -119,7 +134,7 @@
   (^Iterable [valid? init-fn update-fn val-fn]
    (reify Iterable
      (iterator [this]
-       (CtxIter. valid? init-fn update-fn val-fn ::empty))))
+       (ctx-iter valid? init-fn update-fn val-fn))))
   (^Iterable [init-fn update-fn]
    (iterable non-nil? init-fn update-fn deref)))
 

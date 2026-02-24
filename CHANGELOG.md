@@ -1,3 +1,7 @@
+# 3.013
+ * iterators created via iterator/once-iterable and iterator/iterable are as lazy as possible
+   avoiding certain types of lookahead and hanging behavior.
+ 
 # 3.010
  * Reduce require time for defprotocol by avoiding primitive-invoke namespace.
  
