@@ -1,4 +1,4 @@
-# 3.014
+# 3.015
  * Fix for issue 10 - partition-all works different.
  * new partition fns - partition-by-cost and partition-by-comparator.
  * new iterator fns - iter-take-while, wrap-iter, iter-take
