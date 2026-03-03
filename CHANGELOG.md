@@ -1,3 +1,8 @@
+# 3.014
+ * Fix for issue 10 - partition-all works different.
+ * new partition fns - partition-by-cost and partition-by-comparator.
+ * new iterator fns - iter-take-while, wrap-iter, iter-take
+ 
 # 3.013
  * iterators created via iterator/once-iterable and iterator/iterable are as lazy as possible
    avoiding certain types of lookahead and hanging behavior.

@@ -158,9 +158,19 @@
   (^Iterable [init-fn]
    (once-iterable non-nil? init-fn)))
 
-(deftype ^:private SeqIterable [^Iterable iable seq-data*]
+(deftype ^:private SeqIterable [^Iterable iable seq-data* m]
   clojure.lang.Counted
   (count [this] (count (seq this)))
+  clojure.lang.IPersistentCollection
+  (cons [_ o]
+    (if-let [sq @seq-data*]
+      (.cons ^clojure.lang.IPersistentCollection sq o)
+      (list o)))
+  (empty [_] '())
+  (equiv [this o] (clojure.lang.Util/equiv (seq this) o))
+  clojure.lang.Sequential
+  clojure.lang.IHashEq
+  (hasheq [this] (hash (or (seq this) '())))
   Seqable
   (seq [this]
     (vswap! seq-data*
@@ -178,9 +188,11 @@
     (if-let [ss @seq-data*]
       (.iterator ^Iterable @seq-data*)
       (.iterator iable)))
+  clojure.lang.IObj
+  (withMeta [this new-m] (SeqIterable. iable seq-data* new-m))
+  (meta [this] m)
   Object
-  (toString [this] (when-let [s (seq this)]
-                     (Transformables/sequenceToString (seq this)))))
+  (toString [this] (Transformables/sequenceToString (or (seq this) '()))))
 
 (implement-tostring-print SeqIterable)
 
@@ -188,7 +200,18 @@
   "Iterable with efficient reduce but also contains a cached seq conversion so patterns like:
   (when (seq v) ...) still work without needing to dereference the iterable twice."
   ^Iterable [iterable]
-  (SeqIterable. iterable (volatile! nil)))
+  (SeqIterable. iterable (volatile! nil) nil))
+
+(defn seq-once-iterable
+  (^Iterable [valid? init update val-fn]
+   (-> (once-iterable valid? init update val-fn)
+       (seq-iterable)))
+  (^Iterable [valid? init]
+   (-> (once-iterable valid? init)
+       (seq-iterable)))
+  (^Iterable [init]
+   (-> (once-iterable init)
+       (seq-iterable))))
 
 (defn- is-not-empty?
   [^java.util.Collection c]
@@ -267,5 +290,46 @@
 (defn has-next? "Given an iterator or nil return true if the iterator has next."
   [^Iterator iter] (boolean (and iter (.hasNext iter))))
 
+(defn next "Given an iterator call next."
+  [^Iterator iter] (.next iter))
+
 (defn maybe-next "Given an iterator or nil return the next element if the iterator hasNext."
   [^Iterator iter] (when (has-next? iter) (.next iter)))
+
+(deftype IterTake [^Iterator iter ^long n ^{:unsynchronized-mutable true
+                                            :tag long} idx]
+  Iterator
+  (hasNext [this] (and (.hasNext iter) (< idx n)))
+  (next [this]
+    (set! idx (inc idx))
+    (.next iter)))
+
+(defn iter-take "take n from an iterator returning a new iterator"
+  ^Iterator [^long n coll] (IterTake. (->iterator coll) n 0))
+
+(defn wrap-iter
+  "Wrap an iterator returning an iterable."
+  ^Iterable [iter]
+  (-> (reify Iterable (iterator [this] (->iterator iter)))
+      seq-iterable))
+
+(defn iter-take-while
+  "Returns {:data :rest*} where rest* resolves to an iterator once data has been
+  completely consumed."
+  [pred iter]
+  (let [iter (->iterator iter)]
+    (if (has-next? iter)
+      (let [res (promise)
+            updater (fn []
+                      (let [v (maybe-next iter)]
+                        (if-not (and v (pred v))
+                          (do
+                            (deliver res
+                                     (seq-iterable
+                                      (reify Iterable
+                                        (iterator [this]
+                                          (if v (iter-cons v iter) iter)))))
+                            nil)
+                          v)))]
+        {:data (seq-once-iterable non-nil? updater)
+         :rest* res}))))

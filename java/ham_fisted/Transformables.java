@@ -1,7 +1,5 @@
 package ham_fisted;
 
-
-
 import java.util.List;
 import java.util.AbstractCollection;
 import java.util.Collection;
@@ -1327,16 +1325,18 @@ public class Transformables {
       sb.append("]");
     } else {
       sb.append("(");
-      int idx = 0;
-      for(Object o: data) {
-	if(idx >= 50) {
-	  sb.append(" ...");
-	  break;
+      if (data != null) {
+	int idx = 0;
+	for(Object o: data) {
+	  if(idx >= 50) {
+	    sb.append(" ...");
+	    break;
+	  }
+	  if (idx > 0)
+	    sb.append(" ");
+	  sb.append(o == null ? "nil" : o.toString());
+	  ++idx;
 	}
-	if (idx > 0)
-	  sb.append(" ");
-	sb.append(o == null ? "nil" : o.toString());
-	++idx;
       }
       sb.append(")");
     }

@@ -15,7 +15,7 @@
             [ham-fisted.function :as hamf-fn]
             [ham-fisted.print :as pp]
             [ham-fisted.language :as hamf-language]
-            [ham-fisted.iterator :as hamf-iterator]
+            [ham-fisted.iterator :as hamf-iter]
             [ham-fisted.datatypes])
   (:import [ham_fisted Transformables$MapIterable Transformables$FilterIterable
             Transformables$CatIterable Transformables$MapList Transformables$IMapable
@@ -29,7 +29,7 @@
            [java.lang.reflect Array]
            [it.unimi.dsi.fastutil.ints IntArrays]
            [java.util.concurrent.atomic AtomicLong]
-           [java.util RandomAccess Collection Map List Random Set Iterator Map$Entry]
+           [java.util RandomAccess Collection Map List Random Set Iterator Map$Entry ArrayList Comparator]
            [clojure.lang RT IPersistentMap IReduceInit IReduce PersistentList
             IFn$OLO IFn$ODO IFn$DD IFn$LD IFn$OD IFn ArraySeq
             IFn$DL IFn$LL IFn$OL IFn$D IFn$L IFn$LO IFn$DO Counted IDeref Seqable IObj
@@ -938,149 +938,71 @@ user> (crit/quick-bench (into [] (comp (clojure.core/partition-by identity)
                  (hamf-fn/binary-predicate-or-null (get options :binary-predicate))
                  0)))
 
+(defn partition-by-comparator
+  "Partition by a comparator.  Sub partitions must be fully consumed before parent is called.  An optional
+  timeout can be used if sub partitions are being consumed in a future - the parent iteration will block
+  until the sub partition is fully consumed.
 
-(deftype ^:private PartitionAllInner [^{:unsynchronized-mutable true
-                                        :tag long} n
-                                      ^long step
-                                      ^Iterator iter
-                                      m]
-  ITypedReduce
-  (reduce [this rfn acc]
-    (if-not (.hasNext this)
-      acc
-      (let [ss (unchecked-dec step)]
-        (loop [nn n
-               continue? true]
-          (if (and (> nn 0) continue?)
-            (let [acc (rfn acc (.next iter))]
-              (if (reduced? acc)
-                (do
-                  (set! n (unchecked-dec nn))
-                  (deref acc))
-                (do
-                  (dotimes [s ss] (when (.hasNext iter) (.next iter)))
-                  (recur (unchecked-dec nn) (.hasNext iter)))))
-            (do
-              (set! n nn)
-              acc))))))
-  Iterator
-  (hasNext [this] (and (> n 0) (.hasNext iter)))
-  (next [this]
-    (when-not (.hasNext iter)
-      (throw (java.util.NoSuchElementException.)))
-    (let [nval (.next iter)]
-      (dotimes [s (unchecked-dec step)] (when (.hasNext iter) (.next iter)))
-      (set! n (unchecked-dec n))
-      nval))
-  IObj
-  (meta [this] m)
-  (withMeta [this mm] (PartitionAllInner. n step iter mm)))
+  Options:
+  * `:timeout-ms` - Timeout in milliseconds - if the sub partition isn't consumed by this time an exception
+  is thrown."
+  ([cmp coll] (partition-by-comparator cmp nil coll))
+  ([^Comparator cmp options coll]
+   (let [tms (long (get options :timeout-ms 1))
+         update (fn [{:keys [rest*] :as ctx}]
+                  (let [iter (hamf-iter/->iterator (let [ii (deref rest* tms ::timeout)]
+                                                     (when (identical? ii ::timeout)
+                                                       (throw (ex-info "Sub partition not fully consumed"
+                                                                       {:timeout-ms tms})))
+                                                     ii))]
+                    (when (hamf-iter/has-next? iter)
+                      (let [next-v (hamf-iter/next iter)
+                            pred #(== 0 (.compare cmp next-v %))]
+                        (hamf-iter/iter-take-while pred (hamf-iter/iter-cons next-v iter))))))]
+     (hamf-iter/seq-once-iterable
+      :data
+      #(update {:rest* (deliver (promise) (hamf-iter/->iterator coll))})
+      update
+      :data))))
 
-(deftype ^:private PartitionAllSingle [^{:unsynchronized-mutable true
-                                         :tag long} n
-                                       ^Iterator iter
-                                       m]
-  ITypedReduce
-  (reduce [this rfn acc]
-    (if-not (.hasNext this)
-      acc
-      (loop [nn n
-             continue? true]
-        (if (and (> nn 0) continue?)
-          (let [acc (rfn acc (.next iter))]
-            (if (reduced? acc)
-              (do
-                (set! n (unchecked-dec nn))
-                (deref acc))
-              (do
-                (recur (unchecked-dec nn) (.hasNext iter)))))
-          (do
-            (set! n nn)
-            acc)))))
-  Iterator
-  (hasNext [this] (and (> n 0) (.hasNext iter)))
-  (next [this]
-    (when-not (.hasNext iter)
-      (throw (java.util.NoSuchElementException.)))
-    (let [nval (.next iter)]
-      (set! n (unchecked-dec n))
-      nval))
-  IObj
-  (meta [this] m)
-  (withMeta [this mm] (PartitionAllSingle. n iter mm)))
-
-(defn ^:no-doc partition-all-inner
-  ^Iterator [^long n ^long step iter]
-  (if (== step 1)
-    (PartitionAllSingle. n iter nil)
-    (PartitionAllInner. n step iter nil)))
-
-(deftype ^:private PartitionAllOuter [^Iterator iter
-                                      n
-                                      step
-                                      ignore-leftover?
-                                      ^:unsynchronized-mutable last-iter]
-  Iterator
-  (hasNext [this]
-    (when (and (not ignore-leftover?) last-iter (.hasNext ^Iterator last-iter))
-      (throw (RuntimeException. "Sub-collection not completely iterated")))
-    (.hasNext ^Iterator iter))
-  (next [this]
-    (let [rv (partition-all-inner n step iter)]
-      (set! last-iter rv)
-      rv)))
-
-
-(deftype ^:private PartitionAll [^long n ^long step ^Iterable coll
-                                 ignore-leftover? m
-                                 ^{:unsynchronized-mutable true
-                                   :tag long} _hasheq]
-  IObj
-  (meta [this] m)
-  (withMeta [this mm] (PartitionAll. n step coll ignore-leftover? mm 0))
-  ITypedReduce
-  (reduce [this rfn acc]
-    (let [iter (.iterator coll)]
-      (if-not (.hasNext iter)
-        acc
-        (loop []
-          (let [^Iterator sub-iter (partition-all-inner n step iter)
-                acc (rfn acc sub-iter)]
-            (if (reduced? acc)
-              @acc
-              (do
-                (when (and (not ignore-leftover?) (.hasNext sub-iter))
-                  (throw (RuntimeException. "Sub-collection not completely consumed")))
-                (if (.hasNext iter)
-                  (recur)
-                  acc))))))))
-  Iterable
-  (iterator [this] (PartitionAllOuter. (.iterator coll) n step ignore-leftover? nil))
-  Seqable
-  (seq [this] (clojure.core/map vec (clojure.lang.IteratorSeq/create (.iterator this))))
-  clojure.lang.IHashEq
-  (hasheq [this]
-    (when (== _hasheq 0)
-      (set! _hasheq (long (hash (seq this)))))
-    _hasheq)
-  clojure.lang.IPersistentCollection
-  (count [this] (count (seq this)))
-  (cons [this o] (cons (seq this) o))
-  (empty [this] PersistentList/EMPTY)
-  (equiv [this o]
-    (if (identical? this o)
-      true
-      (if (instance? clojure.lang.IPersistentCollection o)
-        (clojure.lang.Util/pcequiv (seq this) o)
-        false)))
-  Object
-  (toString [this] (.toString ^Object (map vec this)))
-  (hashCode [this] (.hasheq this))
-  (equals [this o] (.equiv this o)))
-
-
-(pp/implement-tostring-print PartitionAll)
-
+(defn partition-by-cost
+  "Partition a sequence by integer cost.  Will produce partitions of average cost '(quot max-cost 2)
+  with some partitions being larger or smaller if the input sequence ends.  This function not very lazy
+  with each new partition greedily calculated."
+  [cost-fn ^long max-cost coll]
+  (let [^clojure.lang.IFn$OL cost-fn (if (instance? clojure.lang.IFn$OL cost-fn)
+                                       cost-fn
+                                       (fn ^long [o] (long (cost-fn o))))
+        next-partition (ArrayList.)
+        half-max (quot max-cost 2)
+        update (fn [{:keys [iter half-info cur-cost] :as ctx}]
+                 (loop [cur-cost (long (or cur-cost 0))
+                        half-info half-info]
+                   (if (hamf-iter/has-next? iter)
+                     (let [next-e (.next ^Iterator iter)
+                           cur-cost (+ cur-cost (.invokePrim cost-fn next-e))
+                           over-half? (>= cur-cost half-max)]
+                       (.add next-partition next-e)
+                       (if (< cur-cost max-cost)
+                         (recur cur-cost (if (and (nil? half-info) over-half?)
+                                           [cur-cost (.size next-partition)]
+                                           half-info))
+                         (let [[half-cost half-idx] half-info
+                               next-cost (- cur-cost (long (or half-cost 0)))
+                               split-idx (long (or half-idx (.size next-partition)))
+                               subl (.subList next-partition 0 split-idx)
+                               ctx (assoc ctx
+                                          :rows (vec subl)
+                                          :half-cost next-cost
+                                          :cur-cost next-cost
+                                          :half-idx (- (.size next-partition) split-idx))]
+                           (.clear subl)
+                           ctx)))
+                     (when-not (.isEmpty next-partition)
+                       (let [rv {:rows (vec next-partition)}]
+                         (.clear next-partition)
+                         rv)))))]
+    (hamf-iter/seq-once-iterable :rows #(update {:iter (hamf-iter/->iterator coll)}) update :rows)))
 
 (defn partition-all
   "Lazy noncaching version of partition-all.  When input is random access returns random access result.
@@ -1102,15 +1024,15 @@ user> (crit/quick-bench (into [] (comp (partition-all 100)
 nil
 ```"
   ([n] (clojure.core/partition-all n))
-  ([n coll] (partition-all n 1 coll))
+  ([n coll] (partition-all n n coll))
   ([^long n ^long step coll]
    (if (empty? coll)
      '()
-     (let [ns (* n step)]
+     (let [ns step]
        (if-let [coll (as-random-access coll)]
          (let [n-elems (.size coll)
                n-batches (quot (+ n-elems (dec ns)) ns)]
-           (if (== 1 step)
+           (if (== n step)
              (reify IMutList
                (size [this] (unchecked-int n-batches))
                (get [this outer]
@@ -1130,7 +1052,21 @@ nil
                      (size [this] (unchecked-int batch-n))
                      (get [this inner]
                        (.get coll (+ batch-start (* inner step))))))))))
-         (PartitionAll. n step (protocols/->iterable coll) false nil 0))))))
+         (if (== n step)
+           (let [iter (hamf-iter/->iterator coll)
+                 update (fn [sub-iter]
+                          (when (hamf-iter/has-next? sub-iter)
+                            (throw (RuntimeException. "Sub iterator has more elements left")))
+                          (when (hamf-iter/has-next? iter)
+                            (hamf-iter/iter-take n iter)))]
+             (-> (hamf-iter/once-iterable
+                  identity
+                  #(update nil)
+                  update
+                  hamf-iter/wrap-iter)
+                 (hamf-iter/seq-iterable)))
+           ;;No fastpath here because if step isn't n then that implies caching in the sequence
+           (clojure.core/partition-all n step coll)))))))
 
 
 (defn every?
