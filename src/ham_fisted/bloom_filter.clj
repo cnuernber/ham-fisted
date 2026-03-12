@@ -15,6 +15,10 @@
 (extend-protocol hamf-proto/SerializeObjBytes
   nil
   (serialize->bytes [v] (byte-array 0))
+  Double
+  (serialize->bytes [v] (-> (java.nio.ByteBuffer/allocate 8)
+                            (.putDouble v)
+                            (.array)))
   UUID
   (serialize->bytes [v]
     (let [^UUID v v

@@ -318,18 +318,22 @@
   completely consumed."
   [pred iter]
   (let [iter (->iterator iter)]
-    (if (has-next? iter)
+    (when (has-next? iter)
       (let [res (promise)
             updater (fn []
-                      (let [v (maybe-next iter)]
-                        (if-not (and v (pred v))
-                          (do
-                            (deliver res
-                                     (seq-iterable
-                                      (reify Iterable
-                                        (iterator [this]
-                                          (if v (iter-cons v iter) iter)))))
-                            nil)
-                          v)))]
+                      (if (has-next? iter)
+                        (let [v (next iter)]
+                          (if (pred v)
+                            v
+                            (do
+                              (deliver res
+                                       (seq-iterable
+                                        (reify Iterable
+                                          (iterator [this]
+                                            (if v (iter-cons v iter) iter)))))
+                              nil)))
+                        (do
+                          (deliver res nil)
+                          nil)))]
         {:data (seq-once-iterable non-nil? updater)
          :rest* res}))))

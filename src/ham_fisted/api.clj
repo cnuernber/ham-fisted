@@ -300,7 +300,7 @@
         (instance? Indexed d)
         (.put m (.nth ^Indexed d 0) (.nth ^Indexed d 1))
         :else
-        (throw (Exception. "Unrecognized map input")))
+        (throw (Exception. (str "Unrecognized map input: " (type d)))))
       m))))
 
 
