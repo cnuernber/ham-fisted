@@ -1,3 +1,6 @@
+# 3.017
+ * Fix for concat, apply-concat to make their iterators a bit lazier than they were before.
+ 
 # 3.015
  * Fix for issue 10 - partition-all works different.
  * new partition fns - partition-by-cost and partition-by-comparator.

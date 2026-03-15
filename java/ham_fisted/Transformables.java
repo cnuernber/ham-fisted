@@ -21,6 +21,7 @@ import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import java.util.function.LongPredicate;
 import java.util.function.DoublePredicate;
+import java.util.function.Supplier;
 
 import clojure.lang.IFn;
 import clojure.lang.ArraySeq;
@@ -731,7 +732,6 @@ public class Transformables {
     }
   }
 
-
   public static class CatIterable
     extends AbstractCollection
     implements IterableSeq {
@@ -766,56 +766,47 @@ public class Transformables {
     public boolean isEmpty() {
       return iterator().hasNext() == false;
     }
-    static class CatIterator implements Iterator {
-      Iterator gpIter;
-      Iterator parentIter;
-      Iterator curIter;
-      CatIterator(Iterator _gpIter) {
-	gpIter = _gpIter;
-	parentIter = null;
-	curIter = null;
-	advance();
+    static class CatIteratorCtx implements CtxIter.Ctx {
+      public final Iterator gpIter;
+      public final Iterator parentIter;
+      public final Iterator curIter;
+      public CatIteratorCtx(Iterator gpIter, Iterator parentIter, Iterator curIter) {
+	this.gpIter = gpIter;
+	this.parentIter = parentIter;
+	this.curIter = curIter;
       }
-      public boolean hasNext() { return curIter != null && curIter.hasNext(); }
-      public Object next() {
-	final Object rv = curIter.next();
-	if(!curIter.hasNext())
-	  advance();
-	return rv;
-      }
-      boolean advanceParent() {
-	if(hasNext()) return true;
-	while(parentIter != null && parentIter.hasNext()) {
-	  final Iterable iter = toIterable(parentIter.next());
-	  if(iter != null)
-	    curIter = iter.iterator();
-	  else
-	    curIter = null;
-	  if(hasNext()) return true;
-	}
-	parentIter = null;
-	curIter = null;
-	return false;
-      }
-      void advance() {
-	if(hasNext()) { return; }
-	if(advanceParent()) { return;}
-	while(gpIter != null && gpIter.hasNext()) {
-	  parentIter = null;
-	  final Iterable parent = (Iterable)gpIter.next();
-	  if(parent != null) {
-	    parentIter = parent.iterator();
+      public CatIteratorCtx update() {
+	if(curIter != null && curIter.hasNext()) return this;
+	Iterator curIter = this.curIter;
+	Iterator parentIter = this.parentIter;
+	do {
+	  if(parentIter != null && parentIter.hasNext()) {
+	    Iterable pp = toIterable(parentIter.next());
+	    curIter = pp != null ? pp.iterator() : null;
+	  } else {
+	    if(gpIter.hasNext()) {
+	      Iterable gg = toIterable(gpIter.next());
+	      parentIter = gg != null ? gg.iterator() : null;
+	    } else {
+	      return new CatIteratorCtx(gpIter, null, null);
+	    }
 	  }
-	  if(advanceParent())
-	    return;
-	}
-	gpIter = null;
-	parentIter = null;
-	curIter = null;
+	  if(curIter != null && curIter.hasNext()) return new CatIteratorCtx(gpIter, parentIter, curIter);
+	} while(true);
+      }
+      public boolean valid() {
+	return curIter != null && curIter.hasNext();
+      }
+      public Object val() {
+	return curIter.next();
       }
     }
     public Iterator iterator() {
-      return new CatIterator(ArrayLists.toList(data).iterator());
+      return new CtxIter(new Supplier<CtxIter.Ctx>() {
+	  public CtxIter.Ctx get() {
+	    return new CatIteratorCtx(ArrayLists.toList(data).iterator(), null, null).update();
+	  }
+	});
     }
     public IMapable cat(Iterable _iters) {
       final int dlen = data.length;
