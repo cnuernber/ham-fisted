@@ -1,3 +1,6 @@
+# 3.018
+ * iterator/merge-iterable has to be stable w/r/t iterator order - leftmost wins.
+ 
 # 3.017
  * Fix for concat, apply-concat to make their iterators a bit lazier than they were before.
  

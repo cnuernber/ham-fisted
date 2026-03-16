@@ -16,6 +16,15 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(defn has-next? "Given an iterator or nil return true if the iterator has next."
+  [^Iterator iter] (boolean (and iter (.hasNext iter))))
+
+(defn next "Given an iterator call next."
+  [^Iterator iter] (.next iter))
+
+(defn maybe-next "Given an iterator or nil return the next element if the iterator hasNext."
+  [^Iterator iter] (when (has-next? iter) (.next iter)))
+
 (def ^{:arglists '[[a]]} non-nil? (hamf-fn/predicate a (if (nil? a) false true)))
 
 (defn- failed-coercion-message
@@ -220,6 +229,34 @@
 (defn- obj-aget [^objects a ^long idx] (aget a idx))
 
 (defn merge-iterable
+  "Create an efficient stable n-way merge between a sequence of iterables using comparator.  If iterables themselves
+  are sorted result will be sorted.  If two items tie then the one from the leftmost iterable wins."
+  [^Comparator cmp iterables]
+  (iterable
+   is-not-empty?
+   #(let [pq (PriorityQueue. (hamf-fn/make-comparator a b
+                                                      (let [cc (.compare cmp (obj-aget a 1) (obj-aget b 1))]
+                                                        (if (== cc 0)
+                                                          (.compareTo ^Comparable (obj-aget a 2) (obj-aget b 2))
+                                                          cc))))]
+      (loop [outer-iter (->iterator iterables)
+             idx 0]
+        (when (has-next? outer-iter)
+          (when-let [iter (->iterator (.next outer-iter))]
+            (when (has-next? iter)
+              (.offer pq (object-array [iter (.next iter) idx]))))
+          (recur outer-iter (inc idx))))
+      pq)
+   (fn [^PriorityQueue pq]
+     (let [^objects entry (.poll pq)
+           ^Iterator iter (aget entry 0)]
+       (when (.hasNext iter)
+         (aset entry 1 (.next iter))
+         (.offer pq entry)))
+     pq)
+   #(obj-aget (.peek ^PriorityQueue %) 1)))
+
+(defn unstable-merge-iterable
   "Create an efficient n-way merge between a sequence of iterables using comparator.  If iterables themselves
   are sorted result will be sorted."
   [^Comparator cmp iterables]
@@ -286,15 +323,6 @@
   (if (and (instance? ConsIter iter) (identical? @iter ::empty))
     (iter-cons vv (.-iter ^ConsIter iter))
     (ConsIter. vv iter)))
-
-(defn has-next? "Given an iterator or nil return true if the iterator has next."
-  [^Iterator iter] (boolean (and iter (.hasNext iter))))
-
-(defn next "Given an iterator call next."
-  [^Iterator iter] (.next iter))
-
-(defn maybe-next "Given an iterator or nil return the next element if the iterator hasNext."
-  [^Iterator iter] (when (has-next? iter) (.next iter)))
 
 (deftype IterTake [^Iterator iter ^long n ^{:unsynchronized-mutable true
                                             :tag long} idx]
