@@ -349,19 +349,24 @@
     (when (has-next? iter)
       (let [res (promise)
             updater (fn []
-                      (if (has-next? iter)
-                        (let [v (next iter)]
-                          (if (pred v)
-                            v
-                            (do
-                              (deliver res
-                                       (seq-iterable
-                                        (reify Iterable
-                                          (iterator [this]
-                                            (if v (iter-cons v iter) iter)))))
-                              nil)))
-                        (do
-                          (deliver res nil)
-                          nil)))]
+                      (try
+                        (if (has-next? iter)
+                          (let [v (next iter)]
+                            (if (pred v)
+                              v
+                              (do
+                                (deliver res
+                                         (seq-iterable
+                                          (reify Iterable
+                                            (iterator [this]
+                                              (if v (iter-cons v iter) iter)))))
+                                nil)))
+                          (do
+                            (deliver res nil)
+                            nil))
+                        (catch Throwable e
+                          (println "During take while!!" e)
+                          (deliver res e)
+                          e)))]
         {:data (seq-once-iterable non-nil? updater)
          :rest* res}))))

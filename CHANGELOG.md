@@ -1,3 +1,6 @@
+# 3.019
+ * Fix bug in with empty sequences and pmap-io.
+ 
 # 3.018
  * iterator/merge-iterable has to be stable w/r/t iterator order - leftmost wins.
  

@@ -167,7 +167,9 @@
               (.push queue (.next submissions))
               (recur (inc idx))))
         update! (fn []
-                  (let [nn (.removeLast queue)]
+                  (let [nn (if-not (.isEmpty queue)
+                             (.removeLast queue)
+                             ::finish)]
                     (if (.hasNext submissions)
                       (.push queue (.next submissions))
                       (.push queue ::finish))

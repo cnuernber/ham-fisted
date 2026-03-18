@@ -39,6 +39,9 @@
   (is (= (api/range 10)
          (api/pmap #(+ % 1) (range -1 9)))))
 
+(deftest small-pmap-io
+  (is (= [] (api/pmap-io 16 identity []))))
+
 ;;This caused a hang before wrapping queue io with boxes.
 (deftest upmap-nil-return
   (is (every? nil? (api/upgroups 10000
