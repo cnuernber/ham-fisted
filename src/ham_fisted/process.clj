@@ -7,7 +7,8 @@
   ([^java.io.InputStream input bufsize ^java.nio.charset.Charset charset]
    (let [buffer (byte-array bufsize)]
      (hamf-iter/once-iterable
-      #(let [size (.read input buffer)]
+      #(let [size (long (try (.read input buffer)
+                             (catch Exception e 0)))]
          (when (pos? size)
            (String. buffer 0 size charset)))))))
 

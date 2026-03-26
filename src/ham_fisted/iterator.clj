@@ -228,6 +228,41 @@
 
 (defn- obj-aget [^objects a ^long idx] (aget a idx))
 
+(deftype ^:private ConsIter [^:unsynchronized-mutable v ^Iterator iter]
+  Iterator
+  (hasNext [this] (boolean (or (not (identical? v ::empty)) (.hasNext iter))))
+  (next [this]
+    (if (identical? v ::empty)
+      (.next iter)
+      (do (let [rv v] (set! v ::empty) rv))))
+  clojure.lang.IDeref
+  (deref [this] v))
+
+(defn iter-cons
+  "Produce a new iterator that points to vv then defers to passed in iterator."
+  ^Iterator [vv ^Iterator iter]
+  ;;attempt to keep stack of cons-iters as small as possible
+  (if (and (instance? ConsIter iter) (identical? @iter ::empty))
+    (iter-cons vv (.-iter ^ConsIter iter))
+    (ConsIter. vv iter)))
+
+(defn dedup-first-by
+  "Given a sorted sequence remove duplicates keeping first."
+  [key-fn ^Comparator cmp data]
+  (let [update (fn [{:keys [iter]}]
+                 (when (has-next? iter)
+                   (let [vv (next iter)
+                         k (key-fn vv)]
+                     (loop []
+                       (if (has-next? iter)
+                         (let [nv (next iter)]
+                           (if (== 0 (.compare cmp k (key-fn nv)))
+                             (recur)
+                             {:iter (iter-cons nv iter)
+                              :val vv}))
+                         {:val vv})))))]
+    (seq-once-iterable :val #(update {:iter (->iterator data)}) update :val)))
+
 (defn merge-iterable
   "Create an efficient stable n-way merge between a sequence of iterables using comparator.  If iterables themselves
   are sorted result will be sorted.  If two items tie then the one from the leftmost iterable wins."
@@ -305,24 +340,6 @@
       (reify Iterator
         (hasNext [this] true)
         (next [this] arg)))))
-
-(deftype ^:private ConsIter [^:unsynchronized-mutable v ^Iterator iter]
-  Iterator
-  (hasNext [this] (boolean (or (not (identical? v ::empty)) (.hasNext iter))))
-  (next [this]
-    (if (identical? v ::empty)
-      (.next iter)
-      (do (let [rv v] (set! v ::empty) rv))))
-  clojure.lang.IDeref
-  (deref [this] v))
-
-(defn iter-cons
-  "Produce a new iterator that points to vv then defers to passed in iterator."
-  ^Iterator [vv ^Iterator iter]
-  ;;attempt to keep stack of cons-iters as small as possible
-  (if (and (instance? ConsIter iter) (identical? @iter ::empty))
-    (iter-cons vv (.-iter ^ConsIter iter))
-    (ConsIter. vv iter)))
 
 (deftype IterTake [^Iterator iter ^long n ^{:unsynchronized-mutable true
                                             :tag long} idx]
