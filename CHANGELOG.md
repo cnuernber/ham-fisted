@@ -1,3 +1,6 @@
+# 3.020
+ * seq-iterables cannot be `counted?`
+ 
 # 3.019
  * Fix bug in with empty sequences and pmap-io.
  

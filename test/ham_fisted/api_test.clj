@@ -5,6 +5,7 @@
             [ham-fisted.reduce :as hamf-rf]
             [ham-fisted.function :as hamf-fn]
             [ham-fisted.lazy-noncaching :as lznc]
+            [ham-fisted.iterator :as hamf-iter]
             [ham-fisted.set :as hamf-set])
   (:import [java.util BitSet]
            [java.util.function Consumer DoubleConsumer LongConsumer]
@@ -305,6 +306,9 @@
 
 (deftest take-test
   (is (= (take 2 '(1 2 3 4)) (lznc/take 2 '(1 2 3 4)))))
+
+(deftest seq-iterable-not-counted
+  (is (not (counted? (hamf-iter/wrap-iter (.iterator (range)))))))
 
 (comment
 

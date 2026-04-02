@@ -168,8 +168,6 @@
    (once-iterable non-nil? init-fn)))
 
 (deftype ^:private SeqIterable [^Iterable iable seq-data* m]
-  clojure.lang.Counted
-  (count [this] (count (seq this)))
   clojure.lang.IPersistentCollection
   (cons [_ o]
     (if-let [sq @seq-data*]
@@ -248,20 +246,22 @@
 
 (defn dedup-first-by
   "Given a sorted sequence remove duplicates keeping first."
-  [key-fn ^Comparator cmp data]
-  (let [update (fn [{:keys [iter]}]
-                 (when (has-next? iter)
-                   (let [vv (next iter)
-                         k (key-fn vv)]
-                     (loop []
-                       (if (has-next? iter)
-                         (let [nv (next iter)]
-                           (if (== 0 (.compare cmp k (key-fn nv)))
-                             (recur)
-                             {:iter (iter-cons nv iter)
-                              :val vv}))
-                         {:val vv})))))]
-    (seq-once-iterable :val #(update {:iter (->iterator data)}) update :val)))
+  ([key-fn ^Comparator cmp data]
+   (let [update (fn [{:keys [iter]}]
+                  (when (has-next? iter)
+                    (let [vv (next iter)
+                          k (key-fn vv)]
+                      (loop []
+                        (if (has-next? iter)
+                          (let [nv (next iter)]
+                            (if (== 0 (.compare cmp k (key-fn nv)))
+                              (recur)
+                              {:iter (iter-cons nv iter)
+                               :val vv}))
+                          {:val vv})))))]
+     (seq-once-iterable :val #(update {:iter (->iterator data)}) update :val)))
+  ([^Comparator cmp data]
+   (dedup-first-by identity cmp data)))
 
 (defn merge-iterable
   "Create an efficient stable n-way merge between a sequence of iterables using comparator.  If iterables themselves
