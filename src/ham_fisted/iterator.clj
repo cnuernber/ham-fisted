@@ -267,51 +267,53 @@
   "Create an efficient stable n-way merge between a sequence of iterables using comparator.  If iterables themselves
   are sorted result will be sorted.  If two items tie then the one from the leftmost iterable wins."
   [^Comparator cmp iterables]
-  (iterable
-   is-not-empty?
-   #(let [pq (PriorityQueue. (hamf-fn/make-comparator a b
-                                                      (let [cc (.compare cmp (obj-aget a 1) (obj-aget b 1))]
-                                                        (if (== cc 0)
-                                                          (.compareTo ^Comparable (obj-aget a 2) (obj-aget b 2))
-                                                          cc))))]
-      (loop [outer-iter (->iterator iterables)
-             idx 0]
-        (when (has-next? outer-iter)
-          (when-let [iter (->iterator (.next outer-iter))]
-            (when (has-next? iter)
-              (.offer pq (object-array [iter (.next iter) idx]))))
-          (recur outer-iter (inc idx))))
+  (seq-iterable
+   (iterable
+    is-not-empty?
+    #(let [pq (PriorityQueue. (hamf-fn/make-comparator a b
+                                                       (let [cc (.compare cmp (obj-aget a 1) (obj-aget b 1))]
+                                                         (if (== cc 0)
+                                                           (.compareTo ^Comparable (obj-aget a 2) (obj-aget b 2))
+                                                           cc))))]
+       (loop [outer-iter (->iterator iterables)
+              idx 0]
+         (when (has-next? outer-iter)
+           (when-let [iter (->iterator (.next outer-iter))]
+             (when (has-next? iter)
+               (.offer pq (object-array [iter (.next iter) idx]))))
+           (recur outer-iter (inc idx))))
+       pq)
+    (fn [^PriorityQueue pq]
+      (let [^objects entry (.poll pq)
+            ^Iterator iter (aget entry 0)]
+        (when (.hasNext iter)
+          (aset entry 1 (.next iter))
+          (.offer pq entry)))
       pq)
-   (fn [^PriorityQueue pq]
-     (let [^objects entry (.poll pq)
-           ^Iterator iter (aget entry 0)]
-       (when (.hasNext iter)
-         (aset entry 1 (.next iter))
-         (.offer pq entry)))
-     pq)
-   #(obj-aget (.peek ^PriorityQueue %) 1)))
+    #(obj-aget (.peek ^PriorityQueue %) 1))))
 
 (defn unstable-merge-iterable
   "Create an efficient n-way merge between a sequence of iterables using comparator.  If iterables themselves
   are sorted result will be sorted."
   [^Comparator cmp iterables]
-  (iterable
-   is-not-empty?
-   #(let [pq (PriorityQueue. (hamf-fn/make-comparator a b (.compare cmp (obj-aget a 1) (obj-aget b 1))))]
-      (run! (fn [iable]
-              (when-let [iter (->iterator iable)]
-                (when (.hasNext iter)
-                  (.offer pq (object-array [iter (.next iter)])))))
-            iterables)
+  (seq-iterable
+   (iterable
+    is-not-empty?
+    #(let [pq (PriorityQueue. (hamf-fn/make-comparator a b (.compare cmp (obj-aget a 1) (obj-aget b 1))))]
+       (run! (fn [iable]
+               (when-let [iter (->iterator iable)]
+                 (when (.hasNext iter)
+                   (.offer pq (object-array [iter (.next iter)])))))
+             iterables)
+       pq)
+    (fn [^PriorityQueue pq]
+      (let [^objects entry (.poll pq)
+            ^Iterator iter (aget entry 0)]
+        (when (.hasNext iter)
+          (aset entry 1 (.next iter))
+          (.offer pq entry)))
       pq)
-   (fn [^PriorityQueue pq]
-     (let [^objects entry (.poll pq)
-           ^Iterator iter (aget entry 0)]
-       (when (.hasNext iter)
-         (aset entry 1 (.next iter))
-         (.offer pq entry)))
-     pq)
-   #(obj-aget (.peek ^PriorityQueue %) 1)))
+    #(obj-aget (.peek ^PriorityQueue %) 1))))
 
 (defn blocking-queue->iterable
   "Given a blocking queue return an iterable that iterates until queue returns term-symbol.  Uses

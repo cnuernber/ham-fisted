@@ -1,3 +1,6 @@
+# 3.021 
+ * merge-iterable returns a seq-iterable so it plays nice with the REPL.
+ 
 # 3.020
  * seq-iterables cannot be `counted?`
  
