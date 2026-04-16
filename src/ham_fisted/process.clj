@@ -108,10 +108,13 @@ ham-fisted.process> (keys result)
          stderr (.getErrorStream proc)
          out (future (hamf-rf/reduce-reducer stdout-hdlr (stream->strings stdout)))
          err (future (hamf-rf/reduce-reducer stderr-hdlr (stream->strings stderr)))
-         cleanup #(do (.close stdout)
-                      (.close stderr)
-                      {:out @out
-                       :err @err})]
+         cleanup (fn [close?]
+                   (when close?
+                     ;;close the streams to force termination as the process hasn't exited
+                     (.close stdout)
+                     (.close stderr))
+                   {:out @out
+                    :err @err})]
      {:proc-hdl phandle
       :wait-or-kill
       (fn wait-or-kill
@@ -119,11 +122,11 @@ ham-fisted.process> (keys result)
          (let [desc (process-descendants phandle)]
            (run! destroy-forcibly! desc)
            (destroy-forcibly! phandle)
-           (cleanup)))
+           (cleanup true)))
         ([^long time-ms timeout-symbol]
          (if-let [rv (try (.get exit-future time-ms java.util.concurrent.TimeUnit/MILLISECONDS)
                           (catch java.util.concurrent.TimeoutException e nil))]
-           (cleanup)
+           (cleanup false)
            timeout-symbol)))})))
 
 (defn ^:private map->cmd-line
