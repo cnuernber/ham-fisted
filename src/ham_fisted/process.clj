@@ -28,23 +28,28 @@
               data (.substring data (inc nn))]
           (recur data (.indexOf data nl) rv))))))
 
-(def ^{:doc "Print process output using println.  Example process output handler.
-  Returns total output as a string to when finalized."}
-  println-rf
-  (fn println-rf
+(defn out-rf
+  [print?]
+  (fn do-out-rf
     ([] {:temp-buf (StringBuilder.) :total-buf (StringBuilder.)})
     ([{:keys [^StringBuilder temp-buf ^StringBuilder total-buf] :as acc} ^String data]
      (.append temp-buf data)
      (.append total-buf data)
      (let [temp-str (.toString temp-buf)
            [strs leftover] (naive-split-lines (.toString temp-buf))]
-       (run! println (map strip-trailing strs))
+       (when print? (run! println (map strip-trailing strs)))
        (.delete temp-buf (int 0) (int (.length temp-buf)))
        (.append temp-buf leftover))
      acc)
     ([{:keys [^StringBuilder temp-buf ^StringBuilder total-buf] :as acc}]
-     (println (.toString temp-buf))
+     (when print? (println (.toString temp-buf)))
      (.toString total-buf))))
+
+(def ^{:doc "Print process output using println.  Example process output handler.
+  Returns total output as a string to when finalized."}
+  println-rf (out-rf true))
+
+(def ^{:doc "Returns total output as a string to when finalized."} quiet-rf (out-rf false))
 
 (def ^{:doc "Record all the strings and save them to a vector"}
   record-rf
@@ -128,6 +133,15 @@ ham-fisted.process> (keys result)
                           (catch java.util.concurrent.TimeoutException e nil))]
            (cleanup false)
            timeout-symbol)))})))
+
+(defn sh
+  ([cmd-line] (sh cmd-line {:print-cmd-line? false :stdout-hdlr quiet-rf :stderr-hdlr quiet-rf}))
+  ([^String cmd-line {:keys [timeout-ms]
+                      :or {timeout-ms Integer/MAX_VALUE} :as opts}]
+   (let [rv ((:wait-or-kill (launch cmd-line opts)) timeout-ms ::timeout)]
+     (if (identical? rv ::timeout)
+       (throw (RuntimeException. "Process timed out"))
+       rv))))
 
 (defn ^:private map->cmd-line
   [args]
