@@ -1,3 +1,6 @@
+# 3.023
+ * fix - process/launch invalid stdout for very quick processes.
+ 
 # 3.022
  * merge-iterable returns a seq-iterable so it plays nice with the REPL.
  
