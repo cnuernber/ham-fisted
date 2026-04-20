@@ -5,6 +5,7 @@
             [ham-fisted.defprotocol :refer [extend extend-type extend-protocol]])
   (:import [ham_fisted BlockSplitBloomFilter]
            [java.util UUID]
+           [java.time Instant]
            [clojure.lang IFn$OL])
   (:refer-clojure :exclude [contains? extend extend-type extend-protocol]))
 
@@ -30,7 +31,13 @@
       bdata))
   String
   (serialize->bytes [v]
-    (.getBytes ^String v)))
+    (.getBytes ^String v))
+  Instant
+  (serialize->bytes [inst]
+    (let [buf (java.nio.ByteBuffer/wrap (byte-array 12))]
+      (.putLong buf (.getEpochSecond inst))
+      (.putInt buf (.getNano inst))
+      (.array buf))))
 
 (defn serialize->bytes
   "Serialize an object to a byte array"

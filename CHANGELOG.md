@@ -1,3 +1,6 @@
+# 3.025
+ * bloom filters handle java.time.Instants automatically
+ 
 # 3.023
  * fix - process/launch invalid stdout for very quick processes.
  
