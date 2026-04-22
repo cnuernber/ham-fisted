@@ -3,6 +3,7 @@ package ham_fisted;
 import java.util.Random;
 import java.util.List;
 import java.util.Comparator;
+import java.util.Spliterator;
 import it.unimi.dsi.fastutil.doubles.DoubleArrays;
 import it.unimi.dsi.fastutil.doubles.DoubleComparator;
 import it.unimi.dsi.fastutil.ints.IntComparator;
@@ -10,7 +11,7 @@ import java.util.function.DoubleConsumer;
 import clojure.lang.IFn;
 import clojure.lang.RT;
 
-
+@SuppressWarnings("unchecked")
 public interface DoubleMutList extends IMutList<Object> {
   default boolean add(Object obj) { addDouble(Casts.doubleCast(obj)); return true; }
   default void addLong(long obj) { addDouble(Casts.doubleCast(obj)); }
@@ -111,5 +112,9 @@ public interface DoubleMutList extends IMutList<Object> {
     for (int idx = 0; idx < sz && !RT.isReduced(init); ++idx)
       init = rfn.invokePrim(init, getDouble(idx));
     return Reductions.unreduce(init);
+  }
+  @SuppressWarnings("unchecked")
+  default Spliterator spliterator() {
+    return new RandomAccessSpliterator.DoubleSpliterator(this, 0, size());
   }
 }

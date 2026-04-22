@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Comparator;
 import java.util.function.DoubleConsumer;
 import java.util.function.LongConsumer;
+import java.util.Spliterator;
 import it.unimi.dsi.fastutil.longs.LongArrays;
 import it.unimi.dsi.fastutil.longs.LongComparator;
 import it.unimi.dsi.fastutil.ints.IntComparator;
@@ -12,7 +13,7 @@ import java.util.function.LongConsumer;
 import clojure.lang.IFn;
 import clojure.lang.RT;
 
-
+@SuppressWarnings("unchecked")
 public interface LongMutList extends IMutList<Object> {
   default boolean add(Object obj) { addLong(Casts.longCast(obj)); return true; }
   default void add(int idx, int count, Object v) {
@@ -119,5 +120,9 @@ public interface LongMutList extends IMutList<Object> {
     for (int idx = 0; idx < sz && !RT.isReduced(init); ++idx)
       init = rfn.invokePrim(init, getLong(idx));
     return Reductions.unreduce(init);
+  }
+  @SuppressWarnings("unchecked")
+  default Spliterator spliterator() {
+    return new RandomAccessSpliterator.LongSpliterator(this, 0, size());
   }
 }

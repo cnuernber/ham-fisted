@@ -12,10 +12,18 @@ import java.util.function.LongPredicate;
 import clojure.lang.IDeref;
 
 public class Consumers {
-  public interface IDerefDoubleConsumer extends IDeref, DoubleConsumer
+  public interface IDerefDoubleConsumer extends IDeref, DoubleConsumer, Consumer
   {
+    default void accept(Object v) { accept(Casts.doubleCast(v)); }
+    default void accept(double v) { acceptDouble(v); }
+    void acceptDouble(double v);
   }
-  public interface IDerefLongConsumer extends IDeref, LongConsumer {}
+  public interface IDerefLongConsumer extends IDeref, LongConsumer, Consumer
+  {
+    default void accept(Object v) { accept(Casts.longCast(v)); }
+    default void accept(long v) { acceptLong(v); }
+    void acceptLong(long v);
+  }
   public interface IDerefConsumer extends IDeref, Consumer {}
   public interface IDerefIndexedDoubleConsumer extends IDeref, IndexedDoubleConsumer {}
   public interface IDerefIndexedLongConsumer extends IDeref, IndexedLongConsumer {}
@@ -42,7 +50,7 @@ public class Consumers {
       idx = initIdx;
       c = cc;
     }
-    public void accept(double v) {
+    public void acceptDouble(double v) {
       c.accept(idx, v);
       ++idx;
     }
@@ -58,7 +66,7 @@ public class Consumers {
       idx = initIdx;
       c = cc;
     }
-    public void accept(long v) {
+    public void acceptLong(long v) {
       c.accept(idx, v);
       ++idx;
     }
@@ -87,7 +95,7 @@ public class Consumers {
 
   public static DoubleConsumer map(final DoubleUnaryOperator fn, final DoubleConsumer c) {
     return new IDerefDoubleConsumer() {
-      public void accept(double v) {
+      public void acceptDouble(double v) {
 	c.accept(fn.applyAsDouble(v));
       }
       public Object deref() {
@@ -97,7 +105,7 @@ public class Consumers {
   }
   public static LongConsumer map(final LongUnaryOperator fn, final LongConsumer c) {
     return new IDerefLongConsumer() {
-      public void accept(long v) {
+      public void acceptLong(long v) {
 	c.accept(fn.applyAsLong(v));
       }
       public Object deref() {
@@ -151,7 +159,7 @@ public class Consumers {
 
   public static DoubleConsumer filter(final DoublePredicate pred, final DoubleConsumer c) {
     return new IDerefDoubleConsumer() {
-      public void accept(double v) {
+      public void acceptDouble(double v) {
 	if(pred.test(v))
 	  c.accept(v);
       }
@@ -162,7 +170,7 @@ public class Consumers {
   }
   public static LongConsumer filter(final LongPredicate pred, final LongConsumer c) {
     return new IDerefLongConsumer() {
-      public void accept(long v) {
+      public void acceptLong(long v) {
 	if(pred.test(v))
 	  c.accept(v);
       }
