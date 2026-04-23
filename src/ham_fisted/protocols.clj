@@ -191,3 +191,15 @@ but it must be comparable with identical?")
 (extend Object ReturnedDatatype
         {:returned-datatype nil
          :simplified-returned-datatype nil})
+
+(defprotocol EstimateCount
+  (^long estimate-count [m]))
+
+(defprotocol Split
+  (split [m]))
+
+(defprotocol ManagedBlocker
+  (^java.util.concurrent.ForkJoinPool$ManagedBlocker managed-blocker [m]))
+
+(defprotocol ToSpliterator
+  (^java.util.Spliterator ->spliterator [m]))

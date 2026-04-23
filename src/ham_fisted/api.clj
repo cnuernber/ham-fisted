@@ -188,26 +188,26 @@
 (def ^:private empty-objs (clojure.core/object-array 0))
 
 
-(defn obj-ary
-  "As quickly as possible, produce an object array from these inputs.  Very fast for arities
+(def ^{:doc "As quickly as possible, produce an object array from these inputs.  Very fast for arities
   <= 16."
-  (^objects [] (object-array 0))
-  (^objects [v0] (ObjArray/create v0))
-  (^objects [v0 v1] (ObjArray/create v0 v1))
-  (^objects [v0 v1 v2] (ObjArray/create v0 v1 v2))
-  (^objects [v0 v1 v2 v3] (ObjArray/create v0 v1 v2 v3))
-  (^objects [v0 v1 v2 v3 v4] (ObjArray/create v0 v1 v2 v3 v4))
-  (^objects [v0 v1 v2 v3 v4 v5] (ObjArray/create v0 v1 v2 v3 v4 v5))
-  (^objects [v0 v1 v2 v3 v4 v5 v6] (ObjArray/create v0 v1 v2 v3 v4 v5 v6))
-  (^objects [v0 v1 v2 v3 v4 v5 v6 v7] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7))
-  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8))
-  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9))
-  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9) v10)
-  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11))
-  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11 v12))
-  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11 v12 v13))
-  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11 v12 v13 v14))
-  (^objects [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14 v15] (ObjArray/create v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v0 v11 v12 v13 v14 v15)))
+      :arglists '([]
+                  [v0]
+                  [v0 v1]
+                  [v0 v1 v2]
+                  [v0 v1 v2 v3]
+                  [v0 v1 v2 v3 v4]
+                  [v0 v1 v2 v3 v4 v5]
+                  [v0 v1 v2 v3 v4 v5 v6]
+                  [v0 v1 v2 v3 v4 v5 v6 v7]
+                  [v0 v1 v2 v3 v4 v5 v6 v7 v8]
+                  [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9]
+                  [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10]
+                  [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11]
+                  [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12]
+                  [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13]
+                  [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14]
+                  [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14 v15])}
+  obj-ary hamf-language/obj-ary)
 
 (defmacro cond
   "Similar to `core/cond` except it supports true else clauses as opposed to always
@@ -2259,7 +2259,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
   "Simple summation that returns a long integer."
   ^long [data]
   (let [lv (long-array 1)]
-    (reduce (fn [_ ^long v] (aset lv 0 (+ (aget lv 0) v)) nil)
+    (reduce (fn [_ ^long v] (let [_ (aset lv 0 (+ (aget lv 0) v))]) nil)
             nil
             data)
     (aget lv 0)))
