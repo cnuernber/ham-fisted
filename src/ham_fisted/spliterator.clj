@@ -2,15 +2,15 @@
   "Support for spliterator reduction and parallel reduction."
   (:require [ham-fisted.protocols :as proto]
             [ham-fisted.fjp :as fjp]
-            [ham-fisted.defprotocol :refer [extend-type]]
+            [ham-fisted.defprotocol :refer [extend-type extend]]
             [ham-fisted.language :as hamf-language])
   (:import [java.util Spliterator Spliterator$OfDouble Spliterator$OfLong List RandomAccess ArrayList]
            [java.util.function Consumer]
            [java.util.concurrent ForkJoinPool]
-           [clojure.lang IFn$DDD IFn$LLL]
+           [clojure.lang IFn$DDD IFn$LLL IFn$OLO IFn$ODO]
            [ham_fisted Consumers$IDerefLongConsumer Consumers$IDerefDoubleConsumer Consumers$IDerefConsumer
-            ParallelOptions Casts])
-  (:refer-clojure :exclude [extend-type]))
+            ParallelOptions Casts ArrayLists])
+  (:refer-clojure :exclude [extend-type extend]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -27,12 +27,43 @@
   proto/Split
   (split [m] nil))
 
+
+(run! (fn [[dt-name ary-cls]]
+        (extend ary-cls
+          proto/ToSpliterator
+          {:->spliterator
+           (case dt-name
+             :boolean (fn [a] (.spliterator (ArrayLists/toList ^booleans a)))
+             :byte (fn [a] (.spliterator (ArrayLists/toList ^bytes a)))
+             :short (fn [a] (.spliterator (ArrayLists/toList ^shorts a)))
+             :char (fn [a] (.spliterator (ArrayLists/toList ^chars a)))
+             :int (fn [a] (.spliterator (ArrayLists/toList ^ints a)))
+             :long (fn [a] (.spliterator (ArrayLists/toList ^longs a)))
+             :float (fn [a] (.spliterator (ArrayLists/toList ^floats a)))
+             :double (fn [a] (.spliterator (ArrayLists/toList ^doubles a)))
+             (fn [a] (.spliterator (ArrayLists/toList ^objects a))))}))
+      hamf-language/array-classes)
+
+(deftype ^:private DerefLongConsumer [^{:unsynchronized-mutable true
+                                        :tag long} v
+                                      ^IFn$LLL rfn]
+  Consumers$IDerefLongConsumer
+  (acceptLong [this d] (set! v (.invokePrim rfn v d)))
+  (deref [this] v))
+
 (defmacro deref-long-consumer
   "Create a LongConsumer with support for IDeref"
   [varname accept-code deref-code]
   `(reify Consumers$IDerefLongConsumer
      (acceptLong [_ ~varname] (let [l# ~accept-code]))
      (deref [_] ~deref-code)))
+
+(deftype DerefDoubleConsumer [^{:unsynchronized-mutable true
+                                :tag double} v
+                              ^IFn$DDD rfn]
+  Consumers$IDerefDoubleConsumer
+  (acceptDouble [this d] (set! v (.invokePrim rfn v d)))
+  (deref [this] v))
 
 (defmacro deref-double-consumer
   "Create a DoubleConsumer with support for IDeref"
@@ -61,13 +92,21 @@
   ([rfn acc split]
    (cond
      (instance? IFn$LLL rfn)
-     (let [dd (long-array [(Casts/longCast acc)])
-           cc (deref-long-consumer ll (aset dd 0 (.invokePrim ^IFn$LLL rfn (aget dd 0) ll)) (aget dd 0))]
+     (let [cc (DerefLongConsumer. (Casts/longCast acc) rfn)]
+       (.forEachRemaining (->spliterator split) cc)
+       @cc)
+     (instance? IFn$OLO rfn)
+     (let [dd (hamf-language/obj-ary acc)
+           cc (deref-long-consumer ll (aset dd 0 (.invokePrim ^IFn$OLO rfn (aget dd 0) ll)) (aget dd 0))]
        (.forEachRemaining (->spliterator split) cc)
        @cc)
      (instance? IFn$DDD rfn)
-     (let [dd (double-array [(Casts/doubleCast acc)])
-           cc (deref-double-consumer ll (aset dd 0 (.invokePrim ^IFn$DDD rfn (aget dd 0) ll)) (aget dd 0))]
+     (let [cc (DerefDoubleConsumer. (Casts/doubleCast acc) rfn)]
+       (.forEachRemaining (->spliterator split) cc)
+       @cc)
+     (instance? IFn$ODO rfn)
+     (let [dd (hamf-language/obj-ary acc)
+           cc (deref-double-consumer ll (aset dd 0 (.invokePrim ^IFn$ODO rfn (aget dd 0) ll)) (aget dd 0))]
        (.forEachRemaining (->spliterator split) cc)
        @cc)
      :else
