@@ -190,23 +190,23 @@
 
 (def ^{:doc "As quickly as possible, produce an object array from these inputs.  Very fast for arities
   <= 16."
-      :arglists '([]
-                  [v0]
-                  [v0 v1]
-                  [v0 v1 v2]
-                  [v0 v1 v2 v3]
-                  [v0 v1 v2 v3 v4]
-                  [v0 v1 v2 v3 v4 v5]
-                  [v0 v1 v2 v3 v4 v5 v6]
-                  [v0 v1 v2 v3 v4 v5 v6 v7]
-                  [v0 v1 v2 v3 v4 v5 v6 v7 v8]
-                  [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9]
-                  [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10]
-                  [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11]
-                  [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12]
-                  [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13]
-                  [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14]
-                  [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14 v15])}
+       :arglists '([]
+                   [v0]
+                   [v0 v1]
+                   [v0 v1 v2]
+                   [v0 v1 v2 v3]
+                   [v0 v1 v2 v3 v4]
+                   [v0 v1 v2 v3 v4 v5]
+                   [v0 v1 v2 v3 v4 v5 v6]
+                   [v0 v1 v2 v3 v4 v5 v6 v7]
+                   [v0 v1 v2 v3 v4 v5 v6 v7 v8]
+                   [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9]
+                   [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10]
+                   [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11]
+                   [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12]
+                   [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13]
+                   [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14]
+                   [v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14 v15])}
   obj-ary hamf-language/obj-ary)
 
 (defmacro cond

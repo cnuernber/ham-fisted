@@ -46,7 +46,7 @@
                          (block [_] (.quietlyComplete m) true)
                          (isReleasable [_] (.isDone m))
                          clojure.lang.IDeref
-                         (deref [_] (.get m))))    
+                         (deref [_] (.get m))))
   Future
   (managed-blocker [m] (reify ForkJoinPool$ManagedBlocker
                          (block [_] (.get m) true)
@@ -90,9 +90,9 @@
              (.submit ^ExecutorService pool ^Callable f)))
 
 (defmacro exception-safe
-  "Wrap code in an exception-safe wrapper - returns a map with either 
+  "Wrap code in an exception-safe wrapper - returns a map with either
   `:ham-fisted.fjp/result` or `:ham-fisted.fjp.error`."
-  [& code]  
+  [& code]
   `(let [~(with-meta 'ffn {:tag 'Callable})
          (^:once fn* []
           (try {:ham-fisted.fjp/result (do ~@code)}
@@ -100,7 +100,7 @@
      ~'ffn))
 
 (defmacro safe-fork-task
-  "Called from within an executing task, fork a executing some code and wrapping it in [[exception-safe]] 
+  "Called from within an executing task, fork a executing some code and wrapping it in [[exception-safe]]
   then calling [[fork-task]]"
   [pool & code]
   `(->> (do ~@code)
