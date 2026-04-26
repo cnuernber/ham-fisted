@@ -10,7 +10,7 @@ import java.util.Collection;
 
 
 
-public final class Sum implements DoubleConsumer, Reducible, IDeref
+public final class Sum implements Consumers.IDerefDoubleConsumer, Reducible
 {
   public static final Keyword sumKwd = Keyword.intern(null, "sum");
   public static final Keyword nElemsKwd = Keyword.intern(null, "n-elems");
@@ -57,7 +57,7 @@ public final class Sum implements DoubleConsumer, Reducible, IDeref
   public Sum() {
     this(0, 0, 0, 0);
   }
-  public void accept(double data) {
+  public void acceptDouble(double data) {
     sumWithCompensation(data);
     simpleSum += data;
     nElems++;
@@ -79,12 +79,12 @@ public final class Sum implements DoubleConsumer, Reducible, IDeref
     return new PersistentArrayMap(new Object[] { sumKwd, computeFinalSum(), nElemsKwd, nElems });
   }
 
-  public static class SimpleSum implements DoubleConsumer, IDeref, Reducible
+  public static class SimpleSum implements Consumers.IDerefDoubleConsumer, Reducible
   {
     double simpleSum;
     public SimpleSum() { simpleSum = 0.0; }
     public SimpleSum(SimpleSum o) { simpleSum = o.simpleSum; }
-    public void accept(double val) { simpleSum += val; }
+    public void acceptDouble(double val) { simpleSum += val; }
     public SimpleSum reduce(Reducible other) {
       final SimpleSum retval = new SimpleSum(this);
       retval.accept(((SimpleSum)other).simpleSum);

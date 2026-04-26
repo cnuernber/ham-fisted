@@ -170,29 +170,48 @@
   proto/ToSpliterator
   (->spliterator [c] (.spliterator c)))
 
-(comment
+(defn sum-fast
+  "spliterator based serial summation"
+  ^double [vv] (let [cc (ham_fisted.Sum$SimpleSum.)]
+                 (.forEachRemaining (->spliterator vv) cc)
+                 @cc))
 
-  ;;alternative reduction - couldn't get it to perform as well in simple tests
-  (defn split-to-max-size [split ^long max-size op]
-    (let [split (->spliterator split)
-          n-elems (.estimateSize ^Spliterator split)]
-      (if (or (<= n-elems max-size) (== n-elems Long/MAX_VALUE))
-        [(op split)]
-        (let [rv (doto (ArrayList. ) (.add split))]
-          (loop [idx 0]
-            (if (== idx (.size rv))
-              rv
-              (let [ll (.get rv idx)]
-                (if (<= (.estimateSize ^Spliterator ll) max-size)
+(defn- dp ^double [^double a ^double b] (+ a b))
+
+(defn psum "spliterator based parallel summation - does not account for Double/NaN"
+  ^double [vv] (split-parallel-reduce nil (->spliterator vv) 10000 (constantly 0) dp dp))
+
+(defn elements "Return all the elements referenced by this spliterator as a persistent list"
+  [data] (let [split (->spliterator data)
+               rv (ham_fisted.ArrayLists$ObjectArrayList.)
+               cc (reify Consumer
+                    (accept [this v] (.add rv v)))]
+           (.forEachRemaining split cc)
+           (persistent! rv)))
+
+(defn split-to-max-size [split ^long max-size op]
+  (let [split (->spliterator split)
+        n-elems (.estimateSize ^Spliterator split)]
+    (if (or (<= n-elems max-size) (== n-elems Long/MAX_VALUE))
+      [(op split)]
+      (let [rv (doto (ArrayList. ) (.add split))]
+        (loop [idx 0]
+          (if (== idx (.size rv))
+            rv
+            (let [ll (.get rv idx)]
+              (if (<= (.estimateSize ^Spliterator ll) max-size)
+                (do
+                  (.set rv idx (op ll))
+                  (recur (inc idx)))
+                (if-let [rhs (.trySplit ^Spliterator ll)]
+                  (do (.add rv (inc idx) rhs)
+                      (recur idx))
                   (do
                     (.set rv idx (op ll))
-                    (recur (inc idx)))
-                  (if-let [rhs (.trySplit ^Spliterator ll)]
-                    (do (.add rv (inc idx) rhs)
-                        (recur idx))
-                    (do
-                      (.set rv idx (op ll))
-                      (recur (inc idx))))))))))))
+                    (recur (inc idx))))))))))))
+
+(comment
+
 
   (defn ^:no-doc ms-parallel-reduce
     "Perform a parallel reduction of a spliterator using the provided ExecutorService"

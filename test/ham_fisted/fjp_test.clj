@@ -42,3 +42,24 @@
             clojure.lang.Agent/soloExecutor (proto/->spliterator data) 1000 (constantly 0) lp lp)))
     (is (= total (hamf-rf/preduce (constantly 0) lp lp (proto/->spliterator data))))
     (is (= total (hamf-rf/preduce-reducer (sum-reducer) (proto/->spliterator data))))))
+
+
+(comment
+  (def data (hamf/range 100000000))
+  (def vdata (into (hamf/immut-list) data))
+  (def vvdata (into [] data))
+  (= (spliterator/sum-fast vdata)
+     (spliterator/psum vdata))
+
+  (spliterator/split-to-max-size vdata 10 spliterator/elements)
+  (spliterator/elements (.spliterator vdata 25 35))
+  (require '[clj-async-profiler.core :as prof])
+  (crit/quick-bench (spliterator/sum-fast vdata))
+  (crit/quick-bench (spliterator/sum-fast vvdata))
+  (prof/serve-ui 8080)
+
+  (require '[criterium.core :as crit])
+  (crit/quick-bench (spliterator/psum vdata))
+  (crit/quick-bench (spliterator/psum vvdata))
+  
+  )

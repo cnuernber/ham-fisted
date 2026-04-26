@@ -3,8 +3,10 @@ package ham_fisted;
 import java.util.Iterator;
 import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Spliterator;
 import java.util.NoSuchElementException;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import clojure.lang.RT;
 import clojure.lang.IDeref;
 import clojure.lang.IFn;
@@ -61,7 +63,20 @@ public class TreeListBase implements IMutList {
       this.added = added;
     }
   }
-  public static class Leaf {
+  public static interface INode {
+    public void forEachRemaining(int shift, int sidx, int eidx, Consumer cc);
+  }
+  public static int outerEidxSpan(int sidx, int eidx, int level) {
+    if(sidx == eidx)
+      return 0;
+    int ssidx = sidx/level;
+    int eeidx = (eidx-1)/level;
+    return ((eeidx - ssidx) + 1);
+  }
+  public static int localEidx(int aryIdx, int eidx, int level) {
+    return Math.min(level, eidx - (aryIdx * level));
+  }
+  public static class Leaf implements INode {
     final Object owner;
     Object[][] data;
     public Object[][] data() { return this.data; }
@@ -82,6 +97,25 @@ public class TreeListBase implements IMutList {
 	  this.data = newData;
 	  return this;
 	}
+      }
+    }
+    @SuppressWarnings("unchecked")
+    public void forEachRemaining(int shift, int sidx, int eidx, Consumer cc) {
+      int aryIdx = sidx / leafWidth;
+      int aryEnd = aryIdx + outerEidxSpan(sidx, eidx, leafWidth);
+      int aryOffset = sidx % leafWidth;
+      // System.out.println("leaf sidx " + String.valueOf(sidx) +
+      // 			 " eidx " + String.valueOf(eidx) +
+      // 			 " aryIdx " + String.valueOf(aryIdx) +
+      // 			 " aryEnd " + String.valueOf(aryEnd) +
+      // 			 " aryOffset " + String.valueOf(aryOffset)
+      // 			 );
+      for(; aryIdx < aryEnd; ++aryIdx) {
+	int localEnd = localEidx(aryIdx, eidx, leafWidth);
+	// System.out.println("Local End: " + String.valueOf(localEnd));
+	Object[] localData = data()[aryIdx];
+	for(; aryOffset < localEnd; ++aryOffset) cc.accept(localData[aryOffset]);
+	aryOffset = 0;
       }
     }
     public Object cons(Object[] tail) {
@@ -111,7 +145,7 @@ public class TreeListBase implements IMutList {
 	tail = new Object[0];
       else if (nTail != tailWidth)
 	tail = Arrays.copyOf(tail, nTail);
-      
+
       if(tails.isEmpty())
 	return new ConsAllResult(new Object[]{this}, dataIter, tail, added);
       int totalTails = tails.size();
@@ -190,7 +224,7 @@ public class TreeListBase implements IMutList {
     }
     public static final Leaf EMPTY = new Leaf();
   }
-  public static class Branch {
+  public static class Branch implements INode {
     final Object owner;
     Object[] data; //either branch or leaf
     public Object[] data() { return this.data; }
@@ -200,6 +234,21 @@ public class TreeListBase implements IMutList {
     public Branch(Branch branch) { this.owner = null; this.data = new Object[]{branch}; }
     public Branch(Object owner, int shift, Object[] tail) {
       this(owner, new Object[] { shift == 1 ? new Leaf(tail) : new Branch(shift-1, tail) } );
+    }
+    @SuppressWarnings("unchecked")
+    public void forEachRemaining(int shift, int sidx, int eidx, Consumer cc) {
+      /* System.out.println("brach sidx " + String.valueOf(sidx) + */
+      /* 			 " eidx " + String.valueOf(eidx)); */
+      int shiftAmt = shift * shiftWidth;
+      int level = branchWidth << shiftAmt;
+      int aryIdx = sidx / level;
+      int aryEnd = aryIdx + outerEidxSpan(sidx, eidx, level);
+      int aryOffset = sidx % level;
+      for(; aryIdx < aryEnd; ++aryIdx) {
+	int localEnd = localEidx(aryIdx, eidx, level);
+	((INode)data[aryIdx]).forEachRemaining(shift-1, aryOffset, localEnd, cc);
+	aryOffset = 0;
+      }
     }
     public Object cons(Object owner, int shift, Object[] tail) {
       if(data.length == 0)
@@ -285,7 +334,7 @@ public class TreeListBase implements IMutList {
       Object newItem = shift == 1 ? ((Leaf)item).assocN(owner, leftover, obj, oldVal)
 	: ((Branch)item).assocN(owner, shift-1, leftover, obj, oldVal);
       Object[] newData = force ? Arrays.copyOf(data, data.length) : data;
-      if(newItem != item) {	
+      if(newItem != item) {
 	newData[localIdx] = newItem;
       }
       return force ? new Branch(owner, newData) : this;
@@ -294,7 +343,7 @@ public class TreeListBase implements IMutList {
     public SublistResult pop(Object owner, int shift) {
       boolean force = owner == null || owner != this.owner;
       int dlen = data.length;
-      Object lastObj = data[dlen-1];      
+      Object lastObj = data[dlen-1];
       SublistResult res = shift == 1 ? ((Leaf)lastObj).pop(owner) : ((Branch)lastObj).pop(owner, shift-1);
       Object node = res.node;
       Object[] newTail = res.tail;
@@ -311,8 +360,8 @@ public class TreeListBase implements IMutList {
       }
       int newLen = newD.length;
       if(!empty)
-	newD[newLen-1] = node;      
-      
+	newD[newLen-1] = node;
+
       Branch newBranch;
       if(force) {
 	newBranch = new Branch(owner, newD);
@@ -368,7 +417,7 @@ public class TreeListBase implements IMutList {
 	  }
 	  int newDataSize = newBranchData.size();
 	  int llen = Math.min(branchWidth, newDataSize);
-	  ll = new Branch(null, newBranchData.subList(0, llen).toArray());	  
+	  ll = new Branch(null, newBranchData.subList(0, llen).toArray());
 	  if(llen < newDataSize) {
 	    rr = new Branch(null, newBranchData.subList(llen, newDataSize).toArray());
 	  } else {
@@ -436,7 +485,7 @@ public class TreeListBase implements IMutList {
   public int size() { return count; }
   public int shift() { return shift; }
   public int nTail() { return tail.length; }
-  
+
   public TreeListBase(Object root, Object[] tail, int shift, int count) {
     this.tail = tail;
     this.root = root;
@@ -489,6 +538,18 @@ public class TreeListBase implements IMutList {
     checkIndex(idx, count);
     return getArray(idx)[idx % 32];
   }
+  @SuppressWarnings("unchecked")
+  public void forEachRemaining(int sidx, int eidx, Consumer cc) {
+    if(sidx < 0 || eidx > count) throw new NoSuchElementException();
+    int cutoff = count - nTail();
+    if(sidx < cutoff)
+      ((INode)root).forEachRemaining(shift, sidx, Math.min(eidx, cutoff), cc);
+    if(eidx > cutoff) {
+      int cidx = eidx - cutoff;
+      for(int idx = Math.max(sidx, cutoff) - cutoff; idx < cidx; ++idx)
+	cc.accept(tail[idx]);
+    }
+  }
   public Object reduce(int sidx, int eidx, IFn rfn, Object acc) {
     Iterator<Object[]> iter = arrayIterator(sidx, eidx);
     int arySidx = sidx - (sidx % tailWidth);
@@ -512,7 +573,7 @@ public class TreeListBase implements IMutList {
     }
     return acc;
   }
-  
+
   public Object reduce(IFn rfn, Object acc) {
     return reduce(0, count, rfn, acc);
   }
@@ -533,6 +594,49 @@ public class TreeListBase implements IMutList {
   public Object[] fillArray(Object[] data) {
     return fillArray(0, count, data);
   }
+  public static class TreeListSpliterator implements Spliterator {
+    public final TreeListBase data;
+    int sidx;
+    int eidx;
+
+    public TreeListSpliterator(TreeListBase data, int sidx, int eidx) {
+      this.data = data;
+      this.sidx = sidx;
+      this.eidx = eidx;
+    }
+    public int characteristics() {
+      return Spliterator.ORDERED | Spliterator.SIZED | Spliterator.SUBSIZED | Spliterator.IMMUTABLE;
+    }
+    public Spliterator trySplit() {
+      int ne = (eidx - sidx);
+      if ( ne > 2) {
+	int middle = sidx + (ne / 2);
+	int eeidx = eidx;
+	eidx = middle;
+	return new TreeListSpliterator(data, middle, eeidx);
+      }
+      return null;
+    }
+    public long estimateSize() { return eidx - sidx; }
+    @SuppressWarnings("unchecked")
+    public boolean tryAdvance(Consumer c) {
+      if(sidx < eidx) {
+	c.accept(data.get(sidx));
+	++sidx;
+	return true;	  
+      }
+      return false;
+    }
+    public void forEachRemaining(Consumer c) {
+      data.forEachRemaining(sidx, eidx, c);
+      sidx = eidx;
+    }
+  }
+  public Spliterator spliterator(int sidx, int eidx) {
+    sublistCheck(sidx, eidx, size());
+    return new TreeListSpliterator(this, sidx, eidx);
+  }
+  public Spliterator spliterator() { return spliterator(0, size()); }
   public static class SubList implements IMutList, IPersistentVector {
     int offset; //<= 32
     TreeList data;
@@ -571,6 +675,9 @@ public class TreeListBase implements IMutList {
     }
     public Object reduce(IFn rfn, Object acc) {
       return data.reduce(offset, data.count(), rfn, acc);
+    }
+    public Spliterator spliterator() {
+      return data.spliterator(offset, data.count());
     }
     public static IMutList create(int offset, TreeList data) {
       if(offset == 0)
