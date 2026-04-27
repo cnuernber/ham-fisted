@@ -65,6 +65,7 @@ public class TreeListBase implements IMutList {
   }
   public static interface INode {
     public void forEachRemaining(int shift, int sidx, int eidx, Consumer cc);
+    public Object reduce(int shift, int sidx, int eidx, IFn rfn, Object acc);
   }
   public static int outerEidxSpan(int sidx, int eidx, int level) {
     if(sidx == eidx)
@@ -117,6 +118,28 @@ public class TreeListBase implements IMutList {
 	for(; aryOffset < localEnd; ++aryOffset) cc.accept(localData[aryOffset]);
 	aryOffset = 0;
       }
+    }
+    public Object reduce(int shift, int sidx, int eidx, IFn rfn, Object acc) {
+      int aryIdx = sidx / leafWidth;
+      int aryEnd = aryIdx + outerEidxSpan(sidx, eidx, leafWidth);
+      int aryOffset = sidx % leafWidth;
+      // System.out.println("leaf sidx " + String.valueOf(sidx) +
+      // 			 " eidx " + String.valueOf(eidx) +
+      // 			 " aryIdx " + String.valueOf(aryIdx) +
+      // 			 " aryEnd " + String.valueOf(aryEnd) +
+      // 			 " aryOffset " + String.valueOf(aryOffset)
+      // 			 );
+      for(; aryIdx < aryEnd; ++aryIdx) {
+	int localEnd = localEidx(aryIdx, eidx, leafWidth);
+	// System.out.println("Local End: " + String.valueOf(localEnd));
+	Object[] localData = data()[aryIdx];
+	for(; aryOffset < localEnd; ++aryOffset) {
+	  acc = rfn.invoke(acc, localData[aryOffset]);
+	  if(RT.isReduced(acc)) return acc;
+	}
+	aryOffset = 0;
+      }
+      return acc;
     }
     public Object cons(Object[] tail) {
       return cons(null, tail);
@@ -249,6 +272,22 @@ public class TreeListBase implements IMutList {
 	((INode)data[aryIdx]).forEachRemaining(shift-1, aryOffset, localEnd, cc);
 	aryOffset = 0;
       }
+    }
+    public Object reduce(int shift, int sidx, int eidx, IFn rfn, Object acc) {
+      /* System.out.println("brach sidx " + String.valueOf(sidx) + */
+      /* 			 " eidx " + String.valueOf(eidx)); */
+      int shiftAmt = shift * shiftWidth;
+      int level = branchWidth << shiftAmt;
+      int aryIdx = sidx / level;
+      int aryEnd = aryIdx + outerEidxSpan(sidx, eidx, level);
+      int aryOffset = sidx % level;
+      for(; aryIdx < aryEnd; ++aryIdx) {
+	int localEnd = localEidx(aryIdx, eidx, level);
+	acc = ((INode)data[aryIdx]).reduce(shift-1, aryOffset, localEnd, rfn, acc);
+	if(RT.isReduced(acc)) return acc;
+	aryOffset = 0;
+      }
+      return acc;
     }
     public Object cons(Object owner, int shift, Object[] tail) {
       if(data.length == 0)
@@ -540,7 +579,7 @@ public class TreeListBase implements IMutList {
   }
   @SuppressWarnings("unchecked")
   public void forEachRemaining(int sidx, int eidx, Consumer cc) {
-    if(sidx < 0 || eidx > count) throw new NoSuchElementException();
+    sublistCheck(sidx, eidx, size());
     int cutoff = count - nTail();
     if(sidx < cutoff)
       ((INode)root).forEachRemaining(shift, sidx, Math.min(eidx, cutoff), cc);
@@ -551,25 +590,17 @@ public class TreeListBase implements IMutList {
     }
   }
   public Object reduce(int sidx, int eidx, IFn rfn, Object acc) {
-    Iterator<Object[]> iter = arrayIterator(sidx, eidx);
-    int arySidx = sidx - (sidx % tailWidth);
-    while(iter.hasNext()) {
-      int startoff = Math.max(sidx, arySidx);
-      int endoff = Math.min(eidx, arySidx + tailWidth);
-      int copyLen = endoff - startoff;
-      Object[] ary = iter.next();
-      /* System.out.println("startoff: " + String.valueOf(startoff) + " endoff " + String.valueOf(endoff) + */
-      /* 			 " copyLen " + String.valueOf(copyLen) + */
-      /* 			 " sidx " + String.valueOf(sidx) + */
-      /* 			 " eidx " + String.valueOf(eidx)); */
-      int startIdx = startoff % 32;
-      int endIdx = startIdx + copyLen;
-      for(int idx = startIdx; idx < endIdx; ++idx) {
-	acc = rfn.invoke(acc, ary[idx]);
-	if(RT.isReduced(acc))
-	  return ((IDeref)acc).deref();
+    sublistCheck(sidx, eidx, size());
+    int cutoff = count - nTail();
+    if(sidx < cutoff)
+      acc = ((INode)root).reduce(shift, sidx, Math.min(eidx, cutoff), rfn, acc);
+    if (RT.isReduced(acc)) return ((IDeref)acc).deref();
+    if(eidx > cutoff) {
+      int cidx = eidx - cutoff;
+      for(int idx = Math.max(sidx, cutoff) - cutoff; idx < cidx; ++idx) {
+	acc = rfn.invoke(acc, tail[idx]);
+	if (RT.isReduced(acc)) return acc;
       }
-      arySidx += tailWidth;
     }
     return acc;
   }
@@ -623,7 +654,7 @@ public class TreeListBase implements IMutList {
       if(sidx < eidx) {
 	c.accept(data.get(sidx));
 	++sidx;
-	return true;	  
+	return true;
       }
       return false;
     }
