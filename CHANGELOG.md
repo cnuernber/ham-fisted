@@ -1,3 +1,7 @@
+# 3.029
+ * Much more thorough support for spliterators and forkjoinpool. See spliterator and fjp namespaces
+   respectively.
+ 
 # 3.025
  * bloom filters handle java.time.Instants automatically
  
