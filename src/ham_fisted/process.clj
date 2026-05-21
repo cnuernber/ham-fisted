@@ -59,9 +59,10 @@
     ([acc] (persistent! acc))))
 
 (defn destroy-forcibly!
-  "Destroy the process handle's process forcibly."
+  "Destroy the process handle's process forcibly.  Returns result of (.get (.onExit proc-hdl))"
   [^java.lang.ProcessHandle proc-hdl]
-  (.destroyForcibly proc-hdl))
+  (.destroyForcibly proc-hdl)
+  (.get (.onExit proc-hdl)))
 
 (defn process-descendants
   "Get the first descendants of a process handle."

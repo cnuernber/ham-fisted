@@ -1,3 +1,6 @@
+# 3.030
+ * Processes correctly wait for termination after destroyForcibly is called.
+ 
 # 3.029
  * Much more thorough support for spliterators and forkjoinpool. See spliterator and fjp namespaces
    respectively.
