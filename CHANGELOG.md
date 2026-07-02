@@ -1,3 +1,6 @@
+# 3.031
+ * slight interface change IMutList.
+ 
 # 3.030
  * Processes correctly wait for termination after destroyForcibly is called.
  

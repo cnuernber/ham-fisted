@@ -46,6 +46,7 @@ import clojure.lang.MapEntry;
 import clojure.lang.IteratorSeq;
 import clojure.lang.ISeq;
 import clojure.lang.IPersistentVector;
+import clojure.lang.IPersistentCollection;
 import clojure.lang.IPersistentMap;
 import clojure.lang.IObj;
 import clojure.lang.ASeq;
@@ -697,10 +698,10 @@ public interface IMutList<E>
   default Associative assoc(Object idx, Object o) {
     return immut().assoc(idx, o);
   }
-  default IPersistentVector cons(Object o) {
+  default IPersistentCollection cons(Object o) {
     return immut().cons(o);
   }
-  default IPersistentVector empty() {
+  default IPersistentCollection empty() {
     return ArrayImmutList.EMPTY;
   }
 
