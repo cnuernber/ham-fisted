@@ -203,3 +203,10 @@ but it must be comparable with identical?")
 
 (defprotocol ToSpliterator
   (^java.util.Spliterator ->spliterator [m]))
+
+(defprotocol BinaryPriority
+  (is-high-priority? [m]))
+
+(extend-protocol BinaryPriority
+  nil (is-high-priority? [_m] false)
+  Object (is-high-priority? [_m] false))
