@@ -14,8 +14,8 @@ public class CooperativeTPE extends ThreadPoolExecutor {
     int desiredThreadCount;
     ReentrantLock lock = new ReentrantLock();
 
-    public CooperativeTPE(int desiredThreadCount, ThreadFactory threadFactory, BlockingQueue<Runnable> queue, RejectedExecutionHandler handler) {
-	super(desiredThreadCount, desiredThreadCount, 0, TimeUnit.MILLISECONDS, queue, threadFactory, handler);
+    public CooperativeTPE(int desiredThreadCount, int threadTimeoutMs, ThreadFactory threadFactory, BlockingQueue<Runnable> queue, RejectedExecutionHandler handler) {
+	super(desiredThreadCount, desiredThreadCount, threadTimeoutMs, TimeUnit.MILLISECONDS, queue, threadFactory, handler);
 	this.desiredThreadCount = desiredThreadCount;
     }
 
@@ -33,6 +33,7 @@ public class CooperativeTPE extends ThreadPoolExecutor {
 	}
     }
 
+    public int desiredThreadCount() { return desiredThreadCount; }
     public static boolean isRealized(Object o) {
 	if (o instanceof java.util.concurrent.Future)
 	    return ((java.util.concurrent.Future) o).isDone();
@@ -81,7 +82,7 @@ public class CooperativeTPE extends ThreadPoolExecutor {
 	return rv;
     }
 
-    public void resize(int newNC) {
+    public void setDesiredThreadCount(int newNC) {
 	if(newNC != desiredThreadCount) {
 	    lock.lock();
 	    try {

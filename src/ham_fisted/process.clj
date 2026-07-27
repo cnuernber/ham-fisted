@@ -104,7 +104,9 @@ ham-fisted.process> (keys result)
   ([^String cmd-line {:keys [stdout-hdlr stderr-hdlr print-cmd-line?]
                       :or {print-cmd-line? true}}]
    (when print-cmd-line? (println "launch-process:" cmd-line))
-   (let [proc (.exec (Runtime/getRuntime) cmd-line)
+   (let [proc (.exec (Runtime/getRuntime) (if (string? cmd-line)
+                                            cmd-line
+                                            (into-array String cmd-line)))
          phandle (.toHandle proc)
          exit-future (.onExit phandle)
          stdout-hdlr (or stdout-hdlr println-rf)

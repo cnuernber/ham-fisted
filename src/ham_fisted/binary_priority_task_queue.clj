@@ -20,7 +20,8 @@
         highq (LinkedBlockingQueue.)
         lock (ReentrantLock.)
         cc (.newCondition lock)]
-    (reify BlockingQueue
+    (reify
+      BlockingQueue
       (offer [_ task]
         (.lock lock)
         (try
@@ -45,7 +46,10 @@
               (or (.poll highq 0 TimeUnit/MILLISECONDS) (.poll lowq 0 TimeUnit/MILLISECONDS))))))
       (take [this] (.poll this Integer/MAX_VALUE TimeUnit/MILLISECONDS))
       (size [_] (+ (.size highq) (.size lowq)))
-      (remove [_ t] (throw (RuntimeException. "Unimplemented"))))))
+      (remove [_ t] (throw (RuntimeException. "Unimplemented")))
+      clojure.lang.IDeref
+      (deref [_] {:lowq-size (.size lowq)
+                  :highq-size (.size highq)}))))
 
 (comment
   (defrecord HR [] hamf-proto/BinaryPriority (is-high-priority? [_] true))
@@ -79,19 +83,19 @@
 
 (defn cooperative-thread-pool-executor
   ^ThreadPoolExecutor [n-threads thread-factory queue handler]
-  (ham_fisted.CooperativeTPE. n-threads thread-factory queue (or handler (java.util.concurrent.ThreadPoolExecutor$AbortPolicy.))))
+  (ham_fisted.CooperativeTPE. n-threads 0 thread-factory queue (or handler (java.util.concurrent.ThreadPoolExecutor$AbortPolicy.))))
 
 (definterface PrioritySubmit
   (submitCallablePriority [task high-priority?]))
 
-(defonce ^ThreadLocal high-priority? (ThreadLocal.))
-
 (defmacro with-high-priority
   [& code]
-  `(let [old-p# (.get high-priority?)]
-     (try (.set high-priority? true)
+  `(let [old-p# (boolean (.get BinaryPriorityFutureTask/isHighPriorityVar))]
+     (try (.set BinaryPriorityFutureTask/isHighPriorityVar true)
           ~@code
-          (finally (.set high-priority? old-p#)))))
+          (finally (.set BinaryPriorityFutureTask/isHighPriorityVar old-p#)))))
+
+(defn is-current-thread-high-priority? [] (.get BinaryPriorityFutureTask/isHighPriorityVar))
 
 (defn binary-priority-executor
   ^ExecutorService [& {:keys [n-threads thread-name-prefix rejected-execution-handler thread-factory daemon-threads?]
@@ -112,7 +116,7 @@
     (reify
       ham_fisted.ExecutorService
       (submitCallable [_ task]
-        (let [fv (future-task task (boolean (.get high-priority?)))]
+        (let [fv (future-task task (boolean (.get BinaryPriorityFutureTask/isHighPriorityVar)))]
           (.execute thread-pool fv)
           fv))
       PrioritySubmit
@@ -121,7 +125,7 @@
           (.execute thread-pool fv)
           fv))
       clojure.lang.IDeref
-      (deref [_] thread-pool))))
+      (deref [_] (merge {:thread-pool thread-pool} @queue)))))
 
 (defn managed-block [blocker]
   (CooperativeTPE/managedBlock blocker))
