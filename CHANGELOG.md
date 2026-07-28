@@ -1,3 +1,6 @@
+# 3.033
+ * process namespace can accept sequence of strings or a single string.
+ 
 # 3.031
  * slight interface change IMutList.
  
