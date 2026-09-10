@@ -1,9 +1,12 @@
 (ns ham-fisted.lockless-caching
-  (:require [ham-fisted.print :refer [implement-tostring-print]])
+  (:require [ham-fisted.print :refer [implement-tostring-print]]
+            [ham-fisted.iterator :as hamf-iter]
+            [ham-fisted.language :as hamf-lang])
   (:import (java.util.concurrent.atomic AtomicReference)
-           (clojure.lang ISeq Seqable IPersistentCollection Counted)
+           (clojure.lang ISeq Seqable)
+           (java.lang.invoke MethodHandles VarHandle)
            [ham_fisted ITypedReduce])
-  (:refer-clojure :exclude [lazy-seq]))
+  (:refer-clojure :exclude [lazy-seq lazy-cons]))
 
 (set! *warn-on-reflection* true)
 
@@ -88,7 +91,7 @@
         (cond
          ;; Already realized -> done
           (instance? Realized current)
-          nil
+          current
 
          ;; Pending -> Try to claim evaluation rights via CAS
           (instance? Pending current)
@@ -130,8 +133,54 @@
   (when (pos? n)
     (cons n (clojure.core/lazy-seq (core-lazy-range (dec n))))))
 
+;; Helper constructor macro
+(defmacro lazy-cons [head & tail-thunk]
+  `(ham_fisted.LockFreeLazyCons. ~head (fn [] ~@tail-thunk)))
+
+(defn cons-lazy-range [^long n]
+  (when (pos? n)
+    (lazy-cons n (cons-lazy-range (dec n)))))
+
+(implement-tostring-print ham_fisted.LockFreeLazyCons)
+
+(defn iter-range [^long n]
+  (hamf-iter/iterable
+   #(pos? (aget ^longs % 0))
+   #(long-array [n])
+   #(do (aset ^longs % 0 (dec (aget ^longs % 0))) %)
+   #(aget ^longs % 0)))
+
+
 (comment
+  (crit/quick-bench (into [] (core-lazy-range 10000)))
+  ;;1.38ms
+  (crit/quick-bench (into [] (cons-lazy-range 10000)))
+  ;;1.2ms
+  (crit/quick-bench (into [] (iter-range 10000)))
+  ;;425us
+  (crit/quick-bench (into [] (hamf/range 10000)))
+  ;;323us
+
+  ;;static size is 240000 bytes (10000 * 24 bytes)
+  (mm/measure (let [s (core-lazy-range 10000)]
+                (into [] s)
+                s))
+  ;;859KB
+  
+  (mm/measure (let [s (cons-lazy-range 10000)]
+                (into [] s)
+                s))
+  ;;468KB
+  
+  (require '[ham-fisted.bean-alloc :as ba])
 
   
-  (println )
+  (ba/measure (dotimes [idx 100] (into [] (core-lazy-range 10000))))
+  ;;{:value nil, :bytes 165154024}
+  (ba/measure (dotimes [idx 100] (into [] (cons-lazy-range 10000))))
+  ;;{:value nil, :bytes 77156424}
+  (ba/measure (dotimes [idx 100] (into [] (iter-range 10000))))
+  ;;{:value nil, :bytes 29183624}
+  (ba/measure (dotimes [idx 100] (into [] (hamf/range 10000))))
+  ;;{:value nil, :bytes 29157304}
   )
