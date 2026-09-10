@@ -142,7 +142,7 @@
       (println "pmap f")
       (time (reduce-count (hamf/pmap #(f % [] :x) l)))
       (println "pmap fast-f")
-      (time (reduce-count (lznc/map identity (hamf/pmap #(hf % [] :x) l))))))
+      (time (reduce-count (hamf/pmap #(hf % [] :x) l)))))
   :done)
 
 (defn -main
