@@ -1,7 +1,7 @@
 (ns ham-fisted.language
   (:import [ham_fisted Transformables]
            [ham_fisted ObjArray])
-  (:refer-clojure :exclude [cond constantly not]))
+  (:refer-clojure :exclude [cond constantly not complement]))
 
 (defmacro cond
   "See documentation for [[ham-fisted.api/cond]]"
@@ -23,6 +23,15 @@
                   `(if ~pred ~true-branch ~stmts))
                 else-branch
                 pred-true-branch)))))
+
+(defn complement
+  "Like clojure core complement but avoids var lookup on 'not'"
+  [f]
+  (fn
+    ([] (Transformables/not (f)))
+    ([x] (Transformables/not (f x)))
+    ([x y] (Transformables/not (f x y)))
+    ([x y & zs] (Transformables/not (apply f x y zs)))))
 
 (def array-classes {:byte (.getClass ^Object (clojure.core/byte-array 0))
                     :short (.getClass ^Object (clojure.core/short-array 0))

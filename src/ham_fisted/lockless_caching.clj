@@ -4,130 +4,12 @@
             [ham-fisted.language :as hamf-lang])
   (:import (java.util.concurrent.atomic AtomicReference)
            (clojure.lang ISeq Seqable)
+           [java.util List]
            (java.lang.invoke MethodHandles VarHandle)
-           [ham_fisted ITypedReduce])
-  (:refer-clojure :exclude [lazy-seq lazy-cons]))
+           [ham_fisted ITypedReduce Transformables])
+  (:refer-clojure :exclude [lazy-seq lazy-cons map filter remove concat]))
 
 (set! *warn-on-reflection* true)
-
-;; Marker representation for state tracking
-(deftype Pending [thunk])
-(deftype Evaluating [owner-thread])
-(deftype Realized [val tail])
-
-(definterface IRealizable (realize []))
-
-(deftype LockFreeLazySeq [^AtomicReference state]
-  ISeq
-  (first [this]
-    (.realize this)
-    (let [^Realized r (.get state)]
-      (.-val r)))
-
-  (next [this]
-    (.more this))
-
-  (more [this]
-    (.realize this)
-    (let [^Realized r (.get state)
-          tail (.-tail r)]
-      (if (nil? tail)
-        nil
-        (clojure.lang.RT/seq tail))))
-
-  (cons [this o]
-    (clojure.lang.Cons. o this))
-
-  (empty [this]
-    clojure.lang.PersistentList/EMPTY)
-
-  (equiv [this o]
-    (if (instance? ISeq o)
-      (loop [s1 this
-             s2 (seq o)]
-        (cond
-          (and (nil? s1) (nil? s2)) true
-          (or (nil? s1) (nil? s2)) false
-          (= (first s1) (first s2)) (recur (next s1) (next s2))
-          :else false))
-      false))
-
-  Seqable
-  (seq [this]
-    (.realize this)
-    (let [^Realized r (.get state)]
-      (if (and (nil? (.-val r)) (nil? (.-tail r)))
-        nil
-        this)))
-
-  Object
-  (toString [this]
-    (let [st (.get state)]
-      (if (instance? Realized st)
-        (str "(" (.-val ^Realized st) " ...) ")
-        "(...)")))
-
-  ITypedReduce
-  (reduce [this rfn acc]
-    (loop [^LockFreeLazySeq l this
-           acc acc]
-      (.realize l)
-      (let [^Realized r (.get ^AtomicReference (.-state l))]
-        (if (and r (or (.-val r) (.-tail r)))
-          (let [acc (rfn acc (.-val r))]
-            (if (reduced? acc)
-              acc
-              (let [ll (.-tail r)]
-                (if (instance? LockFreeLazySeq ll)
-                  (recur ll acc)
-                  (reduce rfn acc ll)))))
-          acc))))
-
-  IRealizable
-  ;; Internal realization logic
-  (realize [this]
-    (loop []
-      (let [current (.get state)]
-        (cond
-         ;; Already realized -> done
-          (instance? Realized current)
-          current
-
-         ;; Pending -> Try to claim evaluation rights via CAS
-          (instance? Pending current)
-          (let [evaluating-state (Evaluating. (Thread/currentThread))]
-            (if (.compareAndSet state current evaluating-state)
-             ;; Evaluation claimed successfully
-              (try
-                (let [thunk (.-thunk ^Pending current)
-                      res (thunk)
-                      ^ISeq s (clojure.lang.RT/seq res)
-                      realized-state (if (nil? s)
-                                       (Realized. nil nil)
-                                       (Realized. (.first s) (rest s)))]
-                  (.set state realized-state))
-                (catch Throwable e
-                 ;; Reset to original pending state on failure so another thread can retry
-                  (.set state current)
-                  (throw e)))
-             ;; CAS failed, another thread touched state; retry loop
-              (recur)))
-
-         ;; Evaluating -> Spin wait / yield until evaluating thread finishes
-          (instance? Evaluating current)
-          (do
-            (Thread/yield)
-            (recur)))))))
-
-(implement-tostring-print LockFreeLazySeq)
-
-;; Macro helper mirroring `lazy-seq`
-(defmacro lazy-seq [& body]
-  `(LockFreeLazySeq. (AtomicReference. (Pending. (fn [] ~@body)))))
-
-(defn lazy-range [^long n]
-  (when (pos? n)
-    (cons n (lazy-seq (lazy-range (dec n))))))
 
 (defn core-lazy-range [^long n]
   (when (pos? n)
@@ -144,14 +26,149 @@
 (implement-tostring-print ham_fisted.LockFreeLazyCons)
 
 (defn iter-range [^long n]
-  (hamf-iter/iterable
-   #(pos? (aget ^longs % 0))
-   #(long-array [n])
-   #(do (aset ^longs % 0 (dec (aget ^longs % 0))) %)
-   #(aget ^longs % 0)))
+  (-> (hamf-iter/iterable
+       #(pos? (aget ^longs % 0))
+       #(long-array [n])
+       #(do (aset ^longs % 0 (dec (aget ^longs % 0))) %)
+       #(aget ^longs % 0))
+      (hamf-iter/seq-iterable)))
 
+(deftype LazySeq [thunk]
+  clojure.lang.Seqable
+  (seq [_m] (thunk))
+  Object
+  (toString [_m] (Transformables/sequenceToString (.seq _m))))
+
+(defmacro lazy-seq [thunk]
+  `(LazySeq. (fn [] ~thunk)))
+
+(implement-tostring-print LazySeq)
+
+(defn- map*
+  ([f ^ISeq a]
+   (lazy-cons
+       (f (.first a))
+       (when-let [aa (.next a)]
+         (map* f aa))))
+  ([f ^ISeq a ^ISeq b]
+   (lazy-cons (f (.first a) (.first b))
+     (let [a (.next a) b (.next b)]
+       (when (and a b)
+         (map* f a b)))))
+  ([f ^ISeq a ^ISeq b ^ISeq c]
+   (lazy-cons (f (.first a) (.first b) (.first c))
+     (let [a (.next a) b (.next b) c (.next c)]
+       (when (and a b c)
+         (map* f a b c))))))
+
+(defn- early-out-nil [f args]
+  (let [na (count args)]
+    (loop [rv (transient [])
+           idx 0]
+      (if (== idx na)
+        (persistent! rv)
+        (when-let [rr (f (.get ^List args idx))]
+          (recur (conj! rv rr) (unchecked-inc idx)))))))
+
+(defn- map** [f args]
+  (lazy-cons (apply f (map* #(.first ^ISeq %) args))
+    (when-let [args (early-out-nil #(.next ^ISeq %) args)]
+      (map** f args))))
+
+(defn map
+  ([f a]
+   (lazy-seq (when-let [a (seq a)]
+               (map* f a))))
+  ([f a b]
+   (lazy-seq (let [a (seq a) b (seq b)]
+               (when (and a b)
+                 (map* f a b)))))
+  ([f a b c]
+   (lazy-seq (let [a (seq a) b (seq b) c (seq c)]
+               (when (and a b c)
+                 (map* f a b c)))))
+  ([f a b c & args]
+   (lazy-seq
+    (when-let [args (early-out-nil seq (into [a b c] args))]
+      (map** f args)))))
+
+(defn filter* [pred ^ISeq a]
+  (when (pred (.first a))
+    (lazy-cons a
+      (when-let [a (.next a)]
+        (filter* pred a)))))
+
+(defn filter
+  [pred a]
+  (lazy-seq (when-let [^ISeq a (seq a)]
+              (filter* pred a))))
+
+(defn remove [pred a] (filter (hamf-lang/complement pred) a))
+
+(defn- concat*
+  ([^ISeq a b]
+   (lazy-cons (.first a)
+     (if-let [a (.next a)]
+       (concat* a b)
+       (when-let [b (seq b)] b))))
+  ([^ISeq a b c]
+   (lazy-cons (.first a)
+     (if-let [a (.next a)]
+       (concat* a b c)
+       (if-let [b (seq b)]
+         (concat* b c)
+         (when-let [c (seq c)]
+           c))))))
+
+(defn- concat** [^ISeq a ^ISeq args]
+  (lazy-cons (.first a)
+             (if-let [a (.next a)]
+               (concat** a args)
+               (loop [a (seq (.first args))
+                      args (.next args)]
+                 (if args
+                   (if a
+                     (concat** a args)
+                     (recur (seq (.first args)) (.next args)))
+                   a)))))
+
+(defn concat
+  ([a] a)
+  ([a b]
+   (lazy-seq
+    (let [a (seq a)]
+      (hamf-lang/cond
+        (and a b)
+        (concat* a b)
+        a a
+        :else
+        (when-let [b (seq b)]
+          b)))))
+  ([a b c]
+   (lazy-seq
+    (let [a (seq a)]
+      (if a
+        (concat* a b c)
+        (if-let [b (seq b)]
+          (concat* b c)
+          (when-let [c (seq c)]
+            c))))))
+  ;;args in this case may be infinite
+  ([a b c & args]
+   (lazy-seq
+    (loop [^ISeq args (seq (concat [b c] args))
+           a (seq a)]
+      (hamf-lang/cond (and a args)
+        (concat** a args)
+        a a
+        :else
+        (let [^ISeq args (.next args)]
+          (recur args (when args (seq (.first args))))))))))
 
 (comment
+  (require '[criterium.core :as crit])
+  (require '[clj-memory-meter.core :as mm])
+  (require '[ham-fisted.api :as hamf])
   (crit/quick-bench (into [] (core-lazy-range 10000)))
   ;;1.38ms
   (crit/quick-bench (into [] (cons-lazy-range 10000)))
