@@ -8,6 +8,7 @@ import clojure.lang.IPersistentCollection;
 import clojure.lang.RT;
 import clojure.lang.IFn;
 
+import java.util.concurrent.locks.LockSupport;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 
@@ -62,12 +63,19 @@ public class LockFreeLazyCons implements ISeqDef {
     // --- Lock-Free Tail Realization ---
 
     public Object realizeTail() {
+	int spins = 0;
         while (true) {
             Object current = TAIL_HANDLE.getVolatile(this);
-
+	    
             // 1. Another thread is actively executing the thunk
             if (current == EVALUATING) {
-                Thread.yield();
+		spins++;
+		if(spins < 50)
+		    Thread.yield();
+		else {
+		    spins = 50; //avoid ever wrapping spins.
+		    LockSupport.parkNanos(10000);
+		}
                 continue;
             }
 
