@@ -14,6 +14,7 @@
 package ham_fisted;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.ConcurrentHashMap;

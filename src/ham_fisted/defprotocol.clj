@@ -36,7 +36,7 @@
   [protocol ^MethodImplCache cache x]
   (when cache
     (let [cc (if (class? x) x (class x))]
-      (if (.isAssignableFrom (.-iface cache) cc)
+      (if (and cc (.isAssignableFrom (.-iface cache) cc))
         (.-ifaceFn cache)
         (if-let [mfn (when (get protocol :extend-via-metadata)
                        (get (meta x) (.-ns_methodk cache)))]
@@ -71,7 +71,7 @@
   "Returns true if x satisfies the protocol"
   [protocol x]
   (or (instance? (get protocol :on-interface) x)
-      (every? #(boolean (find-protocol-cache-method protocol % @x))
+      (every? #(boolean (find-protocol-cache-method protocol (deref %) x))
               (vals (get protocol :method-caches)))))
 
 (defn- assert-same-protocol [protocol-var method-syms]

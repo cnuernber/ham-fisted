@@ -390,6 +390,48 @@
   (is (instance? clojure.lang.IFn$OLLO -sub-buffer-iface)))
 
 
+(defprotocol SatisfiesProto
+  (sat-a [this])
+  (sat-b [this]))
+
+(extend-type String
+  SatisfiesProto
+  (sat-a [this] :a)
+  (sat-b [this] :b))
+
+(deftype SatisfiesInline []
+  SatisfiesProto
+  (sat-a [this] :a)
+  (sat-b [this] :b))
+
+(deftype SatisfiesPartial [])
+(extend-type SatisfiesPartial SatisfiesProto (sat-a [this] :a))
+
+(deftype SatisfiesNone [])
+
+(extend nil SatisfiesProto {:sat-a (fn [_] :a) :sat-b (fn [_] :b)})
+
+(deftest satisfies-test
+  (testing "inline implementations satisfy via the interface instance check"
+    (is (satisfies? SatisfiesProto (SatisfiesInline.))))
+  (testing "extend-based implementations satisfy"
+    (is (satisfies? SatisfiesProto "hello")))
+  (testing "a type with no implementation does not satisfy"
+    (is (not (satisfies? SatisfiesProto (SatisfiesNone.)))))
+  (testing "a partially extended type does not satisfy"
+    (is (not (satisfies? SatisfiesProto (SatisfiesPartial.)))))
+  (testing "an extension on nil satisfies"
+    (is (satisfies? SatisfiesProto nil))))
+
+(deftest find-protocol-method-test
+  (testing "resolves the implementation for an extended type"
+    (is (= :a ((defprotocol/find-protocol-method SatisfiesProto :sat-a "hello") "hello"))))
+  (testing "resolves the implementation registered on nil"
+    (is (= :a ((defprotocol/find-protocol-method SatisfiesProto :sat-a nil) nil))))
+  (testing "returns nil when the type has no implementation"
+    (is (nil? (defprotocol/find-protocol-method SatisfiesProto :sat-a (SatisfiesNone.))))))
+
+
 (comment
   (require '[criterium.core :as crit])
   ;;Single threaded calls show very little difference if any:
