@@ -390,6 +390,137 @@
   (is (instance? clojure.lang.IFn$OLLO -sub-buffer-iface)))
 
 
+(defprotocol SatisfiesProto
+  (sat-a [this])
+  (sat-b [this]))
+
+(extend-type String
+  SatisfiesProto
+  (sat-a [this] :a)
+  (sat-b [this] :b))
+
+(deftype SatisfiesInline []
+  SatisfiesProto
+  (sat-a [this] :a)
+  (sat-b [this] :b))
+
+(deftype SatisfiesPartial [])
+(extend-type SatisfiesPartial SatisfiesProto (sat-a [this] :a))
+
+(deftype SatisfiesNone [])
+
+(extend nil SatisfiesProto {:sat-a (fn [_] :a) :sat-b (fn [_] :b)})
+
+(deftest satisfies-test
+  (testing "inline implementations satisfy via the interface instance check"
+    (is (satisfies? SatisfiesProto (SatisfiesInline.))))
+  (testing "extend-based implementations satisfy"
+    (is (satisfies? SatisfiesProto "hello")))
+  (testing "a type with no implementation does not satisfy"
+    (is (not (satisfies? SatisfiesProto (SatisfiesNone.)))))
+  (testing "a partially extended type does not satisfy"
+    (is (not (satisfies? SatisfiesProto (SatisfiesPartial.)))))
+  (testing "an extension on nil satisfies"
+    (is (satisfies? SatisfiesProto nil))))
+
+(deftest find-protocol-method-test
+  (testing "resolves the implementation for an extended type"
+    (is (= :a ((defprotocol/find-protocol-method SatisfiesProto :sat-a "hello") "hello"))))
+  (testing "resolves the implementation registered on nil"
+    (is (= :a ((defprotocol/find-protocol-method SatisfiesProto :sat-a nil) nil))))
+  (testing "returns nil when the type has no implementation"
+    (is (nil? (defprotocol/find-protocol-method SatisfiesProto :sat-a (SatisfiesNone.))))))
+
+
+;;; The protocol fn body inlines the lookup-cache hit, so these cover the paths
+;;; that bypasses: nil targets, metadata extension, re-extension after a class
+;;; has been cached, and argument names colliding with the closed-over locals.
+
+(defprotocol NilDispatch (nil-method [this]))
+(extend nil NilDispatch {:nil-method (fn [_] :nil-impl)})
+(extend-type Object NilDispatch (nil-method [this] :object-impl))
+
+(deftest nil-dispatch-test
+  (is (= :nil-impl (nil-method nil)))
+  (is (= :object-impl (nil-method "x"))))
+
+(defprotocol MetaProto
+  :extend-via-metadata true
+  (meta-method [this]))
+
+(extend-type clojure.lang.IPersistentVector MetaProto (meta-method [this] :extended))
+
+(clojure.core/defprotocol CoreMetaProto
+  :extend-via-metadata true
+  (core-meta-method [this]))
+
+(deftest extend-via-metadata-test
+  (testing "an extension applies when no metadata is present"
+    (is (= :extended (meta-method []))))
+  (testing "metadata takes precedence over an extension"
+    (is (= :from-meta
+           (meta-method (with-meta [] {'ham-fisted.defprotocol-test/meta-method
+                                       (fn [_] :from-meta)})))))
+  (testing "the metadata key is the fully-qualified symbol clojure.core uses"
+    ;;Same metadata map, one hamf protocol and one clojure.core protocol.
+    (let [impls {'ham-fisted.defprotocol-test/meta-method (fn [_] :from-meta)
+                 'ham-fisted.defprotocol-test/core-meta-method (fn [_] :from-meta)}
+          v (with-meta [] impls)]
+      (is (= :from-meta (meta-method v)))
+      (is (= :from-meta (core-meta-method v)))))
+  (testing "a namespaced keyword is not a metadata implementation"
+    (is (= :extended (meta-method (with-meta [] {::meta-method (fn [_] :from-meta)})))))
+  (testing "a type with neither still throws"
+    (is (thrown? IllegalArgumentException (meta-method 1)))))
+
+(defprotocol ReExtended (re-ext [this]))
+(extend-type String ReExtended (re-ext [this] :first))
+
+(deftest re-extension-test
+  (testing "re-extending a type already resolved through the lookup cache takes effect"
+    (is (= :first (re-ext "x")))
+    (extend-type String ReExtended (re-ext [this] :second))
+    (is (= :second (re-ext "x")))))
+
+(defprotocol ShadowProto
+  (shadow-method [cache lookup ff]))
+
+(extend-type String ShadowProto (shadow-method [cache lookup ff] [cache lookup ff]))
+
+(deftest arg-shadowing-test
+  (testing "argument names do not shadow the locals closed over by the protocol fn"
+    (is (= ["a" "b" "c"] (shadow-method "a" "b" "c")))))
+
+
+;;; Interface resolution checks a class's direct interfaces before anything they
+;;; inherit, so a primary interface wins over an inherited one.  IfaceX extends
+;;; IfaceZ; IfaceOrdered implements both IfaceX and IfaceY directly.  A naive
+;;; depth-first walk would reach IfaceZ through IfaceX and answer :z.
+
+(gen-interface :name ham_fisted.defprotocol_test.IfaceZ)
+(gen-interface :name ham_fisted.defprotocol_test.IfaceX
+               :extends [ham_fisted.defprotocol_test.IfaceZ])
+(gen-interface :name ham_fisted.defprotocol_test.IfaceY)
+
+(deftype IfaceOrdered []
+  ham_fisted.defprotocol_test.IfaceX
+  ham_fisted.defprotocol_test.IfaceY)
+
+(defprotocol IfacePriority (iface-priority [this]))
+(extend ham_fisted.defprotocol_test.IfaceZ IfacePriority {:iface-priority (fn [_] :z)})
+(extend ham_fisted.defprotocol_test.IfaceY IfacePriority {:iface-priority (fn [_] :y)})
+
+(deftest iface-priority-test
+  (testing "a direct interface beats one reached through another interface"
+    (is (= :y (iface-priority (IfaceOrdered.)))))
+  (testing "an inherited interface still resolves when nothing direct matches"
+    (is (= :z (iface-priority (reify ham_fisted.defprotocol_test.IfaceX))))))
+
+(deftest registered-classes-test
+  (is (contains? (set (defprotocol/registered-classes @#'ham-fisted.defprotocol-test/-iface-priority-cache))
+                 ham_fisted.defprotocol_test.IfaceY)))
+
+
 (comment
   (require '[criterium.core :as crit])
   ;;Single threaded calls show very little difference if any:

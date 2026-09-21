@@ -27,16 +27,112 @@
   for `.getClass` call into single concurrent hash map lookup."
   (:refer-clojure :exclude [defprotocol extend extend-type extend-protocol extends? satisfies?
                             find-protocol-method find-protocol-impl extenders])
-  (:import [ham_fisted MethodImplCache Casts]
-           [java.util Map]))
+  (:import [ham_fisted Casts]
+           [clojure.lang IFn Keyword]
+           [java.util Map HashMap HashSet Set]
+           [java.util.concurrent ConcurrentHashMap]
+           [java.util.concurrent.atomic AtomicReference]
+           [java.util.concurrent.locks ReentrantLock]))
 
 (set! *warn-on-reflection* true)
+
+(def ^:private ^Class obj-ary-cls (Class/forName "[Ljava.lang.Object;"))
+
+(definterface IMethodImplCache
+  (^Object findFnFor [^Class c])
+  (extendCache [^Class c f]))
+
+(defn- find-iface-fn
+  "Search ifaces for an extension.  Direct interfaces are checked before inherited
+  ones so a primary interface gets first choice; considered guards the diamond."
+  [^HashMap extensions ^Set considered ^"[Ljava.lang.Class;" ifaces]
+  (let [n (alength ifaces)]
+    (or (loop [idx 0]
+          (when (< idx n)
+            (let [i (aget ifaces idx)]
+              (or (when (.add considered i) (.get extensions i))
+                  (recur (unchecked-inc idx))))))
+        (loop [idx 0]
+          (when (< idx n)
+            (or (find-iface-fn extensions considered
+                               (.getInterfaces ^Class (aget ifaces idx)))
+                (recur (unchecked-inc idx))))))))
+
+(defn- resolve-extension
+  "Walk c's superclass chain, checking each class then its interfaces.  Overriding
+  for the base object array class covers everything convertible to an object array
+  while a concrete array type can still match its own override."
+  [^HashMap extensions ^Class c]
+  (let [considered (HashSet.)]
+    (loop [cc c]
+      (when cc
+        (or (.get extensions cc)
+            (when (and (identical? cc c) (.isAssignableFrom obj-ary-cls cc))
+              (.get extensions obj-ary-cls))
+            (find-iface-fn extensions considered (.getInterfaces ^Class cc))
+            (recur (.getSuperclass ^Class cc)))))))
+
+(deftype ^{:doc "Sparse class->fn extension table plus a dense cache of resolved
+lookups.  Neither table ever stores nil -- extendCache removes instead -- so a nil
+from either is unambiguously a miss and no sentinel is needed.
+
+  nullExtension is an AtomicReference rather than a :volatile-mutable field because
+  Clojure compiles a try in expression position into a fn*, and a mutable field
+  cannot be set! from inside a closure.  Its get/set are the same volatile read and
+  write, and it is only touched when dispatching on nil."}
+    MethodImplCache [^Keyword methodk
+                     ^clojure.lang.Symbol ns_methodk
+                     ^Class iface
+                     ^IFn ifaceFn
+                     ^ReentrantLock extLock
+                     ^HashMap extensions
+                     ^ConcurrentHashMap lookupCache
+                     ^AtomicReference nullExtension]
+  IMethodImplCache
+  (findFnFor [this c]
+    (if (nil? c)
+      (.get nullExtension)
+      (let [hit (.get lookupCache c)]
+        (cond
+          hit hit
+          ;;Cache the interface case so it resolves like any other hit afterwards.
+          (.isAssignableFrom iface c) (do (.put lookupCache c ifaceFn) ifaceFn)
+          :else
+          (let [rv (do (.lock extLock)
+                       (try (resolve-extension extensions c)
+                            (finally (.unlock extLock))))]
+            (when rv (.put lookupCache c rv))
+            rv)))))
+  (extendCache [this c f]
+    (.lock extLock)
+    (try
+      (cond
+        (nil? c) (.set nullExtension f)
+        (nil? f) (.remove extensions c)
+        :else (.put extensions c f))
+      (finally (.unlock extLock)))
+    (.clear lookupCache)
+    nil))
+
+(defn method-impl-cache
+  "Build a cache for a single protocol method.  The generated interface is seeded as
+  an extension of itself so inline implementations resolve through the same table."
+  ^MethodImplCache [^Keyword methodk ^clojure.lang.Symbol ns-methodk ^Class iface ^IFn iface-fn]
+  (let [extensions (HashMap.)]
+    (.put extensions iface iface-fn)
+    (MethodImplCache. methodk ns-methodk iface iface-fn (ReentrantLock.) extensions
+                      (ConcurrentHashMap.) (AtomicReference.))))
+
+(defn registered-classes
+  "The classes with a registered extension for this method."
+  ^Set [^MethodImplCache cache]
+  (.keySet ^HashMap (.-extensions cache)))
 
 (defn find-protocol-cache-method
   [protocol ^MethodImplCache cache x]
   (when cache
     (let [cc (if (class? x) x (class x))]
-      (if (.isAssignableFrom (.-iface cache) cc)
+      (if (and cc (.isAssignableFrom ^Class (.-iface cache) cc))
         (.-ifaceFn cache)
         (if-let [mfn (when (get protocol :extend-via-metadata)
                        (get (meta x) (.-ns_methodk cache)))]
@@ -71,7 +167,7 @@
   "Returns true if x satisfies the protocol"
   [protocol x]
   (or (instance? (get protocol :on-interface) x)
-      (every? #(boolean (find-protocol-cache-method protocol % @x))
+      (every? #(boolean (find-protocol-cache-method protocol (deref %) x))
               (vals (get protocol :method-caches)))))
 
 (defn- assert-same-protocol [protocol-var method-syms]
@@ -154,8 +250,10 @@
                                   (merge name-meta
                                          {:name mname
                                           :methodk name-kwd
-                                          :ns-methodk (keyword (clojure.core/name (.-name *ns*))
-                                                               (clojure.core/name mname))
+                                          ;;Fully-qualified symbol, as clojure.core uses for
+                                          ;;:extend-via-metadata implementations.
+                                          :ns-methodk (symbol (clojure.core/name (.-name *ns*))
+                                                              (clojure.core/name mname))
                                           :arglists arglists
                                           :doc doc
                                           :cache-sym (symbol (str "-" mname "-cache"))
@@ -175,55 +273,79 @@
        (gen-interface :name ~iname :methods ~meths)
        ~@(mapcat (fn [{:keys [methodk ns-methodk cache-sym iface-sym arglists tag]
                        mname :name}]
-                   [`(defn ~(with-meta iface-sym
-                              {:private true
-                               :tag (list 'quote tag)})
-                       ~@(map (fn [args]
-                                (let [args (vec args) #_(mapv #(gensym (str %)) args)
-                                      args (vary-meta (vec args) assoc :tag
-                                                      (if (class? tag)
-                                                        (list 'quote )
-                                                        tag))
-                                      target (first args)]
-                                  `(~args
-                                    (. ~(with-meta target
-                                          {:tag iname})
-                                       (~mname
-                                        ~@(rest args))))))
-                              arglists))
-                    `(let [~'cache (ham_fisted.MethodImplCache. ~methodk ~ns-methodk ~iname ~iface-sym)]
-                       (def ~(with-meta cache-sym
-                               {:private true
-                                :tag 'ham_fisted.MethodImplCache})
-                         ~'cache)
-                       (defn ~(vary-meta mname assoc :tag (list 'quote tag))
-                         {:hamf-protocol ~(list 'quote name)}
+                   ;;gensyms -- these are closed over by the protocol fn, so a
+                   ;;protocol method argument sharing the name would shadow them.
+                   (let [cache-g (gensym "cache")
+                         lookup-g (with-meta (gensym "lookup")
+                                    {:tag 'java.util.concurrent.ConcurrentHashMap})
+                         ns-q (list 'quote (.-name *ns*))
+                         name-q (list 'quote name)]
+                     [`(defn ~(with-meta iface-sym
+                                {:private true
+                                 :tag (list 'quote tag)})
                          ~@(map (fn [args]
-                                  (let [args (vary-meta (vec args) assoc :tag
+                                  (let [args (vec args)
+                                        args (vary-meta (vec args) assoc :tag
                                                         (if (class? tag)
                                                           (list 'quote )
                                                           tag))
-                                        arg-tags (when (< (count args) 5)
-                                                   (conj (mapv (comp :tag meta) args) tag))
-                                        rval-tag (last arg-tags)
-                                        invoker (when (first (filter #{'long 'double} arg-tags))
-                                                  '.invokePrim)
-                                        target (first args)
-                                        find-data (if (:extend-via-metadata opts)
-                                                    `(find-fn-via-metadata ~target
-                                                                           ~ns-methodk
-                                                                           ~'cache
-                                                                           ~(list 'quote (.-name *ns*))
-                                                                           ~(list 'quote name))
-                                                    `(find-fn ~target ~'cache ~(list 'quote (.-name *ns*))
-                                                              ~(list 'quote name)))]
+                                        target (first args)]
                                     `(~args
-                                      ~(if invoker
-                                         `(let [~(with-meta 'ff {:tag (fn-tag-for-tags arg-tags)}) ~find-data]
-                                            (~invoker ~'ff ~@args))
-                                         `(let [~'ff ~find-data]
-                                            (~'ff ~@args))))))
-                                arglists)))])
+                                      (. ~(with-meta target
+                                            {:tag iname})
+                                         (~mname
+                                          ~@(rest args))))))
+                                arglists))
+                      `(let [~cache-g (method-impl-cache ~methodk '~ns-methodk ~iname ~iface-sym)
+                             ~lookup-g (.-lookupCache ~cache-g)]
+                         (def ~(with-meta cache-sym
+                                 {:private true
+                                  :tag 'ham_fisted.defprotocol.MethodImplCache})
+                           ~cache-g)
+                         (defn ~(vary-meta mname assoc :tag (list 'quote tag))
+                           {:hamf-protocol ~(list 'quote name)}
+                           ~@(map (fn [args]
+                                    (let [args (vary-meta (vec args) assoc :tag
+                                                          (if (class? tag)
+                                                            (list 'quote )
+                                                            tag))
+                                          arg-tags (when (< (count args) 5)
+                                                     (conj (mapv (comp :tag meta) args) tag))
+                                          invoker (when (first (filter #{'long 'double} arg-tags))
+                                                    '.invokePrim)
+                                          target (first args)
+                                          ff-g (gensym "ff")
+                                          hit-g (gensym "hit")
+                                          ;;Cold path.  A nil target, a cache miss and the
+                                          ;;no-implementation error all resolve through find-fn,
+                                          ;;which also populates the lookup cache.
+                                          slow `(find-fn ~target ~cache-g ~ns-q ~name-q)
+                                          find-data
+                                          (if (:extend-via-metadata opts)
+                                            ;;Metadata has to be consulted before the extension
+                                            ;;cache, so these protocols keep the uninlined path.
+                                            `(find-fn-via-metadata ~target
+                                                                   '~ns-methodk
+                                                                   ~cache-g
+                                                                   ~ns-q
+                                                                   ~name-q)
+                                            ;;Hot path -- a single ConcurrentHashMap lookup emitted
+                                            ;;directly into the method body.  Calling find-fn here
+                                            ;;instead costs a var-indirected fn invocation per call,
+                                            ;;plus the two symbols it needs only to format an error.
+                                            `(if (nil? ~target)
+                                               ~slow
+                                               (let [~hit-g (.get ~lookup-g
+                                                                  (.getClass ~(with-meta target
+                                                                                {:tag 'Object})))]
+                                                 (if (nil? ~hit-g) ~slow ~hit-g))))]
+                                      `(~args
+                                        ~(if invoker
+                                           `(let [~(with-meta ff-g {:tag (fn-tag-for-tags arg-tags)}) ~find-data]
+                                              (~invoker ~ff-g ~@args))
+                                           `(let [~ff-g ~find-data]
+                                              (~ff-g ~@args))))))
+                                  arglists)))]))
                  (vals sigs))
        (def ~name ~(assoc (update opts
                                   :sigs (fn [sigmap]
@@ -423,7 +545,7 @@
                                     (check-constant-return tag arg-tags)
                                     (fn [o] method)))
                          method (correct-primitive-fn-type arg-tags method)]
-                     (.extend ^MethodImplCache @(get method-caches methodk) atype method))))))))
+                     (.extendCache ^MethodImplCache @(get method-caches methodk) atype method))))))))
 
 (defn- normalize-specs
   [specs]
