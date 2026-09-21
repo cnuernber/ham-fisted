@@ -432,6 +432,53 @@
     (is (nil? (defprotocol/find-protocol-method SatisfiesProto :sat-a (SatisfiesNone.))))))
 
 
+;;; The protocol fn body inlines the lookup-cache hit, so these cover the paths
+;;; that bypasses: nil targets, metadata extension, re-extension after a class
+;;; has been cached, and argument names colliding with the closed-over locals.
+
+(defprotocol NilDispatch (nil-method [this]))
+(extend nil NilDispatch {:nil-method (fn [_] :nil-impl)})
+(extend-type Object NilDispatch (nil-method [this] :object-impl))
+
+(deftest nil-dispatch-test
+  (is (= :nil-impl (nil-method nil)))
+  (is (= :object-impl (nil-method "x"))))
+
+(defprotocol MetaProto
+  :extend-via-metadata true
+  (meta-method [this]))
+
+(extend-type clojure.lang.IPersistentVector MetaProto (meta-method [this] :extended))
+
+(deftest extend-via-metadata-test
+  (testing "an extension applies when no metadata is present"
+    (is (= :extended (meta-method []))))
+  (testing "metadata takes precedence over an extension"
+    ;;NOTE: hamf keys metadata implementations by namespaced *keyword*, where
+    ;;clojure.core uses a fully-qualified symbol.
+    (is (= :from-meta (meta-method (with-meta [] {::meta-method (fn [_] :from-meta)})))))
+  (testing "a type with neither still throws"
+    (is (thrown? IllegalArgumentException (meta-method 1)))))
+
+(defprotocol ReExtended (re-ext [this]))
+(extend-type String ReExtended (re-ext [this] :first))
+
+(deftest re-extension-test
+  (testing "re-extending a type already resolved through the lookup cache takes effect"
+    (is (= :first (re-ext "x")))
+    (extend-type String ReExtended (re-ext [this] :second))
+    (is (= :second (re-ext "x")))))
+
+(defprotocol ShadowProto
+  (shadow-method [cache lookup ff]))
+
+(extend-type String ShadowProto (shadow-method [cache lookup ff] [cache lookup ff]))
+
+(deftest arg-shadowing-test
+  (testing "argument names do not shadow the locals closed over by the protocol fn"
+    (is (= ["a" "b" "c"] (shadow-method "a" "b" "c")))))
+
+
 (comment
   (require '[criterium.core :as crit])
   ;;Single threaded calls show very little difference if any:

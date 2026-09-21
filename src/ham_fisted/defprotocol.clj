@@ -175,55 +175,79 @@
        (gen-interface :name ~iname :methods ~meths)
        ~@(mapcat (fn [{:keys [methodk ns-methodk cache-sym iface-sym arglists tag]
                        mname :name}]
-                   [`(defn ~(with-meta iface-sym
-                              {:private true
-                               :tag (list 'quote tag)})
-                       ~@(map (fn [args]
-                                (let [args (vec args) #_(mapv #(gensym (str %)) args)
-                                      args (vary-meta (vec args) assoc :tag
-                                                      (if (class? tag)
-                                                        (list 'quote )
-                                                        tag))
-                                      target (first args)]
-                                  `(~args
-                                    (. ~(with-meta target
-                                          {:tag iname})
-                                       (~mname
-                                        ~@(rest args))))))
-                              arglists))
-                    `(let [~'cache (ham_fisted.MethodImplCache. ~methodk ~ns-methodk ~iname ~iface-sym)]
-                       (def ~(with-meta cache-sym
-                               {:private true
-                                :tag 'ham_fisted.MethodImplCache})
-                         ~'cache)
-                       (defn ~(vary-meta mname assoc :tag (list 'quote tag))
-                         {:hamf-protocol ~(list 'quote name)}
+                   ;;gensyms -- these are closed over by the protocol fn, so a
+                   ;;protocol method argument sharing the name would shadow them.
+                   (let [cache-g (gensym "cache")
+                         lookup-g (with-meta (gensym "lookup")
+                                    {:tag 'java.util.concurrent.ConcurrentHashMap})
+                         ns-q (list 'quote (.-name *ns*))
+                         name-q (list 'quote name)]
+                     [`(defn ~(with-meta iface-sym
+                                {:private true
+                                 :tag (list 'quote tag)})
                          ~@(map (fn [args]
-                                  (let [args (vary-meta (vec args) assoc :tag
+                                  (let [args (vec args)
+                                        args (vary-meta (vec args) assoc :tag
                                                         (if (class? tag)
                                                           (list 'quote )
                                                           tag))
-                                        arg-tags (when (< (count args) 5)
-                                                   (conj (mapv (comp :tag meta) args) tag))
-                                        rval-tag (last arg-tags)
-                                        invoker (when (first (filter #{'long 'double} arg-tags))
-                                                  '.invokePrim)
-                                        target (first args)
-                                        find-data (if (:extend-via-metadata opts)
-                                                    `(find-fn-via-metadata ~target
-                                                                           ~ns-methodk
-                                                                           ~'cache
-                                                                           ~(list 'quote (.-name *ns*))
-                                                                           ~(list 'quote name))
-                                                    `(find-fn ~target ~'cache ~(list 'quote (.-name *ns*))
-                                                              ~(list 'quote name)))]
+                                        target (first args)]
                                     `(~args
-                                      ~(if invoker
-                                         `(let [~(with-meta 'ff {:tag (fn-tag-for-tags arg-tags)}) ~find-data]
-                                            (~invoker ~'ff ~@args))
-                                         `(let [~'ff ~find-data]
-                                            (~'ff ~@args))))))
-                                arglists)))])
+                                      (. ~(with-meta target
+                                            {:tag iname})
+                                         (~mname
+                                          ~@(rest args))))))
+                                arglists))
+                      `(let [~cache-g (ham_fisted.MethodImplCache. ~methodk ~ns-methodk ~iname ~iface-sym)
+                             ~lookup-g (.-lookupCache ~cache-g)]
+                         (def ~(with-meta cache-sym
+                                 {:private true
+                                  :tag 'ham_fisted.MethodImplCache})
+                           ~cache-g)
+                         (defn ~(vary-meta mname assoc :tag (list 'quote tag))
+                           {:hamf-protocol ~(list 'quote name)}
+                           ~@(map (fn [args]
+                                    (let [args (vary-meta (vec args) assoc :tag
+                                                          (if (class? tag)
+                                                            (list 'quote )
+                                                            tag))
+                                          arg-tags (when (< (count args) 5)
+                                                     (conj (mapv (comp :tag meta) args) tag))
+                                          invoker (when (first (filter #{'long 'double} arg-tags))
+                                                    '.invokePrim)
+                                          target (first args)
+                                          ff-g (gensym "ff")
+                                          hit-g (gensym "hit")
+                                          ;;Cold path.  A nil target, a cache miss and the
+                                          ;;no-implementation error all resolve through find-fn,
+                                          ;;which also populates the lookup cache.
+                                          slow `(find-fn ~target ~cache-g ~ns-q ~name-q)
+                                          find-data
+                                          (if (:extend-via-metadata opts)
+                                            ;;Metadata has to be consulted before the extension
+                                            ;;cache, so these protocols keep the uninlined path.
+                                            `(find-fn-via-metadata ~target
+                                                                   ~ns-methodk
+                                                                   ~cache-g
+                                                                   ~ns-q
+                                                                   ~name-q)
+                                            ;;Hot path -- a single ConcurrentHashMap lookup emitted
+                                            ;;directly into the method body.  Calling find-fn here
+                                            ;;instead costs a var-indirected fn invocation per call,
+                                            ;;plus the two symbols it needs only to format an error.
+                                            `(if (nil? ~target)
+                                               ~slow
+                                               (let [~hit-g (.get ~lookup-g
+                                                                  (.getClass ~(with-meta target
+                                                                                {:tag 'Object})))]
+                                                 (if (nil? ~hit-g) ~slow ~hit-g))))]
+                                      `(~args
+                                        ~(if invoker
+                                           `(let [~(with-meta ff-g {:tag (fn-tag-for-tags arg-tags)}) ~find-data]
+                                              (~invoker ~ff-g ~@args))
+                                           `(let [~ff-g ~find-data]
+                                              (~ff-g ~@args))))))
+                                  arglists)))]))
                  (vals sigs))
        (def ~name ~(assoc (update opts
                                   :sigs (fn [sigmap]

@@ -31,7 +31,8 @@ public final class MethodImplCache {
   volatile Object nullExtension = null;
   
   //Potentially dense table of resolved lookups.
-  final ConcurrentHashMap<Class,Object> lookupCache = new ConcurrentHashMap<Class,Object>();
+  //Public so the generated protocol fns can inline the hot-path lookup.
+  public final ConcurrentHashMap<Class,Object> lookupCache = new ConcurrentHashMap<Class,Object>();
 
   public static final Object DEFAULT = new Object();
   
