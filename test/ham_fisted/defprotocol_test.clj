@@ -450,13 +450,26 @@
 
 (extend-type clojure.lang.IPersistentVector MetaProto (meta-method [this] :extended))
 
+(clojure.core/defprotocol CoreMetaProto
+  :extend-via-metadata true
+  (core-meta-method [this]))
+
 (deftest extend-via-metadata-test
   (testing "an extension applies when no metadata is present"
     (is (= :extended (meta-method []))))
   (testing "metadata takes precedence over an extension"
-    ;;NOTE: hamf keys metadata implementations by namespaced *keyword*, where
-    ;;clojure.core uses a fully-qualified symbol.
-    (is (= :from-meta (meta-method (with-meta [] {::meta-method (fn [_] :from-meta)})))))
+    (is (= :from-meta
+           (meta-method (with-meta [] {'ham-fisted.defprotocol-test/meta-method
+                                       (fn [_] :from-meta)})))))
+  (testing "the metadata key is the fully-qualified symbol clojure.core uses"
+    ;;Same metadata map, one hamf protocol and one clojure.core protocol.
+    (let [impls {'ham-fisted.defprotocol-test/meta-method (fn [_] :from-meta)
+                 'ham-fisted.defprotocol-test/core-meta-method (fn [_] :from-meta)}
+          v (with-meta [] impls)]
+      (is (= :from-meta (meta-method v)))
+      (is (= :from-meta (core-meta-method v)))))
+  (testing "a namespaced keyword is not a metadata implementation"
+    (is (= :extended (meta-method (with-meta [] {::meta-method (fn [_] :from-meta)})))))
   (testing "a type with neither still throws"
     (is (thrown? IllegalArgumentException (meta-method 1)))))
 

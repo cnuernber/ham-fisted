@@ -81,7 +81,7 @@ from either is unambiguously a miss and no sentinel is needed.
   cannot be set! from inside a closure.  Its get/set are the same volatile read and
   write, and it is only touched when dispatching on nil."}
     MethodImplCache [^Keyword methodk
-                     ^Keyword ns_methodk
+                     ^clojure.lang.Symbol ns_methodk
                      ^Class iface
                      ^IFn ifaceFn
                      ^ReentrantLock extLock
@@ -117,7 +117,7 @@ from either is unambiguously a miss and no sentinel is needed.
 (defn method-impl-cache
   "Build a cache for a single protocol method.  The generated interface is seeded as
   an extension of itself so inline implementations resolve through the same table."
-  ^MethodImplCache [^Keyword methodk ^Keyword ns-methodk ^Class iface ^IFn iface-fn]
+  ^MethodImplCache [^Keyword methodk ^clojure.lang.Symbol ns-methodk ^Class iface ^IFn iface-fn]
   (let [extensions (HashMap.)]
     (.put extensions iface iface-fn)
     (MethodImplCache. methodk ns-methodk iface iface-fn (ReentrantLock.) extensions
@@ -250,8 +250,10 @@ from either is unambiguously a miss and no sentinel is needed.
                                   (merge name-meta
                                          {:name mname
                                           :methodk name-kwd
-                                          :ns-methodk (keyword (clojure.core/name (.-name *ns*))
-                                                               (clojure.core/name mname))
+                                          ;;Fully-qualified symbol, as clojure.core uses for
+                                          ;;:extend-via-metadata implementations.
+                                          :ns-methodk (symbol (clojure.core/name (.-name *ns*))
+                                                              (clojure.core/name mname))
                                           :arglists arglists
                                           :doc doc
                                           :cache-sym (symbol (str "-" mname "-cache"))
@@ -294,7 +296,7 @@ from either is unambiguously a miss and no sentinel is needed.
                                          (~mname
                                           ~@(rest args))))))
                                 arglists))
-                      `(let [~cache-g (method-impl-cache ~methodk ~ns-methodk ~iname ~iface-sym)
+                      `(let [~cache-g (method-impl-cache ~methodk '~ns-methodk ~iname ~iface-sym)
                              ~lookup-g (.-lookupCache ~cache-g)]
                          (def ~(with-meta cache-sym
                                  {:private true
@@ -323,7 +325,7 @@ from either is unambiguously a miss and no sentinel is needed.
                                             ;;Metadata has to be consulted before the extension
                                             ;;cache, so these protocols keep the uninlined path.
                                             `(find-fn-via-metadata ~target
-                                                                   ~ns-methodk
+                                                                   '~ns-methodk
                                                                    ~cache-g
                                                                    ~ns-q
                                                                    ~name-q)
