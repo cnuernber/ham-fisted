@@ -1,3 +1,6 @@
+# 3.034
+ * Protocols are slightly better - 10% faster, bugfixes, see [PR](https://github.com/cnuernber/ham-fisted/pull/24).
+ 
 # 3.033
  * process namespace can accept sequence of strings or a single string.
  
