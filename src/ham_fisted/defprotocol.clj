@@ -27,16 +27,112 @@
   for `.getClass` call into single concurrent hash map lookup."
   (:refer-clojure :exclude [defprotocol extend extend-type extend-protocol extends? satisfies?
                             find-protocol-method find-protocol-impl extenders])
-  (:import [ham_fisted MethodImplCache Casts]
-           [java.util Map]))
+  (:import [ham_fisted Casts]
+           [clojure.lang IFn Keyword]
+           [java.util Map HashMap HashSet Set]
+           [java.util.concurrent ConcurrentHashMap]
+           [java.util.concurrent.atomic AtomicReference]
+           [java.util.concurrent.locks ReentrantLock]))
 
 (set! *warn-on-reflection* true)
+
+(def ^:private ^Class obj-ary-cls (Class/forName "[Ljava.lang.Object;"))
+
+(definterface IMethodImplCache
+  (^Object findFnFor [^Class c])
+  (extendCache [^Class c f]))
+
+(defn- find-iface-fn
+  "Search ifaces for an extension.  Direct interfaces are checked before inherited
+  ones so a primary interface gets first choice; considered guards the diamond."
+  [^HashMap extensions ^Set considered ^"[Ljava.lang.Class;" ifaces]
+  (let [n (alength ifaces)]
+    (or (loop [idx 0]
+          (when (< idx n)
+            (let [i (aget ifaces idx)]
+              (or (when (.add considered i) (.get extensions i))
+                  (recur (unchecked-inc idx))))))
+        (loop [idx 0]
+          (when (< idx n)
+            (or (find-iface-fn extensions considered
+                               (.getInterfaces ^Class (aget ifaces idx)))
+                (recur (unchecked-inc idx))))))))
+
+(defn- resolve-extension
+  "Walk c's superclass chain, checking each class then its interfaces.  Overriding
+  for the base object array class covers everything convertible to an object array
+  while a concrete array type can still match its own override."
+  [^HashMap extensions ^Class c]
+  (let [considered (HashSet.)]
+    (loop [cc c]
+      (when cc
+        (or (.get extensions cc)
+            (when (and (identical? cc c) (.isAssignableFrom obj-ary-cls cc))
+              (.get extensions obj-ary-cls))
+            (find-iface-fn extensions considered (.getInterfaces ^Class cc))
+            (recur (.getSuperclass ^Class cc)))))))
+
+(deftype ^{:doc "Sparse class->fn extension table plus a dense cache of resolved
+lookups.  Neither table ever stores nil -- extendCache removes instead -- so a nil
+from either is unambiguously a miss and no sentinel is needed.
+
+  nullExtension is an AtomicReference rather than a :volatile-mutable field because
+  Clojure compiles a try in expression position into a fn*, and a mutable field
+  cannot be set! from inside a closure.  Its get/set are the same volatile read and
+  write, and it is only touched when dispatching on nil."}
+    MethodImplCache [^Keyword methodk
+                     ^Keyword ns_methodk
+                     ^Class iface
+                     ^IFn ifaceFn
+                     ^ReentrantLock extLock
+                     ^HashMap extensions
+                     ^ConcurrentHashMap lookupCache
+                     ^AtomicReference nullExtension]
+  IMethodImplCache
+  (findFnFor [this c]
+    (if (nil? c)
+      (.get nullExtension)
+      (let [hit (.get lookupCache c)]
+        (cond
+          hit hit
+          ;;Cache the interface case so it resolves like any other hit afterwards.
+          (.isAssignableFrom iface c) (do (.put lookupCache c ifaceFn) ifaceFn)
+          :else
+          (let [rv (do (.lock extLock)
+                       (try (resolve-extension extensions c)
+                            (finally (.unlock extLock))))]
+            (when rv (.put lookupCache c rv))
+            rv)))))
+  (extendCache [this c f]
+    (.lock extLock)
+    (try
+      (cond
+        (nil? c) (.set nullExtension f)
+        (nil? f) (.remove extensions c)
+        :else (.put extensions c f))
+      (finally (.unlock extLock)))
+    (.clear lookupCache)
+    nil))
+
+(defn method-impl-cache
+  "Build a cache for a single protocol method.  The generated interface is seeded as
+  an extension of itself so inline implementations resolve through the same table."
+  ^MethodImplCache [^Keyword methodk ^Keyword ns-methodk ^Class iface ^IFn iface-fn]
+  (let [extensions (HashMap.)]
+    (.put extensions iface iface-fn)
+    (MethodImplCache. methodk ns-methodk iface iface-fn (ReentrantLock.) extensions
+                      (ConcurrentHashMap.) (AtomicReference.))))
+
+(defn registered-classes
+  "The classes with a registered extension for this method."
+  ^Set [^MethodImplCache cache]
+  (.keySet ^HashMap (.-extensions cache)))
 
 (defn find-protocol-cache-method
   [protocol ^MethodImplCache cache x]
   (when cache
     (let [cc (if (class? x) x (class x))]
-      (if (and cc (.isAssignableFrom (.-iface cache) cc))
+      (if (and cc (.isAssignableFrom ^Class (.-iface cache) cc))
         (.-ifaceFn cache)
         (if-let [mfn (when (get protocol :extend-via-metadata)
                        (get (meta x) (.-ns_methodk cache)))]
@@ -198,11 +294,11 @@
                                          (~mname
                                           ~@(rest args))))))
                                 arglists))
-                      `(let [~cache-g (ham_fisted.MethodImplCache. ~methodk ~ns-methodk ~iname ~iface-sym)
+                      `(let [~cache-g (method-impl-cache ~methodk ~ns-methodk ~iname ~iface-sym)
                              ~lookup-g (.-lookupCache ~cache-g)]
                          (def ~(with-meta cache-sym
                                  {:private true
-                                  :tag 'ham_fisted.MethodImplCache})
+                                  :tag 'ham_fisted.defprotocol.MethodImplCache})
                            ~cache-g)
                          (defn ~(vary-meta mname assoc :tag (list 'quote tag))
                            {:hamf-protocol ~(list 'quote name)}
@@ -447,7 +543,7 @@
                                     (check-constant-return tag arg-tags)
                                     (fn [o] method)))
                          method (correct-primitive-fn-type arg-tags method)]
-                     (.extend ^MethodImplCache @(get method-caches methodk) atype method))))))))
+                     (.extendCache ^MethodImplCache @(get method-caches methodk) atype method))))))))
 
 (defn- normalize-specs
   [specs]

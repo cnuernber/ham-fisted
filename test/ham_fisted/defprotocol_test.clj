@@ -479,6 +479,35 @@
     (is (= ["a" "b" "c"] (shadow-method "a" "b" "c")))))
 
 
+;;; Interface resolution checks a class's direct interfaces before anything they
+;;; inherit, so a primary interface wins over an inherited one.  IfaceX extends
+;;; IfaceZ; IfaceOrdered implements both IfaceX and IfaceY directly.  A naive
+;;; depth-first walk would reach IfaceZ through IfaceX and answer :z.
+
+(gen-interface :name ham_fisted.defprotocol_test.IfaceZ)
+(gen-interface :name ham_fisted.defprotocol_test.IfaceX
+               :extends [ham_fisted.defprotocol_test.IfaceZ])
+(gen-interface :name ham_fisted.defprotocol_test.IfaceY)
+
+(deftype IfaceOrdered []
+  ham_fisted.defprotocol_test.IfaceX
+  ham_fisted.defprotocol_test.IfaceY)
+
+(defprotocol IfacePriority (iface-priority [this]))
+(extend ham_fisted.defprotocol_test.IfaceZ IfacePriority {:iface-priority (fn [_] :z)})
+(extend ham_fisted.defprotocol_test.IfaceY IfacePriority {:iface-priority (fn [_] :y)})
+
+(deftest iface-priority-test
+  (testing "a direct interface beats one reached through another interface"
+    (is (= :y (iface-priority (IfaceOrdered.)))))
+  (testing "an inherited interface still resolves when nothing direct matches"
+    (is (= :z (iface-priority (reify ham_fisted.defprotocol_test.IfaceX))))))
+
+(deftest registered-classes-test
+  (is (contains? (set (defprotocol/registered-classes @#'ham-fisted.defprotocol-test/-iface-priority-cache))
+                 ham_fisted.defprotocol_test.IfaceY)))
+
+
 (comment
   (require '[criterium.core :as crit])
   ;;Single threaded calls show very little difference if any:
