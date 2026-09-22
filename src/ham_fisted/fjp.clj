@@ -40,30 +40,29 @@
 (defn in-fork-join-pool? "Returns true if this task is executing in a fork join pool thread"
   [] (ForkJoinTask/inForkJoinPool))
 
+(defn make-blocker
+  ([finished? wait-till-finished get-value]
+   (reify ForkJoinPool$ManagedBlocker
+     (block [_]
+       (try
+         (while (not (finished?))
+           (wait-till-finished))
+         (catch InterruptedException _
+           (.interrupt (Thread/currentThread))))
+       true)
+     (isReleasable [_] (boolean (finished?)))
+     clojure.lang.IDeref
+     (deref [_] (get-value))))
+  ([finished? wait-till-finished]
+   (make-blocker finished? wait-till-finished wait-till-finished)))
+
 (extend-protocol proto/ManagedBlocker
   Future
-  (managed-blocker [m] (reify ForkJoinPool$ManagedBlocker
-                         (block [_]
-                           (try
-                             (.get m)
-                             (catch InterruptedException _
-                               ;; Restore interrupt flag so caller/pool knows thread was interrupted
-                               (.interrupt (Thread/currentThread))))
-                           true)
-                         (isReleasable [_] (.isDone m))
-                         clojure.lang.IDeref
-                         (deref [_] (.get m))))
+  (managed-blocker [m]
+    (make-blocker #(.isDone m) #(.get m)))
   clojure.lang.IPending
-  (managed-blocker [m] (reify ForkJoinPool$ManagedBlocker
-                         (block [_]
-                           (try
-                             (deref m)
-                             (catch InterruptedException _
-                               (.interrupt (Thread/currentThread))))
-                           true)
-                         (isReleasable [_] (realized? m))
-                         clojure.lang.IDeref
-                         (deref [_] (deref m))))
+  (managed-blocker [m]
+    (make-blocker realized? deref))
   ForkJoinPool$ManagedBlocker
   (managed-blocker [m] m))
 
@@ -77,17 +76,7 @@
        (ForkJoinPool/managedBlock dly)
        @dly)))
   ([finished? wait-till-finished get-value]
-   (managed-block (reify
-                    ForkJoinPool$ManagedBlocker
-                    (block [_this]
-                      (try (while (not (finished?))
-                             (wait-till-finished))
-                           (catch InterruptedException _
-                             (.interrupt (Thread/currentThread))))
-                      true)
-                    (isReleasable [_this] (boolean (finished?)))
-                    clojure.lang.IDeref
-                    (deref [_this] (get-value))))))
+   (managed-block (make-blocker finished? wait-till-finished get-value))))
 
 (defn task "Create a task from a clojure IFn or something that implements IDeref"
   ^FJTask [f] (FJTask. f))
@@ -156,3 +145,17 @@
 
 (defn managed-block-unwrap "managed block then safe unwrap the exception-safe result"
   [dly] (managed-block dly) (unwrap-safe @dly))
+
+
+(def ^{:dynamic true
+       :doc "User-bindable cpu pool to allow custom forkjoinpools"}
+  *cpu-pool* (common-pool))
+(defn cpu-pool "Get the currently bound cpu pool as a forkjoinpool" ^ForkJoinPool [] *cpu-pool*)
+(defmacro on-cpu-pool
+  "Run code on the cpu pool.  Code on run the cpu pool must use [managed-block] as opposed to
+  deref"
+  [& code]
+  `(->> (exception-safe ~@code)
+        (.submit (cpu-pool))
+        (managed-block)
+        (unwrap-safe)))
