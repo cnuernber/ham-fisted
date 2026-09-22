@@ -59,7 +59,7 @@
                            (try
                              (deref m)
                              (catch InterruptedException _
-                               (.interrupt (Thread/currentThread)))) ; 1ms
+                               (.interrupt (Thread/currentThread))))
                            true)
                          (isReleasable [_] (realized? m))
                          clojure.lang.IDeref
