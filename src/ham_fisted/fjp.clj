@@ -41,21 +41,26 @@
   [] (ForkJoinTask/inForkJoinPool))
 
 (extend-protocol proto/ManagedBlocker
-  ForkJoinTask
-  (managed-blocker [m] (reify ForkJoinPool$ManagedBlocker
-                         (block [_] (.quietlyComplete m) true)
-                         (isReleasable [_] (.isDone m))
-                         clojure.lang.IDeref
-                         (deref [_] (.get m))))
   Future
   (managed-blocker [m] (reify ForkJoinPool$ManagedBlocker
-                         (block [_] (.get m) true)
+                         (block [_]
+                           (try
+                             (.get m)
+                             (catch InterruptedException _
+                               ;; Restore interrupt flag so caller/pool knows thread was interrupted
+                               (.interrupt (Thread/currentThread))))
+                           true)
                          (isReleasable [_] (.isDone m))
                          clojure.lang.IDeref
                          (deref [_] (.get m))))
   clojure.lang.IPending
   (managed-blocker [m] (reify ForkJoinPool$ManagedBlocker
-                         (block [_] (deref m) true)
+                         (block [_]
+                           (try
+                             (deref m)
+                             (catch InterruptedException _
+                               (.interrupt (Thread/currentThread)))) ; 1ms
+                           true)
                          (isReleasable [_] (realized? m))
                          clojure.lang.IDeref
                          (deref [_] (deref m))))
@@ -74,10 +79,15 @@
   ([finished? wait-till-finished get-value]
    (managed-block (reify
                     ForkJoinPool$ManagedBlocker
-                    (block [this] (wait-till-finished))
-                    (isReleasable [this] (finished?))
+                    (block [_this]
+                      (try (while (not (finished?))
+                             (wait-till-finished))
+                           (catch InterruptedException _
+                             (.interrupt (Thread/currentThread))))
+                      true)
+                    (isReleasable [_this] (boolean (finished?)))
                     clojure.lang.IDeref
-                    (deref [this] (get-value))))))
+                    (deref [_this] (get-value))))))
 
 (defn task "Create a task from a clojure IFn or something that implements IDeref"
   ^FJTask [f] (FJTask. f))
