@@ -6,6 +6,10 @@
 
   Some of the api's fall back to regular executor service code when called.
 
+  One thing to note is there is no support for bound-fn in this codebase so it is on
+  the user to use bound-fn-like constructs if support for dynamic variables is required
+  in their code.
+
   Example:
 
 ```clojure
@@ -41,7 +45,13 @@
   [] (ForkJoinTask/inForkJoinPool))
 
 (defn make-blocker
-  ([finished? wait-till-finished get-value]
+  "Make a `ForkJoinPool$ManagedBlocker` managed blocker from a set of functions.
+  * `finished?` - returns truthy if the op has finished
+  * `wait-till-finished?` - blocks until finished.  finished? is checked and wait-till-finished is
+    called again if finished? returns falsy.  This is so that wait-till-finished can be easily
+  bound to LockSupport/park.
+  * `get-value` - Return the value - this will be called once finished? has returned true."
+  (^ForkJoinPool$ManagedBlocker [finished? wait-till-finished get-value]
    (reify ForkJoinPool$ManagedBlocker
      (block [_]
        (try
@@ -53,7 +63,7 @@
      (isReleasable [_] (boolean (finished?)))
      clojure.lang.IDeref
      (deref [_] (get-value))))
-  ([finished? wait-till-finished]
+  (^ForkJoinPool$ManagedBlocker [finished? wait-till-finished]
    (make-blocker finished? wait-till-finished wait-till-finished)))
 
 (extend-protocol proto/ManagedBlocker
@@ -78,16 +88,6 @@
   ([finished? wait-till-finished get-value]
    (managed-block (make-blocker finished? wait-till-finished get-value))))
 
-(defn task "Create a task from a clojure IFn or something that implements IDeref"
-  ^FJTask [f] (FJTask. f))
-
-(defn fork-task
-  "Begin a separate execution for f.  If already in a fork join pool fork the task else
-  submit f to passed in pool."
-  [pool f] (if (in-fork-join-pool?)
-             (let [t (task f)] (.fork t) t)
-             (.submit ^ExecutorService pool ^Callable f)))
-
 (defmacro exception-safe
   "Wrap code in an exception-safe wrapper - returns a map with either
   `:ham-fisted.fjp/result` or `:ham-fisted.fjp.error`."
@@ -98,6 +98,16 @@
                (catch Throwable e# {:ham-fisted.fjp/error e#})))]
      ~'ffn))
 
+(defn ^:no-doc task "Create a task from a clojure IFn or something that implements IDeref"
+  ^FJTask [f] (FJTask. f))
+
+(defn ^:no-doc fork-task
+  "Begin a separate execution for f.  If already in a fork join pool fork the task else
+  submit f to passed in pool."
+  [pool f] (if (in-fork-join-pool?)
+             (let [t (task f)] (.fork t) t)
+             (.submit ^ExecutorService pool ^Callable f)))
+
 (defmacro safe-fork-task
   "Called from within an executing task, fork a executing some code and wrapping it in [[exception-safe]]
   then calling [[fork-task]]"
@@ -105,24 +115,6 @@
   `(->> (do ~@code)
         (exception-safe)
         (fork-task ~pool)))
-
-(defn join
-  "join a previously forked task returning the result"
-  [^ForkJoinTask t] (.join t))
-
-(defn compute
-  "compute a task in current thread - returns result"
-  [t]
-  (if (instance? FJTask t)
-    (.deref (.-c ^FJTask t))
-    (throw (RuntimeException. "Only recursive tasks (or tasks create via \"task\" can be computed"))))
-
-(defn unsafe-common-pool
-  "Run a callable on the common pool.  If the callable throws you will get a wrapped exception thrown
-  which may confuse calling code - specifically code that relies on exact exception types or ex-info."
-  [code]
-  (-> (.submit (ForkJoinPool/commonPool) ^Callable code)
-      (deref)))
 
 (defn unwrap-safe
   "Unwrap result created via executing code wrapped in [[exception-safe]].  Throws original exception if found."
@@ -132,30 +124,27 @@
       (throw (get m ::error))
       rv)))
 
-(defn safe-common-pool
-  "Run safe code - see [[exception-safe]] unwrapping the result and re-throwing the wrapped exception.  This allows
-  systems based on typed exceptions to pass error info."
-  [safe-code]
-  (unwrap-safe (unsafe-common-pool safe-code)))
+(defn managed-block-unwrap "managed block then safe unwrap the exception-safe result"
+  [dly] (managed-block dly) (unwrap-safe @dly))
 
 (defmacro on-cp
   "Run arbitrary code on the common-pool.  Make sure any blocking operations are wrapped in [[managed-block]]."
   [& code]
-  `(safe-common-pool (exception-safe ~@code)))
-
-(defn managed-block-unwrap "managed block then safe unwrap the exception-safe result"
-  [dly] (managed-block dly) (unwrap-safe @dly))
+  `(->> (exception-safe ~@code)
+        (.submit (common-pool))
+        (managed-block-unrwap)))
 
 
 (def ^{:dynamic true
        :doc "User-bindable cpu pool to allow custom forkjoinpools"}
   *cpu-pool* (common-pool))
+
 (defn cpu-pool "Get the currently bound cpu pool as a forkjoinpool" ^ForkJoinPool [] *cpu-pool*)
+
 (defmacro on-cpu-pool
   "Run code on the cpu pool.  Code on run the cpu pool must use [managed-block] as opposed to
   deref"
   [& code]
   `(->> (exception-safe ~@code)
         (.submit (cpu-pool))
-        (managed-block)
-        (unwrap-safe)))
+        (managed-block-unrwap)))

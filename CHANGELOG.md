@@ -1,3 +1,6 @@
+# 3.035
+ * ham-fisted's fjp namespace received some close attention.
+ 
 # 3.034
  * Protocols are slightly better - 10% faster, bugfixes, see [PR](https://github.com/cnuernber/ham-fisted/pull/24).
  
