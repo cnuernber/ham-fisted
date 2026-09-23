@@ -406,8 +406,11 @@
                iters (mapv #(.iterator (->iterable %)) cs)]
            (reify
              Iterator
-             (hasNext [this] (next-fn iters args))
-             (next [this] (f argvec)))))
+             (hasNext [this] (clojure.core/every? #(.hasNext ^Iterator %) iters))
+             (next [this]
+               (when-not (next-fn iters args)
+                 (throw (java.util.NoSuchElementException.)))
+               (f argvec)))))
        Seqable
        (seq [this] (LazyChunkedSeq/chunkIteratorSeq (.iterator this)))
        ITypedReduce
@@ -564,7 +567,8 @@
      (~invoke-nm [this# ~'acc ~'v]
       (set! ~'n (max -1 (dec ~'n)))
       (if (neg? ~'n)
-        ~'acc
+        ;;n started at <= 0 - terminate the reduction immediately
+        (ensure-reduced ~'acc)
         (let [~'acc (~(symbol (str "." (name invoke-nm))) ~(with-meta 'rf {:tag rf-tag})
                      ~'acc ~'v)]
           (if (zero? ~'n)
@@ -616,8 +620,10 @@
    (if (nil? data)
      '()
      (if-let [l (as-random-access data)]
-       (.subList l 0 (min n (.size l)))
-       (TakeIterable. n data)))))
+       (.subList l 0 (max 0 (min n (.size l))))
+       (if (<= n 0)
+         '()
+         (TakeIterable. n data))))))
 
 (defmacro make-readonly-list
   "Implement a readonly list.  If cls-type-kwd is provided it must be, at compile time,
@@ -1032,26 +1038,14 @@ nil
        (if-let [coll (as-random-access coll)]
          (let [n-elems (.size coll)
                n-batches (quot (+ n-elems (dec ns)) ns)]
-           (if (== n step)
-             (reify IMutList
-               (size [this] (unchecked-int n-batches))
-               (get [this outer]
-                 (when-not (and (>= outer 0) (< outer n-batches))
-                   (throw (IndexOutOfBoundsException.)))
-                 (let [sidx (* outer ns)
-                       eidx (min n-elems (+ sidx n))]
-                   (.subList coll sidx eidx))))
-             (reify IMutList
-               (size [this] (unchecked-int n-batches))
-               (get [this outer]
-                 (when-not (and (>= outer 0) (< outer n-batches))
-                   (throw (IndexOutOfBoundsException.)))
-                 (let [batch-start (* outer ns)
-                       batch-n (long (min n (quot (- n-elems batch-start) step)))]
-                   (reify IMutList
-                     (size [this] (unchecked-int batch-n))
-                     (get [this inner]
-                       (.get coll (+ batch-start (* inner step))))))))))
+           (reify IMutList
+             (size [this] (unchecked-int n-batches))
+             (get [this outer]
+               (when-not (and (>= outer 0) (< outer n-batches))
+                 (throw (IndexOutOfBoundsException.)))
+               (let [sidx (* outer ns)
+                     eidx (min n-elems (+ sidx n))]
+                 (.subList coll sidx eidx)))))
          (if (== n step)
            (let [iter (hamf-iter/->iterator coll)
                  update (fn [sub-iter]

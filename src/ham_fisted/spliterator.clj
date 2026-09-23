@@ -81,6 +81,29 @@
 
 (defn ->spliterator ^Spliterator [ii] (if (instance? Spliterator ii) ii (proto/->spliterator ii)))
 
+(def ^:private ^RuntimeException early-termination
+  "Preallocated so throwing it doesn't pay for a stack trace - used to escape forEachRemaining
+  when a reduction returns reduced."
+  (RuntimeException. "spliterator reduction early termination"))
+
+(defmacro ^:private aset-check-reduced
+  "Store acc-code into index 0 of objects ary throwing early-termination if the result is reduced."
+  [ary acc-code]
+  `(let [acc# ~acc-code]
+     (aset ~ary 0 acc#)
+     (when (reduced? acc#) (throw early-termination))))
+
+(defn- reduce-remaining
+  "forEachRemaining split into cc (whose accept code uses aset-check-reduced) returning the unreduced
+  deref'd value of cc."
+  [^Spliterator split cc]
+  (try
+    (.forEachRemaining split ^Consumer cc)
+    (catch RuntimeException e
+      (when-not (identical? e early-termination)
+        (throw e))))
+  (unreduced @cc))
+
 (defn split-reduce "Reduce over a spliterator.  Special support exists for IFn$LLL and IFn$DDD"
   ([rfn split]
    (let [acc-ary (object-array 1)
@@ -95,32 +118,25 @@
      (let [cc (DerefLongConsumer. (Casts/longCast acc) rfn)]
        (.forEachRemaining (->spliterator split) cc)
        @cc)
+     ;;Object-returning rfns may return reduced so they need aset-check-reduced
      (instance? IFn$OLO rfn)
      (let [dd (hamf-language/obj-ary acc)
-           cc (deref-long-consumer ll (aset dd 0 (.invokePrim ^IFn$OLO rfn (aget dd 0) ll)) (aget dd 0))]
-       (.forEachRemaining (->spliterator split) cc)
-       @cc)
+           cc (deref-long-consumer ll (aset-check-reduced dd (.invokePrim ^IFn$OLO rfn (aget dd 0) ll))
+                                   (aget dd 0))]
+       (reduce-remaining (->spliterator split) cc))
      (instance? IFn$DDD rfn)
      (let [cc (DerefDoubleConsumer. (Casts/doubleCast acc) rfn)]
        (.forEachRemaining (->spliterator split) cc)
        @cc)
      (instance? IFn$ODO rfn)
      (let [dd (hamf-language/obj-ary acc)
-           cc (deref-double-consumer ll (aset dd 0 (.invokePrim ^IFn$ODO rfn (aget dd 0) ll)) (aget dd 0))]
-       (.forEachRemaining (->spliterator split) cc)
-       @cc)
+           cc (deref-double-consumer ll (aset-check-reduced dd (.invokePrim ^IFn$ODO rfn (aget dd 0) ll))
+                                     (aget dd 0))]
+       (reduce-remaining (->spliterator split) cc))
      :else
      (let [dd (hamf-language/obj-ary acc)
-           cc (deref-consumer ll (aset dd 0 (rfn (aget dd 0) ll)) (aget dd 0))
-           split (->spliterator split)]
-       (loop []
-         (let [c? (.tryAdvance split cc)]
-           (if c?
-             (let [vv @cc]
-               (if (reduced? vv)
-                 @vv
-                 (recur)))
-             (unreduced @cc))))))))
+           cc (deref-consumer ll (aset-check-reduced dd (rfn (aget dd 0) ll)) (aget dd 0))]
+       (reduce-remaining (->spliterator split) cc)))))
 
 (clojure.core/extend Spliterator
   clojure.core.protocols/CollReduce

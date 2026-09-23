@@ -346,7 +346,7 @@
 (deftype IterTake [^Iterator iter ^long n ^{:unsynchronized-mutable true
                                             :tag long} idx]
   Iterator
-  (hasNext [this] (and (.hasNext iter) (< idx n)))
+  (hasNext [this] (and (< idx n) (.hasNext iter)))
   (next [this]
     (set! idx (inc idx))
     (.next iter)))

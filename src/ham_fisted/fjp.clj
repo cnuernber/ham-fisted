@@ -132,7 +132,7 @@
   [& code]
   `(->> (exception-safe ~@code)
         (.submit (common-pool))
-        (managed-block-unrwap)))
+        (managed-block-unwrap)))
 
 
 (def ^{:dynamic true
@@ -147,4 +147,4 @@
   [& code]
   `(->> (exception-safe ~@code)
         (.submit (cpu-pool))
-        (managed-block-unrwap)))
+        (managed-block-unwrap)))

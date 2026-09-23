@@ -225,6 +225,14 @@
   (is (thrown? RuntimeException (into [] (lznc/partition-all 3 (range 10))))))
 
 
+(deftest partition-all-step-random-access
+  (doseq [[n step] [[3 2] [2 3] [3 1] [1 2] [4 4]]
+          data [(vec (range 7)) (long-array (range 7))]]
+    (is (= (vec (partition-all n step (range 7)))
+           (mapv vec (lznc/partition-all n step data)))
+        (str "n " n " step " step " " (type data)))))
+
+
 (deftest parallel-frequenies
   (is (= {0 715, 1 715, 2 715, 3 715, 4 714, 5 714, 6 714, 7 714, 8 714, 9 714, 10 714, 11 714, 12 714, 13 714}
          (hamf/frequencies (lznc/map #(rem (long %) 14) (hamf/range 10000))))))
@@ -306,6 +314,42 @@
 
 (deftest take-test
   (is (= (take 2 '(1 2 3 4)) (lznc/take 2 '(1 2 3 4)))))
+
+
+(deftest take-zero-terminates
+  ;;each of these would previously consume the entire (infinite) input
+  (is (= [] (transduce (lznc/take 0) conj [] (range))))
+  (is (= [] (transduce (lznc/take -1) conj [] (range))))
+  (is (= [] (into [] (lznc/take 0) (hamf/range 1000000))))
+  (is (= [] (reduce conj [] (lznc/take 0 (lznc/repeatedly (constantly 1))))))
+  (is (= [] (vec (lznc/take 0 (lznc/repeatedly (constantly 1))))))
+  (is (= [] (vec (lznc/take -1 [1 2 3]))))
+  (is (= [1 1] (vec (lznc/take 2 (lznc/repeatedly (constantly 1)))))))
+
+
+(deftest tuple-map-iterator-has-next-idempotent
+  (let [tm (lznc/tuple-map vec [1 2 3] [4 5 6] [7 8 9])
+        iter (.iterator ^Iterable tm)]
+    (is (.hasNext iter))
+    (is (.hasNext iter))
+    (is (= [1 4 7] (.next iter)))
+    (is (.hasNext iter))
+    (is (.hasNext iter))
+    (is (= [2 5 8] (.next iter)))
+    (is (= [3 6 9] (.next iter)))
+    (is (not (.hasNext iter)))
+    (is (thrown? java.util.NoSuchElementException (.next iter))))
+  (is (= [[1 4 7] [2 5 8]] (mapv vec (lznc/tuple-map vec [1 2 3] [4 5] [7 8 9]))))
+  (is (= [[1 4 7] [2 5 8]] (into [] (lznc/tuple-map vec [1 2 3] [4 5] [7 8 9])))))
+
+
+(deftest iter-take-does-not-overread
+  ;;Checking the source after n items were taken blocks forever on a blocking queue
+  (let [q (java.util.concurrent.LinkedBlockingQueue. ^java.util.Collection (list 1 2))
+        iter (hamf-iter/iter-take 2 (.iterator ^Iterable (hamf-iter/blocking-queue->iterable q :done)))
+        res (future [(.next iter) (.next iter) (.hasNext iter)])]
+    (is (= [1 2 false] (deref res 5000 :timeout)))
+    (future-cancel res)))
 
 (deftest seq-iterable-not-counted
   (is (not (counted? (hamf-iter/wrap-iter (.iterator (range)))))))

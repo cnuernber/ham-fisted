@@ -1,6 +1,7 @@
 (ns ham-fisted.fjp-test
   (:require [ham-fisted.api :as hamf]
             [ham-fisted.fjp :as fjp]
+            [ham-fisted.lazy-noncaching :as lznc]
             [ham-fisted.protocols :as proto]
             [ham-fisted.function :as hamf-fn]
             [ham-fisted.reduce :as hamf-rf]
@@ -42,6 +43,28 @@
             clojure.lang.Agent/soloExecutor (proto/->spliterator data) 1000 (constantly 0) lp lp)))
     (is (= total (hamf-rf/preduce (constantly 0) lp lp (proto/->spliterator data))))
     (is (= total (hamf-rf/preduce-reducer (sum-reducer) (proto/->spliterator data))))))
+
+
+(deftest split-reduce-respects-reduced
+  (let [olo (reify ham_fisted.IFnDef$OLO
+              (invokePrim [_ acc v] (if (== v 3) (reduced (conj acc v)) (conj acc v))))
+        odo (reify ham_fisted.IFnDef$ODO
+              (invokePrim [_ acc v] (if (== v 3.0) (reduced (conj acc v)) (conj acc v))))
+        obj (fn [acc v] (if (== (long v) 3) (reduced (conj acc v)) (conj acc v)))]
+    (is (= [1 2 3] (spliterator/split-reduce olo [] (long-array [1 2 3 4 5]))))
+    (is (= [1.0 2.0 3.0] (spliterator/split-reduce odo [] (double-array [1 2 3 4 5]))))
+    (is (= [1 2 3] (spliterator/split-reduce obj [] (vec (range 1 6)))))
+    ;;no reduced - full reduction
+    (is (= [1 2] (spliterator/split-reduce olo [] (long-array [1 2]))))
+    (is (= [1.0 2.0] (spliterator/split-reduce odo [] (double-array [1 2]))))
+    ;;typed take transducer is OLO when downstream rfn is OLO
+    (is (= [1 2] (spliterator/split-reduce ((lznc/take 2) olo) [] (long-array [1 2 5 6]))))))
+
+
+(deftest on-pool-macros
+  (is (= 3 (fjp/on-cp (+ 1 2))))
+  (is (= 3 (fjp/on-cpu-pool (+ 1 2))))
+  (is (thrown-with-msg? Exception #"boom" (fjp/on-cp (throw (Exception. "boom"))))))
 
 
 (comment
