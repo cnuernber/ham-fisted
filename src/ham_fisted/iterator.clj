@@ -354,6 +354,15 @@
 (defn iter-take "take n from an iterator returning a new iterator"
   ^Iterator [^long n coll] (IterTake. (->iterator coll) n 0))
 
+(defn iter-drop "drop n from an iterator returning the advanced iterator"
+  ^Iterator [^long n coll]
+  (let [iter (->iterator coll)]
+    (loop [idx 0]
+      (when (and (< idx n) (.hasNext iter))
+        (.next iter)
+        (recur (unchecked-inc idx))))
+    iter))
+
 (defn wrap-iter
   "Wrap an iterator returning an iterable."
   ^Iterable [iter]

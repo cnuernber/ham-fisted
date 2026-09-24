@@ -27,11 +27,14 @@ public class PartitionByInner implements ITypedReduce, Iterator, Seqable, IDeref
   Object lastFV;
 
   public PartitionByInner(Iterator i, IFn f, Object v, BiPredicate pred) {
+    this(i, f, v, f.invoke(v), pred);
+  }
+  /** fv must be (f v) - avoids recomputing f for a value whose key is already known. */
+  public PartitionByInner(Iterator i, IFn f, Object v, Object fv, BiPredicate pred) {
     this.iter = i;
     this.f = f;
     this.lastV = v;
     this.lastVValid = true;
-    final Object fv = f.invoke(v);
     this.fv = fv;
     this.lastFV = fv;
     this.pred = pred == null ? (x,y)->CljHash.equiv(x,y) : pred;

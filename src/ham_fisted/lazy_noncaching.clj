@@ -871,23 +871,12 @@
 
 (declare drop take)
 
-(deftype ^:private DropIterable [^long n data]
-  clojure.lang.Sequential
-  Iterable
-  (iterator [this]
-    (let [src-iter (.iterator (->iterable data))]
-      (dotimes [idx n]
-        (when (.hasNext src-iter)
-          (.next src-iter)))
-      src-iter))
-  ITypedReduce
-  (reduce [this rfn acc]
-    (let [rfn ((drop n) rfn)]
-      (reduce rfn acc data)))
-  Object
-  (toString [this] (Transformables/sequenceToString this)))
-
-(pp/implement-tostring-print DropIterable)
+(defseqtype DropIterable [^long n data m]
+  Transformables$IterableSeq
+  (iterator [this] (hamf-iter/iter-drop n (src-iter data)))
+  (reduce [this rfn acc] (reduce ((drop n) rfn) acc data))
+  (meta [this] m)
+  (withMeta [this mm] (DropIterable. n data mm)))
 
 (defmacro define-drop-tducer
   [nm iface rf-tag]
@@ -930,7 +919,7 @@
          (if (< sl n)
            '[]
            (.subList l n sl)))
-       (DropIterable. n data)))))
+       (DropIterable. n data nil)))))
 
 (defmacro define-take-tducer
   [nm invoke-nm iface rf-tag]
@@ -957,29 +946,12 @@
 (define-take-tducer TakeLongTducer invokePrim IFnDef$OLO clojure.lang.IFn$OLO)
 (define-take-tducer TakeDoubleTducer invokePrim IFnDef$ODO clojure.lang.IFn$ODO)
 
-(deftype TakeIterator [^{:unsynchronized-mutable true
-                         :tag long} n
-                       ^Iterator data]
-  Iterator
-  (hasNext [this] (and (pos? n) (.hasNext data)))
-  (next [this]
-    (set! n (dec n))
-    (if (.hasNext data)
-      (.next data)
-      (throw (java.util.NoSuchElementException. "Iter out of range")))))
-
-(deftype TakeIterable [n data]
-  clojure.lang.Sequential
-  Iterable
-  (iterator [this]
-    (TakeIterator. n (.iterator (->iterable data))))
-  ITypedReduce
-  (reduce [this rfn acc]
-    (reduce ((take n) rfn) acc data))
-  Object
-  (toString [this] (Transformables/sequenceToString this)))
-
-(pp/implement-tostring-print TakeIterable)
+(defseqtype TakeIterable [^long n data m]
+  Transformables$IterableSeq
+  (iterator [this] (hamf-iter/iter-take n (src-iter data)))
+  (reduce [this rfn acc] (reduce ((take n) rfn) acc data))
+  (meta [this] m)
+  (withMeta [this mm] (TakeIterable. n data mm)))
 
 (defn take
   ([n]
@@ -998,7 +970,7 @@
        (.subList l 0 (max 0 (min n (.size l))))
        (if (<= n 0)
          '()
-         (TakeIterable. n data))))))
+         (TakeIterable. n data nil))))))
 
 (defmacro make-readonly-list
   "Implement a readonly list.  If cls-type-kwd is provided it must be, at compile time,
@@ -1041,15 +1013,23 @@
   [ifn]
   (protocols/simplified-returned-datatype ifn))
 
+;;Infinite - never counted or random access.
+(defseqtype ^:private RepeatedlyIterable [^IFn f m]
+  Transformables$IterableSeq
+  (iterator [this] (reify Iterator (hasNext [_] true) (next [_] (f))))
+  (reduce [this rfn acc]
+    (let [^IFn rfn rfn]
+      (loop [acc acc]
+        (let [acc (rfn acc (f))]
+          (if (reduced? acc) (deref acc) (recur acc))))))
+  (meta [this] m)
+  (withMeta [this mm] (RepeatedlyIterable. f mm)))
+
 (defn repeatedly
-  "When called with one argument, produce infinite list of calls to v.
-  When called with two arguments, produce a non-caching random access list of length n of calls to v."
-  ([f]
-   (reify Iterable
-     (iterator [this]
-       (reify java.util.Iterator
-         (hasNext [this] true)
-         (next [this] (f))))))
+  "When called with one argument, produce infinite sequence of calls to f.
+  When called with two arguments, produce a non-caching random access list of length n of calls to f.
+  If f is primitive hinted to return a long or double the list is a primitive typed list."
+  ([f] (RepeatedlyIterable. f nil))
   (^IMutList [n f]
    (let [n (int n)]
      (case (protocols/simplified-returned-datatype f)
@@ -1163,32 +1143,6 @@ ham-fisted.api> (shift -2 (range 10))
        (reindex coll (IntArrays/shuffle (ArrayLists/iarange 0 (.size coll) 1) random))))))
 
 
-(deftype ^:private PartitionOuterIter [^Iterator iter
-                                       ignore-leftover?
-                                       f
-                                       binary-predicate
-                                       ^:unsynchronized-mutable last-iter]
-  Iterator
-  (hasNext [this] (if last-iter
-                    (do (when (and (not ignore-leftover?)
-                                   (.hasNext ^Iterator last-iter))
-                          (throw (RuntimeException. "Sub-collection was not completely iterated through")))
-                        (boolean @last-iter))
-                    (.hasNext iter)))
-  (next [this]
-    (if last-iter
-      (let [piter-data @last-iter
-            v (piter-data 0)
-            fv (piter-data 1)
-            rv (PartitionByInner. iter f v binary-predicate)]
-        (set! last-iter rv)
-        rv)
-      (let [v (.next iter)
-            fv (f v)
-            rv (PartitionByInner. iter f v binary-predicate)]
-        (set! last-iter rv)
-        rv))))
-
 
 (deftype ^:private PartitionBy [f coll ignore-leftover? m
                                 binary-predicate
@@ -1196,36 +1150,39 @@ ham-fisted.api> (shift -2 (range 10))
                                   :tag long} _hasheq]
   ITypedReduce
   (reduce [this rfn acc]
-    (let [citer (.iterator ^Iterable (protocols/->iterable coll))]
+    (let [citer (src-iter coll)]
       (if (.hasNext citer)
-        (loop [acc acc
-               v (.next citer)
-               fv (f v)]
-          (let [
-                piter (PartitionByInner. citer f v binary-predicate)
-                ;;piter (PartitionInnerIter. citer f fv true v fv)
-                acc (rfn acc piter)
-                _ (when (and (not ignore-leftover?)
-                             (.hasNext piter))
-                    (throw (RuntimeException. "Sub-collection was not entirely consumed.")))
-                piter-data @piter]
-            (if (reduced? acc)
-              @acc
-              (if piter-data
-                (recur acc (piter-data 0) (piter-data 1))
-                acc))))
+        (let [v (.next citer)]
+          (loop [acc acc
+                 piter (PartitionByInner. citer f v binary-predicate)]
+            (let [acc (rfn acc piter)]
+              (when (and (not ignore-leftover?) (.hasNext piter))
+                (throw (RuntimeException. "Sub-collection was not entirely consumed.")))
+              (if (reduced? acc)
+                @acc
+                ;;deref yields [next-v (f next-v)] or nil at the end of the input
+                (if-let [piter-data @piter]
+                  (recur acc (PartitionByInner. citer f (piter-data 0) (piter-data 1) binary-predicate))
+                  acc)))))
         acc)))
   Iterable
-  (iterator [this] (PartitionOuterIter. (.iterator ^Iterable (protocols/->iterable coll))
-                                        ignore-leftover?
-                                        f
-                                        binary-predicate
-                                        nil))
+  (iterator [this]
+    (let [citer (src-iter coll)]
+      (.iterator
+       (hamf-iter/iterable
+        hamf-iter/non-nil?
+        #(when (.hasNext citer) (PartitionByInner. citer f (.next citer) binary-predicate))
+        (fn [^PartitionByInner prev]
+          (when (and (not ignore-leftover?) (.hasNext prev))
+            (throw (RuntimeException. "Sub-collection was not completely iterated through")))
+          (when-let [piter-data @prev]
+            (PartitionByInner. citer f (piter-data 0) (piter-data 1) binary-predicate)))
+        identity))))
   Seqable
+  ;;each partition is realized into a vector before the next is requested
   (seq [this]
-    (let [ii (clojure.lang.IteratorSeq/create (.iterator this))]
-      (when ii
-        (clojure.core/map vec (clojure.lang.IteratorSeq/create (.iterator this))))))
+    (when-let [ii (clojure.lang.IteratorSeq/create (.iterator this))]
+      (clojure.core/map vec ii)))
   clojure.lang.Sequential
   clojure.lang.IHashEq
   (hasheq [this]
@@ -1234,7 +1191,7 @@ ham-fisted.api> (shift -2 (range 10))
     _hasheq)
   clojure.lang.IPersistentCollection
   (count [this] (count (seq this)))
-  (cons [this o] (cons (seq this) o))
+  (cons [this o] (clojure.core/cons o (seq this)))
   (empty [this] PersistentList/EMPTY)
   (equiv [this o]
     (if (identical? this o)

@@ -362,6 +362,54 @@
   (is (= 1 (reduce (fn [_ v] (reduced v)) 0 (lznc/map + '(0 1) '(1 2))))))
 
 
+(deftest partition-by-calls-f-once-per-element
+  (let [calls (java.util.concurrent.atomic.AtomicLong.)
+        f (fn [v] (.incrementAndGet calls) (quot (long v) 3))
+        data (vec (range 10))]
+    (is (= [[0 1 2] [3 4 5] [6 7 8] [9]] (into [] (map vec) (lznc/partition-by f data))))
+    (is (= 10 (.get calls)) "reduce")
+    (.set calls 0)
+    (is (= [[0 1 2] [3 4 5] [6 7 8] [9]] (vec (seq (lznc/partition-by f data)))))
+    (is (= 10 (.get calls)) "iterate")))
+
+
+(deftest partition-by-collection-semantics
+  (let [pb (lznc/partition-by identity [1 1 2 3 3])]
+    (is (= [[1 1] [2] [3 3]] (vec (seq pb))))
+    (is (= '([1 1] [2] [3 3]) (seq pb)))
+    (is (= 3 (count pb)))
+    (is (= [[1 1] [2] [3 3]] pb))
+    (is (= (hash '([1 1] [2] [3 3])) (hash pb)))
+    (is (= '(:x [1 1] [2] [3 3]) (conj pb :x))))
+  (is (nil? (seq (lznc/partition-by identity []))))
+  ;;partitions must be consumed before the next is requested
+  (is (thrown? RuntimeException (into [] (lznc/partition-by identity [1 1 2 2]))))
+  (is (thrown? RuntimeException (let [it (.iterator ^Iterable (lznc/partition-by identity [1 1 2 2]))]
+                                  (.next it) (.hasNext it)))))
+
+
+(deftest take-drop-sequential
+  (let [s (map identity (range 10))]
+    (is (= [0 1 2] (vec (lznc/take 3 s))))
+    (is (= '(0 1 2) (seq (lznc/take 3 s))))
+    (is (= [7 8 9] (vec (lznc/drop 7 s))))
+    (is (= '(7 8 9) (lznc/drop 7 s)))
+    (is (= [] (vec (lznc/drop 20 s))))
+    (is (= 3 (count (lznc/take 3 s))))
+    (is (= [0 1] (vec (lznc/take 2 (lznc/drop 0 s)))))
+    (let [it (.iterator ^Iterable (lznc/take 2 s))]
+      (is (= [0 1 false] [(.next it) (.next it) (.hasNext it)])))))
+
+
+(deftest repeatedly-infinite
+  (let [r (lznc/repeatedly (constantly :a))]
+    (is (= [:a :a] (vec (lznc/take 2 r))))
+    (is (= '(:a :a) (take 2 (seq r))))
+    (is (= [:a :a :a] (into [] (take 3) r)))
+    (is (= 3 (reduce (fn [acc _] (if (== 2 (long acc)) (reduced 3) (inc (long acc)))) 0 r)))
+    (is (sequential? r))))
+
+
 (deftest tuple-map-iterator-has-next-idempotent
   (let [tm (lznc/tuple-map vec [1 2 3] [4 5 6] [7 8 9])
         iter (.iterator ^Iterable tm)]
