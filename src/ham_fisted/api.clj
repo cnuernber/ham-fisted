@@ -53,10 +53,8 @@
             HashProvider MapSetOps SetOps ObjArray UpdateValues
             MutList ImmutList StringCollection ArrayImmutList ArrayLists
             ImmutSort IMutList Ranges$LongRange ArrayHelpers
-            Ranges$DoubleRange IFnDef Transformables$MapIterable
-            Transformables$FilterIterable Transformables$CatIterable
-            Transformables$MapList Transformables$IMapable Transformables
-            ReindexList ConstList ArrayLists$ObjectArrayList Transformables$SingleMapList
+            Ranges$DoubleRange IFnDef Transformables$IMapable Transformables
+            ReindexList ConstList ArrayLists$ObjectArrayList
             ArrayLists$IntArrayList ArrayLists$LongArrayList ArrayLists$DoubleArrayList
             ReverseList TypedList DoubleMutList LongMutList
             Consumers Sum Sum$SimpleSum Casts Reducible IndexedDoubleConsumer

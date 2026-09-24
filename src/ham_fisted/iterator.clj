@@ -9,7 +9,7 @@
            [java.util.concurrent BlockingQueue]
            [clojure.lang ArraySeq Seqable IteratorSeq]
            [ham_fisted StringCollection ArrayLists MergeIterator MergeIterator$CurrentIterator
-            Transformables$MapIterable ITypedReduce Reductions Transformables])
+            ITypedReduce Reductions Transformables])
   (:refer-clojure :exclude [cond not next]))
 
 

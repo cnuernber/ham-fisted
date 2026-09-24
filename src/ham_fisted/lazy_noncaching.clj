@@ -17,15 +17,16 @@
             [ham-fisted.language :as hamf-language]
             [ham-fisted.iterator :as hamf-iter]
             [ham-fisted.datatypes])
-  (:import [ham_fisted Transformables$MapIterable Transformables$FilterIterable
-            Transformables$CatIterable Transformables$MapList Transformables$IMapable
-            Transformables$SingleMapList Transformables StringCollection ArrayLists
+  (:import [ham_fisted Transformables$IMapable Transformables$IterableSeq
+            Transformables StringCollection ArrayLists
             ArrayImmutList ArrayLists$ObjectArrayList IMutList TypedList LongMutList
-            DoubleMutList ReindexList Transformables$IndexedMapper
-            IFnDef$OLO IFnDef$ODO Reductions Reductions$IndexedAccum
+            DoubleMutList ReindexList MapFn ForkJoinPatterns ParallelOptions
+            IFnDef$OLO IFnDef$ODO IFnDef$LO IFnDef$DO IFnDef$LongPredicate
+            IFnDef$DoublePredicate IFnDef$Predicate Reductions Reductions$IndexedAccum
             IFnDef$OLOO ArrayHelpers ITypedReduce PartitionByInner Casts
             IMutList LazyChunkedSeq ParallelOptions$CatParallelism MutTreeList IFnDef
             LongAccum]
+           [java.util.function LongPredicate DoublePredicate Predicate]
            [java.lang.reflect Array]
            [it.unimi.dsi.fastutil.ints IntArrays]
            [java.util.concurrent.atomic AtomicLong]
@@ -33,7 +34,8 @@
            [clojure.lang RT IPersistentMap IReduceInit IReduce PersistentList
             IFn$OLO IFn$ODO IFn$DD IFn$LD IFn$OD IFn ArraySeq
             IFn$DL IFn$LL IFn$OL IFn$D IFn$L IFn$LO IFn$DO Counted IDeref Seqable IObj
-            ])
+            ]
+           [java.util NoSuchElementException Arrays])
   (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle object-array
                             remove map-indexed partition-by partition-all every?
                             complement cond drop take count]))
@@ -78,15 +80,6 @@
   java.util.RandomAccess (count [s] (.size ^java.util.Collection s))
   CharSequence (count [s] (.length s))
   Map (count [s] (.size s))
-  Transformables$CatIterable (count [s]
-                               (let [lc (LongAccum. 0)]
-                                 (reduce (fn [^LongAccum lc _v]
-                                           (.accept lc (count _v))
-                                           lc)
-                                         lc
-                                         (reify Iterable (iterator [this]
-                                                           (.containerIter ^Transformables$CatIterable s))))
-                                 (long (.deref lc))))
   Object (count [s] (let [lc (LongAccum. 0)]
                       (reduce (fn [^LongAccum lc _v]
                                 (.accept lc 1)
@@ -95,6 +88,395 @@
                               s)
                       (long (.deref lc)))))
 
+
+;;------------------------------------------------------------------------------
+;; Reduction function composition.  Fusing map and filter into the reduction function
+;; is how the lazy containers below get their reduction performance - these preserve
+;; primitive pathways whenever the map fn/predicate and the rfn allow it.
+
+(defmacro ^:private rf-reify
+  "reify iface with the init and completion arities delegating to rfn."
+  [iface rfn & methods]
+  `(reify ~iface
+     (invoke [_#] (~rfn))
+     (invoke [_# r#] (~rfn r#))
+     ~@methods))
+
+(defn typed-map-reducer
+  "Return a reduction fn that applies map-fn to each input before calling rfn."
+  ^IFn [rfn mfn]
+  (let [^IFn rfn rfn]
+    (cond
+      (instance? IFn$LL mfn)
+      (let [rr (Transformables/toLongReductionFn rfn)]
+        (rf-reify IFnDef$OLO rfn (invokePrim [_ acc v] (.invokePrim rr acc (.invokePrim ^IFn$LL mfn v)))))
+      (instance? IFn$LD mfn)
+      (let [rr (Transformables/toDoubleReductionFn rfn)]
+        (rf-reify IFnDef$OLO rfn (invokePrim [_ acc v] (.invokePrim rr acc (.invokePrim ^IFn$LD mfn v)))))
+      (instance? IFn$DD mfn)
+      (let [rr (Transformables/toDoubleReductionFn rfn)]
+        (rf-reify IFnDef$ODO rfn (invokePrim [_ acc v] (.invokePrim rr acc (.invokePrim ^IFn$DD mfn v)))))
+      (instance? IFn$DL mfn)
+      (let [rr (Transformables/toLongReductionFn rfn)]
+        (rf-reify IFnDef$ODO rfn (invokePrim [_ acc v] (.invokePrim rr acc (.invokePrim ^IFn$DL mfn v)))))
+      (instance? IFn$OL mfn)
+      (let [rr (Transformables/toLongReductionFn rfn)]
+        (rf-reify IFnDef rfn (invoke [_ acc v] (.invokePrim rr acc (.invokePrim ^IFn$OL mfn v)))))
+      (instance? IFn$OD mfn)
+      (let [rr (Transformables/toDoubleReductionFn rfn)]
+        (rf-reify IFnDef rfn (invoke [_ acc v] (.invokePrim rr acc (.invokePrim ^IFn$OD mfn v)))))
+      :else
+      (let [^IFn mfn mfn]
+        (rf-reify IFnDef rfn
+                  (invoke [_ acc v] (rfn acc (mfn v)))
+                  (applyTo [_ args] (rfn (first args) (.applyTo mfn (next args)))))))))
+
+(defn typed-filter-reducer
+  "Return a reduction fn that only calls rfn for inputs where pred is truthy."
+  ^IFn [rfn pred]
+  (let [^IFn rfn rfn]
+    (cond
+      (instance? LongPredicate pred)
+      (let [rr (Transformables/toLongReductionFn rfn)]
+        (rf-reify IFnDef$OLO rfn (invokePrim [_ acc v] (if (.test ^LongPredicate pred v) (.invokePrim rr acc v) acc))))
+      (instance? IFn$LO pred)
+      (let [rr (Transformables/toLongReductionFn rfn)]
+        (rf-reify IFnDef$OLO rfn (invokePrim [_ acc v] (if (Transformables/truthy (.invokePrim ^IFn$LO pred v))
+                                                         (.invokePrim rr acc v) acc))))
+      (instance? DoublePredicate pred)
+      (let [rr (Transformables/toDoubleReductionFn rfn)]
+        (rf-reify IFnDef$ODO rfn (invokePrim [_ acc v] (if (.test ^DoublePredicate pred v) (.invokePrim rr acc v) acc))))
+      (instance? IFn$DO pred)
+      (let [rr (Transformables/toDoubleReductionFn rfn)]
+        (rf-reify IFnDef$ODO rfn (invokePrim [_ acc v] (if (Transformables/truthy (.invokePrim ^IFn$DO pred v))
+                                                         (.invokePrim rr acc v) acc))))
+      (instance? Predicate pred)
+      (rf-reify IFnDef rfn (invoke [_ acc v] (if (.test ^Predicate pred v) (rfn acc v) acc)))
+      :else
+      (let [^IFn pred pred]
+        (rf-reify IFnDef rfn (invoke [_ acc v] (if (Transformables/truthy (pred v)) (rfn acc v) acc)))))))
+
+(defn- and-preds
+  "Compose two predicates preserving primitive pathways."
+  [src dst]
+  (cond
+    (and (instance? LongPredicate src) (instance? LongPredicate dst))
+    (reify IFnDef$LongPredicate
+      (test [_ v] (if (.test ^LongPredicate src v) (.test ^LongPredicate dst v) false)))
+    (and (instance? IFn$LO src) (instance? IFn$LO dst))
+    (reify IFnDef$LO
+      (invokePrim [_ v] (and (Transformables/truthy (.invokePrim ^IFn$LO src v))
+                             (Transformables/truthy (.invokePrim ^IFn$LO dst v)))))
+    (and (instance? DoublePredicate src) (instance? DoublePredicate dst))
+    (reify IFnDef$DoublePredicate
+      (test [_ v] (if (.test ^DoublePredicate src v) (.test ^DoublePredicate dst v) false)))
+    (and (instance? IFn$DO src) (instance? IFn$DO dst))
+    (reify IFnDef$DO
+      (invokePrim [_ v] (and (Transformables/truthy (.invokePrim ^IFn$DO src v))
+                             (Transformables/truthy (.invokePrim ^IFn$DO dst v)))))
+    (and (instance? Predicate src) (instance? Predicate dst))
+    (reify IFnDef$Predicate
+      (test [_ v] (if (.test ^Predicate src v) (.test ^Predicate dst v) false)))
+    :else
+    (let [^IFn src src ^IFn dst dst]
+      (fn [v] (and (Transformables/truthy (src v)) (Transformables/truthy (dst v)))))))
+
+(defn- cat-reducer
+  "Wrap rfn such that reduced values escape the container-level reduction so the outer
+  concatenation also stops."
+  ^IFn [rfn]
+  (cond
+    (instance? IFn$OLO rfn)
+    (reify IFnDef$OLO (invokePrim [_ acc v] (let [acc (.invokePrim ^IFn$OLO rfn acc v)]
+                                              (if (reduced? acc) (reduced acc) acc))))
+    (instance? IFn$ODO rfn)
+    (reify IFnDef$ODO (invokePrim [_ acc v] (let [acc (.invokePrim ^IFn$ODO rfn acc v)]
+                                              (if (reduced? acc) (reduced acc) acc))))
+    :else
+    (let [^IFn rfn rfn]
+      (reify IFnDef (invoke [_ acc v] (let [acc (rfn acc v)]
+                                        (if (reduced? acc) (reduced acc) acc)))))))
+
+;;------------------------------------------------------------------------------
+;; Lazy noncaching containers
+
+(defn- src-iter ^Iterator [src] (.iterator (Transformables/toIterable src)))
+
+(defn- invoke-n
+  "Invoke f with the arguments in args."
+  [^IFn f ^objects args]
+  (case (alength args)
+    3 (f (aget args 0) (aget args 1) (aget args 2))
+    4 (f (aget args 0) (aget args 1) (aget args 2) (aget args 3))
+    (.applyTo f (ArraySeq/create args))))
+
+(defn- iter-syms [k] (vec (clojure.core/repeatedly k #(with-meta (gensym "iter") {:tag 'java.util.Iterator}))))
+
+(defn- bind-iters [syms iters]
+  (vec (mapcat (fn [s idx] [s `(aget ~iters ~idx)]) syms (range))))
+
+(defmacro ^:private zip-reduce
+  "Allocation-free reduction of (f (.next i0) ... (.next ik-1)) over k iterators."
+  [f rfn acc iters k]
+  (let [its (iter-syms k)]
+    `(let ~(bind-iters its iters)
+       (loop [acc# ~acc]
+         (if (and ~@(clojure.core/map (fn [s] `(.hasNext ~s)) its))
+           (let [acc# (~rfn acc# (~f ~@(clojure.core/map (fn [s] `(.next ~s)) its)))]
+             (if (reduced? acc#) (deref acc#) (recur acc#)))
+           acc#)))))
+
+(defmacro ^:private zip-iter
+  "Allocation-free iterator of (f (.next i0) ... (.next ik-1)) over k iterators."
+  [f iters k]
+  (let [its (iter-syms k)]
+    `(let ~(bind-iters its iters)
+       (reify Iterator
+         (hasNext [_#] (and ~@(clojure.core/map (fn [s] `(.hasNext ~s)) its)))
+         (next [_#] (~f ~@(clojure.core/map (fn [s] `(.next ~s)) its)))))))
+
+(definterface IFusedReduce
+  (fusedSource [] "The source the reduction actually runs over.")
+  (^clojure.lang.IFn fuseRfn [^clojure.lang.IFn rfn] "rfn with this container's transformation (and that of its fusable sources) applied."))
+
+(defn- fused-source [src] (if (instance? IFusedReduce src) (.fusedSource ^IFusedReduce src) src))
+(defn- fuse-rfn ^IFn [src rfn] (if (instance? IFusedReduce src) (.fuseRfn ^IFusedReduce src rfn) rfn))
+
+(deftype ^:private FlatIter [^Iterator outer ^{:unsynchronized-mutable true :tag Iterator} inner]
+  Iterator
+  (hasNext [this]
+    (loop []
+      (cond
+        (and inner (.hasNext inner)) true
+        (.hasNext outer) (do (set! inner (when-let [c (.next outer)] (src-iter c)))
+                             (recur))
+        :else false)))
+  (next [this]
+    (if (.hasNext this)
+      (.next inner)
+      (throw (NoSuchElementException.)))))
+
+(defn- flat-iter
+  "Iterator over the elements of each iterable in the object array iterables."
+  ^Iterator [^objects iterables] (FlatIter. (.iterator (ArrayLists/toList iterables)) nil))
+
+(deftype ^:private FilterIter [^Iterator iter pred ^:unsynchronized-mutable nxt]
+  Iterator
+  (hasNext [this]
+    (if (identical? nxt ::none)
+      (loop []
+        (if (.hasNext iter)
+          (let [v (.next iter)]
+            (if (Transformables/truthy (pred v))
+              (do (set! nxt v) true)
+              (recur)))
+          false))
+      true))
+  (next [this]
+    (if (.hasNext this)
+      (let [v nxt] (set! nxt ::none) v)
+      (throw (NoSuchElementException.)))))
+
+(defmacro ^:private defseqtype
+  "deftype with toString, equals and hashCode defined in terms of the clojure sequence
+  interfaces."
+  [nm fields & body]
+  `(do
+     (deftype ~nm ~fields
+       ~@body
+       Object
+       (toString [this#] (Transformables/sequenceToString this#))
+       (equals [this# o#] (.equiv this# o#))
+       (hashCode [this#] (.hasheq this#)))
+     (pp/implement-tostring-print ~nm)))
+
+(defseqtype MapIterable [^IFn f m src]
+  IFusedReduce
+  (fusedSource [this] (fused-source src))
+  (fuseRfn [this rfn] (fuse-rfn src (typed-map-reducer rfn f)))
+  Transformables$IterableSeq
+  (iterator [this]
+    (let [it (src-iter src)]
+      (reify Iterator
+        (hasNext [_] (.hasNext it))
+        (next [_] (f (.next it))))))
+  (reduce [this rfn acc] (Reductions/serialReduction (.fuseRfn this rfn) acc (.fusedSource this)))
+  (parallelReduction [this init-fn rfn merge-fn options]
+    (Reductions/parallelReduction init-fn (.fuseRfn this rfn) merge-fn (.fusedSource this) options))
+  (map [this nf] (MapIterable. (MapFn/create f nf) m src))
+  (meta [this] m)
+  (withMeta [this mm] (MapIterable. f mm src)))
+
+;;map over two or more sources
+(defseqtype MultiMapIterable [^IFn f m ^objects srcs]
+  Transformables$IterableSeq
+  (iterator [this]
+    (let [iters (clojure.core/object-array (clojure.core/map src-iter srcs))
+          n (alength iters)]
+      (case n
+        2 (zip-iter f iters 2)
+        3 (zip-iter f iters 3)
+        4 (zip-iter f iters 4)
+        (reify Iterator
+          (hasNext [_] (loop [idx 0]
+                         (if (< idx n)
+                           (if (.hasNext ^Iterator (aget iters idx)) (recur (unchecked-inc idx)) false)
+                           true)))
+          (next [_] (let [args (clojure.core/object-array n)]
+                      (dotimes [idx n] (aset args idx (.next ^Iterator (aget iters idx))))
+                      (invoke-n f args)))))))
+  (reduce [this rfn acc]
+    (let [^IFn rfn rfn
+          iters (clojure.core/object-array (clojure.core/map src-iter srcs))]
+      (case (alength iters)
+        2 (zip-reduce f rfn acc iters 2)
+        3 (zip-reduce f rfn acc iters 3)
+        4 (zip-reduce f rfn acc iters 4)
+        (Reductions/iterReduce this acc rfn))))
+  (map [this nf] (MultiMapIterable. (MapFn/create f nf) m srcs))
+  (meta [this] m)
+  (withMeta [this mm] (MultiMapIterable. f mm srcs)))
+
+(defseqtype FilterIterable [pred m src]
+  IFusedReduce
+  (fusedSource [this] (fused-source src))
+  (fuseRfn [this rfn] (fuse-rfn src (typed-filter-reducer rfn pred)))
+  Transformables$IterableSeq
+  (iterator [this] (FilterIter. (src-iter src) pred ::none))
+  (reduce [this rfn acc] (Reductions/serialReduction (.fuseRfn this rfn) acc (.fusedSource this)))
+  (parallelReduction [this init-fn rfn merge-fn options]
+    (Reductions/parallelReduction init-fn (.fuseRfn this rfn) merge-fn (.fusedSource this) options))
+  (filter [this p] (FilterIterable. (and-preds pred p) m src))
+  (meta [this] m)
+  (withMeta [this mm] (FilterIterable. pred mm src)))
+
+;;data is an array of iterables of containers
+(defseqtype CatIterable [m ^objects data ^ParallelOptions$CatParallelism parallelism]
+  Transformables$IterableSeq
+  (iterator [this] (FlatIter. (flat-iter data) nil))
+  (reduce [this rfn acc]
+    (let [rf (cat-reducer rfn)
+          containers (flat-iter data)]
+      (loop [acc acc]
+        (if (and (not (reduced? acc)) (.hasNext containers))
+          (recur (Reductions/serialReduction rf acc (.next containers)))
+          (Reductions/unreduce acc)))))
+  (parallelReduction [this init-fn rfn merge-fn options]
+    (let [^ParallelOptions options options
+          rf (cat-reducer rfn)
+          containers (reify Iterable (iterator [_] (flat-iter data)))]
+      (Reductions/unreduce
+       (if (identical? ParallelOptions$CatParallelism/SEQWISE (or parallelism (.-catParallelism options)))
+         (let [partial (ForkJoinPatterns/pmap options #(Reductions/serialReduction rf (init-fn) %)
+                                              (ArrayLists/toList (clojure.core/object-array [containers])))]
+           (if (.-unmergedResult options)
+             partial
+             (Reductions/serialReduction merge-fn (init-fn) partial)))
+         (let [mapped (MapIterable. #(Reductions/parallelReduction init-fn rf merge-fn % options)
+                                    nil containers)]
+           (if (.-unmergedResult options)
+             (CatIterable. nil (clojure.core/object-array [mapped]) nil)
+             (Reductions/iterableMerge options merge-fn mapped)))))))
+  (cat [this iters]
+    (let [n (alength data)
+          nd (Arrays/copyOf data (unchecked-inc n))]
+      (aset nd n iters)
+      (CatIterable. m nd nil)))
+  (meta [this] m)
+  (withMeta [this mm] (CatIterable. mm data parallelism)))
+
+(hamf-defproto/extend-protocol protocols/Counted
+  CatIterable
+  (count [s] (let [containers (flat-iter (.-data s))]
+               (loop [n 0]
+                 (if (.hasNext containers)
+                   (recur (+ n (count (.next containers))))
+                   n)))))
+
+(defseqtype SingleMapList [^IFn f m ^List l]
+  IFusedReduce
+  (fusedSource [this] (fused-source l))
+  (fuseRfn [this rfn] (fuse-rfn l (typed-map-reducer rfn f)))
+  IMutList
+  (size [this] (.size l))
+  (get [this idx] (f (.get l idx)))
+  (subList [this sidx eidx] (SingleMapList. f m (.subList l sidx eidx)))
+  (reduce [this rfn acc] (Reductions/serialReduction (.fuseRfn this rfn) acc (.fusedSource this)))
+  (parallelReduction [this init-fn rfn merge-fn options]
+    (Reductions/parallelReduction init-fn (.fuseRfn this rfn) merge-fn (.fusedSource this) options))
+  (meta [this] m)
+  (withMeta [this mm] (SingleMapList. f mm l))
+  Transformables$IMapable
+  (map [this nf] (SingleMapList. (MapFn/create f nf) m l)))
+
+;;Two or more lists.  Parallel reduction is provided by IMutList.
+(defseqtype MapList [^IFn f m ^objects lists ^long n-elems]
+  IMutList
+  (size [this] (unchecked-int n-elems))
+  (get [this idx]
+    (case (alength lists)
+      2 (f (.get ^List (aget lists 0) idx) (.get ^List (aget lists 1) idx))
+      3 (f (.get ^List (aget lists 0) idx) (.get ^List (aget lists 1) idx) (.get ^List (aget lists 2) idx))
+      (let [n (alength lists)
+            args (clojure.core/object-array n)]
+        (dotimes [aidx n] (aset args aidx (.get ^List (aget lists aidx) idx)))
+        (invoke-n f args))))
+  ;;Own reduction loop so the per-element call sites have a type profile specific to this class
+  ;;as opposed to the IMutList default reduce shared by every list implementation.
+  (reduce [this rfn acc]
+    (let [^IFn rfn rfn
+          n (unchecked-int n-elems)]
+      (loop [idx 0 acc acc]
+        (if (< idx n)
+          (let [acc (rfn acc (.get this (unchecked-int idx)))]
+            (if (reduced? acc) (deref acc) (recur (unchecked-inc idx) acc)))
+          acc))))
+  (subList [this sidx eidx]
+    (MapList. f m (clojure.core/object-array (clojure.core/map #(.subList ^List % sidx eidx) lists))
+              (- eidx sidx)))
+  (meta [this] m)
+  (withMeta [this mm] (MapList. f mm lists n-elems))
+  Transformables$IMapable
+  (map [this nf] (MapList. (MapFn/create f nf) m lists n-elems)))
+
+(defn- map-list
+  [f ^objects lists]
+  (if (== 1 (alength lists))
+    (SingleMapList. f nil (aget lists 0))
+    (MapList. f nil lists (loop [idx 0 ne Long/MAX_VALUE]
+                            (if (< idx (alength lists))
+                              (recur (unchecked-inc idx) (min ne (.size ^List (aget lists idx))))
+                              ne)))))
+
+(defseqtype IndexedMapper [^IFn f src m]
+  Transformables$IterableSeq
+  (iterator [this] (.iterator ^Iterable (.deref this)))
+  (reduce [this rfn acc] (.reduce ^IReduceInit (.deref this) rfn acc))
+  (size [this] (Transformables/iterCount (src-iter src)))
+  (map [this nf] (IndexedMapper. (fn [idx v] (nf (f idx v))) src m))
+  (meta [this] m)
+  (withMeta [this mm] (IndexedMapper. f src mm))
+  IDeref
+  ;;a fresh mapper with its own index counter
+  (deref [this] (let [cnt (long-array 1)]
+                  (MapIterable. (fn [v] (let [idx (aget cnt 0)]
+                                          (aset cnt 0 (unchecked-inc idx))
+                                          (f idx v)))
+                                nil src))))
+
+(defn ^:no-doc map-iterable
+  "Default implementation of IMapable/map"
+  [f coll] (MapIterable. f (meta coll) coll))
+
+(defn ^:no-doc filter-iterable
+  "Default implementation of IMapable/filter"
+  [pred coll] (FilterIterable. pred (meta coll) coll))
+
+(defn ^:no-doc cat-iterable
+  "Default implementation of IMapable/cat"
+  [coll iters]
+  (CatIterable. (meta coll) (clojure.core/object-array [(ArrayLists/toList (clojure.core/object-array [coll])) iters])
+                nil))
 
 (defn ->collection
   "Ensure an item implements java.util.Collection.  This is inherently true for seqs and any
@@ -234,7 +616,7 @@
 (defn map
   ([f]
    (fn [rf]
-     (let [rf (Transformables/typedMapReducer rf f)]
+     (let [rf (typed-map-reducer rf f)]
        (cond
          (instance? IFn$OLO rf)
          (reify IFnDef$OLO
@@ -264,19 +646,16 @@
      (instance? Transformables$IMapable arg)
      (.map ^Transformables$IMapable arg f)
      (instance? RandomAccess arg)
-     (Transformables$SingleMapList. f nil arg)
+     (SingleMapList. f nil arg)
      :else
-     (Transformables$MapIterable/createSingle f nil arg)))
+     (MapIterable. f nil arg)))
   ([f arg & args]
-   (let [args (concat [arg] args)]
-     (if (every? #(instance? RandomAccess %) args)
-       (Transformables$MapList/create f nil (into-array List args))
-       (Transformables$MapIterable. f nil (.toArray ^Collection args))))))
+   (let [args (clojure.core/object-array (cons arg args))]
+     (if (clojure.core/every? #(instance? RandomAccess %) args)
+       (map-list f args)
+       (MultiMapIterable. f nil args)))))
 
 
-(pp/implement-tostring-print Transformables$SingleMapList)
-(pp/implement-tostring-print Transformables$MapIterable)
-(pp/implement-tostring-print Transformables$MapList)
 
 
 (defn map-indexed
@@ -304,10 +683,9 @@
                                            (mfn)))
                                      coll))))
     :else
-    (Transformables$IndexedMapper. map-fn (->iterable coll) nil)))
+    (IndexedMapper. map-fn (->iterable coll) nil)))
 
 
-(pp/implement-tostring-print Transformables$IndexedMapper)
 
 
 (defn map-reducible
@@ -320,11 +698,11 @@
       (count [this] c)
       IReduceInit
       (reduce [this rfn acc]
-        (Reductions/serialReduction (Transformables/typedMapReducer rfn f) acc r)))
+        (Reductions/serialReduction (typed-map-reducer rfn f) acc r)))
     (reify
       IReduceInit
       (reduce [this rfn acc]
-        (Reductions/serialReduction (Transformables/typedMapReducer rfn f) acc r)))))
+        (Reductions/serialReduction (typed-map-reducer rfn f) acc r)))))
 
 
 (defn tuple-map
@@ -417,21 +795,19 @@
        (reduce [this rfn acc]
          (rdc rfn acc))))))
 
-(pp/implement-tostring-print Transformables$CatIterable)
 
 (defn apply-concat
   "A more efficient form of (apply concat ...) that doesn't force data to be a clojure seq.
   See [[concat-opts]] for opts definition."
   ([] PersistentList/EMPTY)
   ([data]
-   (Transformables$CatIterable. data))
+   (CatIterable. nil (clojure.core/object-array [data]) nil))
   ([opts data]
-   (Transformables$CatIterable. nil
-                                (condp identical? (get opts :cat-parallelism)
-                                  :seq-wise ParallelOptions$CatParallelism/SEQWISE
-                                  :elem-wise ParallelOptions$CatParallelism/ELEMWISE
-                                  nil nil)
-                                data)))
+   (CatIterable. nil (clojure.core/object-array [data])
+                 (condp identical? (get opts :cat-parallelism)
+                   :seq-wise ParallelOptions$CatParallelism/SEQWISE
+                   :elem-wise ParallelOptions$CatParallelism/ELEMWISE
+                   nil nil))))
 
 (defn concat
   ([] PersistentList/EMPTY)
@@ -461,17 +837,16 @@
 (defn filter
   ([pred]
    (fn [rf]
-     (Transformables$FilterIterable/typedReducer rf pred)))
+     (typed-filter-reducer rf pred)))
   ([pred coll]
    (cond
      (nil? coll) PersistentList/EMPTY
      (instance? Transformables$IMapable coll)
      (.filter ^Transformables$IMapable coll pred)
      :else
-     (Transformables$FilterIterable. pred nil coll))))
+     (FilterIterable. pred nil coll))))
 
 
-(pp/implement-tostring-print Transformables$FilterIterable)
 
 
 (defn complement

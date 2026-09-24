@@ -327,6 +327,41 @@
   (is (= [1 1] (vec (lznc/take 2 (lznc/repeatedly (constantly 1)))))))
 
 
+(deftest filter-by-primitive-mask
+  ;;numpy-style masking - numeric 0 is false so one primitive vector can filter another
+  (let [data (long-array [10 20 30 40])
+        mask (long-array [1 0 0 1])]
+    (is (= [10 40] (vec (lznc/map first (lznc/filter second (lznc/map vector data mask))))))
+    (is (= [0 3] (vec (lznc/filter #(aget mask (long %)) (range 4)))))
+    (is (= [1 2] (vec (lznc/filter identity [0 1 2 0.0 nil false]))))
+    (is (= [1 2] (into [] (lznc/filter identity) [0 1 2 0.0 nil false])))
+    (is (= 3 (reduce + 0 (lznc/filter identity [0 1 2 0.0 nil false]))))))
+
+
+(deftest fused-reduction-chains
+  (let [data (vec (range 1000))
+        expected (reduce + 0 (->> data (map inc) (filter even?) (map #(* 3 %)) (filter #(< % 2000))))]
+    (is (= expected (reduce + 0 (->> data (lznc/map inc) (lznc/filter even?) (lznc/map #(* 3 %)) (lznc/filter #(< % 2000))))))
+    (is (= expected (reduce + 0 (->> (seq data) (lznc/map inc) (lznc/filter even?) (lznc/map #(* 3 %)) (lznc/filter #(< % 2000))))))
+    (is (= expected (hamf-rf/preduce (constantly 0) + + {:min-n 10}
+                                     (->> data (lznc/map inc) (lznc/filter even?) (lznc/map #(* 3 %)) (lznc/filter #(< % 2000))))))
+    ;;early termination through a fused chain
+    (is (= [2 4 6] (into [] (take 3) (->> (range) (lznc/map inc) (lznc/filter even?)))))))
+
+
+(deftest multi-map
+  (doseq [n (range 2 7)]
+    (let [colls (repeat n (range 5))
+          expected (apply map + colls)]
+      (is (= expected (vec (apply lznc/map + colls))) (str "seq iterate " n))
+      (is (= (reduce + expected) (reduce + 0 (apply lznc/map + colls))) (str "seq reduce " n))
+      (is (= expected (vec (apply lznc/map + (clojure.core/map vec colls)))) (str "ra " n))
+      (is (= (reduce + expected) (reduce + 0 (apply lznc/map + (clojure.core/map vec colls)))) (str "ra reduce " n))))
+  (is (= [2 4] (vec (lznc/map + [1 2] [1 2 3]))))
+  (is (= [2 4] (vec (lznc/map + '(1 2) '(1 2 3)))))
+  (is (= 1 (reduce (fn [_ v] (reduced v)) 0 (lznc/map + '(0 1) '(1 2))))))
+
+
 (deftest tuple-map-iterator-has-next-idempotent
   (let [tm (lznc/tuple-map vec [1 2 3] [4 5 6] [7 8 9])
         iter (.iterator ^Iterable tm)]

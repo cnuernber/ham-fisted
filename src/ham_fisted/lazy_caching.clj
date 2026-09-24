@@ -1,8 +1,7 @@
 (ns ham-fisted.lazy-caching
   (:require [ham-fisted.lazy-noncaching :as lznc])
   (:import [java.util RandomAccess List Iterator]
-           [ham_fisted Transformables$CachingIterable Transformables$CachingList
-            ArrayLists ArrayHelpers ArrayLists$ObjectArrayList LazyChunkedSeq]
+           [ham_fisted ArrayLists ArrayHelpers ArrayLists$ObjectArrayList LazyChunkedSeq]
            [clojure.lang ISeq ArraySeq IFn ChunkedCons ArrayChunk])
   (:refer-clojure :exclude [map filter concat repeatedly]))
 
