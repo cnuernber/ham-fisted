@@ -52,6 +52,8 @@
   (is (= expected (into [] result)) (str lbl " reduce")))
 
 ;;[name lznc-fn core-fn random-access-result? preserves-element-type?]
+;;cartesian-map mutates its argument list between calls so it is copied with into - vec would
+;;alias the list as hamf array lists are persistent vectors.
 (def ^:private cases
   [["map" #(lznc/map str %) #(map str %) true false]
    ["map2" #(lznc/map vector % %) #(map vector % %) true false]
@@ -63,6 +65,8 @@
    ["tuple-map2" #(lznc/tuple-map vec % %) #(map vector % %) true false]
    ["tuple-map3" #(lznc/tuple-map vec % % %) #(map vector % % %) true false]
    ["tuple-map5" #(lznc/tuple-map vec % % % % %) #(map vector % % % % %) true false]
+   ["cartesian2" #(lznc/cartesian-map (partial into []) % %) #(for [a % b %] [a b]) true false]
+   ["cartesian3" #(lznc/cartesian-map (partial into []) % % %) #(for [a % b % c %] [a b c]) true false]
    ["partition-all" #(lznc/partition-all 6 %) #(partition-all 6 %) true false]
    ["partition-all step" #(lznc/partition-all 6 4 %) #(partition-all 6 4 %) true false]
    ["filter" #(lznc/filter (fn [v] (even? (long v))) %) #(filter (fn [v] (even? (long v))) %) false false]
@@ -136,3 +140,27 @@
     (is (not (counted? inf)))
     (is (= [1 1 1] (vec (lznc/take 3 inf))))
     (is (= [1 1 1] (into [] (take 3) inf)))))
+
+(deftest cartesian-map-shapes
+  (let [cm (lznc/cartesian-map (partial into []) [1 2] [:a :b :c])]
+    (is (ra? cm))
+    (is (= 6 (count cm)))
+    (is (= [2 :a] (.get ^List cm 3)))
+    (is (thrown? IndexOutOfBoundsException (.get ^List cm 6)))
+    (is (= [[1 :b] [1 :c] [2 :a]] (vec (.subList ^List cm 1 4)))))
+  (is (= 0 (count (lznc/cartesian-map (partial into []) [1 2] []))))
+  (testing "sequential input stays sequential"
+    (let [cm (lznc/cartesian-map (partial into []) [1 2] (map identity [:a :b]))]
+      (is (not (ra? cm)))
+      (is (= [[1 :a] [1 :b] [2 :a] [2 :b]] (vec cm)))))
+  (testing "results larger than an int stay sequential"
+    (let [big (vec (range 100000))
+          cm (lznc/cartesian-map (partial into []) big big)]
+      (is (not (ra? cm)))
+      (is (= [[0 0] [0 1]] (vec (lznc/take 2 cm))))))
+  (testing "reduction sums"
+    (let [data (vec (range 50))
+          expected (reduce + (for [a data b data c data] (+ a b c)))]
+      (is (= expected (reduce + 0 (lznc/cartesian-map #(apply + %) data data data))))
+      (is (= expected (hamf-rf/preduce (constantly 0) + + {:min-n 100}
+                                       (lznc/cartesian-map #(apply + %) data data data)))))))

@@ -1400,26 +1400,8 @@ user>
 
 
 
-(defn cartesian-map
-  "Create a new sequence that is the cartesian join of the input sequence passed through f.
-  Unlike map, f is passed the arguments as a single persistent vector.  This is to enable much
-  higher efficiency in the higher-arity applications.  For tight numeric loops, see [[ham-fisted.hlet/let]].
-
-  The argument vector is mutably updated between function calls so you can't cache it.  Use `(into [] args)`
-  or some variation thereof to cache the arguments as is.
-
-```clojure
-user> (hamf/sum-fast (lznc/cartesian-map
-                      #(h/let [[a b c d](lng-fns %)]
-                         (-> (+ a b) (+ c) (+ d)))
-                      [1 2 3]
-                      [4 5 6]
-                      [7 8 9]
-                      [10 11 12 13 14]))
-3645.0
-```"
-  ([f] '())
-  ([f a] (map #(f [%]) a))
+(defn- cartesian-seq
+  "Sequential cartesian map - see [[cartesian-map]]."
   ([f a b]
    (let [reducer (fn [rfn acc]
                    (let [values (ArrayLists/objectArray (unchecked-int 2))
@@ -1541,3 +1523,66 @@ user> (hamf/sum-fast (lznc/cartesian-map
                                nil
                                (range nargs))]
            (reducer acc)))))))
+
+
+(defseqtype CartesianList [^IFn f m ^objects lists ^long n-elems seq-impl]
+  IMutList
+  (size [this] (unchecked-int n-elems))
+  ;;Decode idx with the last list varying fastest which matches iteration order.  A fresh
+  ;;argument list per call keeps get safe for concurrent use in parallel reductions.
+  (get [this idx]
+    (when-not (and (>= idx 0) (< idx n-elems))
+      (throw (IndexOutOfBoundsException. (str "Index " idx " out of range [0," n-elems ")"))))
+    (let [n (alength lists)
+          args (clojure.core/object-array n)]
+      (loop [lidx (unchecked-dec n)
+             r (long idx)]
+        (when (>= lidx 0)
+          (let [^List l (aget lists lidx)
+                ls (.size l)]
+            (aset args lidx (.get l (unchecked-int (rem r ls))))
+            (recur (unchecked-dec lidx) (quot r ls)))))
+      (f (ArrayLists/toList args))))
+  ;;serial reduction uses the nested reductions of the sequential implementation
+  (reduce [this rfn acc] (.reduce ^IReduceInit seq-impl rfn acc))
+  (meta [this] m)
+  (withMeta [this mm] (CartesianList. f mm lists n-elems seq-impl)))
+
+(defn- cartesian-ra
+  "Random access cartesian map when every coll is random access and the result size fits
+  in an int, else seq-impl."
+  [f colls seq-impl]
+  (let [lists (clojure.core/object-array (clojure.core/map as-random-access colls))]
+    (if-not (clojure.core/every? some? lists)
+      seq-impl
+      (let [n-elems (long (loop [idx 0 p 1]
+                      (if (and (< idx (alength lists)) (<= p Integer/MAX_VALUE))
+                        (recur (unchecked-inc idx) (* p (.size ^List (aget lists idx))))
+                        p)))]
+        (if (<= n-elems Integer/MAX_VALUE)
+          (CartesianList. f nil lists n-elems seq-impl)
+          seq-impl)))))
+
+(defn cartesian-map
+  "Create a new sequence that is the cartesian join of the input sequence passed through f.
+  Unlike map, f is passed the arguments as a single persistent vector.  This is to enable much
+  higher efficiency in the higher-arity applications.  When every input is random access
+  the result is random access (and parallelizable by index).  For tight numeric loops, see [[ham-fisted.hlet/let]].
+
+  The argument vector is mutably updated between function calls so you can't cache it.  Use `(into [] args)`
+  or some variation thereof to cache the arguments as is.
+
+```clojure
+user> (hamf/sum-fast (lznc/cartesian-map
+                      #(h/let [[a b c d](lng-fns %)]
+                         (-> (+ a b) (+ c) (+ d)))
+                      [1 2 3]
+                      [4 5 6]
+                      [7 8 9]
+                      [10 11 12 13 14]))
+3645.0
+```"
+  ([f] '())
+  ([f a] (map #(f [%]) a))
+  ([f a b] (cartesian-ra f [a b] (cartesian-seq f a b)))
+  ([f a b & args] (cartesian-ra f (list* a b args) (apply cartesian-seq f a b args))))
