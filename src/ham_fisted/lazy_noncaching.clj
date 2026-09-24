@@ -554,12 +554,12 @@
 
 
 (defn as-random-access
-  "If item implements RandomAccess, return List interface."
+  "If item implements RandomAccess return it, if it is a java array return a random access List
+  wrapping it.  Else nil."
   ^List [item]
   (cond (instance? RandomAccess item) item
-        (instance? long-array-cls item) (ArrayLists/toList ^longs item)
-        (instance? double-array-cls item) (ArrayLists/toList ^doubles item)
-        (instance? obj-array-cls item) (ArrayLists/toList ^objects item)))
+        (nil? item) nil
+        (.isArray (.getClass ^Object item)) (ArrayLists/toList item)))
 
 
 (defn ->random-access
@@ -645,45 +645,45 @@
      (nil? arg) PersistentList/EMPTY
      (instance? Transformables$IMapable arg)
      (.map ^Transformables$IMapable arg f)
-     (instance? RandomAccess arg)
-     (SingleMapList. f nil arg)
      :else
-     (MapIterable. f nil arg)))
+     (if-let [l (as-random-access arg)]
+       (SingleMapList. f nil l)
+       (MapIterable. f nil arg))))
   ([f arg & args]
-   (let [args (clojure.core/object-array (cons arg args))]
-     (if (clojure.core/every? #(instance? RandomAccess %) args)
-       (map-list f args)
+   (let [args (clojure.core/object-array (cons arg args))
+         ra-args (clojure.core/object-array (clojure.core/map as-random-access args))]
+     (if (clojure.core/every? some? ra-args)
+       (map-list f ra-args)
        (MultiMapIterable. f nil args)))))
 
 
 
 
+(defn- ra-map-indexed
+  "map-indexed over a random access list whose first element has index offset."
+  [map-fn ^List coll ^long offset]
+  (reify
+    IMutList
+    (size [this] (.size coll))
+    (get [this idx] (map-fn (+ offset idx) (.get coll idx)))
+    (subList [this sidx eidx]
+      (ra-map-indexed map-fn (.subList coll sidx eidx) (+ offset sidx)))
+    (reduce [this rfn acc]
+      (reduce (Reductions$IndexedAccum.
+               (reify IFnDef$OLOO
+                 (invokePrim [this acc idx v]
+                   (rfn acc (map-fn (+ offset idx) v)))))
+              acc coll))
+    Transformables$IMapable
+    (map [this mfn] (ra-map-indexed (fn [idx v] (mfn (map-fn idx v))) coll offset))))
+
 (defn map-indexed
   [map-fn coll]
-  (cond
-    (nil? coll)
+  (if (nil? coll)
     coll
-    (instance? RandomAccess coll)
-    (let [^List coll coll]
-      (reify
-        IMutList
-        (size [this] (.size coll))
-        (get [this idx] (map-fn idx (.get coll idx)))
-        (subList [this sidx eidx]
-          (map-indexed map-fn (.subList coll sidx eidx)))
-        (reduce [this rfn acc]
-          (reduce (Reductions$IndexedAccum.
-                   (reify IFnDef$OLOO
-                     (invokePrim [this acc idx v]
-                       (rfn acc (map-fn idx v)))))
-                  acc coll))
-        Transformables$IMapable
-        (map [this mfn] (map-indexed (fn [idx v]
-                                       (-> (map-fn idx v)
-                                           (mfn)))
-                                     coll))))
-    :else
-    (IndexedMapper. map-fn (->iterable coll) nil)))
+    (if-let [l (as-random-access coll)]
+      (ra-map-indexed map-fn l 0)
+      (IndexedMapper. map-fn (->iterable coll) nil))))
 
 
 
