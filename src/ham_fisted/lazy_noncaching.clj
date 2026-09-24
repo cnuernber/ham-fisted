@@ -705,96 +705,22 @@
         (Reductions/serialReduction (typed-map-reducer rfn f) acc r)))))
 
 
-(defn tuple-map
-  "Lazy nonaching map but f simply gets a single random-access list of arguments.
-  The argument list may be mutably updated between calls."
-  ([f c1]
-   (let [rdc (fn [rfn acc] (reduce (fn [acc v] (rfn acc (f [v]))) acc c1))]
-     (if-let [c1 (as-random-access c1)]
-       (reify IMutList
-         (size [this] (.size c1))
-         (get [this idx] (f [(.get c1 idx)]))
-         (subList [this sidx eidx]
-           (tuple-map f (.subList c1 sidx eidx)))
-         (reduce [this rfn acc]
-           (rdc rfn acc)))
-       (reify
-         Iterable
-         (iterator [this]
-           (let [citer (.iterator (->iterable c1))]
-             (reify Iterator
-               (hasNext [this] (.hasNext citer))
-               (next [this] (f [(.next citer)])))))
-         Seqable
-         (seq [this] (LazyChunkedSeq/chunkIteratorSeq (.iterator this)))
-         ITypedReduce
-         (reduce [this rfn acc]
-           (rdc rfn acc))))))
-  ([f c1 c2]
-   (let [c1 (->iterable c1)
-         c2 (->iterable c2)]
-     (reify
-       Iterable
-       (iterator [this]
-         (let [c1-iter (.iterator c1)
-               c2-iter (.iterator c2)]
-           (reify Iterator
-             (hasNext [this] (and (.hasNext c1-iter)
-                                  (.hasNext c2-iter)))
-             (next [this]
-               (f [(.next c1-iter) (.next c2-iter)])))))
-       Seqable
-       (seq [this] (LazyChunkedSeq/chunkIteratorSeq (.iterator this)))
-       ITypedReduce
-       (reduce [this rfn acc]
-         (Reductions/iterReduce this acc rfn)))))
-  ([f c1 c2 & cs]
-   (let [cs (doto (ArrayLists$ObjectArrayList.)
-              (.add c1)
-              (.add c2)
-              (.addAll cs))
-         nargs (.size cs)
-         next-fn (fn next-fn [iters ^objects args]
-                   (loop [idx 0]
-                     (if (< idx nargs)
-                       (let [^Iterator iter (iters idx)]
-                         (if (.hasNext iter)
-                           (do
-                             (ArrayHelpers/aset args (unchecked-int idx) (.next iter))
-                             (recur (unchecked-inc idx)))
-                           false))
-                       true)))
-         rdc (fn [rfn acc]
-               (let [iters (mapv #(.iterator (->iterable %)) cs)]
-                 (loop [acc acc
-                        args (ArrayLists/objectArray nargs)
-                        next? (next-fn iters args)]
-                   (if next?
-                     (let [acc (rfn acc (f (ArrayLists/toList ^objects args)))]
-                       (if (reduced? acc)
-                         (deref acc)
-                         (let [args (ArrayLists/objectArray nargs)]
-                           (recur acc args (next-fn iters args)))))
-                     acc))))]
-     (reify
-       Iterable
-       (iterator [this]
-         (let [args (ArrayLists/objectArray nargs)
-               argvec (ArrayLists/toList args)
-               iters (mapv #(.iterator (->iterable %)) cs)]
-           (reify
-             Iterator
-             (hasNext [this] (clojure.core/every? #(.hasNext ^Iterator %) iters))
-             (next [this]
-               (when-not (next-fn iters args)
-                 (throw (java.util.NoSuchElementException.)))
-               (f argvec)))))
-       Seqable
-       (seq [this] (LazyChunkedSeq/chunkIteratorSeq (.iterator this)))
-       ITypedReduce
-       (reduce [this rfn acc]
-         (rdc rfn acc))))))
+(defn- tuple-fn
+  "Adapt f, a fn of a single argument list, to a fn of n positional arguments."
+  [^IFn f ^long n]
+  (case n
+    1 (fn [a] (f [a]))
+    2 (fn [a b] (f [a b]))
+    3 (fn [a b c] (f [a b c]))
+    4 (fn [a b c d] (f [a b c d]))
+    (fn [& args] (f (vec args)))))
 
+(defn tuple-map
+  "Lazy nonaching map but f simply gets a single random-access list of arguments.  Like
+  [[map]] the result is random access when every collection is random access."
+  ([f c1] (map (tuple-fn f 1) c1))
+  ([f c1 c2] (map (tuple-fn f 2) c1 c2))
+  ([f c1 c2 & cs] (apply map (tuple-fn f (+ 2 (count cs))) c1 c2 cs)))
 
 (defn apply-concat
   "A more efficient form of (apply concat ...) that doesn't force data to be a clojure seq.
