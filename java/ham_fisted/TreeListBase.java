@@ -80,22 +80,33 @@ public class TreeListBase implements IMutList {
   public static class Leaf implements INode {
     final Object owner;
     Object[][] data;
+    //Bit i set means data[i] was allocated by owner and may be edited in place.  Copying
+    //a leaf for a new owner does not copy the inner arrays so they start out unowned.
+    int ownedMask;
     public Object[][] data() { return this.data; }
     public Leaf() { this.owner = null; this.data = emptyObjAryAry; }
-    public Leaf(Object owner, Object[][] data) { this.owner = owner; this.data = data; }
+    public Leaf(Object owner, Object[][] data, int ownedMask) {
+      this.owner = owner;
+      this.data = data;
+      this.ownedMask = owner == null ? 0 : ownedMask;
+    }
+    public Leaf(Object owner, Object[][] data) { this(owner, data, 0); }
     public Leaf(Object[][] data) { this(null, data); }
-    public Leaf(Object[] tail) { this.owner = null; this.data = new Object[][]{ tail }; }
+    //Tails handed to the tree are never edited afterwards by the caller so the leaf owns them.
+    public Leaf(Object owner, Object[] tail) { this(owner, new Object[][]{ tail }, 1); }
     public Object cons(Object owner, Object[] tail) {
       boolean force = owner == null || this.owner != owner;
       if(data.length == leafWidth) {
-	return new Object[]{this, new Leaf(owner, new Object[][] { tail })};
+	return new Object[]{this, new Leaf(owner, tail)};
       } else {
 	Object[][] newData = Arrays.copyOf(data, data.length+1);
 	newData[data.length]=tail;
+	int tailBit = 1 << data.length;
 	if(force)
-	  return new Leaf(owner, newData);
+	  return new Leaf(owner, newData, tailBit);
 	else {
 	  this.data = newData;
+	  this.ownedMask |= tailBit;
 	  return this;
 	}
       }
@@ -192,15 +203,19 @@ public class TreeListBase implements IMutList {
     public Leaf assocN(Object owner, int idx, Object obj, Box oldVal) {
       boolean force = owner == null || this.owner != owner;
       int localIdx = idx/leafWidth;
-      Object[] entry = force ? Arrays.copyOf(data[localIdx], tailWidth) : data[localIdx];
+      int entryBit = 1 << localIdx;
+      boolean ownsEntry = !force && (ownedMask & entryBit) != 0;
+      Object[] entry = ownsEntry ? data[localIdx] : Arrays.copyOf(data[localIdx], tailWidth);
       int objIdx = idx % tailWidth;
       if(oldVal != null) oldVal.val = entry[objIdx];
       entry[objIdx] = obj;
       if(force) {
 	Object[][] newData = Arrays.copyOf(data, data.length);
 	newData[localIdx] = entry;
-	return new Leaf(owner, newData);
+	return new Leaf(owner, newData, entryBit);
       } else {
+	data[localIdx] = entry;
+	ownedMask |= entryBit;
 	return this;
       }
     }
@@ -219,6 +234,7 @@ public class TreeListBase implements IMutList {
 	newLeaf = new Leaf(owner, newD);
       } else {
 	this.data = newD;
+	this.ownedMask &= ~(1 << (dlen-1));
 	newLeaf = this;
       }
       return new SublistResult(newLeaf, lastTail);
@@ -256,7 +272,7 @@ public class TreeListBase implements IMutList {
     public Branch(Leaf leaf) { this.owner = null; this.data = new Object[]{leaf}; }
     public Branch(Branch branch) { this.owner = null; this.data = new Object[]{branch}; }
     public Branch(Object owner, int shift, Object[] tail) {
-      this(owner, new Object[] { shift == 1 ? new Leaf(tail) : new Branch(shift-1, tail) } );
+      this(owner, new Object[] { shift == 1 ? new Leaf(owner, tail) : new Branch(owner, shift-1, tail) } );
     }
     @SuppressWarnings("unchecked")
     public void forEachRemaining(int shift, int sidx, int eidx, Consumer cc) {
@@ -636,7 +652,8 @@ public class TreeListBase implements IMutList {
       this.eidx = eidx;
     }
     public int characteristics() {
-      return Spliterator.ORDERED | Spliterator.SIZED | Spliterator.SUBSIZED | Spliterator.IMMUTABLE;
+      return Spliterator.ORDERED | Spliterator.SIZED | Spliterator.SUBSIZED
+	| (data instanceof TreeList ? Spliterator.IMMUTABLE : 0);
     }
     public Spliterator trySplit() {
       int ne = (eidx - sidx);

@@ -17,8 +17,9 @@ public class MutTreeList extends TreeListBase implements ITransientVector {
     return nTail == tail.length ? tail : Arrays.copyOf(tail, nTail);
   }
   public MutTreeList(Object root, Object[] tail, IPersistentMap meta, int shift, int count) {
-    super(root, tail, shift, count);
+    super(root, Arrays.copyOf(tail, tailWidth), shift, count);
     this.meta = meta;
+    this.nTail = tail.length;
   }
   public MutTreeList() {
     super(new Leaf(null, new Object[0][]), new Object[tailWidth], 0, 0);
@@ -31,6 +32,10 @@ public class MutTreeList extends TreeListBase implements ITransientVector {
     nTail = tail.length;
     this.tail = Arrays.copyOf(this.tail, tailWidth);
   }
+  void ensureEditable() {
+    if(persistent)
+      throw new IllegalAccessError("Transient used after persistent! call");
+  }
   void consTail(Object[] tail) {
     Object rv = shift == 0 ? ((Leaf)root).add(sentinel, tail) : ((Branch)root).add(sentinel, shift, tail);
     if(rv instanceof Object[]) {
@@ -41,6 +46,7 @@ public class MutTreeList extends TreeListBase implements ITransientVector {
     }
   }
   public boolean add(Object obj) {
+    ensureEditable();
     final int tlen = nTail();
     final int newCount = count+1;
     if(tlen == 32) {
@@ -53,11 +59,12 @@ public class MutTreeList extends TreeListBase implements ITransientVector {
     return true;
   }
   public Object set(int idx, Object obj) {
+    ensureEditable();
     checkIndex(idx, count);
     int cutoff = count - nTail();
     if(idx < cutoff) {
       Box b = new Box(null);
-      Object newRoot = shift == 1 ? ((Leaf)root).assocN(sentinel, idx, obj, b) :
+      Object newRoot = shift == 0 ? ((Leaf)root).assocN(sentinel, idx, obj, b) :
 	((Branch)root).assocN(sentinel, shift, idx, obj, b);
       root = newRoot;
       return b.val;
@@ -69,10 +76,11 @@ public class MutTreeList extends TreeListBase implements ITransientVector {
     }
   }
   public void setObject(int idx, Object obj) {
+    ensureEditable();
     checkIndex(idx, count);
     int cutoff = count - nTail();
     if(idx < cutoff) {
-      Object newRoot = shift == 1 ? ((Leaf)root).assocN(sentinel, idx, obj, null) :
+      Object newRoot = shift == 0 ? ((Leaf)root).assocN(sentinel, idx, obj, null) :
 	((Branch)root).assocN(sentinel, shift, idx, obj, null);
       root = newRoot;
     } else {
@@ -81,23 +89,26 @@ public class MutTreeList extends TreeListBase implements ITransientVector {
     }
   }
   public MutTreeList assocN(int i, Object val) {
-    if(i == count) add(val);
-    setObject(i, val);
+    if(i == count)
+      add(val);
+    else
+      setObject(i, val);
     return this;
   }
   public MutTreeList pop() {
+    ensureEditable();
     if(count == 0) throw new IllegalStateException("Can't pop empty vector");
     if(nTail > 0) {
-      nTail--;
+      tail[--nTail] = null;
     } else {
-      Object popResult = shift == 1 ? ((Leaf)root).pop(sentinel) : ((Branch)root).pop(sentinel, shift);
-      if(popResult instanceof SublistResult) {
-	SublistResult r = (SublistResult)popResult;
-	this.root = r.node;
-	nTail = tailWidth-1;
-	System.arraycopy(tail, 0, r.tail, 0, nTail);
-      } else {
-	this.root = popResult;
+      SublistResult r = shift == 0 ? ((Leaf)root).pop(sentinel) : ((Branch)root).pop(sentinel, shift);
+      root = r.node;
+      nTail = tailWidth-1;
+      System.arraycopy(r.tail, 0, tail, 0, nTail);
+      tail[nTail] = null;
+      while(shift > 0 && ((Branch)root).data.length == 1) {
+	root = ((Branch)root).data[0];
+	shift--;
       }
     }
     count--;
@@ -114,9 +125,17 @@ public class MutTreeList extends TreeListBase implements ITransientVector {
     return new TreeList( this, meta );
   }
   public IPersistentVector immut() { return persistent(); }
+  //A TreeList sublist would share nodes this transient still edits in place so return a view.
+  @SuppressWarnings("unchecked")
+  public IMutList subList(int sidx, int eidx) {
+    sublistCheck(sidx, eidx, size());
+    if(sidx == 0 && eidx == count)
+      return this;
+    return new IMutList.MutSubList(this, sidx, eidx);
+  }
   public static MutTreeList create(boolean owning, IPersistentMap meta, Object[] data) {
     int nLeaves = (data.length  + tailWidth - 1) / tailWidth;
-    MutTreeList newList = new MutTreeList(new Leaf(null, new Object[0][]), new Object[tailWidth], meta, 0, 0);
+    MutTreeList newList = new MutTreeList(new Leaf(null, new Object[0][]), new Object[0], meta, 0, 0);
     for(int idx = 0; idx < nLeaves; ++idx) {
       int dataOff = idx*32;
       int dataEnd = Math.min(dataOff + 32, data.length);

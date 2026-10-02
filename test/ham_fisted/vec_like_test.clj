@@ -26,6 +26,65 @@
     (dotimes [idx 50] (sublist-tumbler tr))
     (is (= (count tr) 1000000))))
 
+(deftest transient-set-test
+  (doseq [n [100 2000 40000]]
+    (let [m (MutTreeList/create false nil (object-array (range n)))
+          idxs (filterv #(< % n) [0 31 32 1023 1024 (quot n 2) (dec n)])]
+      (doseq [i idxs] (.set m (int i) :x))
+      (is (= (reduce #(assoc %1 %2 :x) (vec (range n)) idxs) (vec m))))))
+
+(deftest transient-pop-test
+  (let [m (MutTreeList/create false nil (object-array (range 33)))]
+    (.pop m) (.pop m)
+    (is (= (vec (range 31)) (vec m))))
+  (let [m (MutTreeList/create false nil (object-array (range 33000)))]
+    (dotimes [_ 32000] (.pop m))
+    (.add m :a)
+    (is (= (conj (vec (range 1000)) :a) (vec m))))
+  (let [m (MutTreeList/create false nil (object-array (range 1100)))]
+    (dotimes [_ 1100] (.pop m))
+    (dotimes [i 2000] (.add m i))
+    (is (= (vec (range 2000)) (vec m)))))
+
+(deftest transient-model-test
+  (let [rng (java.util.Random. 42)]
+    (loop [iter 0
+           m (transient (TreeList.))
+           v []]
+      (if (< iter 60000)
+        (let [op (.nextInt rng 10)
+              n (count v)]
+          (cond
+            (or (< op 6) (zero? n)) (recur (inc iter) (conj! m iter) (conj v iter))
+            (< op 8) (recur (inc iter) (pop! m) (pop v))
+            :else (let [i (.nextInt rng n)]
+                    (recur (inc iter) (assoc! m i :x) (assoc v i :x)))))
+        (is (= v (vec (persistent! m))))))))
+
+(deftest transient-does-not-edit-source-test
+  (let [t (reduce conj (TreeList.) (range 64))
+        m (transient t)]
+    (dotimes [i 40] (conj! m i))
+    (.set ^MutTreeList m 0 :x)
+    (.set ^MutTreeList m 33 :y)
+    (is (= (vec (range 64)) (vec t)))
+    (is (= [:x :y] [(nth m 0) (nth m 33)]))))
+
+(deftest transient-after-persistent-test
+  (let [m (MutTreeList/create false nil (object-array (range 64)))
+        p (persistent! m)]
+    (is (thrown? IllegalAccessError (.set m 40 :x)))
+    (is (thrown? IllegalAccessError (.add m :x)))
+    (is (thrown? IllegalAccessError (.pop m)))
+    (is (= (vec (range 64)) (vec p)))))
+
+(deftest transient-sublist-is-view-test
+  (let [m (MutTreeList/create false nil (object-array (range 100)))
+        s (.subList m 10 50)]
+    (.set m 10 :x)
+    (is (= :x (.get s 0)))
+    (is (not (instance? TreeList s)))))
+
 (defn add-all-reducible
   ^IMutList [^IMutList l data]
   (.addAllReducible l data)
