@@ -32,7 +32,9 @@ public class HashSet extends HashBase implements ISet, SetOps {
     super(other, null);
   }
   public HashSet shallowClone() {
-    return new HashSet(loadFactor, capacity, length, data.clone(), meta);
+    HashSet rv = new HashSet(loadFactor, capacity, length, data.clone(), meta);
+    rv.sharedNodes = true;
+    return rv;
   }
   public HashSet clone() {
     final int l = data.length;
@@ -58,6 +60,7 @@ public class HashSet extends HashBase implements ISet, SetOps {
     return CljHash.setEquiv(this, o);
   }
   public boolean add(Object key) {
+    ensureOwned();
     final int hc = hash(key);
     final int idx = hc & this.mask;
     HashNode lastNode = null;
@@ -78,6 +81,7 @@ public class HashSet extends HashBase implements ISet, SetOps {
   }
 
   public void addAllReduceGeneric(IReduceInit r) {
+    ensureEditable();
     final HashBase rv = this;
     r.reduce(new IFnDef() {
 	public Object invoke(Object acc, Object k) {
@@ -97,6 +101,7 @@ public class HashSet extends HashBase implements ISet, SetOps {
       }, this);
   }
   public boolean addAll(Collection c) {
+    ensureEditable();
     int sz = length;
     if(c instanceof HashSet) {
       HashSet other = (HashSet) c;
@@ -145,6 +150,7 @@ public class HashSet extends HashBase implements ISet, SetOps {
     return sz != length;
   }
   public boolean remove(Object key) {
+    ensureOwned();
     HashNode lastNode = null;
     int loc = hash(key) & this.mask;
     for(HashNode e = this.data[loc]; e != null; e = e.nextNode) {
@@ -223,6 +229,7 @@ public class HashSet extends HashBase implements ISet, SetOps {
   }
 
   public HashSet union(Collection rhs) {
+    ensureEditable();
     return union(this, rhs);
   }
 
@@ -242,6 +249,7 @@ public class HashSet extends HashBase implements ISet, SetOps {
   }
 
   public HashSet intersection(Set rhs) {
+    ensureEditable();
     return intersection(this, rhs);
   }
 

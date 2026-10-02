@@ -41,8 +41,8 @@ public class LongHashNode implements Map.Entry, IMutList, IMapEntry {
   }
   public LongHashNode clone(LongHashBase nowner) {
     LongHashNode rv = new LongHashNode(nowner, this);
-    if(nextNode != null)
-      rv.nextNode = nextNode.clone(nowner);
+    for(LongHashNode tail = rv; tail.nextNode != null; tail = tail.nextNode)
+      tail.nextNode = new LongHashNode(nowner, tail.nextNode);
     return rv;
   }
   public final Object key() { return k; }

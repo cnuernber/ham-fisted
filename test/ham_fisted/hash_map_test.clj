@@ -874,3 +874,67 @@
     (.put ht "bilbo" "baggins"))
 
   (crit/quick-bench (.get ^ham_fisted.HashTable ht "bilbo")))
+
+
+(deftest persistent-set-conj-does-not-edit-source
+  (let [s (api/immut-set [1 2])
+        s2 (conj s 3)
+        s3 (disj s 1)]
+    (is (= #{1 2} s))
+    (is (not (contains? s 3)))
+    (is (contains? s 1))
+    (is (= #{1 2 3} s2))
+    (is (= #{2} s3)))
+  (let [s (api/immut-set (range 10))
+        t (transient s)]
+    (conj! t 100)
+    (disj! t 5)
+    (is (= (set (range 10)) s))
+    (is (= (-> (set (range 10)) (conj 100) (disj 5)) (persistent! t)))))
+
+(deftest transient-after-persistent-throws
+  (let [t (transient (api/immut-map {1 1 2 2}))
+        p (persistent! t)]
+    (is (thrown? IllegalAccessError (assoc! t 1 :x)))
+    (is (thrown? IllegalAccessError (dissoc! t 1)))
+    (is (= {1 1 2 2} p)))
+  (let [t (transient (api/immut-set [1 2]))
+        p (persistent! t)]
+    (is (thrown? IllegalAccessError (conj! t 3)))
+    (is (thrown? IllegalAccessError (disj! t 1)))
+    (is (= #{1 2} p)))
+  (let [m (api/mut-map {:a 1})
+        p (persistent! m)]
+    (is (thrown? IllegalAccessError (.put m :a 2)))
+    (is (thrown? IllegalAccessError (.remove m :a)))
+    (is (thrown? IllegalAccessError (.clear m)))
+    (is (= {:a 1} p)))
+  (let [m (api/mut-long-map {1 1})
+        p (persistent! m)]
+    (is (thrown? IllegalAccessError (.put m 1 2)))
+    (is (= {1 1} p)))
+  (let [s (api/mut-set [1 2])
+        p (persistent! s)]
+    (is (thrown? IllegalAccessError (.add s 3)))
+    (is (= #{1 2} p))))
+
+(deftest shallow-clone-does-not-edit-source
+  (let [m (api/mut-map {:a 1 :b 2})
+        c (.shallowClone ^ham_fisted.HashMap m)]
+    (.put c :a 10)
+    (.remove c :b)
+    (.compute c :c (reify BiFunction (apply [_ k v] 3)))
+    (is (= {:a 1 :b 2} m))
+    (is (= {:a 10 :c 3} c)))
+  (let [m (api/mut-long-map {1 1 2 2})
+        c (.shallowClone ^ham_fisted.LongHashMap m)]
+    (.put c 1 10)
+    (.remove c 2)
+    (is (= {1 1 2 2} m))
+    (is (= {1 10} c)))
+  (let [s (api/mut-set (range 20))
+        d (.difference ^ham_fisted.HashSet s #{0})]
+    (.add d 100)
+    (.remove d 5)
+    (is (= (set (range 20)) s))
+    (is (= (-> (set (range 1 20)) (conj 100) (disj 5)) d))))

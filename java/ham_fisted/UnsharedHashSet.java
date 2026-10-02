@@ -21,5 +21,8 @@ public class UnsharedHashSet extends HashSet implements IATransientSet {
     addAll(rhs);
     return this;
   }
-  public PersistentHashSet persistent() { return new PersistentHashSet(this, meta); }
+  public PersistentHashSet persistent() {
+    freeze();
+    return new PersistentHashSet(this, meta);
+  }
 }

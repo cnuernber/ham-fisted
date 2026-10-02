@@ -23,6 +23,11 @@ public class LongHashBase implements IMeta {
   float loadFactor;
   LongHashNode[] data;
   IPersistentMap meta;
+  //Set once persistent! has been called - the persistent result shares this table.
+  boolean frozen;
+  //Set when nodes are shared with another table (shallowClone).  Paths that edit nodes
+  //in place must take ownership of them first.
+  boolean sharedNodes;
   public LongHashBase(float loadFactor, int initialCapacity,
 		      int length, LongHashNode[] data,
 		      IPersistentMap meta) {
@@ -42,8 +47,24 @@ public class LongHashBase implements IMeta {
     this.length = other.length;
     this.data = other.data;
     this.threshold = other.threshold;
+    this.sharedNodes = other.sharedNodes;
     this.meta = m;
   }
+  final void ensureEditable() {
+    if(frozen)
+      throw new IllegalAccessError("Transient used after persistent! call");
+  }
+  //For paths that edit existing nodes in place as opposed to copying them.
+  final void ensureOwned() {
+    ensureEditable();
+    if(sharedNodes) {
+      final LongHashNode[] d = this.data;
+      for(int idx = 0; idx < d.length; ++idx)
+	if(d[idx] != null) d[idx] = d[idx].clone(this);
+      sharedNodes = false;
+    }
+  }
+  final void freeze() { frozen = true; }
   public int size() { return length; }
   public int count() { return length; }
   //protected so clients can override as desired.
@@ -114,6 +135,7 @@ public class LongHashBase implements IMeta {
     return rv;
   }
   public void clear() {
+    ensureEditable();
     for(int idx = 0; idx < data.length; ++idx) {
       for(LongHashNode lf = data[idx]; lf != null; lf = lf.nextNode) {
 	dec(lf);

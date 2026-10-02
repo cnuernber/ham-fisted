@@ -45,7 +45,9 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps, Update
   }
 
   public LongHashMap shallowClone() {
-    return new LongHashMap(loadFactor, capacity, length, data.clone(), meta);
+    LongHashMap rv = new LongHashMap(loadFactor, capacity, length, data.clone(), meta);
+    rv.sharedNodes = true;
+    return rv;
   }
   public LongHashMap clone() {
     final int l = data.length;
@@ -88,6 +90,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps, Update
     return b.append("}").toString();
   }
   public Object put(Object kk, Object val) {
+    ensureOwned();
     long key = Casts.longCast(kk);
     final int hc = hash(key);
     final int idx = hc & this.mask;
@@ -111,6 +114,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps, Update
     return checkResize(null);
   }
   public void putAll(Map other) {
+    ensureOwned();
     LongHashNode[] d = data;
     int mask = this.mask;
     for(Object o: other.entrySet()) {
@@ -168,6 +172,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps, Update
   }
   @SuppressWarnings("unchecked")
   public Object compute(Object kk, BiFunction bfn) {
+    ensureOwned();
     long k = Casts.longCast(kk);
     final int hash = hash(k);
     final LongHashNode[] d = this.data;
@@ -196,6 +201,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps, Update
   }
   @SuppressWarnings("unchecked")
   public Object computeIfAbsent(Object kk, Function afn) {
+    ensureOwned();
     long k = Casts.longCast(kk);
     final int hash = hash(k);
     final LongHashNode[] d = this.data;
@@ -220,6 +226,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps, Update
     }
   }
   public Object remove(Object kk) {
+    ensureOwned();
     long key = Casts.longCast(kk);
     int loc = hash(key) & this.mask;
     LongHashNode lastNode = null;
@@ -266,6 +273,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps, Update
   }
   @SuppressWarnings("unchecked")
   public void replaceAll(BiFunction bfn) {
+    ensureOwned();
     final int l = data.length;
     for(int idx = 0; idx < l; ++idx) {
       LongHashNode lastNode = null;
@@ -322,6 +330,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps, Update
 
   @SuppressWarnings("unchecked")
   public LongHashMap union(Map o, BiFunction bfn) {
+    ensureEditable();
     return union(this, o, bfn);
   }
   @SuppressWarnings("unchecked")
@@ -344,6 +353,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps, Update
 
 
   public LongHashMap intersection(Map o, BiFunction bfn) {
+    ensureEditable();
     return intersection(this, o, bfn);
   }
 
@@ -363,6 +373,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps, Update
     return rv;
   }
   public LongHashMap intersection(Set o) {
+    ensureEditable();
     return intersection(this, o);
   }
 
@@ -385,6 +396,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps, Update
   }
 
   public LongHashMap difference(Collection o) {
+    ensureEditable();
     return difference(this, o);
   }
 
@@ -405,6 +417,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps, Update
     return rv;
   }
   public LongHashMap updateValues(BiFunction valueMap) {
+    ensureEditable();
     return updateValues(this, valueMap);
   }
   @SuppressWarnings("unchecked")
@@ -422,6 +435,7 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps, Update
   }
 
   public LongHashMap updateValue(Object k, Function fn) {
+    ensureEditable();
     return updateValue(this, fn);
   }
 

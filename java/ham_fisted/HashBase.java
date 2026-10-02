@@ -23,6 +23,11 @@ public class HashBase implements IMeta {
   float loadFactor;
   HashNode[] data;
   IPersistentMap meta;
+  //Set once persistent! has been called - the persistent result shares this table.
+  boolean frozen;
+  //Set when nodes are shared with another table (shallowClone).  Paths that edit nodes
+  //in place must take ownership of them first.
+  boolean sharedNodes;
   public HashBase(float loadFactor, int initialCapacity,
 		  int length, HashNode[] data,
 		  IPersistentMap meta) {
@@ -42,8 +47,24 @@ public class HashBase implements IMeta {
     this.length = other.length;
     this.data = other.data;
     this.threshold = other.threshold;
+    this.sharedNodes = other.sharedNodes;
     this.meta = m;
   }
+  final void ensureEditable() {
+    if(frozen)
+      throw new IllegalAccessError("Transient used after persistent! call");
+  }
+  //For paths that edit existing nodes in place as opposed to copying them.
+  final void ensureOwned() {
+    ensureEditable();
+    if(sharedNodes) {
+      final HashNode[] d = this.data;
+      for(int idx = 0; idx < d.length; ++idx)
+	if(d[idx] != null) d[idx] = d[idx].clone(this);
+      sharedNodes = false;
+    }
+  }
+  final void freeze() { frozen = true; }
   public int capacity() { return capacity; }
   public int size() { return length; }
   public int count() { return length; }
@@ -121,6 +142,7 @@ public class HashBase implements IMeta {
     return rv;
   }
   public void clear() {
+    ensureEditable();
     for(int idx = 0; idx < data.length; ++idx) {
       for(HashNode lf = data[idx]; lf != null; lf = lf.nextNode) {
 	dec(lf);

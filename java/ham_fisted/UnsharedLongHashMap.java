@@ -78,6 +78,7 @@ public class UnsharedLongHashMap
     return this;
   }
   public PersistentLongHashMap persistent() {
+    freeze();
     return new PersistentLongHashMap(this);
   }
 }

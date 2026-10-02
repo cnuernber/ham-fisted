@@ -47,7 +47,9 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
   }
 
   public HashMap shallowClone() {
-    return new HashMap(loadFactor, capacity, length, data.clone(), meta);
+    HashMap rv = new HashMap(loadFactor, capacity, length, data.clone(), meta);
+    rv.sharedNodes = true;
+    return rv;
   }
   public HashMap clone() {
     final int l = data.length;
@@ -90,6 +92,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
     return b.append("}").toString();
   }
   public Object put(Object key, Object val) {
+    ensureOwned();
     final int hc = hash(key);
     final int idx = hc & mask;
     final HashNode init = data[idx];
@@ -111,6 +114,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
     return checkResize(null);
   }
   public void putAll(Map other) {
+    ensureOwned();
     HashNode[] d = data;
     int mask = this.mask;
     for(Object o: other.entrySet()) {
@@ -162,6 +166,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
   }
   @SuppressWarnings("unchecked")
   public Object compute(Object k, BiFunction bfn) {
+    ensureOwned();
     final int hash = hash(k);
     final HashNode[] d = this.data;
     final int idx = hash & this.mask;
@@ -189,6 +194,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
   }
   @SuppressWarnings("unchecked")
   public Object computeIfAbsent(Object k, Function afn) {
+    ensureOwned();
     final int hash = hash(k);
     final HashNode[] d = this.data;
     final int idx = hash & this.mask;
@@ -221,6 +227,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
   }
   
   public Object remove(Object key) {
+    ensureOwned();
     HashNode lastNode = null;
     int loc = hash(key) & this.mask;
     for(HashNode e = this.data[loc]; e != null; e = e.nextNode) {
@@ -262,6 +269,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
   }
   @SuppressWarnings("unchecked")
   public void replaceAll(BiFunction bfn) {
+    ensureOwned();
     final int l = data.length;
     for(int idx = 0; idx < l; ++idx) {
       HashNode lastNode = null;
@@ -425,6 +433,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
 
   @SuppressWarnings("unchecked")
   public HashMap union(Map o, BiFunction bfn) {
+    ensureEditable();
     return union(this, o, bfn);
   }
   @SuppressWarnings("unchecked")
@@ -447,6 +456,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
 
 
   public HashMap intersection(Map o, BiFunction bfn) {
+    ensureEditable();
     return intersection(this, o, bfn);
   }
 
@@ -466,6 +476,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
     return rv;
   }
   public HashMap intersection(Set o) {
+    ensureEditable();
     return intersection(this, o);
   }
 
@@ -487,6 +498,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
   }
 
   public HashMap difference(Collection o) {
+    ensureEditable();
     return difference(this, o);
   }
 
@@ -507,6 +519,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
     return rv;
   }
   public HashMap updateValues(BiFunction valueMap) {
+    ensureEditable();
     return updateValues(this, valueMap);
   }
   @SuppressWarnings("unchecked")
@@ -523,6 +536,7 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
   }
 
   public HashMap updateValue(Object k, Function fn) {
+    ensureEditable();
     return updateValue(this, fn);
   }
 

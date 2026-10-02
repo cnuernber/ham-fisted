@@ -42,8 +42,8 @@ public class HashNode implements Map.Entry, IMutList, IMapEntry {
   }
   public HashNode clone(HashBase nowner) {
     HashNode rv = new HashNode(nowner, this);
-    if(nextNode != null)
-      rv.nextNode = nextNode.clone(nowner);
+    for(HashNode tail = rv; tail.nextNode != null; tail = tail.nextNode)
+      tail.nextNode = new HashNode(nowner, tail.nextNode);
     return rv;
   }
   public final Object key() { return k; }

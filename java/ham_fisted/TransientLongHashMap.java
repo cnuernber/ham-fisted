@@ -19,6 +19,7 @@ public class TransientLongHashMap
     super(data.loadFactor, data.capacity, data.length, data.data, m);
   }
   public TransientLongHashMap assoc(Object kk, Object val) {
+    ensureEditable();
     long key = Casts.longCast(kk);
     int hc = hash(key);
     int idx = hc & mask;
@@ -27,6 +28,7 @@ public class TransientLongHashMap
     return this;
   }
   public TransientLongHashMap without(Object kk) {
+    ensureEditable();
     long key = Casts.longCast(kk);
     int hc = hash(key);
     int idx = hc & mask;
@@ -36,6 +38,7 @@ public class TransientLongHashMap
     return this;
   }
   public PersistentLongHashMap persistent() {
+    freeze();
     return new PersistentLongHashMap(this);
   }
   public TransientLongHashMap withMeta(IPersistentMap m) {

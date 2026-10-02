@@ -20,6 +20,7 @@ public class TransientHashMap
     super(data.loadFactor, data.capacity, data.length, data.data, m);
   }
   public TransientHashMap conj(Object val) {
+    ensureEditable();
     if(val instanceof Map) {
       return (TransientHashMap)union((Map)val, BiFunctions.rhsWins);
     } else {
@@ -27,6 +28,7 @@ public class TransientHashMap
     }
   }
   public TransientHashMap assoc(Object key, Object val) {
+    ensureEditable();
     int hc = hash(key);
     int idx = hc & mask;
     HashNode e = data[idx];
@@ -34,6 +36,7 @@ public class TransientHashMap
     return this;
   }
   public TransientHashMap without(Object key) {
+    ensureEditable();
     int hc = hash(key);
     int idx = hc & mask;
     HashNode e = data[idx];
@@ -42,6 +45,7 @@ public class TransientHashMap
     return this;
   }
   public PersistentHashMap persistent() {
+    freeze();
     return new PersistentHashMap(this);
   }
   public TransientHashMap withMeta(IPersistentMap m) {

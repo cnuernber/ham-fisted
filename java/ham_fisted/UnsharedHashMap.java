@@ -79,6 +79,7 @@ public class UnsharedHashMap
     return this;
   }
   public PersistentHashMap persistent() {
+    freeze();
     return new PersistentHashMap(this);
   }
 }
