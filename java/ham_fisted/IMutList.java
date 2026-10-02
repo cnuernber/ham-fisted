@@ -68,27 +68,25 @@ public interface IMutList<E>
   default IMutList cloneList() { return (IMutList)ArrayLists.toList(toArray()); }
   default void clear() { throw new UnsupportedOperationException("Unimplemented"); }
   default boolean add(E v) { throw new UnsupportedOperationException("Unimplemented"); }
+  //Lists that support insertion override this; appending only needs add(E).
   default void add(int idx, E v) {
-    add(idx, 1, v);
+    if(idx == size()) {
+      add(v);
+      return;
+    }
+    throw new UnsupportedOperationException("Unimplemented");
   }
   default void add(int idx, int count, E v) {
-    int end = idx + count;
-    if(idx == size()) {
-      for(; idx < end; ++idx) add( v );
-    } else {
-      for(; idx < end; ++idx) add( idx, v );
-    }
+    final int end = idx + count;
+    for(; idx < end; ++idx) add( idx, v );
   }
   @SuppressWarnings("unchecked")
   default void addLong(long v) { add((E)Long.valueOf(v)); }
   @SuppressWarnings("unchecked")
   default void addDouble(double v) { add((E)Double.valueOf(v)); }
+  //Lists that support removal override this - remove(int) is defined in terms of it.
   default void removeRange(long startidx, long endidx) {
-    ChunkedList.checkIndexRange(0, size(), startidx, endidx);
-    final int sidx = (int)startidx;
-    for(; startidx < endidx; ++startidx) {
-      remove(sidx);
-    }
+    throw new UnsupportedOperationException("Unimplemented");
   }
   @SuppressWarnings("unchecked")
   default void fillRange(long startidx, final long endidx, Object v) {
@@ -320,12 +318,14 @@ public interface IMutList<E>
     }
     public final void remove() {
       list.remove(previdx);
+      if(previdx < idx) --idx;
     }
     public final void set(E e) {
       list.set(previdx, e);
     }
     public final void add(E e) {
-      list.add(previdx, e);
+      list.add(idx, e);
+      ++idx;
     }
   }
   default ListIterator<E> listIterator(int idx) {

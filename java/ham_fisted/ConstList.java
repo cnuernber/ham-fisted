@@ -32,6 +32,7 @@ public class ConstList implements IMutList<Object>, TypedList {
   }
   public int size() { return RT.intCast(nElems); }
   public Object get(int idx) {
+    ChunkedList.indexCheck(0, nElems, idx);
     return value;
   }
   public ConstList subList(long sidx, long eidx) {
@@ -41,9 +42,9 @@ public class ConstList implements IMutList<Object>, TypedList {
   public ConstList subList(int sidx, int eidx) {
     return subList((long)sidx, (long)eidx);
   }
-  public void sort(Comparable c) { }
-  public ConstList immutSort(Comparable c) { return this; }
-  public ConstList ImmutSort() { return this; }
+  public void sort(Comparator c) { }
+  public ConstList immutSort(Comparator c) { return this; }
+  public ConstList immutSort() { return this; }
   public ConstList reverse() { return this; }
   public int[] sortIndirect() { return ArrayLists.iarange(0, size(), 1); }
   public Object[] toArray() {
@@ -87,7 +88,7 @@ public class ConstList implements IMutList<Object>, TypedList {
       lval = v;
     }
     public Class containedType() { return Long.TYPE; }
-    public long getLong(int idx) { return lval; }
+    public long getLong(int idx) { ChunkedList.indexCheck(0, nElems, idx); return lval; }
     public Object reduce(IFn rfn, Object init) { return LongMutList.super.reduce(rfn, init); }
   }
   public static class DoubleConstList extends ConstList implements DoubleMutList {
@@ -97,7 +98,7 @@ public class ConstList implements IMutList<Object>, TypedList {
       lval = v;
     }
     public Class containedType() { return Double.TYPE; }
-    public double getDouble(int idx) { return lval; }
+    public double getDouble(int idx) { ChunkedList.indexCheck(0, nElems, idx); return lval; }
     public Object reduce(IFn rfn, Object init) { return DoubleMutList.super.reduce(rfn, init); }
   }
 }

@@ -90,10 +90,10 @@
         (ArrayHelpers/aset ~'b curlen# (~set-cast-fn v#))
         (set! ~'n-elems newlen#)))
      (add [this# idx# obj#]
-       (ArrayLists/checkIndex idx# ~'n-elems)
        (if (== idx# ~'n-elems)
          (.add this# obj#)
-         (let [bval# (~set-cast-fn (~obj-cast-fn obj#))
+         (let [_# (ArrayLists/checkIndex idx# ~'n-elems)
+               bval# (~set-cast-fn (~obj-cast-fn obj#))
                curlen# ~'n-elems
                newlen# (unchecked-inc curlen#)
                ~(with-meta 'd {:tag ary-tag}) (.ensureCapacity this# newlen#)]
@@ -117,7 +117,7 @@
        (.fillRangeReducible (.subList this# 0 (.size this#)) sidx# c#))
      (removeRange [this# sidx# eidx#]
        (ArrayLists/checkIndexRange ~'n-elems (long sidx#) (long eidx#))
-       (System/arraycopy ~'data sidx# ~'data eidx# (- ~'n-elems eidx#))
+       (System/arraycopy ~'data eidx# ~'data sidx# (- ~'n-elems eidx#))
        (set! ~'n-elems (- ~'n-elems (- eidx# sidx#))))
      (sort [~'this c#] (.sort ~(with-meta '(.subList this 0 n-elems)  {:tag 'IMutList}) c#))
      (sortIndirect [~'this c#] (.sortIndirect ~(with-meta '(.subList this 0 n-elems) {:tag 'IMutList}) c#))
@@ -216,7 +216,7 @@
     (.fillRangeReducible (.subList this 0 (.size this)) sidx c))
   (removeRange [this sidx eidx]
     (ArrayLists/checkIndexRange n-elems sidx eidx)
-    (System/arraycopy data sidx data eidx (- n-elems eidx))
+    (System/arraycopy data eidx data sidx (- n-elems eidx))
     (set! n-elems (- n-elems (- eidx sidx))))
   (sort [this c] (.sort (.subList this 0 n-elems) c))
   (sortIndirect [this c] (.sortIndirect ^IMutList (.subList this 0 n-elems) c))

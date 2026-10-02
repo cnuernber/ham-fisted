@@ -33,9 +33,9 @@ public class RandomAccessSpliterator<E> implements Spliterator<E> {
   }
 
   protected Spliterator<E> doSplit() {
-    final int ne = eidx - sidx;
+    final int ne = eidx - curIdx;
     if(ne > 1) {
-      int split = sidx + (ne / 2);
+      int split = curIdx + (ne / 2);
       int eeidx = eidx;
       eidx = split;
       return construct(list, split, eeidx);
@@ -47,7 +47,7 @@ public class RandomAccessSpliterator<E> implements Spliterator<E> {
     return doSplit();
   }
 
-  public long estimateSize() { return eidx - sidx; }
+  public long estimateSize() { return eidx - curIdx; }
 
   public boolean tryAdvance(Consumer<? super E> action) {
     if (action == null)
@@ -89,7 +89,7 @@ public class RandomAccessSpliterator<E> implements Spliterator<E> {
   }
 
   public int characteristics() {
-    return Spliterator.ORDERED | Spliterator.SIZED | Spliterator.SUBSIZED | Spliterator.IMMUTABLE;
+    return Spliterator.ORDERED | Spliterator.SIZED | Spliterator.SUBSIZED;
   }
   public static class LongSpliterator extends RandomAccessSpliterator<Long> implements Spliterator.OfLong {
     @SuppressWarnings("unchecked")

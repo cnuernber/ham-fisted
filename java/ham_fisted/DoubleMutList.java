@@ -17,9 +17,10 @@ public interface DoubleMutList extends IMutList<Object> {
   default void addLong(long obj) { addDouble(Casts.doubleCast(obj)); }
   default void addDouble(double v) { throw new RuntimeException("Object " + String.valueOf(getClass()) + " failed to define addLong method"); }
   default void add(int idx, int count, Object v) {
-    double d = Casts.doubleCast(v);
-    int end = idx + count;
-    for(; idx < end; ++idx) addDouble( d );
+    if(idx != size())
+      throw new UnsupportedOperationException("Unimplemented");
+    final double d = Casts.doubleCast(v);
+    for(int i = 0; i < count; ++i) addDouble( d );
   }
   @SuppressWarnings("unchecked")
   default Object set(int idx, Object obj) { double v = getDouble(idx); setDouble(idx, Casts.doubleCast(obj)); return v; }

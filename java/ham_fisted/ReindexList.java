@@ -43,6 +43,7 @@ public class ReindexList implements IMutList, TypedList {
     return data.set(indexes[idx], nv);
   }
   public ReindexList subList(int sidx, int eidx) {
+    ChunkedList.sublistCheck(sidx, eidx, indexes.length);
     return ReindexList.create(Arrays.copyOfRange(indexes, sidx, eidx), data, meta);
   }
   @SuppressWarnings("unchecked")

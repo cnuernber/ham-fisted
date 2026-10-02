@@ -17,9 +17,10 @@ import clojure.lang.RT;
 public interface LongMutList extends IMutList<Object> {
   default boolean add(Object obj) { addLong(Casts.longCast(obj)); return true; }
   default void add(int idx, int count, Object v) {
-    long d = Casts.longCast(v);
-    int end = idx + count;
-    for(; idx < end; ++idx) addLong( d );
+    if(idx != size())
+      throw new UnsupportedOperationException("Unimplemented");
+    final long d = Casts.longCast(v);
+    for(int i = 0; i < count; ++i) addLong( d );
   }
   default void addLong(long v) { throw new RuntimeException("Object " + String.valueOf(getClass()) + " failed to define addLong method"); }
   default void addBoolean( boolean obj ) { addLong(obj ? 1 : 0); }
