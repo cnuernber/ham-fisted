@@ -58,7 +58,10 @@ public class CljHash {
 	return (Boolean)Reductions.serialReduction(new IFnDef() {
 	    public Object invoke(Object acc, Object v) {
 	      Map.Entry me = (Map.Entry)v;
-	      if(!equiv(lhs.get(me.getKey()), me.getValue()))
+	      final Object k = me.getKey();
+	      final Object lv = lhs.get(k);
+	      //A nil value must not match a missing key.
+	      if(!equiv(lv, me.getValue()) || (lv == null && !lhs.containsKey(k)))
 		return new Reduced(false);
 	      return acc;
 	    }

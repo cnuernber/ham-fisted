@@ -60,7 +60,8 @@ public class Reductions {
     if(obj == null) return fn.invoke();
 
     final Iterator it = toIterable(obj).iterator();
-    Object init = it.hasNext() ? it.next() : null;
+    if(!it.hasNext()) return fn.invoke();
+    Object init = it.next();
     while(it.hasNext() && !RT.isReduced(init)) {
       init = fn.invoke(init, it.next());
     }
@@ -79,8 +80,8 @@ public class Reductions {
 
   public static Reducible reduceReducibles(Iterable<Reducible> data) {
     Iterator<Reducible> iter = data.iterator();
-    Reducible initial = iter.hasNext() ? iter.next() : null;
-    return initial.reduceIter(iter);
+    if(!iter.hasNext()) return null;
+    return iter.next().reduceIter(iter);
   }
 
   static final Delay collReducePtr = new Delay(new IFnDef() {

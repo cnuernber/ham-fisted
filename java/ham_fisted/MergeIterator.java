@@ -47,7 +47,8 @@ public class MergeIterator implements Iterator {
     //Potential for binary search here I guess
     for(int idx = 1; idx < nIters; ++idx) {
       Object cur = iters[idx].current();
-      if (cmp.compare(leastv, cur) > -1) {
+      //Strictly greater so the leftmost iterator wins ties.
+      if (cmp.compare(leastv, cur) > 0) {
 	leastv = cur;
 	leastIdx = idx;
       }
@@ -104,7 +105,7 @@ public class MergeIterator implements Iterator {
       this.rhs = rhs;
       this.cmp = cmp;
       this.p = p;
-      this.left = cmp.compare(lhs.current(), rhs.current()) < 0 ? true : false;
+      this.left = cmp.compare(lhs.current(), rhs.current()) <= 0;
     }
     public boolean hasNext() {
       return lhs != null || rhs != null;
@@ -125,7 +126,7 @@ public class MergeIterator implements Iterator {
 	}
 	if(lhs == null) left = false;
 	else if (rhs == null) left = true;
-	else left = cmp.compare(lhs.current(), rhs.current()) < 0 ? true : false;
+	else left = cmp.compare(lhs.current(), rhs.current()) <= 0;
       } while(!p.test(rv));
       return rv;
     }
@@ -162,15 +163,22 @@ public class MergeIterator implements Iterator {
     }
     @SuppressWarnings("unchecked")
     public static Iterator create(Iterable<Iterator> srcIters, Comparator cmp, Predicate p) {
+      //Entries are {iter, value, source-index}; the index breaks ties so the leftmost
+      //source wins.
       Comparator pqCmp = new Comparator() {
 	  public int compare(Object lhs, Object rhs) {
-	    return cmp.compare(((Object[])lhs)[1],((Object[])rhs)[1]);
+	    final Object[] l = (Object[])lhs;
+	    final Object[] r = (Object[])rhs;
+	    final int c = cmp.compare(l[1], r[1]);
+	    return c != 0 ? c : Integer.compare((int)l[2], (int)r[2]);
 	  }
 	};
       PriorityQueue pq = new PriorityQueue(pqCmp);
+      int srcIdx = 0;
       for(Iterator iter : srcIters) {
 	if(iter != null && iter.hasNext())
-	  pq.offer(new Object[] {iter, iter.next()});
+	  pq.offer(new Object[] {iter, iter.next(), srcIdx});
+	++srcIdx;
       }
       return new PriorityQueueIterator(pq, p);
     }

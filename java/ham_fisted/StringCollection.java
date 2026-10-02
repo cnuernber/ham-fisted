@@ -46,7 +46,7 @@ public class StringCollection implements IMutList<Character> {
   public Object reduce(IFn rfn, Object acc) {
     final int sz = size();
     for( int idx = 0; idx < sz && !RT.isReduced(acc); ++idx)
-      rfn.invoke(acc, cs.charAt(idx));
+      acc = rfn.invoke(acc, cs.charAt(idx));
     return Reductions.unreduce(acc);
   }
 }

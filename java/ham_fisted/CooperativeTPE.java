@@ -64,7 +64,14 @@ public class CooperativeTPE extends ThreadPoolExecutor {
 	} finally {
 	    pool.lock.unlock();
 	}
-	Object rv = deref(blocker);
+	try {
+	    return deref(blocker);
+	} finally {
+	    restoreThreadCount(pool);
+	}
+    }
+    //Undo the extra thread added by managedBlock.
+    static void restoreThreadCount(CooperativeTPE pool) {
 	pool.lock.lock();
 	int curtc = pool.getCorePoolSize();
 	int diff = pool.desiredThreadCount - curtc;
@@ -79,7 +86,6 @@ public class CooperativeTPE extends ThreadPoolExecutor {
 	} finally {
 	    pool.lock.unlock();
 	}
-	return rv;
     }
 
     public void setDesiredThreadCount(int newNC) {

@@ -50,6 +50,6 @@ public class ParallelOptions {
   }
   public ParallelOptions minN(long newMinN) {
     return new ParallelOptions(newMinN, maxBatchSize, ordered, pool, parallelism,
-			       catParallelism, putTimeoutMs, false, -1);
+			       catParallelism, putTimeoutMs, unmergedResult, nLookahead);
   }
 }

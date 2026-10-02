@@ -40,8 +40,8 @@ public final class Sum implements Consumers.IDerefDoubleConsumer, Reducible
   }
 
   public double computeFinalSum() {
-    // Better error bounds to add both terms as the final sum
-    double tmp = d0 + d1;
+    // d1 holds the negated compensation - see JDK-8214761.
+    double tmp = d0 - d1;
     if (Double.isNaN(tmp) && Double.isInfinite(simpleSum))
       return simpleSum;
     else

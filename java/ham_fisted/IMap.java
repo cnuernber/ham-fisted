@@ -113,7 +113,8 @@ public interface IMap extends Map, ITypedReduce, ILookup, IFnDef, Iterable, IMap
     public boolean contains(Object k) {
       if(!(k instanceof Map.Entry)) return false;
       Map.Entry e = (Map.Entry)k;
-      return Objects.equals(data.get(e), e.getValue());
+      final Object ek = e.getKey();
+      return data.containsKey(ek) && Objects.equals(data.get(ek), e.getValue());
     }
     public Iterator iterator() { return data.entryIterator(); }
     public Spliterator spliterator() { return data.spliterator( (k)->k ); }

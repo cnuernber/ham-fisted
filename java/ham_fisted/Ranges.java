@@ -23,16 +23,23 @@ public class Ranges {
     public final long nElems;
     public final IPersistentMap meta;
     int _hash = 0;
-    public LongRange(long s, long e, long _step, IPersistentMap m) {
+    //Matches clojure.core/range - a range that never reaches end is empty.
+    static long rangeCount(long s, long e, long step) {
+      if (step == 0)
+	throw new RuntimeException("Invalid Range - step cannot be 0");
+      if (step > 0 ? e <= s : e >= s)
+	return 0;
+      return ((e - s) + (step > 0 ? step - 1 : step + 1)) / step;
+    }
+    LongRange(long s, long e, long _step, long ne, IPersistentMap m) {
       start = s;
       end = e;
       step = _step;
-      nElems = (e - s)/_step;
-      if (nElems < 0)
-	throw new RuntimeException("Invalid Range - start: " + String.valueOf(s)
-				   + " end: " + String.valueOf(e) + " step: " +
-				   String.valueOf(_step));
+      nElems = ne;
       meta = m;
+    }
+    public LongRange(long s, long e, long _step, IPersistentMap m) {
+      this(s, e, _step, rangeCount(s, e, _step), m);
     }
     public IMutList cloneList() { return this; }
     public boolean equals(Object other) {
@@ -79,7 +86,7 @@ public class Ranges {
     }
     public LongMutList subList(long sidx, long eidx) {
       ChunkedList.sublistCheck(sidx, eidx, nElems);
-      return new LongRange(start + sidx*step, start + eidx*step, step, meta);
+      return new LongRange(start + sidx*step, start + eidx*step, step, eidx - sidx, meta);
     }
     public ISeq seq() { return inplaceSublistSeq(); }
     public LongMutList subList(int sidx, int eidx) {
@@ -140,7 +147,7 @@ public class Ranges {
     }
     public IPersistentMap meta() { return meta; }
     public LongRange withMeta(IPersistentMap m) {
-      return new LongRange(start, end, step, m);
+      return new LongRange(start, end, step, nElems, m);
     }
   };
 
@@ -151,17 +158,25 @@ public class Ranges {
     public final long nElems;
     public final IPersistentMap meta;
     int _hash = 0;
-    public DoubleRange(double s, double e, double _step, IPersistentMap _meta) {
+    //Matches clojure.core/range - elements are start + idx*step strictly before end.
+    static long rangeCount(double s, double e, double step) {
+      if (step == 0.0 || Double.isNaN(step))
+	throw new RuntimeException("Invalid Range - step: " + String.valueOf(step));
+      long n = Math.max(0, (long)Math.ceil((e - s)/step));
+      //Correct for rounding in the division.
+      while (n > 0 && (step > 0 ? s + step*(n-1) >= e : s + step*(n-1) <= e))
+	--n;
+      return n;
+    }
+    DoubleRange(double s, double e, double _step, long ne, IPersistentMap _meta) {
       start = s;
       end = e;
       step = _step;
       meta = _meta;
-      //Floor to long intentional
-      nElems = Math.max(0, (long)((e - s)/_step));
-      if (nElems < 0)
-	throw new IndexOutOfBoundsException("Invalid Range - start: " + String.valueOf(s)
-				   + " end: " + String.valueOf(e) + " step: " +
-				   String.valueOf(_step));
+      nElems = ne;
+    }
+    public DoubleRange(double s, double e, double _step, IPersistentMap _meta) {
+      this(s, e, _step, rangeCount(s, e, _step), _meta);
     }
     public IMutList cloneList() { return this; }
     public boolean equals(Object other) {
@@ -205,7 +220,7 @@ public class Ranges {
     }
     public DoubleMutList subList(long sidx, long eidx) {
       ChunkedList.sublistCheck(sidx, eidx, size());
-      return new DoubleRange(start + sidx*step, start + eidx*step, step, meta);
+      return new DoubleRange(start + sidx*step, start + eidx*step, step, eidx - sidx, meta);
     }
     public DoubleMutList subList(int sidx, int eidx) {
       return subList((long)sidx, (long)eidx);
@@ -262,7 +277,7 @@ public class Ranges {
     }
     public IPersistentMap meta() { return meta; }
     public DoubleRange withMeta(IPersistentMap m) {
-      return new DoubleRange(start, end, step, m);
+      return new DoubleRange(start, end, step, nElems, m);
     }
   };
 }

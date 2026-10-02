@@ -69,7 +69,6 @@ public class BlockSplitBloomFilter {
   private int minimumBytes = LOWER_BOUND_BYTES;
 
 
-  private int[] mask = new int[BITS_SET_PER_BLOCK];
 
   // The block-based algorithm needs 8 odd SALT values to calculate eight indexes
   // of bits to set, one per 32-bit word.
@@ -125,7 +124,9 @@ public class BlockSplitBloomFilter {
     this.intBuffer = ByteBuffer.wrap(bitset).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
   }
 
-  private int[] setMask(int key) {
+  private static int[] setMask(int key) {
+    // Local rather than a shared field so concurrent inserts/lookups don't race.
+    final int[] mask = new int[BITS_SET_PER_BLOCK];
     // The following three loops are written separately so that they could be
     // optimized for vectorization.
     for (int i = 0; i < BITS_SET_PER_BLOCK; ++i) {
@@ -198,7 +199,7 @@ public class BlockSplitBloomFilter {
     }
 
     // Round numBits up to (k * BITS_PER_BLOCK)
-    numBits = (numBits + BITS_PER_BLOCK - 1) & ~BITS_PER_BLOCK;
+    numBits = (numBits + BITS_PER_BLOCK - 1) & ~(BITS_PER_BLOCK - 1);
 
     if (numBits < (LOWER_BOUND_BYTES << 3)) {
       numBits = LOWER_BOUND_BYTES << 3;

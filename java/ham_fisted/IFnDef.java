@@ -280,8 +280,9 @@ public interface IFnDef extends IFn
     default Object invoke() { return invokePrim(); }
   }
 
-  public interface L extends IFnDef, DoubleSupplier, Supplier, IFn.L {
+  public interface L extends IFnDef, LongSupplier, DoubleSupplier, Supplier, IFn.L {
     default long getAsLong() { return invokePrim(); }
+    default double getAsDouble() { return invokePrim(); }
     default Object get() { return invokePrim(); }
     default Object invoke() { return invokePrim(); }
   }

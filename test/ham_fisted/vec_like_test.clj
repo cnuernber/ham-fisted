@@ -126,7 +126,6 @@
   (crit/quick-bench (hamf/object-array (into [] rr)))
   (crit/quick-bench (add-all-reducible (hamf/object-array-list) rr))
   (crit/quick-bench (hamf/object-array (add-all-reducible (ham_fisted.MutTreeList.) rr)))
-  (crit/quick-bench (add-all-reducible (ham_fisted.BatchedList.) rr))
 
   (def tr (reduce conj (ham_fisted.TreeList.) rr))
   (def pv (reduce conj [] rr))
@@ -150,6 +149,5 @@
 
   (do
     (require '[clj-async-profiler.core :as prof])
-    (prof/profile {:interval 10000} (dotimes [idx 50] (add-all-reducible (ham_fisted.BatchedList.) rr)))
     (prof/serve-ui 8080))
   )

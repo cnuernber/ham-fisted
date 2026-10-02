@@ -21,7 +21,7 @@ public interface ISet extends Set, ITypedReduce, IFnDef, Counted, Seqable {
     int sz = size();
     for(Object o: c)
       add(o);
-    return sz == size();
+    return sz != size();
   }
   @SuppressWarnings("unchecked")
   default void forEach(Consumer c) {
@@ -33,11 +33,11 @@ public interface ISet extends Set, ITypedReduce, IFnDef, Counted, Seqable {
       if(!c.contains(iter.next()))
 	iter.remove();
     }
-    return sz == size();
+    return sz != size();
   }
   default boolean containsAll(Collection c) {
     for(Object o: c) {
-      if(!contains(c)) return false;
+      if(!contains(o)) return false;
     }
     return true;
   }
@@ -46,7 +46,7 @@ public interface ISet extends Set, ITypedReduce, IFnDef, Counted, Seqable {
     for(Object o: c) {
       remove(o);
     }
-    return sz == size();
+    return sz != size();
   }
   default ISeq seq() { return LazyChunkedSeq.chunkIteratorSeq(iterator()); }
   default boolean isEmpty() { return size() == 0; }

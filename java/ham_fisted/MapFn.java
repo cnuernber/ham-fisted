@@ -197,7 +197,7 @@ public class MapFn implements IFnDef {
 				     args));
   }
   public Object applyTo(ISeq args) {
-    return dstFn.invoke(srcFn.invoke(args));
+    return dstFn.invoke(srcFn.applyTo(args));
   }
 
 }

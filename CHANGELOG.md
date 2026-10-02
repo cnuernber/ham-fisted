@@ -20,6 +20,26 @@
    * long hash maps: `compute` returning nil removes the entry; `contains?`/`dissoc` of non-numeric keys
      no longer throw.
    * `empty` keeps metadata; `LinkedHashMap` spliterators follow insertion order.
+ * Array list fixes (`object-array-list`, `int-array-list` and friends):
+   * `remove`, `removeRange` and `removeIf` overflowed the stack or shifted elements the wrong way.
+   * `add` at index `size` threw; `addRange` never grew the list; constructors dropped metadata.
+   * byte sublist `with-meta` had the wrong length; `sortIndirect` on offset sublists threw.
+   * list iterator `remove`/`add` skipped or misplaced elements.
+   * lists that do not support insertion/removal throw UnsupportedOperationException instead of
+     overflowing the stack.
+ * MutList/ImmutList fixes: `pop`/`remove`/`removeRange` overflowed the stack, cloning 32*n elements
+   looped forever, transient `conj!` past the last chunk threw, `nth` with not-found threw,
+   sublist `indexOf` ignored the offset, `equiv` against a shorter seq returned true.
+ * `hamf/range` sizes match `clojure.core/range` (`(range 0 10 3)` has 4 elements) and empty ranges no
+   longer throw.
+ * `(= {:a nil} {:b nil})` was true for ham-fisted maps; entry set `contains` always returned false.
+ * `linear-merge-iterator` is stable - the leftmost iterator wins ties.
+ * Bloom filter lookups are thread safe; `optimalNumOfBits` rounds to whole blocks.
+ * Smaller fixes: string reduction ignored the reducing function's result, `ISet.containsAll`,
+   `ParallelOptions.minN` dropped options, `MapFn` apply, `ConstList`/`ReindexList` bounds checks,
+   spliterator splitting after `tryAdvance`, `IFnDef$L` as a supplier, Kahan summation finish,
+   `CooperativeTPE` thread count after a failed managed block.
+ * Removed the unfinished `BatchedList`.
  * lazy-noncaching implementations moved from Transformables.java into the lznc namespace;
    stacked map/filter fuse into a single reduction.
  * lznc random access shapes are preserved for all java array types; `map-indexed` sublists keep
