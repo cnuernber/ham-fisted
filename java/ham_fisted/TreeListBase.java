@@ -11,6 +11,7 @@ import clojure.lang.RT;
 import clojure.lang.IDeref;
 import clojure.lang.IFn;
 import clojure.lang.IPersistentVector;
+import clojure.lang.IPersistentMap;
 import clojure.lang.Box;
 
 
@@ -51,18 +52,6 @@ public class TreeListBase implements IMutList {
   }
   public static final Object[][] emptyObjAryAry = new Object[0][];
   public static final Object[] emptyObjAry = new Object[0];
-  public static class ConsAllResult {
-    public final Object[] nodes;
-    public final Iter nextData;
-    public final Object[] tail;
-    public final int added;
-    public ConsAllResult(Object[] nodes, Iter nextData, Object[] tail, int added) {
-      this.nodes = nodes;
-      this.nextData = nextData;
-      this.tail = tail;
-      this.added = added;
-    }
-  }
   public static interface INode {
     public void forEachRemaining(int shift, int sidx, int eidx, Consumer cc);
     public Object reduce(int shift, int sidx, int eidx, IFn rfn, Object acc);
@@ -157,47 +146,6 @@ public class TreeListBase implements IMutList {
     }
     public Object add(Object owner, Object[] tail) {
       return cons(owner, tail);
-    }
-    public ConsAllResult consAll(Object owner, int maxSiblings, Iter dataIter) {
-      int maxTails = leafWidth  - data.length + leafWidth * maxSiblings;
-      ArrayList<Object[]> tails = new ArrayList<Object[]>();
-      Object[] tail = new Object[32];
-      int nTail = 0;
-      int added = 0;
-      while(tails.size() < maxTails && dataIter != null) {
-	if(nTail == tailWidth)
-	  tails.add(tail.clone());
-	for(nTail = 0; nTail < tailWidth && dataIter != null; ++nTail) {
-	  tail[nTail++] = dataIter.get();
-	  dataIter = dataIter.next();
-	  ++added;
-	}
-	nTail = 0;
-      }
-      //Rectify tail
-      if(nTail == 0)
-	tail = new Object[0];
-      else if (nTail != tailWidth)
-	tail = Arrays.copyOf(tail, nTail);
-
-      if(tails.isEmpty())
-	return new ConsAllResult(new Object[]{this}, dataIter, tail, added);
-      int totalTails = tails.size();
-      int nLocalTails = Math.min(leafWidth - data.length, totalTails);
-      Object[][] newData = Arrays.copyOf(data, nLocalTails);
-      for(int idx = data.length; idx < nLocalTails; ++idx)
-	newData[idx] = tails.get(idx-data.length);
-
-      int nOtherLeaves = (totalTails - nLocalTails + leafWidth - 1) / leafWidth;
-      Object[] leaves = new Object[1 + nOtherLeaves];
-      leaves[0] = new Leaf(owner, newData);
-      int leafIdx = 1;
-      for(int idx = nLocalTails; idx < totalTails; idx += leafWidth) {
-	int nextIdx = Math.min(totalTails, idx + leafWidth);
-	int nLeafTails = nextIdx - idx;
-	leaves[leafIdx++] = new Leaf(owner, tails.subList(idx, nextIdx).toArray(emptyObjAryAry));
-      }
-      return new ConsAllResult(leaves, dataIter, tail, added);
     }
     public Object[] getArray(int idx) { return data[idx/leafWidth]; }
     public Leaf assocN(Object owner, int idx, Object obj, Box oldVal) {
@@ -340,30 +288,6 @@ public class TreeListBase implements IMutList {
     }
     public Object add(Object owner, int shift, Object[] tail) {
       return cons(owner, shift, tail);
-    }
-    public ConsAllResult consAll(Object owner, int shift, int maxSiblings, Iter dataIter) {
-      int maxChildren = branchWidth - data.length + branchWidth * maxSiblings;
-      Object lastNode = data[data.length-1];
-      ConsAllResult res = shift == 1 ?
-	((Leaf)lastNode).consAll(owner, maxChildren, dataIter) :
-	((Branch)lastNode).consAll(owner, shift-1, maxChildren, dataIter);
-      int numChildren = res.nodes.length;
-      Object[] tail = res.tail;
-      dataIter = res.nextData;
-      int added = res.added;
-      if(res.nodes.length == 1 && res.nodes[0] == lastNode)
-	return new ConsAllResult(new Object[]{this}, dataIter, tail, added);
-      int nLocalNodes = Math.min(numChildren, branchWidth - data.length);
-      Object[] newData = Arrays.copyOf(data, data.length + nLocalNodes);
-      int nNewBranches = (numChildren - nLocalNodes + branchWidth -1)/branchWidth;
-      Object[] rv = new Object[1 + nNewBranches];
-      rv[0] = new Branch(owner, newData);
-      for(int idx = 0; idx < nNewBranches; ++idx) {
-	int copyBegin = nLocalNodes + (idx * branchWidth);
-	int copyEnd = Math.min(copyBegin + branchWidth, numChildren);
-	rv[idx+1] = new Branch(owner, Arrays.copyOfRange(data, copyBegin, copyEnd));
-      }
-      return new ConsAllResult(rv, dataIter, tail, added);
     }
     public Object getNode(int shift, int idx) {
       int shiftAmt = shift * shiftWidth;
@@ -615,7 +539,7 @@ public class TreeListBase implements IMutList {
       int cidx = eidx - cutoff;
       for(int idx = Math.max(sidx, cutoff) - cutoff; idx < cidx; ++idx) {
 	acc = rfn.invoke(acc, tail[idx]);
-	if (RT.isReduced(acc)) return acc;
+	if (RT.isReduced(acc)) return ((IDeref)acc).deref();
       }
     }
     return acc;
@@ -705,14 +629,20 @@ public class TreeListBase implements IMutList {
       return new SubList(offset, data.cons(a));
     }
     public SubList assocN(int idx, Object a) {
-      return new SubList(offset, data.assocN(idx, a));
+      if(idx != count()) checkIndex(idx, count());
+      return new SubList(offset, data.assocN(idx + offset, a));
     }
     public IPersistentVector pop() {
       int cnt = count();
       if ( cnt == 0 ) throw new UnsupportedOperationException("Underflow");
-      if ( cnt == 1 ) return TreeList.EMPTY;
+      if ( cnt == 1 ) return TreeList.EMPTY.withMeta(data.meta());
       return new SubList(offset, data.pop());
     }
+    public IPersistentMap meta() { return data.meta(); }
+    public SubList withMeta(IPersistentMap meta) {
+      return new SubList(offset, data.withMeta(meta));
+    }
+    public IPersistentVector empty() { return data.empty(); }
     public Object peek() { return data.peek(); }
     public IMutList subList(int sidx, int eidx) {
       sublistCheck(sidx, eidx, size());

@@ -55,45 +55,12 @@ public class TreeList extends TreeListBase implements IPersistentVector, IEditab
     return _hash;
   }
   public int hashCode() { return hasheq(); }
-  public TreeList consAll(Iter data) {
-    int tlen = tail.length;
-    Object[] newTail = Arrays.copyOf(tail, tailWidth);
-    while(data != null && tlen < tailWidth) {
-      newTail[tlen++] = data.get();
-      data = data.next();
-    }
-    if(data == null)
-      return new TreeList(root, Arrays.copyOf(newTail, tlen), meta, shift, count);
-    Object newRoot = root;
-    int newShift = shift;
-    int newCount = count;
-    final int numSiblings = branchWidth-1;
-    data = Iter.prepend(newTail, data);
-    do {
-      ConsAllResult res = shift == 0 ?
-	((Leaf)newRoot).consAll(null, numSiblings, data) :
-	((Branch)newRoot).consAll(null, numSiblings, shift, data);
-      data = res.nextData;
-      newCount += res.added;
-      newTail = res.tail;
-      Object[] nodes = res.nodes;
-      if(nodes.length == 1) {
-	newRoot = nodes[0];
-      } else {
-	newRoot = new Branch(null, res.nodes);
-	newShift += 1;
-      }
-      //should assert here that data is null of tail is nonempty
-    } while(data != null);
-    return new TreeList(newRoot, newTail, meta, newShift, newCount);    
-  }
-
   public TreeList withMeta(IPersistentMap newMeta) {
     return new TreeList(root, tail, newMeta, shift, count);
   }
   public IPersistentMap meta() { return meta; }
 
-  public TreeList empty() { return EMPTY; }
+  public TreeList empty() { return meta == null ? EMPTY : EMPTY.withMeta(meta); }
 
   public TreeList assocN(int idx, Object obj) {
     if(idx == count)
@@ -117,7 +84,7 @@ public class TreeList extends TreeListBase implements IPersistentVector, IEditab
     if (count == 0)
       throw new IllegalStateException("Can't pop empty vector");
     if (count == 1)
-      return EMPTY;
+      return empty();
     Object[] newTail;
     Object newRoot;
     int newShift = shift;
@@ -129,7 +96,7 @@ public class TreeList extends TreeListBase implements IPersistentVector, IEditab
       SublistResult res = shift == 0 ? ((Leaf)root).pop(null) : ((Branch)root).pop(null, shift);
       newRoot = res.node;
       newTail = Arrays.copyOf(res.tail, tailWidth-1);
-      while(shift > 0) {
+      while(newShift > 0) {
 	Branch newBranch = (Branch)newRoot;
 	if(newBranch.data.length > 1)
 	  break;

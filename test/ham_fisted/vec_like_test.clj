@@ -1,7 +1,7 @@
 (ns ham-fisted.vec-like-test
   (:require [ham-fisted.api :as hamf]
             [clojure.test :refer [deftest is] :as test])
-  (:import [ham_fisted TreeList IMutList Iter MutTreeList]
+  (:import [ham_fisted TreeList IMutList MutTreeList]
            [java.util List]))
 
 (defn sublist-tumbler
@@ -85,32 +85,36 @@
     (is (= :x (.get s 0)))
     (is (not (instance? TreeList s)))))
 
+(deftest persistent-pop-test
+  (let [t (nth (iterate pop (reduce conj (TreeList.) (range 1088))) 33)]
+    (is (= (vec (range 1055)) (vec t))))
+  (let [t (reduce (fn [t _] (pop t)) (reduce conj (TreeList.) (range 33000)) (range 32000))]
+    (is (= (conj (vec (range 1000)) :a) (vec (conj t :a))))))
+
+(deftest persistent-meta-test
+  (is (= {:a 1} (meta (pop (with-meta (reduce conj (TreeList.) (range 1)) {:a 1})))))
+  (is (= {:a 1} (meta (empty (with-meta (reduce conj (TreeList.) (range 3)) {:a 1}))))))
+
+(deftest reduce-reduced-test
+  (let [rfn (fn [_ v] (if (= v 3) (reduced :done) v))]
+    (is (= :done (reduce rfn nil (reduce conj (TreeList.) (range 10)))))
+    (is (= :done (reduce rfn nil (reduce conj (TreeList.) (range 100)))))))
+
+(deftest sublist-ops-test
+  (let [t (reduce conj (TreeList.) (range 100))
+        s (.subList t 5 50)]
+    (is (instance? ham_fisted.TreeListBase$SubList s))
+    (is (= (assoc (subvec (vec (range 100)) 5 50) 0 :x 44 :y)
+           (vec (-> s (assoc 0 :x) (assoc 44 :y)))))
+    (is (= (conj (subvec (vec (range 100)) 5 50) :z) (vec (assoc s 45 :z))))
+    (is (thrown? IndexOutOfBoundsException (assoc s 46 :z)))
+    (is (= {:a 1} (meta (with-meta s {:a 1}))))
+    (is (= (range 5 50) (vec s)))))
+
 (defn add-all-reducible
   ^IMutList [^IMutList l data]
   (.addAllReducible l data)
   l)
-
-(defn ->iter
-  [data]
-  (when data
-    (if (instance? Iter data)
-      data
-      (Iter/fromIterator (.iterator ^Iterable data)))))
-
-(defn cons-all
-  ^TreeList [^TreeList l data]
-  (.consAll l (->iter data)))
-
-(deftype RangeIter [^long n
-                    ^{:unsynchronized-mutable true
-                      :tag long} idx]
-  Iter
-  (get [this] (Long/valueOf idx))
-  (next [this]
-    (set! idx (inc idx))
-    (when (< idx n)
-      this)))
-
 
 (comment
   (def tr (reduce conj (TreeList.) (range 35)))
@@ -122,8 +126,6 @@
   (crit/quick-bench (hamf/object-array (into [] rr)))
   (crit/quick-bench (add-all-reducible (hamf/object-array-list) rr))
   (crit/quick-bench (hamf/object-array (add-all-reducible (ham_fisted.MutTreeList.) rr)))
-  (crit/quick-bench (cons-all (ham_fisted.TreeList.) rr))
-  (crit/quick-bench (cons-all (ham_fisted.TreeList.) (RangeIter. (count rr) 0)))
   (crit/quick-bench (add-all-reducible (ham_fisted.BatchedList.) rr))
 
   (def tr (reduce conj (ham_fisted.TreeList.) rr))
