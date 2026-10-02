@@ -54,12 +54,13 @@
   ([f ^List cs]
    (let [chunk-data (ArrayLists/objectArray 32)
          ncs (.size cs)
-         args (ArrayLists/objectArray ncs)
          [cidx next?]
          (loop [cidx 0
                 next? true]
            (if (and next? (< cidx 32))
-             (let [next? (loop [idx 0 next? true]
+             ;;f may retain its arguments so each call gets a fresh array.
+             (let [args (ArrayLists/objectArray ncs)
+                   next? (loop [idx 0 next? true]
                            (if (< idx ncs)
                              (let [^ISeq c (.get cs (unchecked-int idx))
                                    _ (ArrayHelpers/aset args (unchecked-int idx) (.first c))

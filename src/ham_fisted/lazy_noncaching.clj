@@ -841,7 +841,8 @@
    (if(nil? data)
      '()
      (if-let [l (as-random-access data)]
-       (let [sl (.size l)]
+       (let [sl (.size l)
+             n (max 0 n)]
          (if (< sl n)
            '[]
            (.subList l n sl)))

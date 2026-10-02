@@ -445,7 +445,7 @@ ham_fisted.PersistentHashMap
   (^PersistentHashMap [data]
    (immut-map nil data))
   (^PersistentHashMap [options data]
-   (-> (mut-map options data)
+   (-> (mut-map nil options data)
        (persistent!))))
 
 
@@ -910,7 +910,7 @@ ham_fisted.PersistentHashMap
   (map-intersection (fn [lhs rhs] rhs) map1 map2)
   ```"
   [bfn map1 map2]
-  (if (or (nil? map2) (nil? map2))
+  (if (or (nil? map1) (nil? map2))
     empty-map
     (let [bfn (->bi-function bfn)]
       (if (map-set? map1)
@@ -1368,7 +1368,7 @@ nil
     - `#(LinkedHashMap.)` - When used with options {:ordered? true} the result keys will be
        in order *and* the result values will be reduced in order."
   ([key-fn init-val-fn rfn merge-fn options coll]
-   (let [has-map-fn? (get :map-fn options)
+   (let [has-map-fn? (get options :map-fn)
          map-fn (get options :map-fn mut-map)
          merge-bifn (->bi-function merge-fn)
          rfn (cond
@@ -1442,11 +1442,11 @@ nil
 
   * `:skip-finalize?` - skip finalization step."
   ([key-fn reducer coll]
-   (group-by-reducer key-fn reducer nil coll))
+   (group-by-consumer key-fn reducer nil coll))
   ([key-fn reducer options coll]
    (let [finalizer (when-not (:skip-finalize? options)
                      #(update-values % (bi-function k v (protocols/finalize reducer v))))
-         has-map-fn? (get :map-fn options)
+         has-map-fn? (get options :map-fn)
          map-fn (get options :map-fn mut-map)
          merge-fn (protocols/->merge-fn reducer)
          merge-bifn (->bi-function merge-fn)
@@ -1552,10 +1552,9 @@ nil
 
 (defn- concat-reducible
   (^IMutList [^IMutList retval v1 v2]
-   (let [retval (mut-list)]
-     (.addAllReducible retval (->reducible v1))
-     (.addAllReducible retval (->reducible v2))
-     retval))
+   (.addAllReducible retval (->reducible v1))
+   (.addAllReducible retval (->reducible v2))
+   retval)
   (^IMutList [^IMutList retval v1 v2 args]
    (when-not (nil? v1) (.addAllReducible retval (->reducible v1)))
    (when-not (nil? v2) (.addAllReducible retval (->reducible v2)))
@@ -2508,7 +2507,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
    (when coll
      (let [coll (->reducible coll)]
        (if (instance? RandomAccess coll)
-         (.subList ^List coll 0 (min (long n) (.size ^List coll)))
+         (.subList ^List coll 0 (max 0 (min (long n) (.size ^List coll))))
          (clojure.core/take n coll))))))
 
 
@@ -2521,7 +2520,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
        (if (instance? RandomAccess coll)
          (let [ne (.size ^List coll)
                n (long n)]
-           (.subList ^List coll (- ne n 1) ne))
+           (.subList ^List coll (max 0 (- ne n)) ne))
          (clojure.core/take-last n coll))))))
 
 
@@ -2555,7 +2554,7 @@ ham-fisted.api> (binary-search data 1.1 nil)
   (when coll
     (let [coll (->reducible coll)]
       (if (instance? RandomAccess coll)
-        (subvec coll (min (long n) (.size ^List coll)))
+        (subvec coll (max 0 (min (long n) (.size ^List coll))))
         (clojure.core/drop n coll)))))
 
 
@@ -2580,9 +2579,9 @@ ham-fisted.api> (binary-search data 1.1 nil)
      (let [coll (->reducible coll)]
        (if (instance? RandomAccess coll)
          (let [ne (.size ^List coll)
-               n (min (long n) ne)]
+               n (max 0 (min (long n) ne))]
            (.subList ^List coll 0 (- ne n)))
-         (clojure.core/take-last n coll))))))
+         (clojure.core/drop-last n coll))))))
 
 
 (defn repeat

@@ -285,7 +285,7 @@
   []
   `(do
      ~@(->>
-        {'(Class/forName "[Z") ['bytes 'BooleanArrayList.]
+        {'(Class/forName "[Z") ['booleans 'BooleanArrayList.]
          '(Class/forName "[B") ['bytes 'ByteArrayList.]
          '(Class/forName "[S") ['shorts 'ShortArrayList.]
          '(Class/forName "[C") ['chars 'CharArrayList.]

@@ -122,7 +122,7 @@
   (set? [l] true)
   (union [l r]
     (let [^BitSet l (.clone l)]
-      (.or ^BitSet (.clone l) (bitset r))
+      (.or l (bitset r))
       l))
   (difference [l r]
     (let [^BitSet l (.clone l)]

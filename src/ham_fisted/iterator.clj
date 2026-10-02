@@ -75,7 +75,9 @@
     (instance? Iterator item)
     item
     (instance? ArraySeq item)
-    (->iterator (.array ^ArraySeq item))
+    (let [^ArraySeq item item
+          ary (.-array item)]
+      (.iterator (ArrayLists/toList ary (.index item) (alength ary) nil)))
     (instance? Iterable item)
     (.iterator ^Iterable item)
 
@@ -174,7 +176,7 @@
       (.cons ^clojure.lang.IPersistentCollection sq o)
       (list o)))
   (empty [_] '())
-  (equiv [this o] (clojure.lang.Util/equiv (seq this) o))
+  (equiv [this o] (clojure.lang.Util/equiv (or (seq this) '()) o))
   clojure.lang.Sequential
   clojure.lang.IHashEq
   (hasheq [this] (hash (or (seq this) '())))

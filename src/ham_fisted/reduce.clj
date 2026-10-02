@@ -214,7 +214,7 @@ ham-fisted.api> @*1
   ([reducers] (compose-reducers nil reducers))
   ([options reducers]
    (if (instance? Map reducers)
-     (let [reducer (compose-reducers (vals reducers))]
+     (let [reducer (compose-reducers options (vals reducers))]
        (reify
          protocols/Reducer
          (->init-val-fn [_] (protocols/->init-val-fn reducer))
@@ -376,7 +376,7 @@ ham-fisted.api> (reduce-reducers {:a (Sum.) :b *} (range 1 21))
   (let [^Reducible r (first reducibles)]
     (when-not (instance? Reducible r)
       (throw (Exception. (str "Sequence does not contain reducibles: " (type (first r))))))
-    (.reduce r (rest reducibles))))
+    (.reduceIter r (.iterator ^Iterable (rest reducibles)))))
 
 
 (def double-consumer-accumulator

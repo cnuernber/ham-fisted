@@ -140,6 +140,7 @@
    (let [parallelism (.-parallelism options)
          n-elems (long n-elems)]
      (if (or (in-fork-join-task?)
+             (== n-elems 0)
              (< n-elems (.-minN options))
              (< parallelism 2))
        [(body-fn 0 n-elems)]
@@ -154,7 +155,7 @@
            (map (fn [l r] (.get ^Future l)) submissions lookahead)
            (iter-queue->seq (.iterator ^Iterable lookahead) queue))))))
   ([n-elems body-fn]
-   (pgroups n-elems body-fn nil)))
+   (pgroups n-elems body-fn (ParallelOptions.))))
 
 (defn- lookahead-iterable
   ^Iterable [^Iterator submissions ^long n-ahead deref?]
@@ -278,7 +279,7 @@
        (if (and (>= bit 0) (not (reduced? acc)))
          (recur (.nextSetBit coll (unchecked-inc bit))
                 (.invokePrim rfn acc (Integer/toUnsignedLong bit)))
-         acc))))
+         (unreduced acc)))))
   ([^BitSet coll rfn]
    (if (.isEmpty coll)
      (rfn)
@@ -291,7 +292,7 @@
                 (if first
                   bit
                   (rfn acc (Integer/toUnsignedLong bit))))
-         acc)))))
+         (unreduced acc))))))
 
 
 (deftype ^:private BitSetIterator [^{:unsynchronized-mutable true
@@ -367,9 +368,9 @@
       ICollectionDef
       (add [c obj]
         (let [obj (int obj)
-              retval (.get item obj)]
-          (.set item (int obj))
-          retval))
+              present? (.get item obj)]
+          (.set item obj)
+          (not present?)))
       (remove [c obj]
         (let [obj (int obj)
               retval (.get item obj)]
@@ -475,7 +476,7 @@
 
 (defn map-fast-reduce
   [map-cls]
-  (clojure.core/extend
+  (clojure.core/extend map-cls
       cl-proto/CollReduce
     {:coll-reduce (fn map-reducer
                     ([coll f]
