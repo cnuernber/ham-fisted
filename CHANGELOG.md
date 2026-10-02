@@ -1,3 +1,22 @@
+# 3.036
+ * TreeList/MutTreeList (`immut-list`, `mut-list`) fixes:
+   * transient `.set`/`assoc!` into the tree and `pop!` past the tail threw ClassCastException.
+   * transient `pop!` corrupted the tail and could write into shared structure.
+   * transients no longer edit arrays shared with the persistent list they came from.
+   * using a transient after `persistent!` throws instead of silently mutating the result.
+   * persistent `pop` threw when the root collapsed to a leaf.
+   * `pop`/`empty` keep metadata, `reduce` unwraps `reduced` in the tail.
+   * sublists: `assoc` honors the offset and `meta`/`withMeta` work.
+   * removed the broken `TreeList.consAll`.
+ * lazy-noncaching implementations moved from Transformables.java into the lznc namespace;
+   stacked map/filter fuse into a single reduction.
+ * lznc random access shapes are preserved for all java array types; `map-indexed` sublists keep
+   their offset; `tuple-map` and `cartesian-map` return random access results for random access inputs.
+ * lznc fixes: `partition-all` with step != n, `take` with n <= 0, `partition-by` calling f twice,
+   `tuple-map` iterators.
+ * fixes: `iterator/iter-take` reading past n, `split-reduce` ignoring reduced in typed rfns,
+   fjp `managed-block-unwrap` typo.
+
 # 3.035
  * ham-fisted's fjp namespace received some close attention.
  
