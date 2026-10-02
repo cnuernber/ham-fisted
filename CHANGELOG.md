@@ -1,3 +1,21 @@
+# 3.037
+ * binary-priority executor implements the whole ExecutorService (submit Runnable, execute, shutdown,
+   invokeAll, ...) and its queue the whole BlockingQueue (drainTo for shutdownNow, no lost poll wakeups).
+ * bloom filters: `insert-obj` of int/short/byte matches `contains?`, the UUID predicate is thread safe,
+   strings hash as UTF-8.
+ * `obj-ary` with 11-16 arguments (and `vector`/`ovec` with 12+) put the wrong values in the array.
+ * `take`/`drop`/`take-last`/`drop-last` negative and oversized counts; `drop-last` on seqs.
+ * `immut-map` with options, `map-intersection` with a nil map, `group-by-consumer` 3-arity and
+   `:map-fn` detection in group-by-reduce/consumer.
+ * BitSet `union`, reduction with `reduced` and collection `add`; boolean array `wrap-array`/`into-array`.
+ * The fast reduce paths for java.util.HashMap/LinkedHashMap/SortedMap/ConcurrentHashMap are installed -
+   they were silently never registered.
+ * `->iterator` of an offset ArraySeq, empty seq-iterables equal `()`, `lazy-caching/map` with 5+
+   collections, `reduce-reducibles`, `impl/pgroups` 2-arity, `preduce` of empty input with `:min-n 0`.
+ * `function/double->obj` and `double-consumer` compile; `obj->long`/`obj->double` accept multiple forms.
+ * `comp-nan-first`/`comp-nan-last` obey the comparator contract for nil/NaN pairs.
+ * `process/stream->strings` decodes multi-byte characters split across reads.
+
 # 3.036
  * TreeList/MutTreeList (`immut-list`, `mut-list`) fixes:
    * transient `.set`/`assoc!` into the tree and `pop!` past the tail threw ClassCastException.

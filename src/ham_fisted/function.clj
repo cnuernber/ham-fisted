@@ -3,7 +3,7 @@
   package objects."
   (:import [ham_fisted IFnDef$ODO IFnDef$OOO IFnDef$OO IFnDef$OL IFnDef$LongPredicate
             IFnDef$DoublePredicate IFnDef$DD IFnDef$LL IFnDef IFnDef$LD IFnDef$DL IFnDef$OD
-            IFnDef$LO Casts IFnDef$Predicate IFnDef$LLL IFnDef$DDD]
+            IFnDef$LO IFnDef$DO Casts IFnDef$Predicate IFnDef$LLL IFnDef$DDD]
            [java.util.function BiFunction BiConsumer Function DoublePredicate LongPredicate Predicate
             Consumer LongConsumer DoubleConsumer LongBinaryOperator DoubleBinaryOperator
             BiPredicate]
@@ -50,8 +50,8 @@
         (Casts/longCast v#))))
   ([varname & code]
    `(reify IFnDef$OL
-      (invokePrim [this ~varname]
-        (Casts/longCast ~@code)))))
+      (invokePrim [this# ~varname]
+        (Casts/longCast (do ~@code))))))
 
 
 (defmacro obj->double
@@ -63,7 +63,7 @@
   ([varname & code]
    `(reify IFnDef$OD
       (invokePrim [this# ~varname]
-        (Casts/doubleCast ~@code)))))
+        (Casts/doubleCast (do ~@code))))))
 
 
 (defmacro long->double
@@ -265,13 +265,13 @@
     Comparator
     (^int compare [this ^Object l ^Object r]
      (cond
-       (nil? l) -1
+       (nil? l) (if (nil? r) 0 -1)
        (nil? r) 1
        :else (Util/compare l r)))
     DoubleComparator
     (^int compare [this ^double l ^double r]
      (cond
-       (Double/isNaN l) -1
+       (Double/isNaN l) (if (Double/isNaN r) 0 -1)
        (Double/isNaN r) 1
        :else
        (Double/compare l r)))
@@ -289,13 +289,13 @@
     Comparator
     (^int compare [this ^Object l ^Object r]
      (cond
-       (nil? l) 1
+       (nil? l) (if (nil? r) 0 1)
        (nil? r) -1
        :else (clojure.lang.Util/compare l r)))
     DoubleComparator
     (^int compare [this ^double l ^double r]
      (cond
-       (Double/isNaN l) 1
+       (Double/isNaN l) (if (Double/isNaN r) 0 1)
        (Double/isNaN r) -1
        :else
        (Double/compare l r)))

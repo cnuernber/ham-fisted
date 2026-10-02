@@ -6,7 +6,7 @@
   `dbls` and `lngs` will most efficiently destructure java primitive arrays and fall back to casting the result
   of clojure.lang.RT/nth if input is not a double or long array.
 
-  `dlb-fns` and `lng-fns` call the object's IFn interface with no interface checking.  This will *not* work
+  `dbl-fns` and `lng-fns` call the object's IFn interface with no interface checking.  This will *not* work
    with a raw array but is the fastest way - faster than RT/nth - to get data out of a persistent-vector or map
    like object.
 
@@ -93,7 +93,7 @@ user> (hamf/sum-fast (lznc/cartesian-map
   "Extensible let intended to allow typed destructuring of arbitrary datatypes such as primitive arrays
   or point types.  Falls back to normal let after extension process.  Several extensions are registered by default -
   * `dbls` and `lngs` which destructure into primitive doubles and primitive longs, respectively.
-  * `dlb-fns` and `lng-fns` which destructure into primitive doubls and longs but use the often faster IFn overloads
+  * `dbl-fns` and `lng-fns` which destructure into primitive doubls and longs but use the often faster IFn overloads
      to get the data - avoiding RT.nth calls.
   * `obj-fns` which destructure into objects using the IFn interface.
 

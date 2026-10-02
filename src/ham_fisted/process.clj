@@ -5,12 +5,14 @@
 (defn stream->strings
   ([input] (stream->strings input 256 (java.nio.charset.Charset/defaultCharset)))
   ([^java.io.InputStream input bufsize ^java.nio.charset.Charset charset]
-   (let [buffer (byte-array bufsize)]
+   ;;Decode through a reader so multi-byte characters split across reads stay intact.
+   (let [rdr (java.io.InputStreamReader. input charset)
+         buffer (char-array bufsize)]
      (hamf-iter/once-iterable
-      #(let [size (long (try (.read input buffer)
+      #(let [size (long (try (.read rdr buffer)
                              (catch Exception e 0)))]
          (when (pos? size)
-           (String. buffer 0 size charset)))))))
+           (String. buffer 0 (unchecked-int size))))))))
 
 (defn- strip-trailing
   ^String [data]
@@ -179,7 +181,8 @@ ham-fisted.process> (def result ((:wait-or-kill *1)))
         (clojure.string/join " " (concat [cmd-name]
                                          (map->cmd-line jvm-opts)
                                          (map->cmd-line (dissoc args :xmx :jvm-opts
-                                                                :stdout-hdlr :stderr-hdlr))))
+                                                                :stdout-hdlr :stderr-hdlr
+                                                                :print-cmd-line?))))
         {:keys [^java.lang.ProcessHandle proc-hdl] :as rv} (launch cmd-line args)
         desc (loop [desc (process-descendants proc-hdl)]
                (if (== 0 (count desc) )

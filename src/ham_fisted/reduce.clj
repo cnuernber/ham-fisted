@@ -104,7 +104,7 @@
      container's reduction is individually parallelized while seqwise indicates to do a
      pmap style initial reduction across containers then merge the results.
   * `:put-timeout-ms` - Number of milliseconds to wait for queue space before throwing
-     an exception in unordered reductions.  Defaults to 50000.
+     an exception in unordered reductions.  Defaults to 5000.
   * `:unmerged-result?` - Defaults to false.  When true, the sequence of results
      be returned directly without any merge steps in a lazy-noncaching container.  Beware
      the noncaching aspect -- repeatedly evaluating this result may kick off the parallelized

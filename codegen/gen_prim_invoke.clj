@@ -65,7 +65,7 @@
         (.write w (str "(defn ->" sname " ^" ifn-name " [f]
   (if (instance? " ifn-name " f)
     f
-    (throw (RuntimeException. (str f \" is not an instance of" ifn-name "\")))))\n"))
+    (throw (RuntimeException. (str f \" is not an instance of " ifn-name "\")))))\n"))
         (.write w (str "(defmacro " sname " [f"))
         (dotimes [i (dec (count sig))]
           (.write w (str " "))

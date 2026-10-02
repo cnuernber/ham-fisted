@@ -395,7 +395,6 @@
                             (deliver res nil)
                             nil))
                         (catch Throwable e
-                          (println "During take while!!" e)
                           (deliver res e)
                           e)))]
         {:data (seq-once-iterable non-nil? updater)
