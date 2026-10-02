@@ -156,7 +156,7 @@ public class ImmutList
   public final Object nth(int idx, Object notFound) {
     if (idx < 0)
       idx = idx + nElems;
-    return data.getValue(indexCheck(idx));
+    return idx >= 0 && idx < nElems ? data.getValue(idx + startidx) : notFound;
   }
   public final Object invoke(Object idx) {
     return nth(RT.intCast(idx));

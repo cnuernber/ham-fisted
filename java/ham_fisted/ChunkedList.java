@@ -128,7 +128,7 @@ public final class ChunkedList {
       final int dcidx = (startidx - sidx) / 32;
       Object[] dstc = retval[dcidx];
       if (dstc == null) {
-	dstc = dcidx == nnc ? new Object[nne%32] : new Object[32];
+	dstc = dcidx == nnc ? new Object[nne - (32 * nnc)] : new Object[32];
 	retval[dcidx] = dstc;
 	dstCapacity += dstc.length;
       }
@@ -342,8 +342,9 @@ public final class ChunkedList {
       startidx += copyLen;
       endidx += copyLen;
     }
-    //Zero out remaining blocks to ensure we don't hold onto any object references.
-    clear(startidx, wne);
+    //Zero out the vacated tail so we don't hold onto any object references.
+    for(int idx = ne - wne; idx < ne; ++idx)
+      mdata[idx/32][idx%32] = null;
     nElems = ne - wne;
   }
 
@@ -396,12 +397,13 @@ public final class ChunkedList {
 
   final ChunkedList pop(int startidx, int endidx) {
     ChunkedList retval = clone(startidx, endidx-1, 0, false);
-    final int nc = endidx - startidx;
+    //Truncate the chunk holding the popped element so the result doesn't retain it.
+    final int last = endidx - startidx - 1;
     final Object[][] rdata = retval.data;
-    final int cidx = nc/32;
-    if ( rdata.length > cidx ) {
+    final int cidx = last/32;
+    if ( rdata.length > cidx && rdata[cidx] != null ) {
       final Object[] c = rdata[cidx];
-      final int eidx = nc % 32;
+      final int eidx = last % 32;
       if (c.length > eidx) {
 	rdata[cidx] = Arrays.copyOf(c, eidx);
       }
@@ -637,7 +639,7 @@ public final class ChunkedList {
     for (int i=startidx; i<endidx && !RT.isReduced(init); i++) {
       init = f.invoke(init, i - startidx, mdata[i/32][i%32]);
     }
-    return init;
+    return Reductions.unreduce(init);
   }
 
   final ISeq seq(int startidx, int endidx) {
@@ -683,18 +685,12 @@ public final class ChunkedList {
       return true;
     } else if (o instanceof Iterable) {
       final Object[][] d = data;
-      final int ss = sidx;
-      return (Boolean)Reductions.serialReduction(new Reductions.IndexedAccum(new IFnDef.OLOO() {
-	  public Object invokePrim(Object acc, long idx, Object v) {
-	    final int iidx = (int)idx + ss;
-	    if(iidx >= eidx)
-	      return new Reduced(false);
-	    final Object vv = d[iidx/32][iidx%32];
-	    if(CljHash.equiv(vv, v) == false)
-	      return new Reduced(false);
-	    return acc;
-	  }
-	}), true, o);
+      final Iterator iter = ((Iterable)o).iterator();
+      for(int idx = sidx; idx < eidx; ++idx) {
+	if(!iter.hasNext() || !CljHash.equiv(d[idx/32][idx%32], iter.next()))
+	  return false;
+      }
+      return !iter.hasNext();
     } else {
       return false;
     }
@@ -706,9 +702,11 @@ public final class ChunkedList {
   final int indexOf(int startidx, int endidx, Object obj) {
     final int ne = endidx - startidx;
     final Object[][] mdata = data;
-    for(int idx = 0; idx < ne; ++idx)
-      if (Objects.equals(obj, mdata[idx/32][idx%32]))
+    for(int idx = 0; idx < ne; ++idx) {
+      final int midx = idx + startidx;
+      if (Objects.equals(obj, mdata[midx/32][midx%32]))
 	return idx;
+    }
     return -1;
   }
   final int lastIndexOf(int startidx, int endidx, Object obj) {
@@ -716,8 +714,9 @@ public final class ChunkedList {
     final int nne = ne - 1;
     final Object[][] mdata = data;
     for(int idx = 0; idx < ne; ++idx) {
-      final int ridx = nne - idx + startidx;
-      if (Objects.equals(obj, mdata[ridx/32][ridx%32]))
+      final int ridx = nne - idx;
+      final int midx = ridx + startidx;
+      if (Objects.equals(obj, mdata[midx/32][midx%32]))
 	return ridx;
     }
     return -1;
@@ -727,24 +726,9 @@ public final class ChunkedList {
   }
 
   final boolean containsAll(int startidx, int endidx, Collection<?> c) {
-    final int ne = endidx - startidx;
-    Iterator minC;
-    Iterator maxC;
-    if (ne < c.size()) {
-      minC = this.iterator(startidx, endidx);
-      maxC = c.iterator();
-    } else {
-      maxC = this.iterator(startidx, endidx);
-      minC = c.iterator();
-    }
-    //This set can contain null.
-    // HashSet<Object> hc = new HashSet<Object>();
-    // while(minC.hasNext()) hc.add(minC.next());
-    // while(maxC.hasNext()) {
-    //   if (!hc.contains(maxC.next()))
-    // 	return false;
-    // }
-    // return true;
-    throw new UnsupportedOperationException();
+    for(Object o: c)
+      if(!contains(startidx, endidx, o))
+	return false;
+    return true;
   }
 }

@@ -36,6 +36,12 @@ public class MutList<E>
   implements IMutList<E>, ChunkedListOwner, Cloneable, ITransientVector, UpdateValues
 {
   final ChunkedList data;
+  //Set once persistent! has been called - the persistent result shares data.
+  boolean frozen;
+  final void ensureEditable() {
+    if(frozen)
+      throw new IllegalAccessError("Transient used after persistent! call");
+  }
   public MutList() { data = new ChunkedList(); }
   public MutList(int capacity) { data = new ChunkedList(capacity); }
   public MutList(ChunkedList other) {
@@ -56,14 +62,22 @@ public class MutList<E>
   public final MutList<E> cloneList() {
     return clone();
   }
-  public final boolean add(E v) { data.add(v); return true; }
-  public final void add(int idx, E v) { data.add(v,idx); }
+  public final boolean add(E v) {
+    ensureEditable();
+    data.add(v);
+    return true;
+  }
+  public final void add(int idx, E v) {
+    ensureEditable();
+    data.add(v,idx);
+  }
   public final boolean addAll(Collection<? extends E> c) {
     return addAllReducible(c);
   }
 
   @SuppressWarnings("unchecked")
   public final boolean addAllReducible(Object c) {
+    ensureEditable();
     if( c instanceof Map)
       c = ((Map)c).entrySet();
     final int ssz = size();
@@ -133,6 +147,7 @@ public class MutList<E>
   }
 
   public final boolean addAll(int idx, Collection<? extends E> c) {
+    ensureEditable();
     if (c.isEmpty())
       return false;
     if (idx == data.nElems)
@@ -152,7 +167,10 @@ public class MutList<E>
     return true;
   }
 
-  public final void clear() { data.clear(); }
+  public final void clear() {
+    ensureEditable();
+    data.clear();
+  }
 
   public final boolean contains(Object v) {
     return data.contains(0, data.nElems, v);
@@ -176,6 +194,7 @@ public class MutList<E>
 
   @SuppressWarnings("unchecked")
   public final E set(int idx, E e) {
+    ensureEditable();
     return (E)data.setValueRV(indexCheck(idx), e);
   }
 
@@ -271,9 +290,9 @@ public class MutList<E>
     public final Object nth(int idx) { return data.getValue(wrapIndexCheck(idx)); }
     public final Object nth(int idx, Object notFound) {
       if (idx < 0)
-	idx = idx + data.nElems;
+	idx = idx + nElems;
 
-      return idx < data.nElems && idx > -1 ? data.getValue(idx+startidx) : notFound;
+      return idx < nElems && idx > -1 ? data.getValue(idx+startidx) : notFound;
     }
     public final Object invoke(Object idx) {
       return nth(RT.intCast(idx));
@@ -346,12 +365,14 @@ public class MutList<E>
 
   @SuppressWarnings("unchecked")
   public final E remove(int idx) {
-    final E retval = (E)data.getValue(idx);
+    ensureEditable();
+    final E retval = (E)data.getValue(indexCheck(idx));
     data.shorten(idx, idx+1);
     return retval;
   }
 
   public void fillRange(int startidx, int endidx, Object v) {
+    ensureEditable();
     indexCheck(startidx);
     if(endidx < startidx || endidx > data.nElems)
       throw new RuntimeException("End index out of range: " + String.valueOf(endidx));
@@ -359,22 +380,27 @@ public class MutList<E>
   }
 
   public void fillRange(int startidx, List v) {
+    ensureEditable();
     indexCheck(startidx);
-    final int endidx = v.size();
-    if(endidx < startidx || endidx > data.nElems)
+    final int endidx = startidx + v.size();
+    if(endidx > data.nElems)
       throw new RuntimeException("End index out of range: " + String.valueOf(endidx));
     data.fillRangeReduce(startidx, v);
   }
 
   public void addRange(int startidx, int endidx, Object v) {
+    ensureEditable();
     indexCheck(startidx);
     data.addRange(startidx, endidx, v);
   }
 
-  public void removeRange(int startidx, int endidx) {
-    indexCheck(startidx);
+  public void removeRange(long sidx, long eidx) {
+    ensureEditable();
+    final int startidx = (int)sidx;
+    final int endidx = (int)eidx;
     if (endidx == startidx)
       return;
+    indexCheck(startidx);
 
     if(endidx < startidx || endidx > data.nElems)
       throw new RuntimeException("End index out of range: " + String.valueOf(endidx));
@@ -462,8 +488,10 @@ public class MutList<E>
   }
   @SuppressWarnings("unchecked")
   public final MutList<E> assocN(int i, Object obj) {
-    if (i == data.nElems) add((E)obj);
-    set(indexCheck(i), (E)obj);
+    if (i == data.nElems)
+      add((E)obj);
+    else
+      set(indexCheck(i), (E)obj);
     return this;
   }
   public final MutList<E> pop() {
@@ -493,11 +521,14 @@ public class MutList<E>
     }
     return notFound;
   }
-  public ImmutList persistent() { return new ImmutList(0, data.nElems, data); }
+  public ImmutList persistent() {
+    frozen = true;
+    return new ImmutList(0, data.nElems, data);
+  }
   public ImmutList updateValues(BiFunction valueMap) {
-    return persistent().updateValues(valueMap);
+    return new ImmutList(0, data.nElems, data).updateValues(valueMap);
   }
   public ImmutList updateValue(Object key, Function valueMap) {
-    return persistent().updateValue(key, valueMap);
+    return new ImmutList(0, data.nElems, data).updateValue(key, valueMap);
   }
 }

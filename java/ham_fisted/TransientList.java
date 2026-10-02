@@ -15,6 +15,7 @@ public class TransientList implements ITransientVector, IFnDef {
   //Note there is no startidx.  We cannot share structure with sub-lists so startidx is
   //always 0.  Thus calling transient on a subvector results
   int nElems;
+  boolean persistent;
   public TransientList(ChunkedList _data, int _nElems, boolean _ownsEverything) {
     data = _data;
     nElems = _nElems;
@@ -24,6 +25,10 @@ public class TransientList implements ITransientVector, IFnDef {
       for(int idx = 0; idx < nChunks; ++idx)
 	ownedChunks.set(idx);
     }
+  }
+  final void ensureEditable() {
+    if(persistent)
+      throw new IllegalAccessError("Transient used after persistent! call");
   }
   final int indexCheck(int idx) {
     return ChunkedList.indexCheck(0, nElems, idx);
@@ -61,6 +66,7 @@ public class TransientList implements ITransientVector, IFnDef {
     return notFound;
   }
   public final TransientList assocN(int idx, Object v) {
+    ensureEditable();
     if (idx == nElems)
       return conj(v);
     indexCheck(idx);
@@ -82,6 +88,7 @@ public class TransientList implements ITransientVector, IFnDef {
     return assocN(RT.intCast(obj), v);
   }
   public final TransientList conj(Object v) {
+    ensureEditable();
     final int idx = nElems++;
     final int cidx = idx / 32;
     final int eidx = idx % 32;
@@ -89,6 +96,7 @@ public class TransientList implements ITransientVector, IFnDef {
     Object[] chunk;
     if (cidx == mdata.length) {
       mdata = Arrays.copyOf(mdata, cidx+1);
+      data.data = mdata;
       chunk = new Object[4];
       mdata[cidx] = chunk;
       ownedChunks.set(cidx);
@@ -104,6 +112,7 @@ public class TransientList implements ITransientVector, IFnDef {
     return this;
   }
   public final TransientList pop() {
+    ensureEditable();
     if(nElems == 0)
       throw new RuntimeException("Attempt to pop empty vector");
     final int idx = --nElems;
@@ -121,6 +130,7 @@ public class TransientList implements ITransientVector, IFnDef {
     return this;
   }
   public final ImmutList persistent() {
+    persistent = true;
     return new ImmutList(0, nElems, data);
   }
 }
