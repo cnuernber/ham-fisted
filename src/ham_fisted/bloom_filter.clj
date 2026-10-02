@@ -31,7 +31,7 @@
       bdata))
   String
   (serialize->bytes [v]
-    (.getBytes ^String v))
+    (.getBytes ^String v java.nio.charset.StandardCharsets/UTF_8))
   Instant
   (serialize->bytes [inst]
     (let [buf (java.nio.ByteBuffer/wrap (byte-array 12))]
@@ -79,9 +79,7 @@
 
 (defn insert-obj
   ^BlockSplitBloomFilter [bf o]
-  (if (instance? Long o)
-    (insert-hash! bf (long o))
-    (insert-hash! bf (BlockSplitBloomFilter/hash (serialize->bytes o)))))
+  (insert-hash! bf (hash-obj o)))
 
 (defn bitset-size
   "Return the length of the byte array underlying this bitset"
@@ -97,17 +95,15 @@
   (BlockSplitBloomFilter. data))
 
 (defn make-uuid-hasher
+  "Hash UUIDs identically to [[serialize->bytes]].  Safe to use from multiple threads."
   ^IFn$OL []
-  (let [bbuf (-> (java.nio.ByteBuffer/allocate 16)
-                 (.order java.nio.ByteOrder/LITTLE_ENDIAN))
-        bdata (.array bbuf)]
-    (hamf-fn/obj->long
-     v
-     (do
-       (.putLong bbuf (.getMostSignificantBits ^UUID v))
-       (.putLong bbuf (.getLeastSignificantBits ^UUID v))
-       (.position bbuf 0)
-       (BlockSplitBloomFilter/hash bdata)))))
+  (hamf-fn/obj->long
+   v
+   (let [bbuf (-> (java.nio.ByteBuffer/allocate 16)
+                  (.order java.nio.ByteOrder/LITTLE_ENDIAN))]
+     (.putLong bbuf (.getMostSignificantBits ^UUID v))
+     (.putLong bbuf (.getLeastSignificantBits ^UUID v))
+     (BlockSplitBloomFilter/hash (.array bbuf)))))
 
 (defn add-uuids!
   ^BlockSplitBloomFilter [bf val-seq]

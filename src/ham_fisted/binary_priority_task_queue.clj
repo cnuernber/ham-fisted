@@ -2,7 +2,8 @@
   (:require [ham-fisted.defprotocol :refer [extend-type]]
             [ham-fisted.protocols :as hamf-proto])
   (:import [ham_fisted BinaryPriorityFutureTask CooperativeTPE CooperativeTPE$PooledThread]
-           [java.util.concurrent BlockingQueue LinkedBlockingQueue TimeUnit ThreadPoolExecutor ThreadFactory Executors ExecutorService]
+           [java.util ArrayDeque]
+           [java.util.concurrent BlockingQueue LinkedBlockingQueue TimeUnit ThreadPoolExecutor ThreadFactory Executors ExecutorService Callable]
            [java.util.concurrent.locks ReentrantLock])
   (:refer-clojure :exclude [extend-type]))
 
@@ -15,41 +16,102 @@
 
 (defn is-in-binary-priority-task? [] (BinaryPriorityFutureTask/isInBinaryPriorityTask))
 
-(defn binary-priority-blocking-queue ^BlockingQueue []
-  (let [lowq (LinkedBlockingQueue.)
-        highq (LinkedBlockingQueue.)
+(defn binary-priority-blocking-queue
+  "Unbounded blocking queue where high priority tasks (see [[ham-fisted.protocols/is-high-priority?]])
+  are always taken before low priority tasks."
+  ^BlockingQueue []
+  (let [lowq (ArrayDeque.)
+        highq (ArrayDeque.)
         lock (ReentrantLock.)
-        cc (.newCondition lock)]
+        cc (.newCondition lock)
+        ;;All of these must be called with lock held.
+        poll-one (fn [] (or (.poll highq) (.poll lowq)))
+        n-items (fn ^long [] (+ (.size highq) (.size lowq)))]
     (reify
       BlockingQueue
       (offer [_ task]
         (.lock lock)
         (try
-          (let [rv
-                (if (hamf-proto/is-high-priority? task)
-                  (.offer highq task)
-                  (.offer lowq task))]
-            (.signal cc)
-            rv)
+          (if (hamf-proto/is-high-priority? task)
+            (.add highq task)
+            (.add lowq task))
+          (.signal cc)
+          true
           (finally (.unlock lock))))
-      (isEmpty [_] (boolean (and (.isEmpty highq) (.isEmpty lowq))))
+      (offer [this task _timeout _time-unit] (.offer this task))
+      (add [this task] (.offer this task))
+      (put [this task] (.offer this task) nil)
+      (poll [_]
+        (.lock lock)
+        (try (poll-one) (finally (.unlock lock))))
       (poll [_ timeout time-unit]
-        (if-let [ht (.poll highq 0 TimeUnit/MILLISECONDS)]
-          ht
-          (if-let [lt (.poll lowq 0 TimeUnit/MILLISECONDS)]
-            lt
-            (do
-              (.lock lock)
-              (try
-                (.await cc timeout time-unit)
-                (finally (.unlock lock)))
-              (or (.poll highq 0 TimeUnit/MILLISECONDS) (.poll lowq 0 TimeUnit/MILLISECONDS))))))
-      (take [this] (.poll this Integer/MAX_VALUE TimeUnit/MILLISECONDS))
-      (size [_] (+ (.size highq) (.size lowq)))
-      (remove [_ t] (throw (RuntimeException. "Unimplemented")))
+        (let [deadline (+ (System/nanoTime) (.toNanos ^TimeUnit time-unit timeout))]
+          (.lock lock)
+          (try
+            ;;Checking and waiting under the lock means an offer cannot slip in between.
+            (loop []
+              (or (poll-one)
+                  (let [remaining (- deadline (System/nanoTime))]
+                    (when (pos? remaining)
+                      (.awaitNanos cc remaining)
+                      (recur)))))
+            (finally (.unlock lock)))))
+      (take [_]
+        (.lock lock)
+        (try
+          (loop []
+            (or (poll-one)
+                (do (.await cc) (recur))))
+          (finally (.unlock lock))))
+      (peek [_]
+        (.lock lock)
+        (try (or (.peek highq) (.peek lowq)) (finally (.unlock lock))))
+      (isEmpty [_]
+        (.lock lock)
+        (try (== 0 (n-items)) (finally (.unlock lock))))
+      (size [_]
+        (.lock lock)
+        (try (unchecked-int (n-items)) (finally (.unlock lock))))
+      (remainingCapacity [_] Integer/MAX_VALUE)
+      (remove [_ t]
+        (.lock lock)
+        (try (boolean (or (.remove highq t) (.remove lowq t))) (finally (.unlock lock))))
+      (contains [_ t]
+        (.lock lock)
+        (try (boolean (or (.contains highq t) (.contains lowq t))) (finally (.unlock lock))))
+      (drainTo [this c] (.drainTo this c Integer/MAX_VALUE))
+      (drainTo [_ c max-elems]
+        (.lock lock)
+        (try
+          (loop [n 0]
+            (if-let [t (when (< n (long max-elems)) (poll-one))]
+              (do (.add ^java.util.Collection c t) (recur (unchecked-inc n)))
+              (unchecked-int n)))
+          (finally (.unlock lock))))
+      (clear [_]
+        (.lock lock)
+        (try (.clear highq) (.clear lowq) (finally (.unlock lock))))
+      (^objects toArray [_]
+        (.lock lock)
+        (let [^objects rv (try (into-array Object (concat highq lowq)) (finally (.unlock lock)))]
+          rv))
+      (^objects toArray [this ^"[Ljava.lang.Object;" ary]
+        (let [^objects data (.toArray this)
+              ^objects rv (if (<= (alength data) (alength ary))
+                            (do (System/arraycopy data 0 ary 0 (alength data))
+                                (when (< (alength data) (alength ary))
+                                  (aset ary (alength data) nil))
+                                ary)
+                            (java.util.Arrays/copyOf data (alength data) (.getClass ^Object ary)))]
+          rv))
+      ;;Snapshot iterator - removal through it is not supported.
+      (iterator [this] (.iterator (java.util.Arrays/asList (.toArray this))))
       clojure.lang.IDeref
-      (deref [_] {:lowq-size (.size lowq)
-                  :highq-size (.size highq)}))))
+      (deref [_]
+        (.lock lock)
+        (try {:lowq-size (.size lowq)
+              :highq-size (.size highq)}
+             (finally (.unlock lock)))))))
 
 (comment
   (defrecord HR [] hamf-proto/BinaryPriority (is-high-priority? [_] true))
@@ -119,6 +181,20 @@
         (let [fv (future-task task (boolean (.get BinaryPriorityFutureTask/isHighPriorityVar)))]
           (.execute thread-pool fv)
           fv))
+      (submitRunnable [this task]
+        (.submitCallable this (Executors/callable ^Runnable task)))
+      (submitRunnable [this task result]
+        (.submitCallable this (Executors/callable ^Runnable task result)))
+      (execute [this task] (.submitRunnable this task) nil)
+      (shutdown [_] (.shutdown thread-pool))
+      (shutdownNow [_] (.shutdownNow thread-pool))
+      (isShutdown [_] (.isShutdown thread-pool))
+      (isTerminated [_] (.isTerminated thread-pool))
+      (awaitTermination [_ timeout unit] (.awaitTermination thread-pool timeout unit))
+      (invokeAll [_ tasks] (.invokeAll thread-pool tasks))
+      (invokeAll [_ tasks timeout unit] (.invokeAll thread-pool tasks timeout unit))
+      (invokeAny [_ tasks] (.invokeAny thread-pool tasks))
+      (invokeAny [_ tasks timeout unit] (.invokeAny thread-pool tasks timeout unit))
       PrioritySubmit
       (submitCallablePriority [_ task high-priority?]
         (let [fv (future-task task high-priority?)]
