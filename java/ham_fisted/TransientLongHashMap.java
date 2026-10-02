@@ -24,11 +24,15 @@ public class TransientLongHashMap
     int hc = hash(key);
     int idx = hc & mask;
     LongHashNode e = data[idx];
+    final int len = length;
     data[idx] = e != null ? e.assoc(this, key, hc, val) : newNode(key, hc, val);
+    if(length != len) checkResize(null);
     return this;
   }
   public TransientLongHashMap without(Object kk) {
     ensureEditable();
+    if(!(kk instanceof Number))
+      return this;
     long key = Casts.longCast(kk);
     int hc = hash(key);
     int idx = hc & mask;

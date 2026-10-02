@@ -13,7 +13,9 @@ public class TransientHashSet extends ROHashSet implements IATransientSet {
     int hc = hash(key);
     int idx = hc & mask;
     HashNode e = data[idx];
+    final int len = length;
     data[idx] = e != null ? e.assoc(this, key, hc, VALUE) : newNode(key, hc, VALUE);
+    if(length != len) checkResize(null);
     return this;
   }
   public TransientHashSet disjoin(Object key) {

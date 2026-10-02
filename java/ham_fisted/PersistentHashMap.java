@@ -73,7 +73,7 @@ public class PersistentHashMap
   public PersistentHashMap withMeta(IPersistentMap m) {
     return new PersistentHashMap(this, m);
   }
-  public PersistentHashMap empty() { return EMPTY; }
+  public PersistentHashMap empty() { return meta == null ? EMPTY : EMPTY.withMeta(meta); }
   public PersistentHashMap union(Map o, BiFunction bfn) {
     return new PersistentHashMap(union(shallowClone(), o, bfn));
   }
@@ -90,6 +90,6 @@ public class PersistentHashMap
     return new PersistentHashMap(updateValues(shallowClone(), valueMap));
   }
   public PersistentHashMap updateValue(Object k, Function fn) {
-    return new PersistentHashMap(updateValue(this, fn));
+    return new PersistentHashMap(updateValue(shallowClone(), k, fn));
   }
 }

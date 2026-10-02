@@ -530,14 +530,20 @@ public class HashMap extends HashBase implements IMap, MapSetOps, UpdateValues {
     HashNode e = data[idx];
     for(; e != null && !((e.k == k) || rv.equals(e.k, k)); e = e.nextNode);
     final Object newv = e != null ? fn.apply(e.v) : fn.apply(null);
-    data[idx] = newv == null ? data[idx].dissoc(rv, k) : data[idx].assoc(rv, k, hc, newv);
+    if(newv == null) {
+      if(e != null) data[idx] = data[idx].dissoc(rv, k);
+    } else if(data[idx] == null) {
+      data[idx] = rv.newNode(k, hc, newv);
+    } else {
+      data[idx] = data[idx].assoc(rv, k, hc, newv);
+    }
     if(newv != null && e == null) rv.checkResize(null);
     return rv;
   }
 
   public HashMap updateValue(Object k, Function fn) {
     ensureEditable();
-    return updateValue(this, fn);
+    return updateValue(this, k, fn);
   }
 
   public Iterator iterator(Function<Map.Entry,Object> leafFn) {

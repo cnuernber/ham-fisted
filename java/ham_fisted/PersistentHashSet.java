@@ -23,7 +23,7 @@ public class PersistentHashSet extends ROHashSet implements IAPersistentSet, IOb
   public ITransientSet asTransient() {
     return isEmpty() ?  new UnsharedHashSet(meta) : new TransientHashSet(this, meta);
   }
-  public PersistentHashSet empty() { return EMPTY; }
+  public PersistentHashSet empty() { return meta == null ? EMPTY : EMPTY.withMeta(meta); }
   public PersistentHashSet union(Collection rhs) {
     return new PersistentHashSet(union(shallowClone(), rhs));
   }

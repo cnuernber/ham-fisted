@@ -3,6 +3,7 @@ package ham_fisted;
 
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.Spliterator;
 import java.util.function.Function;
 import java.util.function.Consumer;
@@ -169,6 +170,7 @@ public class LongHashBase implements IMeta {
     }
     public boolean hasNext() { return l != null; }
     public Object next() {
+      if(l == null) throw new NoSuchElementException();
       LongHashNode rv = l;
       advance();
       return fn.apply(rv);
@@ -180,6 +182,8 @@ public class LongHashBase implements IMeta {
     int sidx;
     int eidx;
     int estimateSize;
+    //Sizes are only exact before the first split.
+    boolean split;
     LongHashNode l;
     public HTSpliterator(LongHashNode[] d, int len, Function<Map.Entry,Object> fn) {
       this.d = d;
@@ -203,26 +207,35 @@ public class LongHashBase implements IMeta {
 	final int idxLen = nIdxs/2;
 	final int oldIdx = this.eidx;
 	this.eidx = this.sidx + idxLen;
-	this.estimateSize = this.estimateSize / 2;
-	return new HTSpliterator(d, this.eidx, oldIdx, this.estimateSize, this.fn);
+	final int rhsSize = this.estimateSize / 2;
+	this.estimateSize -= rhsSize;
+	this.split = true;
+	HTSpliterator rv = new HTSpliterator(d, this.eidx, oldIdx, rhsSize, this.fn);
+	rv.split = true;
+	return rv;
       }
       return null;
     }
-    public int characteristics() { return Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.SIZED; }
+    public int characteristics() { return Spliterator.DISTINCT | (split ? 0 : Spliterator.SIZED); }
     public long estimateSize() { return estimateSize; }
-    public long getExactSizeIfKnown() { return estimateSize(); }
+    public long getExactSizeIfKnown() { return split ? -1 : estimateSize; }
+    void consumed() { if(estimateSize > 0) --estimateSize; }
     @SuppressWarnings("unchecked")
     public boolean tryAdvance(Consumer c) {
       if(this.l != null) {
-	c.accept(this.fn.apply(this.l));
-	this.l = this.l.nextNode;
+	final LongHashNode ll = this.l;
+	this.l = ll.nextNode;
+	consumed();
+	c.accept(this.fn.apply(ll));
 	return true;
       }
       for(; sidx < eidx; ++sidx) {
 	final LongHashNode ll = this.d[sidx];
 	if(ll != null) {
-	  c.accept(this.fn.apply(ll));
+	  ++sidx;
 	  this.l = ll.nextNode;
+	  consumed();
+	  c.accept(this.fn.apply(ll));
 	  return true;
 	}
       }
@@ -232,6 +245,10 @@ public class LongHashBase implements IMeta {
       final LongHashNode[] dd = this.d;
       final int ee = this.eidx;
       final Function<Map.Entry,Object> ffn = this.fn;
+      for(LongHashNode e = this.l; e != null; e = e.nextNode) {
+	acc = rfn.invoke(acc, ffn.apply(e));
+	if(RT.isReduced(acc)) return ((IDeref)acc).deref();
+      }
       for(int idx = sidx; idx < ee; ++idx) {
 	for(LongHashNode e = dd[idx]; e != null; e = e.nextNode) {
 	  acc = rfn.invoke(acc, ffn.apply(e));
@@ -243,6 +260,8 @@ public class LongHashBase implements IMeta {
   }
 
   final boolean containsNodeKey(Object kk) {
+    if(!(kk instanceof Number))
+      return false;
     long key = Casts.longCast(kk);
     for(LongHashNode e = this.data[hash(key) & this.mask]; e != null; e = e.nextNode) {
       if(e.k == key)

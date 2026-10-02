@@ -36,7 +36,7 @@ public class PersistentLongHashMap
   public PersistentLongHashMap withMeta(IPersistentMap m) {
     return new PersistentLongHashMap(this, m);
   }
-  public PersistentLongHashMap empty() { return EMPTY; }
+  public PersistentLongHashMap empty() { return meta == null ? EMPTY : EMPTY.withMeta(meta); }
   public PersistentLongHashMap union(Map o, BiFunction bfn) {
     return new PersistentLongHashMap(union(shallowClone(), o, bfn));
   }
@@ -53,6 +53,6 @@ public class PersistentLongHashMap
     return new PersistentLongHashMap(updateValues(shallowClone(), valueMap));
   }
   public PersistentLongHashMap updateValue(Object k, Function fn) {
-    return new PersistentLongHashMap(updateValue(this, fn));
+    return new PersistentLongHashMap(updateValue(shallowClone(), k, fn));
   }
 }

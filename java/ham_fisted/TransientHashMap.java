@@ -32,7 +32,9 @@ public class TransientHashMap
     int hc = hash(key);
     int idx = hc & mask;
     HashNode e = data[idx];
+    final int len = length;
     data[idx] = e != null ? e.assoc(this, key, hc, val) : newNode(key, hc, val);
+    if(length != len) checkResize(null);
     return this;
   }
   public TransientHashMap without(Object key) {

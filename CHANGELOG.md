@@ -8,6 +8,18 @@
    * `pop`/`empty` keep metadata, `reduce` unwraps `reduced` in the tail.
    * sublists: `assoc` honors the offset and `meta`/`withMeta` work.
    * removed the broken `TreeList.consAll`.
+ * Hash map/set fixes:
+   * `conj`/`disj` on a persistent hash set (and `conj!`/`disj!` on its transient) modified the source set.
+   * transient maps and sets never resized, making them quadratic to build.
+   * using a transient or `mut-map`/`mut-set`/`mut-long-map` after `persistent!` throws instead of
+     silently mutating the persistent result.
+   * editing a `shallowClone` no longer modifies the original.
+   * hash table spliterators repeated the first element of each bucket forever when used via `tryAdvance`
+     (e.g. `.stream` + `.limit`).
+   * `updateValue` recursed until stack overflow.
+   * long hash maps: `compute` returning nil removes the entry; `contains?`/`dissoc` of non-numeric keys
+     no longer throw.
+   * `empty` keeps metadata; `LinkedHashMap` spliterators follow insertion order.
  * lazy-noncaching implementations moved from Transformables.java into the lznc namespace;
    stacked map/filter fuse into a single reduction.
  * lznc random access shapes are preserved for all java array types; `map-indexed` sublists keep

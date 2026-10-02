@@ -938,3 +938,63 @@
     (.remove d 5)
     (is (= (set (range 20)) s))
     (is (= (-> (set (range 1 20)) (conj 100) (disj 5)) d))))
+
+
+(deftest transients-resize
+  (let [m (persistent! (reduce #(assoc! %1 %2 %2) (transient (api/immut-map {1 1})) (range 5000)))]
+    (is (< 1000 (.capacity ^ham_fisted.HashMap m)))
+    (is (= (zipmap (range 5000) (range 5000)) m)))
+  (let [s (persistent! (reduce conj! (transient (api/immut-set [1])) (range 5000)))]
+    (is (< 1000 (.capacity ^ham_fisted.HashSet s)))
+    (is (= (set (range 5000)) s)))
+  (let [m (persistent! (reduce #(assoc! %1 %2 %2) (transient (persistent! (api/mut-long-map {1 1}))) (range 5000)))]
+    (is (= (zipmap (range 5000) (range 5000)) m))))
+
+(deftest hashtable-streams
+  (let [m (api/mut-map (zipmap (range 100) (range 100)))
+        s (api/immut-set (range 100))
+        lm (api/mut-long-map (zipmap (range 100) (range 100)))]
+    (is (= 5 (count (-> (.stream (.keySet m)) (.limit 5) (.toArray)))))
+    (is (= (set (range 100)) (set (iterator-seq (.iterator (.stream s))))))
+    (is (= (set (range 100)) (set (iterator-seq (.iterator (.stream (.keySet lm)))))))
+    (is (= 4950 (-> (.stream s) (.parallel) (.mapToLong (reify java.util.function.ToLongFunction (applyAsLong [_ v] (long v)))) (.sum))))
+    (is (= 100 (-> (.stream s) (.parallel) (.count))))
+    (let [sp (.spliterator s)
+          seen (java.util.ArrayList.)]
+      (.tryAdvance sp (reify java.util.function.Consumer (accept [_ v] (.add seen v))))
+      (is (= 99 (.estimateSize sp)))
+      (.forEachRemaining sp (reify java.util.function.Consumer (accept [_ v] (.add seen v))))
+      (is (= (set (range 100)) (set seen)))
+      (is (= 100 (count seen))))
+    (is (thrown? java.util.NoSuchElementException (.next (.iterator (api/immut-set [])))))))
+
+(deftest linked-hashmap-spliterator-order
+  (let [m (api/linked-hashmap)
+        ks (shuffle (range 50))]
+    (doseq [k ks] (.put ^Map m k k))
+    (is (= ks (vec (-> (.stream (.keySet ^Map m)) (.toArray)))))))
+
+(deftest update-value-test
+  (is (= {:a 2} (.updateValue (api/mut-map {:a 1}) :a inc)))
+  (is (= {:a 1 :zz 1} (.updateValue (api/mut-map {:a 1}) :zz (fn [_] 1))))
+  (is (= {} (.updateValue (api/mut-map {:a 1}) :a (fn [_] nil))))
+  (is (= {:a 1} (.updateValue (api/mut-map {:a 1}) :zz (fn [_] nil))))
+  (let [p (api/immut-map {:a 1})]
+    (is (= {:a 2} (.updateValue ^PersistentHashMap p :a inc)))
+    (is (= {:a 1} p)))
+  (is (= {1 1 5 1} (.updateValue (api/mut-long-map {1 1}) 5 (fn [_] 1)))))
+
+(deftest long-hashmap-keys
+  (let [m (api/mut-long-map {1 2})]
+    (.compute ^Map m 1 (reify BiFunction (apply [_ k v] nil)))
+    (is (= 0 (count m)))
+    (is (nil? (get m 1))))
+  (let [m (api/mut-long-map {1 2})]
+    (is (false? (contains? m :a)))
+    (is (nil? (.remove ^Map m :a)))
+    (is (= {1 2} (dissoc (persistent! m) :a)))))
+
+(deftest empty-keeps-meta
+  (is (= {:a 1} (meta (empty (with-meta (api/immut-map {1 2}) {:a 1})))))
+  (is (= {:a 1} (meta (empty (with-meta (api/immut-set [1]) {:a 1})))))
+  (is (= {:a 1} (meta (empty (with-meta (persistent! (api/mut-long-map {1 2})) {:a 1}))))))

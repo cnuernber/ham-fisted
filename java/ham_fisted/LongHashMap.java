@@ -187,8 +187,13 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps, Update
 	e.v = newV;
 	modify(e);
       }
-      else
-	remove(k, null);
+      else {
+	dec(e);
+	if(ee != null)
+	  ee.nextNode = e.nextNode;
+	else
+	  d[idx] = e.nextNode;
+      }
     } else if(newV != null) {
       LongHashNode nn = newNode(k, hash, newV);
       if(ee != null)
@@ -227,6 +232,8 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps, Update
   }
   public Object remove(Object kk) {
     ensureOwned();
+    if(!(kk instanceof Number))
+      return null;
     long key = Casts.longCast(kk);
     int loc = hash(key) & this.mask;
     LongHashNode lastNode = null;
@@ -429,14 +436,20 @@ public class LongHashMap extends LongHashBase implements IMap, MapSetOps, Update
     LongHashNode e = data[idx];
     for(; e != null && !((e.k == k)); e = e.nextNode);
     final Object newv = e != null ? fn.apply(e.v) : fn.apply(null);
-    data[idx] = newv == null ? data[idx].dissoc(rv, k) : data[idx].assoc(rv, k, hc, newv);
+    if(newv == null) {
+      if(e != null) data[idx] = data[idx].dissoc(rv, k);
+    } else if(data[idx] == null) {
+      data[idx] = rv.newNode(k, hc, newv);
+    } else {
+      data[idx] = data[idx].assoc(rv, k, hc, newv);
+    }
     if(newv != null && e == null) rv.checkResize(null);
     return rv;
   }
 
   public LongHashMap updateValue(Object k, Function fn) {
     ensureEditable();
-    return updateValue(this, fn);
+    return updateValue(this, k, fn);
   }
 
   public Iterator iterator(Function<Map.Entry,Object> leafFn) {

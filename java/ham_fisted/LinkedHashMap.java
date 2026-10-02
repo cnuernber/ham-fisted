@@ -1,4 +1,6 @@
 package ham_fisted;
+import java.util.Spliterators;
+import java.util.Spliterator;
 
 import java.util.Map;
 import java.util.Set;
@@ -106,6 +108,11 @@ public class LinkedHashMap extends HashMap {
   }
   public Iterator iterator(Function<Map.Entry,Object> fn) {
     return new LinkedIter(fn, lastLink);
+  }
+  //Bucket order would not match iteration order.
+  public Spliterator spliterator(Function<Map.Entry,Object> fn) {
+    return Spliterators.spliterator(iterator(fn), length,
+				    Spliterator.DISTINCT | Spliterator.ORDERED);
   }
   public Object reduce(IFn rfn, Object acc) {
     for(LinkedHashNode hn = lastLink; hn != null; hn = hn.nextLink) {
