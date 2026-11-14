@@ -1,4 +1,4 @@
-# Unreleased
+# 3.038
  * `lazy-noncaching/tree-seq` - non-caching, stack safe depth first walk; ~30x faster than
    `clojure.core/tree-seq` to reduce or iterate (#19).
 
