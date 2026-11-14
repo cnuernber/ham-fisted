@@ -38,7 +38,7 @@
            [java.util NoSuchElementException Arrays])
   (:refer-clojure :exclude [map concat filter repeatedly into-array shuffle object-array
                             remove map-indexed partition-by partition-all every?
-                            complement cond drop take count]))
+                            complement cond drop take count tree-seq]))
 
 
 (set! *warn-on-reflection* true)
@@ -975,6 +975,64 @@
        (reify IMutList
          (size [this] (int n))
          (get [this idx] (f)))))))
+
+
+(defn- tree-children-iter
+  "Iterator over the children of a branch node - nil children are an empty iterator."
+  ^Iterator [children node]
+  (if-let [c (children node)] (src-iter c) (.iterator ArrayImmutList/EMPTY)))
+
+(defseqtype ^:private TreeSeqIterable [branch? children root m]
+  Transformables$IterableSeq
+  (iterator [this]
+    ;;Depth first, pre-order.  A stack of child iterators lives on the heap so deep trees
+    ;;cannot overflow the call stack.
+    (let [stack (java.util.ArrayDeque.)]
+      (.push stack (.iterator (ArrayLists/toList (clojure.core/object-array [root]))))
+      (reify Iterator
+        (hasNext [_]
+          (loop []
+            (if-let [^Iterator top (.peek stack)]
+              (if (.hasNext top) true (do (.pop stack) (recur)))
+              false)))
+        (next [this]
+          (if (.hasNext this)
+            (let [node (.next ^Iterator (.peek stack))]
+              (when (branch? node) (.push stack (tree-children-iter children node)))
+              node)
+            (throw (NoSuchElementException.)))))))
+  (reduce [this rfn acc]
+    (let [^IFn rfn rfn
+          stack (java.util.ArrayDeque.)
+          step (fn [acc node]
+                 (when (branch? node) (.push stack (tree-children-iter children node)))
+                 (rfn acc node))]
+      (loop [acc (step acc root)]
+        (if (reduced? acc)
+          (deref acc)
+          (if-let [^Iterator top (.peek stack)]
+            (if (.hasNext top)
+              (recur (step acc (.next top)))
+              (do (.pop stack) (recur acc)))
+            acc)))))
+  (meta [this] m)
+  (withMeta [this mm] (TreeSeqIterable. branch? children root mm)))
+
+(defn tree-seq
+  "Non-caching version of clojure.core/tree-seq - a depth first, pre-order walk of the tree
+  rooted at root.  branch? is a predicate of one argument that returns true if the node can
+  have children, children is a function of one argument that returns the node's children.
+
+  The result is an iterable/reducible that walks the tree again on every iteration or
+  reduction - branch? and children are called each time.  Traversal uses an explicit
+  stack so very deep trees do not overflow the call stack.
+
+```clojure
+user> (vec (lznc/tree-seq sequential? seq [1 [2 [3 4]] 5]))
+[[1 [2 [3 4]] 5] 1 [2 [3 4]] 2 [3 4] 3 4 5]
+```"
+  [branch? children root]
+  (TreeSeqIterable. branch? children root nil))
 
 
 (defn ^:no-doc contained-type

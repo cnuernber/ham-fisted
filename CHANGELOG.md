@@ -1,3 +1,7 @@
+# Unreleased
+ * `lazy-noncaching/tree-seq` - non-caching, stack safe depth first walk; ~30x faster than
+   `clojure.core/tree-seq` to reduce or iterate (#19).
+
 # 3.037
  * binary-priority executor implements the whole ExecutorService (submit Runnable, execute, shutdown,
    invokeAll, ...) and its queue the whole BlockingQueue (drainTo for shutdownNow, no lost poll wakeups).
